@@ -1,4 +1,6 @@
 fileignoreconfig:
 - filename: .claude/conditional/design-principles.md
   checksum: 7b6299f35dc9367b06f77c8f834d76ca3fdf410d61aeefcf3cbdb2367ae3567d
+- filename: docs/superpowers/specs/2026-08-02-ancalagon-agent-harness-design.md
+  checksum: 47a08e40d2f359f480175ed13334038ac40c03baa9f995b97da0d74f2c042414
 version: "1.0"

@@ -1,0 +1,272 @@
+# Ancalagon — Agent Harness for Reverse Engineering
+
+**Date:** 2026-08-02
+**Status:** Design approved, not yet implemented
+
+## Purpose
+
+An agent harness for reverse engineering. Given one or more data structures and a goal, an agent either works the structure directly with tools, or generates a deterministic traversal program — plus the Pydantic contracts for its own analysis touch points — and runs that under supervision.
+
+Which path is taken depends on the goal. Where the walk over a structure can be pinned down deterministically, it should be, and the model should be invoked only at the points where judgement is genuinely needed. Where the traversal itself requires judgement, an agent walks it with tools. Both paths use the same delegation primitive, so neither is privileged.
+
+The structures are arbitrary: a document parsed to JSON, a control flow graph, an AST dump, a binary's symbol table. The only requirement is that a deterministic program can be written against them with LLM touch points.
+
+## Non-goals
+
+- Not a general agent framework. It is a toolkit of primitives, per `PHILOSOPHY.md`.
+- Not distributed. Everything runs on one machine, in a handful of local processes.
+- No streaming progress from running subagents. A running agent's transcript is a file; read it.
+- No automatic retry, no compaction, no concurrency in v1.
+
+## Architecture
+
+Three kinds of process, communicating only through SQLite rows and files.
+
+```
+CLI ─┬─ root agent ──── INSERT task row ────▶ bus.db ◀─── SELECT/UPDATE ───┐
+     │                  run_harness                                        │
+     └─ supervisor ◀──── SELECT queued ──────┘                        supervisor
+                    spawn / reap / kill-on-timeout / report                 │
+                              │                                             │
+                        worker (one Session)  ──▶ files                     │
+                        harness (traversal)   ──▶ INSERT task rows ─────────┘
+```
+
+- **Root agent** — a `Session`. Reasons, uses tools, delegates, generates harnesses.
+- **Worker** — one `Session` per process, one attempt at one task. Crashes in isolation.
+- **Supervisor** — a plain loop, no LLM. The only place in the codebase that constructs `Popen`.
+- **Harness** — agent-generated Python. A deterministic walk that delegates at touch points. No LLM client of its own.
+
+### Communication
+
+There is no IPC. No sockets, pipes, signals, or message broker.
+
+- A parent delegates by writing `spec.json` and inserting a `queued` row. It never spawns anything and never holds a process handle.
+- The supervisor claims queued rows, spawns, reaps, kills on timeout, and writes status back.
+- A worker writes `outcome.json`, appends to `transcript.jsonl`, and exits.
+- An agent learns of completions by querying at its own turn boundary.
+
+Querying at the turn boundary costs nothing over a push notification, because an LLM cannot act between turns. Polling is only a cost when something could have reacted sooner.
+
+Deterministic harness code *can* react sooner, but it also queries rows rather than waiting on process events, so that process liveness stays the supervisor's concern alone.
+
+### What was deliberately cut
+
+**`ask_parent`.** A subagent cannot ask its parent a question mid-run. It returns `needs_input` and stops; the parent decides what to do. This removes sockets, responder threads, question/answer protocols, resumption choreography, and every partial-failure question that came with them. A child can never block a parent, and a dead child cannot hang anything, because nobody holds a handle to it except the supervisor.
+
+This is a real capability loss and is accepted knowingly. The prior art surveyed (Claude Code, LangChain background subagents, LangGraph `interrupt()`) either does not support child→parent escalation at all, or implements it via polling or checkpoint/resume — both of which were rejected on their own merits before that survey was run.
+
+**Automatic restart.** The supervisor reports crashes; it never retries them. Retrying costs a fresh budget slice, so the parent must decide each retry is worth it. Auto-restarting an agent that crashed deterministically just spends the budget three times to reach the same failure.
+
+The supervisor's one autonomous act is killing a wedged agent after a generous timeout, because a process that never exits cannot report anything and nobody else is positioned to act.
+
+## Task model
+
+The directory is the identity.
+
+```
+ws/runs/r_09/tasks/section_4_2/
+    spec.json          the work
+    transcript.jsonl   every attempt, appended, each line tagged with agent id
+    outcome.json       latest result
+    stderr-17.log      per agent
+```
+
+```
+python -m ancalagon.worker --dir ws/runs/r_09/tasks/section_4_2 --agent-id 17
+```
+
+`agent-id` is the `tasks.id` row the supervisor inserted before spawning — a unique integer, no naming scheme to invent, and it joins straight back to the DB. Multiple attempts append to one transcript; each line carries its agent id, so `rg '"agent": 17'` isolates one attempt and the seam between attempts is visible where `seq` resets.
+
+### Resumption
+
+Resumption is not a mode. The worker loads whatever transcript is already in the directory.
+
+```python
+def main(dir: Path, agent_id: int):
+    spec = AgentSpec.model_validate_json((dir / "spec.json").read_text())
+    log = dir / "transcript.jsonl"
+    messages = repair(load(log)) if log.exists() else []
+    messages.append(user(spec.goal))
+    Session(spec, messages, log, agent_id).run()
+```
+
+- **Continue with history** — point at the existing directory.
+- **Clean retry** — new directory, same spec. Correct when the crash was caused by bad accumulated state.
+
+`repair` is the only mechanical step: a transcript ending in an unanswered `tool_use` is rejected by the API, so the loader appends synthetic `interrupted` tool results. Synthesising rather than truncating is deliberate — the successor can see what its predecessor was reaching for when it died, which is often the most informative thing in the transcript.
+
+Because a resumed agent's transcript already contains everything it inherited, chains flatten. One hop always yields the full history.
+
+### Persistence
+
+Every message is appended and flushed as it is produced, never written at exit:
+
+```python
+def append(self, m: Message):
+    self.messages.append(m)
+    self.log.write(m.model_dump_json() + "\n"); self.log.flush()
+```
+
+This is load-bearing. A killed agent's partial history must survive the kill or there is nothing to resume from. The root agent writes on the same discipline, so an entire run is reconstructible from disk after any crash, including the root's.
+
+## Contracts
+
+```python
+class AgentSpec(BaseModel):
+    task_id: str
+    behaviour: str                 # how to work — becomes the system prompt
+    goal: str                      # what to achieve
+    input: dict                    # the slice this agent operates on
+    output: str                    # "contracts.py:CaptionVerdict"
+    budget: Budget
+    tools: list[str] = []          # empty means everything permitted by config
+
+class Outcome(BaseModel):
+    kind: OutcomeKind              # completed | needs_input | exhausted | failed | timeout
+    value: dict                    # validated against spec.output
+    detail: str = ""               # the question, or the error — kind says which
+    summary: str                   # capped at 1000 chars; this is the DB row
+    spent: Budget
+
+class ToolResult(BaseModel):
+    ok: bool
+    summary: str                   # capped; what the agent sees inline
+    path: Path                     # full output, always written
+    byte_count: int
+    truncated: bool
+    error: str = ""
+```
+
+`output` names a class in the generated `contracts.py`. The worker validates before writing and the caller re-validates after reading, so the contract is enforced on both sides of the file and neither side trusts it blindly.
+
+`value` is a `dict` rather than a typed generic because the class it validates against is generated at runtime and named in the spec.
+
+Tool failures are `ok=False` values, not exceptions. A bad `rg` pattern is something the agent reads and corrects; it never breaks the loop.
+
+### Schema
+
+```sql
+tasks(id PK, dir, parent, status, pid, exit_code, summary, started, finished)
+messages(id PK, ts, sender, addressee, kind, summary, ref_path)
+cursors(consumer PK, last_seen_id)
+```
+
+**No column holds unbounded content.** Rows are metadata and pointers; bytes are files. This keeps `select *` readable in a terminal, which is the entire point of choosing SQLite — the run is inspectable mid-flight with `sqlite3` and `rg`, with no tooling of ours involved.
+
+Multiple rows sharing a `dir` are the attempt history of one task. Task status is derived from its rows rather than stored twice.
+
+WAL mode, `busy_timeout=5000`, one connection per process.
+
+## Budgets
+
+Separate **turn** and **tool-call** budgets, allocated per attempt by the caller as a slice of its own remaining budget. Because the process boundary is the session boundary, a worker handed six turns physically cannot spend seven.
+
+Exhaustion is a hard stop plus one forced final turn with tools stripped, instructing the agent to answer from what it has. The result is `Outcome(kind=exhausted)` carrying a real value rather than a truncation.
+
+`max_depth` bounds nesting and counts agents, not processes — a harness is transparent to the count, so root is 0 and a touch-point agent is 1. Expected to be 1 in practice.
+
+## Tools
+
+| Tool | Notes |
+|---|---|
+| `ripgrep` | pattern + roots, JSON output mode |
+| `ast_grep` | structural search, exploratory |
+| `treesitter` | parse a file, emit AST as JSON |
+| `sed` | stream only, never `-i` |
+| `read_file`, `list_dir` | read scope |
+| `write_file`, `edit_file`, `delete_file` | write scope only |
+| `delegate`, `check_task`, `collect_task` | rows in `bus.db` |
+| `run_harness` | row in `bus.db` |
+
+**Every tool output is a file.** Results are written to `runs/<id>/tools/<seq>-<tool>.<ext>`; `ToolResult` carries a capped summary plus the path. The agent sees enough inline to decide and reaches for `read_file` or `ripgrep` when it needs detail.
+
+`sed` being stream-only removes the entire class of "the agent mutated the artifact it was analysing", and transform-to-a-new-file is what generated code wants anyway.
+
+### Workspace scoping
+
+Two scopes, because reverse engineering means reading things you must not write to:
+
+```toml
+[workspace]
+write_root = "./ws"
+read_roots = ["/path/to/artifacts", "./ws"]
+```
+
+Enforcement is one function every path argument passes through: `Path.resolve()` first, then `is_relative_to()` against the allowed roots. Resolving first kills `..` traversal and symlink escapes together — a symlink inside the workspace pointing at `/etc` resolves outside `write_root` and is rejected.
+
+## Configuration
+
+TOML. Keys: `write_root`, `read_roots`, model and provider, default turn and tool-call budgets, `max_concurrent_agents` (defaults to 1 — v1 is sequential, and this is the single knob that makes it otherwise), `agent_timeout_s` (generous), `max_depth`, enabled tools, summary cap.
+
+## Model access
+
+LiteLLM, behind a local protocol so it is never called from `Session` directly:
+
+```python
+class LLM(Protocol):
+    def complete(self, messages: list[Message], tools: list[dict]) -> Reply: ...
+```
+
+`LiteLLM` for real use, `FakeLLM` with scripted replies injected in tests. This confines provider quirks to one file and makes every unit test runnable with no network. LiteLLM's sync API is required; nothing in this system is async.
+
+## Implementation constraints
+
+Hand-rolled agent loop. No agent framework — the control flow is straight-line Python and a framework's `Agent`/`RunContext` model would fight the mutually-recursive script↔agent relationship.
+
+**Ceiling: ~1050 LoC** excluding tests, relaxable with justification. The table below sums to 1070; treat any module exceeding its line as a signal to re-read the guardrails, not as licence to expand the total.
+
+| Module | LoC | Module | LoC |
+|---|---|---|---|
+| `contracts.py` | 130 | `tools/search.py` | 90 |
+| `session.py` | 150 | `tools/parse.py` | 80 |
+| `supervisor.py` | 100 | `tools/files.py` | 90 |
+| `bus.py` | 80 | `tools/harness.py` | 40 |
+| `worker.py` | 50 | `tools/registry.py` | 50 |
+| `llm.py` | 60 | `workspace.py` | 50 |
+| `config.py` | 40 | `cli.py` | 60 |
+
+Guardrails in `CLAUDE.md` apply: no gold plating, no comments beyond a one-line class header, few tests each covering a whole behaviour.
+
+## Testing
+
+Eight tests. One per coherent behaviour, each asserting everything that behaviour implies.
+
+| Test | Covers |
+|---|---|
+| `test_workspace_scoping` | `..`, symlink escape, absolute path outside, read-root not writable |
+| `test_budget` | slice, decrement, exhaustion, forced final turn with tools stripped |
+| `test_session_loop` | `FakeLLM`: tool call → result → completion → outcome written |
+| `test_contracts` | spec/outcome round-trip, `output` class resolution, validation failure |
+| `test_repair` | transcript ending mid-`tool_use` gets synthetic interrupted results |
+| `test_bus` | insert, claim-once under two consumers, cursor advance |
+| `test_supervisor` | queued→running→completed, crash→crashed, timeout→killed |
+| `tests/integration/test_end_to_end` | small JSON, generated harness, one real agent |
+
+Only the last hits the network.
+
+## Build order
+
+The substrate is useful whether or not the central bet pays off, and is roughly 600 of the 900 lines. Build it first.
+
+1. `contracts`, `config`, `workspace`, `bus`
+2. `llm` with `FakeLLM`, `session`, `worker`
+3. `supervisor`, `cli`
+4. Tool set
+5. `run_harness` and codegen prompting
+
+Then test the bet early, on one real artifact, with both paths against the same goal: an agent walking the structure freehand, versus an agent generating a deterministic traversal with touch points. If the generated traversal does not win, a day is lost and a working multi-agent harness remains.
+
+## Known limitations
+
+**Context grows monotonically** across resumptions. There is no compaction; the budget is the only bound. The mitigation is conventional rather than technical: a `needs_input` follow-up should usually be a new task with a small input slice, and resumption reserved for cases where accumulated exploration is the point.
+
+**Generated traversals are agent-authored code** and can be silently wrong in ways the results do not reveal. Every output being a file is part of the mitigation; the other part is that harness edits are diffed into the transcript, so a rewrite after a crash is visible rather than inferred.
+
+**The central bet is untested.** No surveyed prior art demonstrates that agent-generated deterministic traversal with in-situ contracts beats an agent walking the structure with tools. The nearest work — "Code as Agent Harness" (arXiv 2605.18747) — covers code as an executable substrate but explicitly not LLM-generated orchestration that instantiates sub-agents, and flags executable contracts constraining agent behaviour as underspecified.
+
+**This is a poor-man's OTP.** The supervision model is deliberately Erlang-shaped — isolate, let it crash, let a supervisor decide — but with OS-process granularity and a hand-rolled supervisor, not microsecond spawns and millions of processes. Where genuine OTP semantics are wanted, Elixir already has them.
+
+## Deferred
+
+Concurrent fan-out, sibling messaging, parent→child steering, role-based addressing, transcript compaction. None are foreclosed: all of them are rows and files, and each is additive to what is specified here.
