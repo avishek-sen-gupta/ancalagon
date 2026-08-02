@@ -11,4 +11,6 @@ fileignoreconfig:
   checksum: 844256abd1455d7c550eca680c8b56d6723ec8f3fd8437ab46f91774bed9f1df
 - filename: docs/superpowers/plans/2026-08-03-ancalagon-substrate.md
   checksum: dad56bb88ded3533244d7f16f43bd9ce526cacfaba1b511558af92bae52a611a
+- filename: uv.lock
+  checksum: f2d240971bc5971bec803cd7f26c386db823e404399fea94c59b61ec8133b56f
 version: "1.0"
