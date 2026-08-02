@@ -67,6 +67,7 @@ def main(
     outcome_path = task_dir / "outcome.json"
     transcript_path = task_dir / "transcript.jsonl"
     log = Transcript(path=transcript_path, agent_id=agent_id)
+    bus = Bus.open(run_dir / "bus.db")
     try:
         spec_text = (task_dir / "spec.json").read_text()
         spec = TaskSpec.model_validate_json(spec_text)
@@ -89,7 +90,7 @@ def main(
                 config,
                 run_dir,
                 parent=agent_id,
-                depth=depth_of(Bus.open(run_dir / "bus.db"), agent_id),
+                depth=depth_of(bus, agent_id),
             ),
             ctx=ctx,
             output_class=output_class,

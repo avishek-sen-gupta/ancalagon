@@ -1,6 +1,7 @@
 import pathlib
 
 from ancalagon.bus.bus import Bus
+from ancalagon.bus.depth_of import depth_of
 from ancalagon.bus.task_status import TaskStatus
 
 
@@ -38,3 +39,14 @@ def test_bus_enqueues_claims_once_and_advances_cursor(tmp_path: pathlib.Path):
     assert [m.kind for m in inbox] == ["task_done"]
     assert inbox[0].sender == first
     assert bus.inbox(consumer=0) == []
+
+
+def test_depth_counts_ancestors_with_the_root_at_zero(tmp_path: pathlib.Path):
+    bus = Bus.open(tmp_path / "bus.db")
+    root = bus.enqueue(pathlib.Path("ws/tasks/root"), parent=0)
+    child = bus.enqueue(pathlib.Path("ws/tasks/child"), parent=root)
+    grandchild = bus.enqueue(pathlib.Path("ws/tasks/grandchild"), parent=child)
+
+    assert depth_of(bus, root) == 0
+    assert depth_of(bus, child) == 1
+    assert depth_of(bus, grandchild) == 2

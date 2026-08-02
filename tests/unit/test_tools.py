@@ -1,5 +1,7 @@
 import pathlib
 
+import ancalagon.config.config
+from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.files.delete_file import DeleteFile
 from ancalagon.tools.files.edit_file import EditFile
@@ -11,6 +13,7 @@ from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.search.sed import Sed
+from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
 
 
@@ -127,3 +130,25 @@ def test_search_and_parse_tools_write_outputs_and_never_mutate_inputs(tmp_path: 
 
     denied = Sed().run(f'{{"script": "s/a/b/", "path": "{tmp_path / "outside.txt"}"}}', ctx)
     assert denied.ok is False
+
+
+def test_registry_withholds_delegate_once_depth_reaches_max_depth(tmp_path: pathlib.Path):
+    config = ancalagon.config.config.Config(
+        write_root=tmp_path,
+        read_roots=(tmp_path,),
+        model="claude-opus-5",
+        max_tokens=100,
+        budget=Budget(turns=1, tool_calls=1),
+        max_concurrent_agents=1,
+        agent_timeout_s=1,
+        max_depth=1,
+        tools=[],
+        summary_chars=100,
+    )
+    at_root = build_registry(config, tmp_path, parent=0, depth=0)
+    at_limit = build_registry(config, tmp_path, parent=1, depth=1)
+
+    assert "delegate" in at_root.names()
+    assert "need_input" in at_root.names()
+    assert "delegate" not in at_limit.names()
+    assert "need_input" in at_limit.names()

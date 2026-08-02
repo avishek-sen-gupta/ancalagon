@@ -21,7 +21,11 @@ def _to_wire(message: Message) -> list[WireMessage]:
         ]
     text = "".join(b.text for b in message.blocks if isinstance(b, Text))
     calls = [
-        WireToolCall(id=b.id, function=WireFunction(name=b.name, arguments=b.arguments))
+        WireToolCall(
+            id=b.id,
+            type="function",
+            function=WireFunction(name=b.name, arguments=b.arguments),
+        )
         for b in message.blocks
         if isinstance(b, ToolUse)
     ]

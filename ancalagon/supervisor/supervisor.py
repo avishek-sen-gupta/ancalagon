@@ -43,7 +43,7 @@ class Supervisor:
             row = claimed[0]
             try:
                 process = self.spawner.spawn(pathlib.Path(row.dir), row.id)
-            except OSError as exc:
+            except Exception as exc:
                 LOGGER.exception("spawn failed for task %s", row.id)
                 self.bus.finish(row.id, TaskStatus.CRASHED, exit_code=-1, summary=str(exc))
                 self.bus.post(
