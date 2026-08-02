@@ -297,15 +297,17 @@ Only the last hits the network.
 
 ## Build order
 
-The substrate is useful whether or not the central bet pays off, and is roughly 600 of the 900 lines. Build it first.
+The substrate is useful whether or not the central bet pays off, and is roughly 600 of the total. Build it first.
 
-1. `contracts`, `config`, `workspace`, `bus`
+1. `contracts`, `config`, `workspace`, `bus`, `migrations`
 2. `llm` with `FakeLLM`, `session`, `worker`
 3. `supervisor`, `cli`
 4. Tool set
 5. `run_harness` and codegen prompting
 
-Then test the bet early, on one real artifact, with both paths against the same goal: an agent walking the structure freehand, versus an agent generating a deterministic traversal with touch points. If the generated traversal does not win, a day is lost and a working multi-agent harness remains.
+Then test the bet on a bottom-up graph annotation — a structure with a computed traversal order and a per-node LLM step, which is the regime where a generated program should most clearly win. The question is not whether the pattern works, it is whether the agent writes it correctly: right order, cycles condensed, child results actually awaited, memoisation present.
+
+Compare against a hand-written traversal over the same structure and goal. If the generated one is wrong in ways the outputs do not reveal, that is the finding, and a working multi-agent harness remains either way.
 
 ## Known limitations
 
@@ -313,10 +315,18 @@ Then test the bet early, on one real artifact, with both paths against the same 
 
 **Generated traversals are agent-authored code** and can be silently wrong in ways the results do not reveal. Every output being a file is part of the mitigation; the other part is that harness edits are diffed into the transcript, so a rewrite after a crash is visible rather than inferred.
 
-**The central bet is untested.** No surveyed prior art demonstrates that agent-generated deterministic traversal with in-situ contracts beats an agent walking the structure with tools. The nearest work — "Code as Agent Harness" (arXiv 2605.18747) — covers code as an executable substrate but explicitly not LLM-generated orchestration that instantiates sub-agents, and flags executable contracts constraining agent behaviour as underspecified.
+The sharpest instance is **cycles**. A generated traversal that walks a cyclic graph as if it were a DAG will recurse forever, deadlock waiting on a result that depends on itself, or quietly emit summaries built from empty children. Nothing in the harness detects this — condensing strongly connected components is the generated code's responsibility, and it must be an explicit requirement in the codegen prompting rather than something the agent is trusted to remember.
+
+**The central bet is that traversals can be *generated*, not that they work.** Deterministic traversal with per-node LLM annotation is well established — GraphRAG summarises graph communities bottom-up, RAPTOR recursively clusters and summarises, and hierarchical summarisation over call graphs and ASTs is routine. Where traversal order is structurally determined (bottom-up annotation, dataflow propagation, any fixpoint), a program plainly beats an agent walking freehand: order is computed rather than judged, child results are a hard dependency, and no agent orchestrates five hundred nodes in one context window.
+
+In all of that prior art the pipeline is hand-written by engineers and the model only fills the touch points. What is unproven here is that the **agent authors the traversal and its contracts in situ** from a goal and a structure, and that the generated code is correct often enough to trust. "Code as Agent Harness" (arXiv 2605.18747) covers code as an executable substrate but explicitly not LLM-generated orchestration that instantiates sub-agents, and flags executable contracts constraining agent behaviour as underspecified.
+
+The separate open question is the regime where traversal order is itself a judgement — "find the parts of this document worth analysing" — where an agent exploring with tools may beat any generated walk.
 
 **This is a poor-man's OTP.** The supervision model is deliberately Erlang-shaped — isolate, let it crash, let a supervisor decide — but with OS-process granularity and a hand-rolled supervisor, not microsecond spawns and millions of processes. Where genuine OTP semantics are wanted, Elixir already has them.
 
 ## Deferred
 
 Concurrent fan-out, sibling messaging, parent→child steering, role-based addressing, transcript compaction. None are foreclosed: all of them are rows and files, and each is additive to what is specified here.
+
+Concurrency is the one with a concrete motivating case already identified. In a bottom-up annotation, nodes at the same topological depth are independent by construction — the dependency structure itself states the safe fan-out — and a sequential walk over a few hundred nodes pays a process spawn plus a multi-turn agent for each. That is `max_concurrent_agents > 1` plus level-batched spawning, and it should be the first deferred item revisited.
