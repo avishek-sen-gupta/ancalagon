@@ -1,0 +1,31 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/plugins/python-fp-lint/hooks/lint-check.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/plugins/python-fp-lint/hooks/lint-check.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:/tmp/ctx-lint)",
+      "Bash(rm:/tmp/ctx-lint/)",
+      "Bash(touch:/tmp/ctx-lint/*)"
+    ]
+  }
+}

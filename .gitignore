@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.env
+.pytest_cache/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.superpowers/
+
+# Agent workspaces — task bus, transcripts, generated harnesses, tool outputs.
+# These contain material from codebases under analysis and must never be tracked.
+ws/
+runs/
+*.db
+*.sqlite3
+
+.remember/
+.beads/
+.dolt/
+.knowledge_graph_scratch/
+
+# macOS
+.DS_Store

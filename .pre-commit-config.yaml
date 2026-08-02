@@ -1,0 +1,28 @@
+repos:
+  - repo: local
+    hooks:
+      - id: terminology-guard
+        name: Terminology Guard
+        entry: precommit-scripts/check-terminology
+        language: script
+        types: [text]
+
+      - id: terminology-commit-msg
+        name: Terminology Guard (commit message)
+        entry: precommit-scripts/check-commit-msg
+        language: script
+        stages: [commit-msg]
+
+      - id: black
+        name: Black (auto-fix)
+        entry: bash -c 'uv run --no-sync python -m black ancalagon tests && git add -u'
+        language: system
+        pass_filenames: false
+        files: \.py$
+
+      - id: pytest
+        name: Unit test suite
+        entry: bash -c 'uv run --no-sync python -m pytest tests/unit -x -q'
+        language: system
+        pass_filenames: false
+        files: \.py$
