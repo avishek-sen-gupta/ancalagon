@@ -1,0 +1,8 @@
+import pathlib
+import typing
+
+from ancalagon.supervisor.process import Process
+
+
+class Spawner(typing.Protocol):
+    def spawn(self, task_dir: pathlib.Path, agent_id: int) -> Process: ...
