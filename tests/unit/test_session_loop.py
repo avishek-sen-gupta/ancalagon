@@ -3,7 +3,7 @@ import pathlib
 
 import pydantic
 
-from ancalagon.contracts.agent_spec import AgentSpec
+from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.exhausted import Exhausted
@@ -32,16 +32,16 @@ def _session(tmp_path: pathlib.Path, replies: list[Reply], budget: Budget) -> Se
         summary_chars=200,
         agent_id=17,
     )
-    spec = AgentSpec[Verdict](
+    spec = TaskSpec(
         task_id="t1",
         behaviour="You answer questions.",
         goal="Answer it.",
-        input=Verdict(answer="seed"),
         output="contracts.py:Verdict",
         budget=budget,
     )
     return Session(
         spec=spec,
+        input_json='{"answer": "seed"}',
         messages=[],
         transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
@@ -83,10 +83,16 @@ def test_session_runs_tools_completes_and_forces_a_final_answer_when_exhausted(
     assert outcome.spent.tool_calls == 1
 
     lines = (tmp_path / "transcript.jsonl").read_text().splitlines()
-    assert [json.loads(line)["role"] for line in lines] == ["assistant", "user", "assistant"]
-    assert [json.loads(line)["seq"] for line in lines] == [0, 1, 2]
+    assert [json.loads(line)["role"] for line in lines] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
+    assert [json.loads(line)["seq"] for line in lines] == [0, 1, 2, 3]
     assert all(json.loads(line)["agent"] == 17 for line in lines)
-    assert "read_file" in lines[0]
+    assert "Answer it." in lines[0]
+    assert "read_file" in lines[1]
 
     second = tmp_path / "second"
     second.mkdir(parents=True, exist_ok=True)

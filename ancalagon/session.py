@@ -3,7 +3,6 @@ import logging
 
 import pydantic
 
-from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.block import Block
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.completed import Completed
@@ -13,6 +12,7 @@ from ancalagon.contracts.message import Message
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
@@ -32,7 +32,8 @@ FINAL_INSTRUCTION = (
 class Session:
     def __init__(
         self,
-        spec: AgentSpec[pydantic.BaseModel],
+        spec: TaskSpec,
+        input_json: str,
         messages: list[Message],
         transcript: Transcript,
         agent_id: int,
@@ -42,6 +43,7 @@ class Session:
         output_class: type[pydantic.BaseModel],
     ):
         self.spec = spec
+        self.input_json = input_json
         self.messages = list(messages)
         self.transcript = transcript
         self.agent_id = agent_id
@@ -51,13 +53,15 @@ class Session:
         self.output_class = output_class
         self.remaining = spec.budget
         self.seq = len(messages)
+        if not self.messages:
+            self._record(Role.USER, [Text(text=f"{spec.goal}\n\nInput: {input_json}")])
 
     def _system(self) -> str:
         schema = self.output_class.model_json_schema()
         return (
             f"{self.spec.behaviour}\n\n"
             f"Goal: {self.spec.goal}\n\n"
-            f"Input: {self.spec.input.model_dump_json()}\n\n"
+            f"Input: {self.input_json}\n\n"
             f"When finished, reply with a single JSON object matching this schema "
             f"and nothing else: {schema}"
         )

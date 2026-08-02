@@ -3,14 +3,13 @@ import logging
 import pathlib
 import sys
 
-import pydantic
-
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
-from ancalagon.contracts.agent_spec import AgentSpec
+from ancalagon.contracts.input_json import input_json_of
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.resolve import resolve_output_class
+from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient
 from ancalagon.session import Session
 from ancalagon.tools.delegate.check_task import CheckTask
@@ -62,9 +61,8 @@ def main(
     transcript_path = task_dir / "transcript.jsonl"
     log = Transcript(path=transcript_path, agent_id=agent_id)
     try:
-        spec = AgentSpec[pydantic.BaseModel].model_validate_json(
-            (task_dir / "spec.json").read_text()
-        )
+        spec_text = (task_dir / "spec.json").read_text()
+        spec = TaskSpec.model_validate_json(spec_text)
         output_class = resolve_output_class(spec.output, task_dir)
         history = repair(load(transcript_path)) if transcript_path.exists() else []
         ctx = ToolContext(
@@ -75,6 +73,7 @@ def main(
         )
         session = Session(
             spec=spec,
+            input_json=input_json_of(spec_text),
             messages=history,
             transcript=log,
             agent_id=agent_id,
