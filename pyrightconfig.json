@@ -2,5 +2,7 @@
   "include": ["ancalagon", "tests"],
   "exclude": ["**/__pycache__", "**/.venv"],
   "typeCheckingMode": "strict",
-  "pythonVersion": "3.13"
+  "pythonVersion": "3.13",
+  "venvPath": ".",
+  "venv": ".venv"
 }
