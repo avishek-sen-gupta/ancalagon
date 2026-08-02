@@ -9,4 +9,6 @@ fileignoreconfig:
   checksum: 7af22e66725d1b46b85b27022019e14a0dea1a3e8197bab62dba571a6ad71833
 - filename: ancalagon/migrations/001_init.down.sql
   checksum: 844256abd1455d7c550eca680c8b56d6723ec8f3fd8437ab46f91774bed9f1df
+- filename: docs/superpowers/plans/2026-08-03-ancalagon-substrate.md
+  checksum: dad56bb88ded3533244d7f16f43bd9ce526cacfaba1b511558af92bae52a611a
 version: "1.0"
