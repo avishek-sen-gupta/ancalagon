@@ -1,0 +1,113 @@
+import argparse
+import logging
+import pathlib
+import sys
+
+import pydantic
+
+from ancalagon.config.config import Config
+from ancalagon.config.load import load_config
+from ancalagon.contracts.agent_spec import AgentSpec
+from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.failed import Failed
+from ancalagon.contracts.resolve import resolve_output_class
+from ancalagon.llm.adapters.litellm_client import LiteLLMClient
+from ancalagon.session import Session
+from ancalagon.tools.delegate.check_task import CheckTask
+from ancalagon.tools.delegate.collect_task import CollectTask
+from ancalagon.tools.delegate.delegate import Delegate
+from ancalagon.tools.files.delete_file import DeleteFile
+from ancalagon.tools.files.edit_file import EditFile
+from ancalagon.tools.files.list_dir import ListDir
+from ancalagon.tools.files.read_file import ReadFile
+from ancalagon.tools.files.write_file import WriteFile
+from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
+from ancalagon.tools.registry.registry import Registry
+from ancalagon.tools.registry.tool import Tool
+from ancalagon.tools.registry.tool_context import ToolContext
+from ancalagon.tools.search.ast_grep import AstGrep
+from ancalagon.tools.search.ripgrep import Ripgrep
+from ancalagon.tools.search.sed import Sed
+from ancalagon.transcript.history import load, repair
+from ancalagon.transcript.transcript import Transcript
+from ancalagon.workspace.workspace import Workspace
+
+LOGGER = logging.getLogger(__name__)
+
+
+def build_registry(config: Config, run_dir: pathlib.Path, parent: int) -> Registry:
+    available: list[Tool] = [
+        ReadFile(),
+        WriteFile(),
+        EditFile(),
+        DeleteFile(),
+        ListDir(),
+        Ripgrep(),
+        AstGrep(),
+        Sed(),
+        TreeSitter(),
+        Delegate(run_dir=run_dir, parent=parent),
+        CheckTask(run_dir=run_dir),
+        CollectTask(run_dir=run_dir),
+    ]
+    enabled = set(config.tools)
+    return Registry([t for t in available if not enabled or t.name in enabled])
+
+
+def main(
+    run_dir: pathlib.Path, task_dir: pathlib.Path, agent_id: int, config_path: pathlib.Path
+) -> int:
+    config = load_config(config_path)
+    outcome_path = task_dir / "outcome.json"
+    transcript_path = task_dir / "transcript.jsonl"
+    log = Transcript(path=transcript_path, agent_id=agent_id)
+    try:
+        spec = AgentSpec[pydantic.BaseModel].model_validate_json(
+            (task_dir / "spec.json").read_text()
+        )
+        output_class = resolve_output_class(spec.output, task_dir)
+        history = repair(load(transcript_path)) if transcript_path.exists() else []
+        ctx = ToolContext(
+            workspace=Workspace.from_config(config),
+            output_dir=task_dir / "tools",
+            summary_chars=config.summary_chars,
+            agent_id=agent_id,
+        )
+        session = Session(
+            spec=spec,
+            messages=history,
+            transcript=log,
+            agent_id=agent_id,
+            llm=LiteLLMClient(model=config.model, max_tokens=config.max_tokens),
+            registry=build_registry(config, run_dir, parent=agent_id),
+            ctx=ctx,
+            output_class=output_class,
+        )
+        outcome = session.run()
+        outcome_path.write_text(outcome.model_dump_json())
+        return 0
+    except Exception as exc:
+        LOGGER.exception("worker failed")
+        failure = Failed(
+            error=f"{type(exc).__name__}: {exc}",
+            summary=str(exc)[:200],
+            spent=Budget(turns=0, tool_calls=0),
+        )
+        outcome_path.write_text(failure.model_dump_json())
+        return 1
+    finally:
+        log.close()
+
+
+def cli() -> int:
+    parser = argparse.ArgumentParser(prog="ancalagon.worker")
+    parser.add_argument("--run-dir", type=pathlib.Path, required=True)
+    parser.add_argument("--dir", type=pathlib.Path, required=True)
+    parser.add_argument("--agent-id", type=int, required=True)
+    parser.add_argument("--config", type=pathlib.Path, required=True)
+    args = parser.parse_args()
+    return main(args.run_dir, args.dir, args.agent_id, args.config)
+
+
+if __name__ == "__main__":
+    sys.exit(cli())
