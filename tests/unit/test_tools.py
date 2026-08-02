@@ -6,8 +6,11 @@ from ancalagon.tools.files.edit_file import EditFile
 from ancalagon.tools.files.list_dir import ListDir
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.files.write_file import WriteFile
+from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
+from ancalagon.tools.search.ripgrep import Ripgrep
+from ancalagon.tools.search.sed import Sed
 from ancalagon.workspace.workspace import Workspace
 
 
@@ -88,3 +91,39 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
     assert result.truncated is True
     assert len(result.summary) <= 50
     assert result.path.read_text() == long_content
+
+
+def test_search_and_parse_tools_write_outputs_and_never_mutate_inputs(tmp_path: pathlib.Path):
+    ctx = _ctx(tmp_path)
+    source = ctx.workspace.write_root / "sample.py"
+    source.write_text("def alpha():\n    return 1\n\n\ndef beta():\n    return 2\n")
+    before = source.read_text()
+
+    found = Ripgrep().run(
+        f'{{"pattern": "def (alpha|beta)", "roots": ["{ctx.workspace.write_root}"]}}', ctx
+    )
+    assert found.ok is True
+    assert "alpha" in found.path.read_text()
+    assert "beta" in found.path.read_text()
+
+    missing = Ripgrep().run(
+        f'{{"pattern": "zzz_absent", "roots": ["{ctx.workspace.write_root}"]}}', ctx
+    )
+    assert missing.ok is True
+    assert missing.path.read_text() == ""
+
+    streamed = Sed().run(f'{{"script": "s/alpha/gamma/", "path": "{source}"}}', ctx)
+    assert streamed.ok is True
+    assert "gamma" in streamed.path.read_text()
+    assert source.read_text() == before
+
+    parsed = TreeSitter().run(f'{{"path": "{source}", "language": "python"}}', ctx)
+    assert parsed.ok is True
+    assert '"type": "function_definition"' in parsed.path.read_text()
+
+    unsupported = TreeSitter().run(f'{{"path": "{source}", "language": "cobol"}}', ctx)
+    assert unsupported.ok is False
+    assert "unsupported language" in unsupported.error
+
+    denied = Sed().run(f'{{"script": "s/a/b/", "path": "{tmp_path / "outside.txt"}"}}', ctx)
+    assert denied.ok is False
