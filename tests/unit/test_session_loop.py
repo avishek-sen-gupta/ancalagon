@@ -7,12 +7,14 @@ from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.exhausted import Exhausted
+from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.llm.fake_llm import FakeLLM
 from ancalagon.session import Session
 from ancalagon.tools.files.read_file import ReadFile
+from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.transcript.transcript import Transcript
@@ -46,7 +48,7 @@ def _session(tmp_path: pathlib.Path, replies: list[Reply], budget: Budget) -> Se
         transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
         llm=FakeLLM(replies),
-        registry=Registry([ReadFile()]),
+        registry=Registry([ReadFile(), NeedInput()]),
         ctx=ctx,
         output_class=Verdict,
     )
@@ -132,3 +134,29 @@ def test_session_returns_tool_failures_and_invalid_output_to_the_agent(tmp_path:
     transcript = (tmp_path / "transcript.jsonl").read_text()
     assert "outside" in transcript
     assert "did not match the schema" in transcript
+
+
+def test_session_stops_and_returns_the_question_when_an_agent_needs_input(
+    tmp_path: pathlib.Path,
+):
+    session = _session(
+        tmp_path,
+        [
+            Reply(
+                blocks=[
+                    ToolUse(
+                        id="tu_1",
+                        name="need_input",
+                        arguments='{"question": "keep both captions or pick one?"}',
+                    )
+                ],
+                stop_reason="tool_calls",
+            )
+        ],
+        Budget(turns=5, tool_calls=5),
+    )
+    outcome = session.run()
+    assert isinstance(outcome, NeedsInput)
+    assert outcome.question == "keep both captions or pick one?"
+    assert outcome.spent.turns == 1
+    assert outcome.spent.tool_calls == 1

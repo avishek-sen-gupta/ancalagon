@@ -3,6 +3,8 @@ import logging
 import pathlib
 import sys
 
+from ancalagon.bus.bus import Bus
+from ancalagon.bus.depth_of import depth_of
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.input_json import input_json_of
@@ -20,6 +22,7 @@ from ancalagon.tools.files.edit_file import EditFile
 from ancalagon.tools.files.list_dir import ListDir
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.files.write_file import WriteFile
+from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool import Tool
@@ -34,7 +37,7 @@ from ancalagon.workspace.workspace import Workspace
 LOGGER = logging.getLogger(__name__)
 
 
-def build_registry(config: Config, run_dir: pathlib.Path, parent: int) -> Registry:
+def build_registry(config: Config, run_dir: pathlib.Path, parent: int, depth: int) -> Registry:
     available: list[Tool] = [
         ReadFile(),
         WriteFile(),
@@ -48,9 +51,13 @@ def build_registry(config: Config, run_dir: pathlib.Path, parent: int) -> Regist
         Delegate(run_dir=run_dir, parent=parent),
         CheckTask(run_dir=run_dir),
         CollectTask(run_dir=run_dir),
+        NeedInput(),
     ]
     enabled = set(config.tools)
-    return Registry([t for t in available if not enabled or t.name in enabled])
+    permitted = [t for t in available if not enabled or t.name in enabled]
+    if depth >= config.max_depth:
+        permitted = [t for t in permitted if t.name != "delegate"]
+    return Registry(permitted)
 
 
 def main(
@@ -78,7 +85,12 @@ def main(
             transcript=log,
             agent_id=agent_id,
             llm=LiteLLMClient(model=config.model, max_tokens=config.max_tokens),
-            registry=build_registry(config, run_dir, parent=agent_id),
+            registry=build_registry(
+                config,
+                run_dir,
+                parent=agent_id,
+                depth=depth_of(Bus.open(run_dir / "bus.db"), agent_id),
+            ),
             ctx=ctx,
             output_class=output_class,
         )

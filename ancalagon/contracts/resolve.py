@@ -7,7 +7,9 @@ import pydantic
 
 def resolve_output_class(output: str, base: pathlib.Path) -> type[pydantic.BaseModel]:
     filename, _, class_name = output.partition(":")
-    path = base / filename
+    path = (base / filename).resolve()
+    if not path.is_relative_to(base.resolve()):
+        raise ValueError(f"{output} escapes the task directory {base}")
     spec = importlib.util.spec_from_file_location(path.stem, path)
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load {path}")

@@ -3,6 +3,8 @@ import pathlib
 
 from ancalagon.bus.bus import Bus
 from ancalagon.bus.task_status import TaskStatus
+from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.timed_out import TimedOut
 from ancalagon.supervisor.clock import Clock
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
@@ -34,8 +36,24 @@ class Supervisor:
         free = self.max_concurrent - len(self.live)
         if free <= 0:
             return
-        for row in self.bus.claim(limit=free):
-            process = self.spawner.spawn(pathlib.Path(row.dir), row.id)
+        for _ in range(free):
+            claimed = self.bus.claim(limit=1)
+            if not claimed:
+                return
+            row = claimed[0]
+            try:
+                process = self.spawner.spawn(pathlib.Path(row.dir), row.id)
+            except OSError as exc:
+                LOGGER.exception("spawn failed for task %s", row.id)
+                self.bus.finish(row.id, TaskStatus.CRASHED, exit_code=-1, summary=str(exc))
+                self.bus.post(
+                    sender=row.id,
+                    addressee=row.parent,
+                    kind="task_done",
+                    summary=f"spawn failed: {exc}",
+                    ref_path=row.dir,
+                )
+                continue
             self.bus.mark_running(row.id, pid=process.pid)
             self.live[row.id] = process
             self.started[row.id] = self.clock.time()
@@ -53,6 +71,18 @@ class Supervisor:
         del self.live[task_id]
         del self.started[task_id]
 
+    def _write_timeout_outcome(self, task_id: int) -> None:
+        outcome = pathlib.Path(self.bus.get(task_id).dir) / "outcome.json"
+        if outcome.exists():
+            return
+        outcome.parent.mkdir(parents=True, exist_ok=True)
+        outcome.write_text(
+            TimedOut(
+                summary=f"killed after {self.timeout_s}s",
+                spent=Budget(turns=0, tool_calls=0),
+            ).model_dump_json()
+        )
+
     def _reap(self) -> None:
         for task_id, process in list(self.live.items()):
             code = process.poll()
@@ -60,6 +90,7 @@ class Supervisor:
                 if self.clock.time() - self.started[task_id] >= self.timeout_s:
                     LOGGER.warning("killing task %s after %ss", task_id, self.timeout_s)
                     process.kill()
+                    self._write_timeout_outcome(task_id)
                     self._finish(task_id, TaskStatus.TIMEOUT, -9, "killed after timeout")
                 continue
             status = TaskStatus.COMPLETED if code == 0 else TaskStatus.CRASHED
@@ -79,7 +110,13 @@ class Supervisor:
     def run_until_idle(self) -> None:
         while True:
             self.tick()
-            if not self.live and self._queued_count() == 0:
+            outstanding = [r.id for r in self.bus.running() if r.id not in self.live]
+            if not self.live and not outstanding and self._queued_count() == 0:
+                return
+            if not self.live and outstanding:
+                LOGGER.warning("orphaned running rows with no live process: %s", outstanding)
+                for task_id in outstanding:
+                    self.bus.finish(task_id, TaskStatus.ABANDONED, -1, "orphaned; no live process")
                 return
             self.clock.sleep(self.poll_s)
 

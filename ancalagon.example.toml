@@ -11,7 +11,7 @@ turns = 20
 tool_calls = 60
 
 [limits]
-max_concurrent_agents = 1
+max_concurrent_agents = 4
 agent_timeout_s = 3600
 max_depth = 1
 summary_chars = 1000

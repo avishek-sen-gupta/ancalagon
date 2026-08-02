@@ -1,3 +1,4 @@
+import json
 import pathlib
 
 from ancalagon.bus.bus import Bus
@@ -66,6 +67,8 @@ def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: p
     assert bus.get(bad).exit_code == 1
     assert bus.get(wedged).status is TaskStatus.TIMEOUT
     assert bus.get(wedged).pid == 1000 + wedged
+    timed_out = json.loads((tmp_path / "tasks" / "wedged" / "outcome.json").read_text())
+    assert timed_out["kind"] == "timed_out"
     assert bus.running() == []
     assert [m.kind for m in bus.inbox(consumer=0)] == ["task_done"] * 3
 

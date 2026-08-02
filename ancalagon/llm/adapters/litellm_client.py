@@ -7,17 +7,25 @@ from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.llm.adapters.wire_function import WireFunction
+from ancalagon.llm.adapters.wire_message import WireMessage
+from ancalagon.llm.adapters.wire_tool_call import WireToolCall
 from ancalagon.llm.tool_schema import ToolSchema
 
 
-def _to_wire(message: Message) -> list[dict[str, str]]:
+def _to_wire(message: Message) -> list[WireMessage]:
     results = [b for b in message.blocks if isinstance(b, ToolResultBlock)]
     if results:
         return [
-            {"role": "tool", "tool_call_id": b.tool_use_id, "content": b.content} for b in results
+            WireMessage(role="tool", tool_call_id=b.tool_use_id, content=b.content) for b in results
         ]
     text = "".join(b.text for b in message.blocks if isinstance(b, Text))
-    return [{"role": message.role.value, "content": text}]
+    calls = [
+        WireToolCall(id=b.id, function=WireFunction(name=b.name, arguments=b.arguments))
+        for b in message.blocks
+        if isinstance(b, ToolUse)
+    ]
+    return [WireMessage(role=message.role.value, content=text, tool_calls=calls)]
 
 
 def _to_arguments(raw: str | collections.abc.Mapping[str, str]) -> str:
@@ -37,9 +45,10 @@ class LiteLLMClient:
     ) -> Reply:
         import litellm
 
-        wire = [{"role": "system", "content": system}]
+        wire = [WireMessage(role="system", content=system)]
         for message in messages:
             wire.extend(_to_wire(message))
+        payload = [m.model_dump(exclude_defaults=True) for m in wire]
         schemas = [
             {
                 "type": "function",
@@ -52,7 +61,7 @@ class LiteLLMClient:
             for t in tools
         ]
         response = litellm.completion(
-            model=self.model, messages=wire, tools=schemas, max_tokens=self.max_tokens
+            model=self.model, messages=payload, tools=schemas, max_tokens=self.max_tokens
         )
         if not isinstance(response, litellm.ModelResponse):
             raise TypeError("litellm.completion returned a streaming response")

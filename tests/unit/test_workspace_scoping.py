@@ -66,3 +66,41 @@ enabled = ["read_file", "ripgrep"]
     assert config.agent_timeout_s == 3600
     assert config.tools == ["read_file", "ripgrep"]
     assert Workspace.from_config(config).resolve_read(read_only / "a.txt").exists()
+
+
+def test_config_resolves_relative_roots_against_the_config_file_not_the_cwd(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "project"
+    (project / "ws").mkdir(parents=True)
+    (project / "artifacts").mkdir()
+    config_path = project / "ancalagon.toml"
+    config_path.write_text("""
+[workspace]
+write_root = "./ws"
+read_roots = ["./artifacts"]
+
+[model]
+name = "claude-opus-5"
+max_tokens = 8000
+
+[budget]
+turns = 20
+tool_calls = 60
+
+[limits]
+max_concurrent_agents = 4
+agent_timeout_s = 3600
+max_depth = 1
+summary_chars = 1000
+
+[tools]
+enabled = []
+""")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    config = load_config(config_path)
+    assert config.write_root == (project / "ws").resolve()
+    assert config.read_roots == ((project / "artifacts").resolve(),)

@@ -7,14 +7,15 @@ from ancalagon.contracts.budget import Budget
 
 
 def load_config(path: pathlib.Path) -> Config:
+    base = path.resolve().parent
     raw = tomllib.loads(path.read_text())
     workspace = raw["workspace"]
     model = raw["model"]
     budget = raw["budget"]
     limits = raw["limits"]
     return Config(
-        write_root=pathlib.Path(workspace["write_root"]),
-        read_roots=tuple(pathlib.Path(p) for p in workspace["read_roots"]),
+        write_root=(base / workspace["write_root"]).resolve(),
+        read_roots=tuple((base / p).resolve() for p in workspace["read_roots"]),
         model=model["name"],
         max_tokens=model["max_tokens"],
         budget=Budget(turns=budget["turns"], tool_calls=budget["tool_calls"]),
