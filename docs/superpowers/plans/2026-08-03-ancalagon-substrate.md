@@ -23,8 +23,10 @@ Copied verbatim from `CLAUDE.md` and the spec. Every task's requirements implici
 - **No bare collection types.** `dict[str, int]` not `dict`; `list[Node]` not `list`. Pyright strict enforces via `reportMissingTypeArgument`.
 - **No `None`.** No `None` defaults, no `None` returns from non-`None` signatures, no defensive `None` checks. Use empty structures and the null object pattern.
 - **Dataclasses are `frozen=True`.** Pydantic models that are values use `frozen=True`.
-- **Fully qualified imports.** No relative imports. `import ancalagon.contracts` then `ancalagon.contracts.Budget`, or `from ancalagon.contracts import Budget`.
-- **One class per file** where practical. Enums and their closely-bound models may share a file.
+- **Fully qualified imports.** No relative imports. Import from the owning module: `from ancalagon.contracts.budget import Budget`. Package `__init__.py` files stay empty — never re-export, so `from ancalagon.contracts import Budget` will not work and must not be made to.
+- **Task code blocks predate the file split.** Their logic is authoritative; their import lines are not. Rewrite every import to the split module path from the File structure section. This applies to test files too.
+- **One class per file, strictly.** Every class — including enums, exception types, Protocols, and Pydantic argument models — gets its own module named after it in `snake_case`. A module may contain module-level functions and type aliases alongside its single class, or consist only of functions. Where the plan's task text shows several classes in one code block, that block is the *content*; distribute it across the exact files named in that task's **Files** list. The code itself is unchanged.
+- **Shared helpers live once.** `schema_of(name, description, model)` lives in `ancalagon/llm/schema_of.py` and is imported by every tool. Do not copy it into each tool module.
 - **Functional core, imperative shell.** Mutation only in the shell (file writes, subprocess, SQLite, LLM calls).
 - **Logging, not `print`.**
 - **Enums, not raw strings**, for fixed value sets.
@@ -34,32 +36,102 @@ Copied verbatim from `CLAUDE.md` and the spec. Every task's requirements implici
 
 ## File structure
 
-| File | Responsibility |
-|---|---|
-| `pyproject.toml` | uv project, deps, Black and pytest config |
-| `ancalagon/contracts.py` | Every model crossing a boundary; `resolve_output_class` |
-| `ancalagon/config.py` | TOML → `Config` |
-| `ancalagon/workspace.py` | Read/write scope enforcement |
-| `ancalagon/migrations.py` | `PRAGMA user_version` runner over `migrations/*.sql` |
-| `ancalagon/bus.py` | SQLite task queue and message inbox |
-| `ancalagon/llm.py` | `LLM` protocol, `FakeLLM`, `LiteLLMClient` |
-| `ancalagon/tools/registry.py` | `Tool` protocol, `ToolContext`, registry |
-| `ancalagon/tools/files.py` | read/write/edit/delete/list, scope-checked |
-| `ancalagon/tools/search.py` | ripgrep, ast-grep, sed |
-| `ancalagon/tools/parse.py` | tree-sitter to JSON |
-| `ancalagon/tools/delegate.py` | `delegate`, `check_task`, `collect_task` |
-| `ancalagon/transcript.py` | Append-and-flush JSONL log, `load`, `repair` |
-| `ancalagon/session.py` | The agent loop |
-| `ancalagon/worker.py` | `python -m ancalagon.worker` entry point |
-| `ancalagon/supervisor.py` | Spawn, reap, kill on timeout |
-| `ancalagon/cli.py` | `ancalagon run` |
+One class per module, named after the class in `snake_case`. Modules holding only functions or type aliases are named for what they do.
+
+```
+pyproject.toml
+
+ancalagon/contracts/role.py               Role
+ancalagon/contracts/block_kind.py         BlockKind
+ancalagon/contracts/outcome_kind.py       OutcomeKind
+ancalagon/contracts/text.py               Text
+ancalagon/contracts/tool_use.py           ToolUse
+ancalagon/contracts/tool_result_block.py  ToolResultBlock
+ancalagon/contracts/block.py              Block alias
+ancalagon/contracts/message.py            Message
+ancalagon/contracts/reply.py              Reply
+ancalagon/contracts/budget.py             Budget
+ancalagon/contracts/tool_result.py        ToolResult
+ancalagon/contracts/agent_spec.py         AgentSpec, InT
+ancalagon/contracts/completed.py          Completed, OutT
+ancalagon/contracts/exhausted.py          Exhausted
+ancalagon/contracts/needs_input.py        NeedsInput
+ancalagon/contracts/failed.py             Failed
+ancalagon/contracts/timed_out.py          TimedOut
+ancalagon/contracts/outcome.py            Outcome alias, outcome_adapter
+ancalagon/contracts/free_text.py          FreeText
+ancalagon/contracts/resolve.py            resolve_output_class
+
+ancalagon/config/config.py                Config
+ancalagon/config/load.py                  load_config
+
+ancalagon/workspace/scope_error.py        ScopeError
+ancalagon/workspace/workspace.py          Workspace
+
+ancalagon/migrations.py                   user_version, latest_version, migrate
+
+ancalagon/bus/task_status.py              TaskStatus
+ancalagon/bus/task_row.py                 TaskRow
+ancalagon/bus/message_row.py              MessageRow
+ancalagon/bus/bus.py                      Bus
+
+ancalagon/llm/tool_schema.py              ToolSchema
+ancalagon/llm/schema_of.py                schema_of
+ancalagon/llm/llm.py                      LLM protocol
+ancalagon/llm/fake_llm.py                 FakeLLM
+ancalagon/llm/litellm_client.py           LiteLLMClient
+
+ancalagon/transcript/transcript.py        Transcript
+ancalagon/transcript/history.py           load, repair, INTERRUPTED
+
+ancalagon/tools/registry/tool_context.py  ToolContext
+ancalagon/tools/registry/tool.py          Tool protocol
+ancalagon/tools/registry/registry.py      Registry
+
+ancalagon/tools/files/path_args.py        PathArgs
+ancalagon/tools/files/write_args.py       WriteArgs
+ancalagon/tools/files/edit_args.py        EditArgs
+ancalagon/tools/files/read_file.py        ReadFile
+ancalagon/tools/files/write_file.py       WriteFile
+ancalagon/tools/files/edit_file.py        EditFile
+ancalagon/tools/files/delete_file.py      DeleteFile
+ancalagon/tools/files/list_dir.py         ListDir
+
+ancalagon/tools/search/grep_args.py       GrepArgs
+ancalagon/tools/search/sed_args.py        SedArgs
+ancalagon/tools/search/run_command.py     run_command
+ancalagon/tools/search/ripgrep.py         Ripgrep
+ancalagon/tools/search/ast_grep.py        AstGrep
+ancalagon/tools/search/sed.py             Sed
+
+ancalagon/tools/parse/parse_args.py       ParseArgs
+ancalagon/tools/parse/tree_sitter_tool.py TreeSitter, LANGUAGES
+
+ancalagon/tools/delegate/delegate_args.py DelegateArgs
+ancalagon/tools/delegate/task_args.py     TaskArgs
+ancalagon/tools/delegate/delegate.py      Delegate
+ancalagon/tools/delegate/check_task.py    CheckTask
+ancalagon/tools/delegate/collect_task.py  CollectTask
+
+ancalagon/session.py                      Session
+ancalagon/supervisor/process.py           Process protocol
+ancalagon/supervisor/spawner.py           Spawner protocol
+ancalagon/supervisor/clock.py             Clock protocol
+ancalagon/supervisor/system_clock.py      SystemClock
+ancalagon/supervisor/subprocess_spawner.py SubprocessSpawner
+ancalagon/supervisor/supervisor.py        Supervisor
+ancalagon/worker.py                       main, cli, build_registry
+ancalagon/cli.py                          main, cli
+```
+
+Every package directory needs an `__init__.py`. Leave them empty — imports are fully qualified, so no re-exports.
 
 ---
 
 ### Task 1: Project scaffold
 
 **Files:**
-- Create: `pyproject.toml`, `ancalagon/__init__.py`, `ancalagon/tools/__init__.py`, `tests/unit/__init__.py`, `tests/integration/__init__.py`, `tests/unit/test_scaffold.py`
+- Create: `pyproject.toml`, `tests/unit/__init__.py`, `tests/integration/__init__.py`, `tests/unit/test_scaffold.py`, and an empty `__init__.py` in each of: `ancalagon/`, `ancalagon/contracts/`, `ancalagon/config/`, `ancalagon/workspace/`, `ancalagon/bus/`, `ancalagon/llm/`, `ancalagon/transcript/`, `ancalagon/supervisor/`, `ancalagon/tools/`, `ancalagon/tools/registry/`, `ancalagon/tools/files/`, `ancalagon/tools/search/`, `ancalagon/tools/parse/`, `ancalagon/tools/delegate/`
 
 **Interfaces:**
 - Consumes: nothing
@@ -153,8 +225,10 @@ git commit -m "Scaffold uv project with pytest, Black and Pyright strict"
 ### Task 2: Contracts
 
 **Files:**
-- Create: `ancalagon/contracts.py`
+- Create, one class each, per the File structure section: `ancalagon/contracts/role.py`, `block_kind.py`, `outcome_kind.py`, `text.py`, `tool_use.py`, `tool_result_block.py`, `block.py`, `message.py`, `reply.py`, `budget.py`, `tool_result.py`, `agent_spec.py`, `completed.py`, `exhausted.py`, `needs_input.py`, `failed.py`, `timed_out.py`, `outcome.py`, `free_text.py`, `resolve.py`
 - Test: `tests/unit/test_contracts.py`
+
+`agent_spec.py` declares `InT`; `completed.py` declares `OutT`; `exhausted.py` imports `OutT` from `completed.py`. `block.py` holds only the `Block` union alias; `outcome.py` holds the `Outcome` alias and `outcome_adapter`.
 
 **Interfaces:**
 - Consumes: nothing
@@ -470,7 +544,7 @@ git commit -m "Add boundary contracts with generic AgentSpec and Outcome union"
 ### Task 3: Config and workspace scoping
 
 **Files:**
-- Create: `ancalagon/config.py`, `ancalagon/workspace.py`
+- Create: `ancalagon/config/config.py` (`Config`), `ancalagon/config/load.py` (`load_config`), `ancalagon/workspace/scope_error.py` (`ScopeError`), `ancalagon/workspace/workspace.py` (`Workspace`)
 - Test: `tests/unit/test_workspace_scoping.py`
 
 **Interfaces:**
@@ -768,7 +842,7 @@ git commit -m "Add PRAGMA user_version migration runner"
 ### Task 5: The bus
 
 **Files:**
-- Create: `ancalagon/bus.py`
+- Create: `ancalagon/bus/task_status.py` (`TaskStatus`), `ancalagon/bus/task_row.py` (`TaskRow`), `ancalagon/bus/message_row.py` (`MessageRow`), `ancalagon/bus/bus.py` (`Bus`, and the module-private `_now`)
 - Test: `tests/unit/test_bus.py`
 
 **Interfaces:**
@@ -979,7 +1053,7 @@ git commit -m "Add SQLite task bus with atomic claim and message inbox"
 ### Task 6: Transcript log, load and repair
 
 **Files:**
-- Create: `ancalagon/transcript.py`
+- Create: `ancalagon/transcript/transcript.py` (`Transcript`), `ancalagon/transcript/history.py` (`INTERRUPTED`, `load`, `repair`)
 - Test: `tests/unit/test_repair.py`
 
 **Interfaces:**
@@ -1118,8 +1192,10 @@ git commit -m "Add append-and-flush transcript with interrupted-tool-call repair
 ### Task 7: LLM protocol, FakeLLM and LiteLLM adapter
 
 **Files:**
-- Create: `ancalagon/llm.py`
-- Test: covered by Task 9's `test_session_loop` via `FakeLLM`; no separate test file.
+- Create: `ancalagon/llm/tool_schema.py` (`ToolSchema`), `ancalagon/llm/schema_of.py` (`schema_of`), `ancalagon/llm/llm.py` (`LLM` protocol), `ancalagon/llm/fake_llm.py` (`FakeLLM`), `ancalagon/llm/litellm_client.py` (`LiteLLMClient`, and the module-private `_to_wire`, `_to_arguments`)
+- Test: covered by Task 10's `test_session_loop` via `FakeLLM`; no separate test file.
+
+`schema_of(name: str, description: str, model: type[pydantic.BaseModel]) -> ToolSchema` returns `ToolSchema(name=name, description=description, parameters_json=json.dumps(model.model_json_schema()))`. It is the single definition — Tasks 8, 9 and 11 import it rather than redefining a local `_schema`.
 
 **Interfaces:**
 - Consumes: `ancalagon.contracts.Message`, `Reply`, `Text`, `ToolUse`, `ToolResultBlock`, `Role`
@@ -1262,8 +1338,10 @@ git commit -m "Add LLM protocol with FakeLLM and LiteLLM adapter"
 ### Task 8: Tool registry and file tools
 
 **Files:**
-- Create: `ancalagon/tools/registry.py`, `ancalagon/tools/files.py`
+- Create: `ancalagon/tools/registry/tool_context.py` (`ToolContext`), `ancalagon/tools/registry/tool.py` (`Tool` protocol), `ancalagon/tools/registry/registry.py` (`Registry`), `ancalagon/tools/files/path_args.py`, `write_args.py`, `edit_args.py`, `read_file.py`, `write_file.py`, `edit_file.py`, `delete_file.py`, `list_dir.py`
 - Test: `tests/unit/test_tools.py`
+
+Delete the local `_schema` helper shown in the task's code block; import `ancalagon.llm.schema_of.schema_of` instead.
 
 **Interfaces:**
 - Consumes: `ancalagon.contracts.ToolResult`, `ancalagon.workspace.Workspace`, `ancalagon.llm.ToolSchema`
@@ -1586,8 +1664,10 @@ git commit -m "Add tool registry and scope-checked file tools"
 ### Task 9: Search and parse tools
 
 **Files:**
-- Create: `ancalagon/tools/search.py`, `ancalagon/tools/parse.py`
+- Create: `ancalagon/tools/search/grep_args.py`, `sed_args.py`, `run_command.py` (the `_run` helper, renamed `run_command`), `ripgrep.py`, `ast_grep.py`, `sed.py`, `ancalagon/tools/parse/parse_args.py`, `ancalagon/tools/parse/tree_sitter_tool.py` (`LANGUAGES`, `TreeSitter`, and the module-private `_node_to_dict`, `_walk`)
 - Modify: `tests/unit/test_tools.py` (add one test function)
+
+Delete the local `_schema` helper shown in the task's code block; import `ancalagon.llm.schema_of.schema_of` instead.
 - Modify: `pyproject.toml` (add `tree-sitter` and `tree-sitter-python` to dependencies)
 
 **Interfaces:**
@@ -2131,8 +2211,10 @@ git commit -m "Add session loop with budget enforcement and forced final answer"
 ### Task 11: Worker entry point and delegate tools
 
 **Files:**
-- Create: `ancalagon/worker.py`, `ancalagon/tools/delegate.py`
+- Create: `ancalagon/worker.py` (functions only), `ancalagon/tools/delegate/delegate_args.py`, `task_args.py`, `delegate.py` (`Delegate`), `check_task.py` (`CheckTask`), `collect_task.py` (`CollectTask`)
 - Test: covered by Task 12's supervisor test and Task 13's integration test.
+
+Delete the local `_schema` helper shown in the task's code block; import `ancalagon.llm.schema_of.schema_of` instead.
 
 **Interfaces:**
 - Consumes: everything above
@@ -2375,8 +2457,10 @@ git commit -m "Add worker entry point and delegate/check/collect tools"
 ### Task 12: Supervisor
 
 **Files:**
-- Create: `ancalagon/supervisor.py`
+- Create: `ancalagon/supervisor/process.py` (`Process` protocol), `spawner.py` (`Spawner` protocol), `clock.py` (`Clock` protocol), `system_clock.py` (`SystemClock`), `subprocess_spawner.py` (`SubprocessSpawner`), `supervisor.py` (`Supervisor`)
 - Test: `tests/unit/test_supervisor.py`
+
+The task's code block shows `run_until_idle` calling `self.bus.claim(limit=0)`, which is dead — a zero-limit claim always returns an empty list and opens a pointless transaction. Drop that call and gate solely on the queued-count query.
 
 **Interfaces:**
 - Consumes: `ancalagon.bus.Bus`, `TaskStatus`
