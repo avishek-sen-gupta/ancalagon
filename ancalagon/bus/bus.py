@@ -59,7 +59,7 @@ class Bus:
 
     def running(self) -> list[TaskRow]:
         rows = self.conn.execute(
-            "SELECT * FROM tasks WHERE status = ? AND pid != 0 ORDER BY id",
+            "SELECT * FROM tasks WHERE status = ? ORDER BY id",
             (TaskStatus.RUNNING.value,),
         ).fetchall()
         return [TaskRow.model_validate({k: r[k] for k in r.keys()}) for r in rows]

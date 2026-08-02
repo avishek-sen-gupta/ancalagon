@@ -20,13 +20,17 @@ def test_bus_enqueues_claims_once_and_advances_cursor(tmp_path: pathlib.Path):
 
     bus.mark_running(first, pid=4242)
     assert bus.get(first).pid == 4242
-    assert [t.id for t in bus.running()] == [first]
+    assert [t.id for t in bus.running()] == [first, second]
+    assert bus.get(second).pid == 0
 
     bus.finish(first, TaskStatus.COMPLETED, exit_code=0, summary="done")
     finished = bus.get(first)
     assert finished.status is TaskStatus.COMPLETED
     assert finished.summary == "done"
     assert finished.finished != ""
+    assert [t.id for t in bus.running()] == [second]
+
+    bus.finish(second, TaskStatus.CRASHED, exit_code=1, summary="died")
     assert bus.running() == []
 
     bus.post(sender=first, addressee=0, kind="task_done", summary="done", ref_path="ws/tasks/a")
