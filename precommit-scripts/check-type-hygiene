@@ -1,0 +1,38 @@
+#!/bin/bash
+# Bans explicit `Any` and `object` annotations in Python sources. Pyright strict catches
+# implicit Any and bare generics; it flags neither of these, so this covers the gap.
+
+set -uo pipefail
+
+ANY_HITS=$(rg -n --type py '(\bfrom typing import .*\bAny\b|\btyping\.Any\b|(:|->)\s*Any\b|\[Any[,\]]|\bAny\|)' ancalagon tests 2>/dev/null)
+OBJ_HITS=$(rg -n --type py '((:|->)\s*object\b|\[object[,\]]|\bobject\|)' ancalagon tests 2>/dev/null)
+JSON_HITS=$(rg -n --type py '\b(JsonValue|JsonDict|JsonObject|JsonType|AnyJson)\b' ancalagon tests 2>/dev/null)
+
+STATUS=0
+
+if [ -n "$ANY_HITS" ]; then
+  echo "[type-hygiene] Explicit 'Any' is banned. Use a concrete type, a Protocol, or a TypeVar."
+  echo "$ANY_HITS"
+  echo ""
+  STATUS=1
+fi
+
+if [ -n "$OBJ_HITS" ]; then
+  echo "[type-hygiene] 'object' annotations are banned. Name the actual type, a union,"
+  echo "               a Protocol, or a TypeVar."
+  echo "$OBJ_HITS"
+  echo ""
+  STATUS=1
+fi
+
+if [ -n "$JSON_HITS" ]; then
+  echo "[type-hygiene] JSON-blob types are banned. JSON is text in a file until"
+  echo "               model_validate_json makes it a concrete model. Where the class is"
+  echo "               generated at runtime, make the container generic and resolve by import."
+  echo "$JSON_HITS"
+  echo ""
+  STATUS=1
+fi
+
+[ $STATUS -eq 0 ] && echo "[type-hygiene] Clean."
+exit $STATUS

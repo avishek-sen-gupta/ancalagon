@@ -52,7 +52,7 @@ Deterministic harness code *can* react sooner, but it also queries rows rather t
 
 ### What was deliberately cut
 
-**`ask_parent`.** A subagent cannot ask its parent a question mid-run. It returns `needs_input` and stops; the parent decides what to do. This removes sockets, responder threads, question/answer protocols, resumption choreography, and every partial-failure question that came with them. A child can never block a parent, and a dead child cannot hang anything, because nobody holds a handle to it except the supervisor.
+**`ask_parent`.** A subagent cannot ask its parent a question mid-run. It returns `NeedsInput` and stops; the parent decides what to do. This removes sockets, responder threads, question/answer protocols, resumption choreography, and every partial-failure question that came with them. A child can never block a parent, and a dead child cannot hang anything, because nobody holds a handle to it except the supervisor.
 
 This is a real capability loss and is accepted knowingly. The prior art surveyed (Claude Code, LangChain background subagents, LangGraph `interrupt()`) either does not support child→parent escalation at all, or implements it via polling or checkpoint/resume — both of which were rejected on their own merits before that survey was run.
 
@@ -113,21 +113,43 @@ This is load-bearing. A killed agent's partial history must survive the kill or 
 ## Contracts
 
 ```python
-class AgentSpec(BaseModel):
+InT = TypeVar("InT", bound=BaseModel)
+OutT = TypeVar("OutT", bound=BaseModel)
+
+class AgentSpec(BaseModel, Generic[InT]):
     task_id: str
     behaviour: str                 # how to work — becomes the system prompt
     goal: str                      # what to achieve
-    input: dict                    # the slice this agent operates on
+    input: InT                     # the slice this agent operates on
     output: str                    # "contracts.py:CaptionVerdict"
     budget: Budget
     tools: list[str] = []          # empty means everything permitted by config
 
-class Outcome(BaseModel):
-    kind: OutcomeKind              # completed | needs_input | exhausted | failed | timeout
-    value: dict                    # validated against spec.output
-    detail: str = ""               # the question, or the error — kind says which
-    summary: str                   # capped at 1000 chars; this is the DB row
+class Completed(BaseModel, Generic[OutT]):
+    value: OutT
+    summary: str
     spent: Budget
+
+class Exhausted(BaseModel, Generic[OutT]):
+    value: OutT                    # the forced final answer
+    summary: str
+    spent: Budget
+
+class NeedsInput(BaseModel):
+    question: str
+    summary: str
+    spent: Budget
+
+class Failed(BaseModel):
+    error: str
+    summary: str
+    spent: Budget
+
+class TimedOut(BaseModel):
+    summary: str
+    spent: Budget
+
+Outcome = Completed[OutT] | Exhausted[OutT] | NeedsInput | Failed | TimedOut
 
 class ToolResult(BaseModel):
     ok: bool
@@ -138,9 +160,11 @@ class ToolResult(BaseModel):
     error: str = ""
 ```
 
-`output` names a class in the generated `contracts.py`. The worker validates before writing and the caller re-validates after reading, so the contract is enforced on both sides of the file and neither side trusts it blindly.
+`Outcome` is a discriminated union rather than one model with a `kind` field, because a failed attempt has no value and a completed one has no error. A single model would need optional fields, and `None` is banned — the union states which fields exist in each case, so no caller ever inspects a field that cannot be there.
 
-`value` is a `dict` rather than a typed generic because the class it validates against is generated at runtime and named in the spec.
+`output` names a class in the generated `contracts.py`. The worker resolves it by import, validates before writing, and the caller re-validates after reading, so the contract is enforced on both sides of the file and neither side trusts it blindly.
+
+There is no JSON type anywhere in this. JSON exists as text in files; `model_validate_json` turns it into a concrete model at the boundary. The runtime-generated classes are handled by making the containers generic and resolving the class by import before validation — the type is late-bound, not unknown.
 
 Tool failures are `ok=False` values, not exceptions. A bad `rg` pattern is something the agent reads and corrects; it never breaks the loop.
 
@@ -162,7 +186,7 @@ WAL mode, `busy_timeout=5000`, one connection per process.
 
 Separate **turn** and **tool-call** budgets, allocated per attempt by the caller as a slice of its own remaining budget. Because the process boundary is the session boundary, a worker handed six turns physically cannot spend seven.
 
-Exhaustion is a hard stop plus one forced final turn with tools stripped, instructing the agent to answer from what it has. The result is `Outcome(kind=exhausted)` carrying a real value rather than a truncation.
+Exhaustion is a hard stop plus one forced final turn with tools stripped, instructing the agent to answer from what it has. The result is an `Exhausted[OutT]` carrying a real value rather than a truncation — which is why it has a `value` field at all, unlike `Failed` or `TimedOut`.
 
 `max_depth` bounds nesting and counts agents, not processes — a harness is transparent to the count, so root is 0 and a touch-point agent is 1. Expected to be 1 in practice.
 
@@ -226,7 +250,11 @@ Hand-rolled agent loop. No agent framework — the control flow is straight-line
 | `llm.py` | 60 | `workspace.py` | 50 |
 | `config.py` | 40 | `cli.py` | 60 |
 
-Guardrails in `CLAUDE.md` apply: no gold plating, no comments beyond a one-line class header, few tests each covering a whole behaviour.
+Guardrails in `CLAUDE.md` apply: no gold plating, no comments beyond a one-line class header, few tests each covering a whole behaviour, fully typed with no `Any`.
+
+Pyright runs in strict mode and must pass with zero errors. Strict catches implicit `Any` (unknown parameter, member, and return types) and bare untemplated generics such as `dict` or `list` in signatures, via `reportMissingTypeArgument`. It flags neither *explicit* `Any` — a basedpyright feature — nor `object` annotations nor JSON-blob aliases, so a `check-type-hygiene` pre-commit hook bans all three by pattern.
+
+The design consequence is in the Contracts section: `AgentSpec` and the `Outcome` union are generic over the runtime-generated model classes rather than carrying JSON. `Any`, `object`, and `JsonValue` are all ways of declining to name a type that is in fact knowable — it is merely late-bound, and importing the generated module binds it.
 
 ## Testing
 
@@ -259,7 +287,7 @@ Then test the bet early, on one real artifact, with both paths against the same 
 
 ## Known limitations
 
-**Context grows monotonically** across resumptions. There is no compaction; the budget is the only bound. The mitigation is conventional rather than technical: a `needs_input` follow-up should usually be a new task with a small input slice, and resumption reserved for cases where accumulated exploration is the point.
+**Context grows monotonically** across resumptions. There is no compaction; the budget is the only bound. The mitigation is conventional rather than technical: a `NeedsInput` follow-up should usually be a new task with a small input slice, and resumption reserved for cases where accumulated exploration is the point.
 
 **Generated traversals are agent-authored code** and can be silently wrong in ways the results do not reveal. Every output being a file is part of the mitigation; the other part is that harness edits are diffed into the transcript, so a rewrite after a crash is visible rather than inferred.
 

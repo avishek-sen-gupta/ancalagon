@@ -20,6 +20,20 @@ repos:
         pass_filenames: false
         files: \.py$
 
+      - id: type-hygiene
+        name: Ban explicit Any and object annotations
+        entry: precommit-scripts/check-type-hygiene
+        language: script
+        pass_filenames: false
+        files: \.py$
+
+      - id: pyright
+        name: Pyright (strict)
+        entry: bash -c 'uv run --no-sync pyright'
+        language: system
+        pass_filenames: false
+        files: \.py$
+
       - id: pytest
         name: Unit test suite
         entry: bash -c 'uv run --no-sync python -m pytest tests/unit -x -q'
