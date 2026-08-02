@@ -4,7 +4,7 @@ import pydantic
 
 from ancalagon.contracts.budget import Budget
 
-InT = typing.TypeVar("InT", bound=pydantic.BaseModel)
+InT = typing.TypeVar("InT", bound=pydantic.BaseModel, covariant=True)
 
 
 class AgentSpec(pydantic.BaseModel, typing.Generic[InT], frozen=True):
