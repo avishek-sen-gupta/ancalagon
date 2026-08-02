@@ -182,6 +182,26 @@ Multiple rows sharing a `dir` are the attempt history of one task. Task status i
 
 WAL mode, `busy_timeout=5000`, one connection per process.
 
+The `summary` columns carry a `CHECK (length(summary) <= 1000)`, so the no-unbounded-columns rule is enforced by the database rather than by convention. `status` carries a CHECK against the enum for the same reason.
+
+### Migrations
+
+Paired SQL files under `ancalagon/migrations/`, named `NNN_name.up.sql` and `NNN_name.down.sql`, with `PRAGMA user_version` as the schema counter — SQLite's built-in integer, so there is no metadata table to maintain.
+
+```python
+def migrate(conn: Connection, target: int) -> None:
+    current = user_version(conn)
+    steps = ups(current + 1, target) if target > current else downs(current, target + 1)
+    for path in steps:
+        conn.executescript(path.read_text())
+```
+
+Roughly 40 lines including file discovery.
+
+The reason migrations exist here is not the usual one. `bus.db` is created per run and nothing is ever upgraded in place, so `up` on a fresh database is just schema creation. Their value is **reading old runs after a schema change**, which matters precisely because inspecting a completed run with `sqlite3` is a design goal rather than a debugging afterthought. That also makes `down` genuinely useful: it lets current tooling read a database written by a newer schema.
+
+A run always migrates to the latest version on creation. Nothing migrates automatically on open — a mismatched `user_version` is reported, not silently repaired, because silently rewriting the schema of a completed run would destroy the record it exists to preserve.
+
 ## Budgets
 
 Separate **turn** and **tool-call** budgets, allocated per attempt by the caller as a slice of its own remaining budget. Because the process boundary is the session boundary, a worker handed six turns physically cannot spend seven.
@@ -238,7 +258,7 @@ class LLM(Protocol):
 
 Hand-rolled agent loop. No agent framework — the control flow is straight-line Python and a framework's `Agent`/`RunContext` model would fight the mutually-recursive script↔agent relationship.
 
-**Ceiling: ~1050 LoC** excluding tests, relaxable with justification. The table below sums to 1070; treat any module exceeding its line as a signal to re-read the guardrails, not as licence to expand the total.
+**Ceiling: ~1100 LoC** excluding tests and SQL, relaxable with justification. The table below sums to 1110; treat any module exceeding its line as a signal to re-read the guardrails, not as licence to expand the total.
 
 | Module | LoC | Module | LoC |
 |---|---|---|---|
@@ -246,6 +266,7 @@ Hand-rolled agent loop. No agent framework — the control flow is straight-line
 | `session.py` | 150 | `tools/parse.py` | 80 |
 | `supervisor.py` | 100 | `tools/files.py` | 90 |
 | `bus.py` | 80 | `tools/harness.py` | 40 |
+| `migrations.py` | 40 | | |
 | `worker.py` | 50 | `tools/registry.py` | 50 |
 | `llm.py` | 60 | `workspace.py` | 50 |
 | `config.py` | 40 | `cli.py` | 60 |
@@ -268,6 +289,7 @@ Eight tests. One per coherent behaviour, each asserting everything that behaviou
 | `test_contracts` | spec/outcome round-trip, `output` class resolution, validation failure |
 | `test_repair` | transcript ending mid-`tool_use` gets synthetic interrupted results |
 | `test_bus` | insert, claim-once under two consumers, cursor advance |
+| `test_migrations` | up to latest then down to 0 is a round trip; status and summary CHECKs reject bad rows |
 | `test_supervisor` | queued→running→completed, crash→crashed, timeout→killed |
 | `tests/integration/test_end_to_end` | small JSON, generated harness, one real agent |
 
