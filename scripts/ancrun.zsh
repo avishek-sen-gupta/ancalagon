@@ -1,6 +1,9 @@
 #!/usr/bin/env zsh
-# Runs ancalagon against Bedrock with a bearer token, isolating the call from any
-# stale AWS credentials in the environment, which Bedrock would otherwise reject.
+# Runs ancalagon against Bedrock with a bearer token read straight from the file,
+# never sourced: one malformed line in an .env silently drops every variable after
+# it, and litellm then falls back to ~/.aws credentials that may be stale, which
+# Bedrock reports as an invalid security token. Ambient AWS vars are also cleared,
+# since they would take precedence over the bearer token.
 # Reads AWS_BEARER_TOKEN_BEDROCK from $ANCALAGON_ENV (default ./.env).
 # Usage: ANCALAGON_ENV=path/to/.env ancrun.zsh <config.toml> <goal...>
 set -euo pipefail
