@@ -24,6 +24,16 @@ cp ancalagon.example.toml ancalagon.toml   # edit write_root and read_roots
 uv run ancalagon run --config ancalagon.toml --goal "..."
 ```
 
+Watch a run as it happens, including subagents spawned mid-run:
+
+```bash
+./scripts/ancwatch.zsh ws          # start before or during a run
+```
+
+On Bedrock with a bearer token, `scripts/ancrun.zsh` runs the same command with
+stale AWS credentials stripped from the environment — otherwise litellm signs with
+those instead and Bedrock rejects the request.
+
 ## How it works
 
 Three kinds of process, communicating only through SQLite rows and files:
