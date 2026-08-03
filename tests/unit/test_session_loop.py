@@ -170,6 +170,13 @@ def test_session_stops_and_returns_the_question_when_an_agent_needs_input(
     assert outcome.spent.tool_calls == 0
 
 
+def test_submit_answer_description_states_the_answer_shape():
+    described = SubmitAnswer(Verdict).description
+    assert "answer" in described
+    assert '{"answer": "..."}' in described
+    assert "Do not wrap" in described
+
+
 def test_session_completes_from_a_submit_answer_tool_call(tmp_path: pathlib.Path):
     session = _session(
         tmp_path,

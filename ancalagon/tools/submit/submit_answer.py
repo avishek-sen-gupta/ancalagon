@@ -10,12 +10,20 @@ from ancalagon.tools.registry.tool_context import ToolContext
 
 class SubmitAnswer:
     name = "submit_answer"
-    description = "Submit your final answer. Call this exactly once, when you are done. This does not consume your tool-call budget."
     cost = 0
 
     def __init__(self, output_class: type[pydantic.BaseModel]):
         self.output_class = output_class
         self.answer_json = ""
+        schema = output_class.model_json_schema()
+        fields = list(schema.get("properties", {}))
+        example = json.dumps({f: "..." for f in fields})
+        self.description = (
+            "Submit your final answer. Call this exactly once, when you are done. "
+            f"Its arguments are the answer itself: pass {', '.join(fields)} at the top "
+            f"level, for example {example}. Do not wrap them in another object or "
+            "pass them as a JSON string. This does not consume your tool-call budget."
+        )
 
     def schema(self) -> ToolSchema:
         return ToolSchema(

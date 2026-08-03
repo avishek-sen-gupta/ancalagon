@@ -19,4 +19,6 @@ fileignoreconfig:
   checksum: eb04e8577ba783deecaa19f5fbe7a4a5b4e3ad0b78593c4fc91b8251972798cf
 - filename: tests/unit/test_llm_adapter.py
   checksum: dba6d1b8bf59766812bd7e02152d2515ecc1b61c11ffd27398c7627b558ffed0
+- filename: ancalagon/tools/submit/submit_answer.py
+  checksum: 27a17740db3d4fdd7dfc15f416656f7c46613fd0f0be1c8cb1bf26dc94c89e78
 version: "1.0"
