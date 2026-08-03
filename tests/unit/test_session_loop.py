@@ -42,6 +42,8 @@ def _session(tmp_path: pathlib.Path, replies: list[Reply], budget: Budget) -> Se
         output="contracts.py:Verdict",
         budget=budget,
     )
+    submit = SubmitAnswer(Verdict)
+    need_input = NeedInput()
     return Session(
         spec=spec,
         input_json='{"answer": "seed"}',
@@ -49,9 +51,11 @@ def _session(tmp_path: pathlib.Path, replies: list[Reply], budget: Budget) -> Se
         transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
         llm=FakeLLM(replies),
-        registry=Registry([ReadFile(), NeedInput(), SubmitAnswer(Verdict)]),
+        registry=Registry([ReadFile(), need_input, submit]),
         ctx=ctx,
         output_class=Verdict,
+        submit=submit,
+        need_input=need_input,
     )
 
 

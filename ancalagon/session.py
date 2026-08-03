@@ -45,6 +45,8 @@ class Session:
         registry: Registry,
         ctx: ToolContext,
         output_class: type[pydantic.BaseModel],
+        submit: SubmitAnswer,
+        need_input: NeedInput,
     ):
         self.spec = spec
         self.input_json = input_json
@@ -55,6 +57,8 @@ class Session:
         self.registry = registry
         self.ctx = ctx
         self.output_class = output_class
+        self.submit = submit
+        self.need_input = need_input
         self.remaining = spec.budget
         self.seq = len(messages)
         if not self.messages:
@@ -122,29 +126,17 @@ class Session:
             )
         self._record(Role.USER, blocks)
 
-    def _answer_submitted(self) -> str:
-        if "submit_answer" not in self.registry.names():
-            return ""
-        tool = self.registry.get("submit_answer")
-        return tool.answer_json if isinstance(tool, SubmitAnswer) else ""
-
-    def _question_asked(self) -> str:
-        if "need_input" not in self.registry.names():
-            return ""
-        tool = self.registry.get("need_input")
-        return tool.question if isinstance(tool, NeedInput) else ""
-
     def _final_turn(self) -> Outcome:
         if self.messages and self.messages[-1].role is Role.USER:
             self._record(Role.ASSISTANT, [Text(text="Understood.")])
         self._record(Role.USER, [Text(text=FINAL_INSTRUCTION)])
-        final_tools = [s for s in self.registry.schemas() if s.name == "submit_answer"]
+        final_tools = [self.submit.schema()]
         reply = self.llm.complete(self._system(), self.messages, final_tools)
         self._record(Role.ASSISTANT, reply.blocks)
         uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
         if uses:
             self._run_tools(uses)
-            submitted = self._answer_submitted()
+            submitted = self.submit.answer_json
             if submitted:
                 return Exhausted(
                     value=self.output_class.model_validate_json(submitted),
@@ -173,10 +165,10 @@ class Session:
             uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
             if uses:
                 self._run_tools(uses)
-                asked = self._question_asked()
+                asked = self.need_input.question
                 if asked:
                     return NeedsInput(question=asked, summary=asked[:200], spent=self._spent())
-                submitted = self._answer_submitted()
+                submitted = self.submit.answer_json
                 if submitted:
                     return Completed(
                         value=self.output_class.model_validate_json(submitted),

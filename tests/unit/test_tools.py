@@ -12,7 +12,9 @@ from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.files.write_file import WriteFile
 from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
 from ancalagon.tools.registry.registry import Registry
+from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.registry.tool_context import ToolContext
+from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.search.sed import Sed
 from ancalagon.worker import build_registry
@@ -153,8 +155,14 @@ def test_registry_withholds_delegate_once_depth_reaches_max_depth(tmp_path: path
         tools=[],
         summary_chars=100,
     )
-    at_root = build_registry(config, tmp_path, parent=0, depth=0, output_class=FreeText)
-    at_limit = build_registry(config, tmp_path, parent=1, depth=1, output_class=FreeText)
+    submit = SubmitAnswer(FreeText)
+    need_input = NeedInput()
+    at_root = build_registry(
+        config, tmp_path, parent=0, depth=0, submit=submit, need_input=need_input
+    )
+    at_limit = build_registry(
+        config, tmp_path, parent=1, depth=1, submit=submit, need_input=need_input
+    )
 
     assert "delegate" in at_root.names()
     assert "need_input" in at_root.names()

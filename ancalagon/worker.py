@@ -3,8 +3,6 @@ import logging
 import pathlib
 import sys
 
-import pydantic
-
 from ancalagon.bus.bus import Bus
 from ancalagon.bus.depth_of import depth_of
 from ancalagon.config.config import Config
@@ -45,7 +43,8 @@ def build_registry(
     run_dir: pathlib.Path,
     parent: int,
     depth: int,
-    output_class: type[pydantic.BaseModel],
+    submit: SubmitAnswer,
+    need_input: NeedInput,
 ) -> Registry:
     available: list[Tool] = [
         ReadFile(),
@@ -60,8 +59,8 @@ def build_registry(
         Delegate(run_dir=run_dir, parent=parent),
         CheckTask(run_dir=run_dir),
         CollectTask(run_dir=run_dir),
-        NeedInput(),
-        SubmitAnswer(output_class),
+        need_input,
+        submit,
     ]
     enabled = set(config.tools)
     permitted = [t for t in available if not enabled or t.name in enabled]
@@ -89,6 +88,8 @@ def main(
             summary_chars=config.summary_chars,
             agent_id=agent_id,
         )
+        submit = SubmitAnswer(output_class)
+        need_input = NeedInput()
         session = Session(
             spec=spec,
             input_json=input_json_of(spec_text),
@@ -101,10 +102,13 @@ def main(
                 run_dir,
                 parent=agent_id,
                 depth=depth_of(bus, agent_id),
-                output_class=output_class,
+                submit=submit,
+                need_input=need_input,
             ),
             ctx=ctx,
             output_class=output_class,
+            submit=submit,
+            need_input=need_input,
         )
         outcome = session.run()
         outcome_path.write_text(outcome.model_dump_json())
