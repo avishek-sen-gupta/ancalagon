@@ -31,6 +31,12 @@ class Delegate:
 
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
         args = DelegateArgs.model_validate_json(arguments)
+        if ":" not in args.output or not args.output.split(":", 1)[0].endswith(".py"):
+            return ctx.failure(
+                self.name,
+                f"output must be '<module>.py:<ClassName>', got {args.output!r}. "
+                "Use 'contracts.py:FreeText' unless you supply contracts_path.",
+            )
         task_dir = self.run_dir / "tasks" / args.task_id
         if (task_dir / "spec.json").exists():
             return ctx.failure(self.name, f"task {args.task_id} already exists at {task_dir}")

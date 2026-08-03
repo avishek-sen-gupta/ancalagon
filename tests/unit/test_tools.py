@@ -91,13 +91,33 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
     assert deleted.ok is True
     assert not target.exists()
 
-    long_content = "x" * 500
     big = ctx.workspace.write_root / "big.txt"
-    big.write_text(long_content)
-    result = registry.get("read_file").run(f'{{"path": "{big}"}}', ctx)
-    assert result.truncated is True
-    assert len(result.summary) <= 50
-    assert result.path.read_text() == long_content
+    big.write_text("\n".join(f"line {i}" for i in range(60)))
+    first = registry.get("read_file").run(f'{{"path": "{big}"}}', ctx)
+    assert first.ok is True
+    assert first.truncated is True
+    assert "line 0" in first.summary
+    assert "of 60" in first.summary
+    shown = int(first.summary.rsplit("offset=", 1)[1].split(" ")[0])
+    assert 0 < shown < 60
+
+    rest = registry.get("read_file").run(f'{{"path": "{big}", "offset": {shown}}}', ctx)
+    assert f"line {shown}" in rest.summary
+
+    tail = registry.get("read_file").run(f'{{"path": "{big}", "offset": 58}}', ctx)
+    assert "line 59" in tail.summary
+    assert "end of file" in tail.summary
+    assert tail.truncated is False
+
+    relative = registry.get("read_file").run('{"path": "nope.txt"}', ctx)
+    assert relative.ok is False
+    assert "Relative paths resolve" in relative.error
+
+    absent = registry.get("read_file").run(
+        f'{{"path": "{ctx.workspace.write_root / "nope.txt"}"}}', ctx
+    )
+    assert absent.ok is False
+    assert "no file at" in absent.error
 
 
 def test_search_and_parse_tools_write_outputs_and_never_mutate_inputs(tmp_path: pathlib.Path):
@@ -110,20 +130,27 @@ def test_search_and_parse_tools_write_outputs_and_never_mutate_inputs(tmp_path: 
         f'{{"pattern": "def (alpha|beta)", "roots": ["{ctx.workspace.write_root}"]}}', ctx
     )
     assert found.ok is True
-    records = [json.loads(line) for line in found.path.read_text().splitlines()]
-    matches = [r for r in records if r["type"] == "match"]
-    assert [m["data"]["lines"]["text"].strip() for m in matches] == ["def alpha():", "def beta():"]
-    assert all(m["data"]["path"]["text"] == str(source) for m in matches)
+    assert [l.split(":", 2)[2].strip() for l in found.path.read_text().splitlines()] == [
+        "def alpha():",
+        "def beta():",
+    ]
+
+    structured = Ripgrep().run(
+        f'{{"pattern": "def alpha", "roots": ["{ctx.workspace.write_root}"], "structured": true}}',
+        ctx,
+    )
+    matches = [
+        r
+        for r in (json.loads(line) for line in structured.path.read_text().splitlines())
+        if r["type"] == "match"
+    ]
+    assert str(source) in [m["data"]["path"]["text"] for m in matches]
 
     missing = Ripgrep().run(
         f'{{"pattern": "zzz_absent", "roots": ["{ctx.workspace.write_root}"]}}', ctx
     )
     assert missing.ok is True
-    assert not [
-        r
-        for r in (json.loads(line) for line in missing.path.read_text().splitlines())
-        if r["type"] == "match"
-    ]
+    assert missing.path.read_text() == ""
 
     streamed = Sed().run(f'{{"script": "s/alpha/gamma/", "path": "{source}"}}', ctx)
     assert streamed.ok is True

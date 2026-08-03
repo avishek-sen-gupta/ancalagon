@@ -8,6 +8,12 @@ if typing.TYPE_CHECKING:
     from ancalagon.config.config import Config
 
 
+def _hint(path: pathlib.Path) -> str:
+    if path.is_absolute():
+        return ""
+    return ". Relative paths resolve against the working directory; give an absolute path"
+
+
 class Workspace:
     def __init__(self, write_root: pathlib.Path, read_roots: tuple[pathlib.Path, ...]):
         self.write_root = write_root.resolve()
@@ -20,11 +26,11 @@ class Workspace:
     def resolve_write(self, path: pathlib.Path) -> pathlib.Path:
         resolved = path.resolve()
         if not resolved.is_relative_to(self.write_root):
-            raise ScopeError(f"{path} is outside write_root {self.write_root}")
+            raise ScopeError(f"{path} is outside write_root {self.write_root}{_hint(path)}")
         return resolved
 
     def resolve_read(self, path: pathlib.Path) -> pathlib.Path:
         resolved = path.resolve()
         if not any(resolved.is_relative_to(root) for root in self.read_roots):
-            raise ScopeError(f"{path} is outside read_roots {self.read_roots}")
+            raise ScopeError(f"{path} is outside read_roots {self.read_roots}{_hint(path)}")
         return resolved
