@@ -22,7 +22,7 @@ ancwatch() {
       [[ -n ${pids[$label]} && ${pids[$label]} != 0 ]] && continue
       if [[ ${pids[$label]} == 0 ]]; then from="-n 0"; else from="-n +1"; fi
       tail ${=from} -f "$f" | jq -rj --unbuffered --arg n "$label" '
-        "[36m[\($n)][0m ",
+        "[36m[\($n)/\(.agent)][0m ",
         (.role[0:1] | ascii_upcase), " ",
         ([.blocks[] |
            if   .kind == "text"     then (.text | gsub("\n"; " ") | .[0:110])
