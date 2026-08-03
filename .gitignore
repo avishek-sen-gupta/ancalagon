@@ -23,3 +23,6 @@ runs/
 
 # macOS
 .DS_Store
+
+# Live run artifacts from analysing this repo with itself.
+output/

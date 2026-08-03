@@ -33,6 +33,7 @@ def _walk(node: tree_sitter.Node) -> list[dict[str, str | int | list[str]]]:
 class TreeSitter:
     name = "treesitter"
     description = "Parse a source file and emit its AST nodes as JSON."
+    cost = 1
 
     def schema(self) -> ToolSchema:
         return schema_of(self.name, self.description, ParseArgs)

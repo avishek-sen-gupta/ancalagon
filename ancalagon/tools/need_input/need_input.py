@@ -10,8 +10,9 @@ class NeedInput:
     name = "need_input"
     description = (
         "Stop and hand a question back to whoever launched this task. "
-        "Use when you cannot proceed without information you have no way to obtain."
+        "Use when you cannot proceed without information you have no way to obtain. This does not consume your tool-call budget."
     )
+    cost = 0
 
     def __init__(self) -> None:
         self.question = ""

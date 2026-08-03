@@ -14,6 +14,7 @@ class Ripgrep:
         "Search files by regular expression. Returns one JSON record per match, "
         "with the file path, line number and matched text."
     )
+    cost = 1
 
     def schema(self) -> ToolSchema:
         return schema_of(self.name, self.description, GrepArgs)

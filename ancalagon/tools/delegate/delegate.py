@@ -20,6 +20,7 @@ class Delegate:
         "defining a pydantic model with write_file first, then pass its path as "
         "contracts_path and name the class in output, e.g. contracts.py:NodeVerdict."
     )
+    cost = 1
 
     def __init__(self, run_dir: pathlib.Path, parent: int):
         self.run_dir = run_dir

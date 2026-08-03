@@ -11,6 +11,7 @@ from ancalagon.workspace.scope_error import ScopeError
 class AstGrep:
     name = "ast_grep"
     description = "Structural code search by AST pattern."
+    cost = 1
 
     def schema(self) -> ToolSchema:
         return schema_of(self.name, self.description, GrepArgs)

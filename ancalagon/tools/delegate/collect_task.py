@@ -12,6 +12,7 @@ from ancalagon.tools.registry.tool_context import ToolContext
 class CollectTask:
     name = "collect_task"
     description = "Read the outcome of a finished task. Reports if it is still running."
+    cost = 1
 
     def __init__(self, run_dir: pathlib.Path):
         self.run_dir = run_dir

@@ -167,7 +167,7 @@ def test_session_stops_and_returns_the_question_when_an_agent_needs_input(
     assert isinstance(outcome, NeedsInput)
     assert outcome.question == "keep both captions or pick one?"
     assert outcome.spent.turns == 1
-    assert outcome.spent.tool_calls == 1
+    assert outcome.spent.tool_calls == 0
 
 
 def test_session_completes_from_a_submit_answer_tool_call(tmp_path: pathlib.Path):
@@ -191,6 +191,7 @@ def test_session_completes_from_a_submit_answer_tool_call(tmp_path: pathlib.Path
     assert isinstance(outcome, Completed)
     assert outcome.value.model_dump() == {"answer": "structured"}
     assert outcome.spent.turns == 1
+    assert outcome.spent.tool_calls == 0
 
     rejected = _session(
         tmp_path / "bad",
@@ -212,3 +213,30 @@ def test_session_completes_from_a_submit_answer_tool_call(tmp_path: pathlib.Path
     assert isinstance(second, Completed)
     assert second.value.model_dump() == {"answer": "second try"}
     assert "did not match the schema" in (tmp_path / "bad" / "transcript.jsonl").read_text()
+
+
+def test_a_zero_cost_tool_still_works_with_no_tool_call_budget_left(tmp_path: pathlib.Path):
+    session = _session(
+        tmp_path,
+        [
+            Reply(
+                blocks=[
+                    ToolUse(id="tu_1", name="read_file", arguments='{"path": "/nope"}'),
+                    ToolUse(id="tu_2", name="read_file", arguments='{"path": "/nope"}'),
+                ],
+                stop_reason="tool_calls",
+            ),
+            Reply(
+                blocks=[ToolUse(id="tu_3", name="submit_answer", arguments='{"answer": "free"}')],
+                stop_reason="tool_calls",
+            ),
+        ],
+        Budget(turns=5, tool_calls=1),
+    )
+    outcome = session.run()
+    assert isinstance(outcome, Completed)
+    assert outcome.value.model_dump() == {"answer": "free"}
+    assert outcome.spent.tool_calls == 1
+
+    transcript = (tmp_path / "transcript.jsonl").read_text()
+    assert "budget exhausted" in transcript

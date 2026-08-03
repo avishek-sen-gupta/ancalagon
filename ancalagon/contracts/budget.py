@@ -10,15 +10,11 @@ class Budget(pydantic.BaseModel, frozen=True):
     def turns_exhausted(self) -> bool:
         return self.turns <= 0
 
-    @property
-    def tool_calls_exhausted(self) -> bool:
-        return self.tool_calls <= 0
-
     def spend_turn(self) -> "Budget":
         return Budget(turns=self.turns - 1, tool_calls=self.tool_calls)
 
-    def spend_tool_call(self) -> "Budget":
-        return Budget(turns=self.turns, tool_calls=self.tool_calls - 1)
+    def spend_tool_calls(self, count: int = 1) -> "Budget":
+        return Budget(turns=self.turns, tool_calls=self.tool_calls - count)
 
     def slice(self, turns: int, tool_calls: int) -> "Budget":
         if turns > self.turns or tool_calls > self.tool_calls:

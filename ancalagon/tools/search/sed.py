@@ -11,6 +11,7 @@ from ancalagon.workspace.scope_error import ScopeError
 class Sed:
     name = "sed"
     description = "Apply a sed script to a file and write the transformed stream to a new file."
+    cost = 1
 
     def schema(self) -> ToolSchema:
         return schema_of(self.name, self.description, SedArgs)

@@ -1,4 +1,4 @@
-# The agent loop: one turn per model call, until an answer, a question, or an empty budget.
+# The agent loop: one turn per model call, until an answer, a question, or no turns left.
 import datetime
 import logging
 
@@ -103,18 +103,24 @@ class Session:
     def _run_tools(self, uses: list[ToolUse]) -> None:
         blocks: list[Block] = []
         for use in uses:
-            if self.remaining.tool_calls_exhausted:
+            try:
+                tool = self.registry.get(use.name)
+            except KeyError as exc:
+                blocks.append(ToolResultBlock(tool_use_id=use.id, content=str(exc), is_error=True))
+                continue
+            if tool.cost > self.remaining.tool_calls:
                 blocks.append(
                     ToolResultBlock(
                         tool_use_id=use.id,
-                        content="tool-call budget exhausted; this call was not run",
+                        content=f"tool-call budget exhausted; {use.name} costs "
+                        f"{tool.cost} and {self.remaining.tool_calls} remain",
                         is_error=True,
                     )
                 )
                 continue
-            self.remaining = self.remaining.spend_tool_call()
+            self.remaining = self.remaining.spend_tool_calls(tool.cost)
             try:
-                result = self.registry.get(use.name).run(use.arguments, self.ctx)
+                result = tool.run(use.arguments, self.ctx)
             except Exception as exc:
                 LOGGER.warning("tool %s raised: %s", use.name, exc)
                 result = self.ctx.failure(use.name, f"{type(exc).__name__}: {exc}")
@@ -158,7 +164,7 @@ class Session:
     def run(self) -> Outcome:
         schemas = self.registry.schemas()
         while True:
-            if self.remaining.turns_exhausted or self.remaining.tool_calls_exhausted:
+            if self.remaining.turns_exhausted:
                 return self._final_turn()
             self.remaining = self.remaining.spend_turn()
             reply = self.llm.complete(self._system(), self.messages, schemas)

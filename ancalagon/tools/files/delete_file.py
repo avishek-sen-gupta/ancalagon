@@ -10,6 +10,7 @@ from ancalagon.workspace.scope_error import ScopeError
 class DeleteFile:
     name = "delete_file"
     description = "Delete a file inside the workspace write root."
+    cost = 1
 
     def schema(self) -> ToolSchema:
         return schema_of(self.name, self.description, PathArgs)

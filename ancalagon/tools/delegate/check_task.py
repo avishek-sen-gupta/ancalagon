@@ -11,7 +11,8 @@ from ancalagon.tools.registry.tool_context import ToolContext
 
 class CheckTask:
     name = "check_task"
-    description = "Report the status of a delegated task without waiting."
+    description = "Report the status of a delegated task without waiting. This does not consume your tool-call budget."
+    cost = 0
 
     def __init__(self, run_dir: pathlib.Path):
         self.run_dir = run_dir

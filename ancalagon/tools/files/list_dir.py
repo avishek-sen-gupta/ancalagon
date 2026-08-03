@@ -10,6 +10,7 @@ from ancalagon.workspace.scope_error import ScopeError
 class ListDir:
     name = "list_dir"
     description = "List a directory inside the configured read roots."
+    cost = 1
 
     def schema(self) -> ToolSchema:
         return schema_of(self.name, self.description, PathArgs)

@@ -10,6 +10,7 @@ from ancalagon.workspace.scope_error import ScopeError
 class ReadFile:
     name = "read_file"
     description = "Read a file inside the configured read roots."
+    cost = 1
 
     def schema(self) -> ToolSchema:
         return schema_of(self.name, self.description, PathArgs)

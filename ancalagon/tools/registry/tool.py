@@ -9,6 +9,7 @@ from ancalagon.tools.registry.tool_context import ToolContext
 class Tool(typing.Protocol):
     name: str
     description: str
+    cost: int
 
     def schema(self) -> ToolSchema: ...
 
