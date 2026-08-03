@@ -1,3 +1,4 @@
+# The agent loop: one turn per model call, until an answer, a question, or an empty budget.
 import datetime
 import logging
 

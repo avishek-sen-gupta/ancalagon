@@ -1,3 +1,4 @@
+# Starts a run: writes the root task, then supervises it to completion.
 import argparse
 import json
 import logging

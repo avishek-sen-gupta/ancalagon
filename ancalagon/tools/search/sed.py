@@ -1,3 +1,4 @@
+# Stream-only transformation. Never -i, so it cannot mutate an artifact under analysis.
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema

@@ -1,3 +1,4 @@
+# The default output contract, for agents whose answer is prose.
 import pydantic
 
 

@@ -1,3 +1,4 @@
+# Imports a generated contracts module by path, refusing anything outside the task directory.
 import importlib.util
 import pathlib
 import sys

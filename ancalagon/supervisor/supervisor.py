@@ -1,3 +1,4 @@
+# Spawns, reaps and kills workers. Never retries -- a crash is reported and the parent decides.
 import logging
 import pathlib
 

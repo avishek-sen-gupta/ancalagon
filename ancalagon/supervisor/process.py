@@ -1,3 +1,4 @@
+# The slice of subprocess.Popen the supervisor uses, so tests can substitute a fake.
 import typing
 
 

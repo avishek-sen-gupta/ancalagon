@@ -1,3 +1,4 @@
+# Lifecycle states a task row can hold; mirrored by a CHECK constraint in the schema.
 import enum
 
 

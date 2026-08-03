@@ -1,3 +1,4 @@
+# The only place in the codebase that starts an OS process.
 import pathlib
 import subprocess
 import sys

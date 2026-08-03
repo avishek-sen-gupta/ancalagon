@@ -1,3 +1,4 @@
+# Ends a run with a typed answer; its parameter schema is the task's output class.
 import json
 
 import pydantic

@@ -1,3 +1,4 @@
+# Scripted replies, so the whole loop is testable without a network.
 import collections.abc
 
 from ancalagon.contracts.message import Message

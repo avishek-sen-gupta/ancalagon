@@ -1,3 +1,4 @@
+# Turn and tool-call allowances, sliced by a caller for its children and never overspent.
 import pydantic
 
 

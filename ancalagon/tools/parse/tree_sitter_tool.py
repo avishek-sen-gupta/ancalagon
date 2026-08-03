@@ -1,3 +1,4 @@
+# Parses a source file to a flat list of AST nodes as JSON.
 import json
 
 import tree_sitter

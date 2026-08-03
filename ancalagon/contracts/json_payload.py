@@ -1,3 +1,4 @@
+# Extracts the outermost JSON object, since models wrap answers in prose and fences.
 def json_payload(text: str) -> str:
     start = text.find("{")
     end = text.rfind("}")

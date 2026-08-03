@@ -1,3 +1,4 @@
+# One row of the tasks table.
 import pydantic
 
 from ancalagon.bus.task_status import TaskStatus

@@ -1,3 +1,4 @@
+# Injected time, so timeout behaviour can be tested without waiting.
 import typing
 
 

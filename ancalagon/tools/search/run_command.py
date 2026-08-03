@@ -1,3 +1,4 @@
+# Runs an external tool and captures its output.
 import subprocess
 
 

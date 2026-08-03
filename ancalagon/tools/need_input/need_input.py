@@ -1,3 +1,4 @@
+# Ends a run with a question; there is no channel to ask a live parent by design.
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema

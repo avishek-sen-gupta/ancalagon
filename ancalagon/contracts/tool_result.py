@@ -1,3 +1,4 @@
+# What every tool returns: a capped summary for the model, and a path to the full output.
 import pathlib
 
 import pydantic

@@ -1,3 +1,4 @@
+# The ways an attempt can end, and the adapter that parses one against a resolved class.
 import pydantic
 
 from ancalagon.contracts.completed import Completed

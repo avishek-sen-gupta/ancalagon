@@ -1,3 +1,4 @@
+# What every tool must offer. Each validates its own arguments from raw JSON text.
 import typing
 
 from ancalagon.contracts.tool_result import ToolResult

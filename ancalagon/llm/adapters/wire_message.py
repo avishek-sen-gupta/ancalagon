@@ -1,3 +1,4 @@
+# One message in provider wire format, typed so the payload never becomes an untyped dict.
 import pydantic
 
 from ancalagon.llm.adapters.wire_tool_call import WireToolCall

@@ -1,3 +1,4 @@
+# Reads a finished task's outcome, or says it is not finished.
 import pathlib
 
 from ancalagon.bus.bus import Bus

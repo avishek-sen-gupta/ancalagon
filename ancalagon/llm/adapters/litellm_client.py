@@ -1,3 +1,4 @@
+# Translates between our contracts and litellm's OpenAI-shaped wire format.
 import collections.abc
 import json
 

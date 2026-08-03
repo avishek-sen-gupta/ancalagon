@@ -1,3 +1,4 @@
+# One row of the messages table.
 import pydantic
 
 

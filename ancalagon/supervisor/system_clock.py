@@ -1,3 +1,4 @@
+# The real clock, used everywhere outside tests.
 import time
 
 

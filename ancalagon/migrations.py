@@ -1,3 +1,4 @@
+# Applies the paired SQL files, tracking schema version in PRAGMA user_version.
 import pathlib
 import sqlite3
 

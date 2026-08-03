@@ -1,3 +1,4 @@
+# Queues a subagent task and returns immediately; the supervisor spawns it.
 import json
 import pathlib
 

@@ -1,3 +1,4 @@
+# Counts a task's ancestors, with the root at zero, so max_depth can bound nesting.
 from ancalagon.bus.bus import Bus
 
 MAX_HOPS = 64

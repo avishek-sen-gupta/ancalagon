@@ -1,3 +1,4 @@
+# Reads a file, refusing anything outside the configured read roots.
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema

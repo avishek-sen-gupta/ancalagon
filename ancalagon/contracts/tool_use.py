@@ -1,3 +1,4 @@
+# A model's request to call a tool. Arguments stay JSON text until the tool validates them.
 import typing
 
 import pydantic

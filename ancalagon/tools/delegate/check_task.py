@@ -1,3 +1,4 @@
+# Reports a delegated task's status without waiting.
 import pathlib
 
 from ancalagon.bus.bus import Bus

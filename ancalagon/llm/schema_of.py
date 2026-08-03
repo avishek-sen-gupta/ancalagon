@@ -1,3 +1,4 @@
+# Builds a tool schema from a pydantic model, so every tool declares itself the same way.
 import json
 
 import pydantic

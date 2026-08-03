@@ -1,3 +1,4 @@
+# Entry point for one agent process: runs a single attempt at one task directory.
 import argparse
 import logging
 import pathlib

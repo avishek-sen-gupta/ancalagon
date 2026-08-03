@@ -1,3 +1,4 @@
+# What a caller declares when creating work; a worker reads TaskSpec instead.
 import typing
 
 import pydantic

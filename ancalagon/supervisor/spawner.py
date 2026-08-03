@@ -1,3 +1,4 @@
+# Indirection for process creation, so tests can supervise without launching interpreters.
 import pathlib
 import typing
 

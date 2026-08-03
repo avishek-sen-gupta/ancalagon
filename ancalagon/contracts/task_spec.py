@@ -1,3 +1,4 @@
+# What a worker reads from spec.json: the scalars, without the input it cannot type.
 import pydantic
 
 from ancalagon.contracts.budget import Budget

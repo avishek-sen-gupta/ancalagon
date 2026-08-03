@@ -1,3 +1,4 @@
+# The function half of a wire tool call.
 import pydantic
 
 

@@ -1,3 +1,4 @@
+# Loads a transcript, giving interrupted tool calls synthetic results so the API accepts it.
 import pathlib
 
 from ancalagon.contracts.message import Message

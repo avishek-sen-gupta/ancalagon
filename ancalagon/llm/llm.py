@@ -1,3 +1,4 @@
+# The single seam between the agent loop and any model provider.
 import collections.abc
 import typing
 

@@ -1,3 +1,4 @@
+# The task queue and message inbox. Claiming is atomic so two supervisors never take the same row.
 import datetime
 import pathlib
 import sqlite3

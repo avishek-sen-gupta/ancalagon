@@ -1,3 +1,4 @@
+# Pulls the input out of spec.json as text, because only the caller knows what model it is.
 import json
 
 

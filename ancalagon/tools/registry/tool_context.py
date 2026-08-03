@@ -1,3 +1,4 @@
+# What a tool is given to do its work, and the writer that puts every output on disk.
 import itertools
 import pathlib
 

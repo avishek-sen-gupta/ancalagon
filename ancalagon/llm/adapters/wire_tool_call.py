@@ -1,3 +1,4 @@
+# A tool call in provider wire format.
 import pydantic
 
 from ancalagon.llm.adapters.wire_function import WireFunction
