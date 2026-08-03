@@ -97,7 +97,12 @@ def main(
             messages=history,
             transcript=log,
             agent_id=agent_id,
-            llm=LiteLLMClient(model=config.model, max_tokens=config.max_tokens),
+            llm=LiteLLMClient(
+                model=config.model,
+                max_tokens=config.max_tokens,
+                num_retries=config.num_retries,
+                request_timeout_s=config.request_timeout_s,
+            ),
             registry=build_registry(
                 config,
                 run_dir,

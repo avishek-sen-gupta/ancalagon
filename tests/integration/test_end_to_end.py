@@ -34,6 +34,8 @@ read_roots = ["{artifacts}"]
 
 [model]
 name = "{model}"
+num_retries = 2
+request_timeout_s = 120
 max_tokens = 4000
 
 [budget]

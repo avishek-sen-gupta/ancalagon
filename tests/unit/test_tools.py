@@ -148,6 +148,8 @@ def test_registry_withholds_delegate_once_depth_reaches_max_depth(tmp_path: path
         read_roots=(tmp_path,),
         model="claude-opus-5",
         max_tokens=100,
+        num_retries=0,
+        request_timeout_s=10,
         budget=Budget(turns=1, tool_calls=1),
         max_concurrent_agents=1,
         agent_timeout_s=1,

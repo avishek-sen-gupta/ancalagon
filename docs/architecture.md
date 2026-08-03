@@ -145,7 +145,7 @@ the supervisor does.
 `llm.py` is the only seam between the loop and any provider. `fake_llm.py` implements it
 with scripted replies, which is what makes the entire loop testable offline.
 
-`adapters/litellm_client.py` translates in both directions: our `Message` objects become
+`adapters/litellm_client.py` carries `num_retries` and `timeout` from config, so a transient 429 or 5xx is retried rather than killing the task. It translates in both directions: our `Message` objects become
 `wire_message.py` models dumped to OpenAI-shaped dicts, and the response becomes `Text` and
 `ToolUse` blocks. The `adapters/` directory is quarantined in `pyrightconfig.json` — it is
 the only place third-party type gaps are tolerated.
@@ -163,6 +163,12 @@ ws/runs/r_0001/
         stderr-1.log              the worker's stderr
         tools/0000-read_file.txt  every tool's full output
     tasks/<child>/                same shape, one per delegated task
+```
+
+Because the transcript is flushed per message, a run is watchable while it happens:
+
+```bash
+tail -f ws/runs/r_0001/tasks/root/transcript.jsonl
 ```
 
 Everything is inspectable without ancalagon:

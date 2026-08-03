@@ -14,7 +14,7 @@ from ancalagon.llm.adapters.wire_tool_call import WireToolCall
 from ancalagon.llm.tool_schema import ToolSchema
 
 
-def _to_wire(message: Message) -> list[WireMessage]:
+def to_wire(message: Message) -> list[WireMessage]:
     results = [b for b in message.blocks if isinstance(b, ToolResultBlock)]
     if results:
         return [
@@ -38,9 +38,11 @@ def _to_arguments(raw: str | collections.abc.Mapping[str, str]) -> str:
 
 
 class LiteLLMClient:
-    def __init__(self, model: str, max_tokens: int):
+    def __init__(self, model: str, max_tokens: int, num_retries: int, request_timeout_s: int):
         self.model = model
         self.max_tokens = max_tokens
+        self.num_retries = num_retries
+        self.request_timeout_s = request_timeout_s
 
     def complete(
         self,
@@ -52,7 +54,7 @@ class LiteLLMClient:
 
         wire = [WireMessage(role="system", content=system)]
         for message in messages:
-            wire.extend(_to_wire(message))
+            wire.extend(to_wire(message))
         payload = [m.model_dump(exclude_defaults=True) for m in wire]
         schemas = [
             {
@@ -66,7 +68,12 @@ class LiteLLMClient:
             for t in tools
         ]
         response = litellm.completion(
-            model=self.model, messages=payload, tools=schemas, max_tokens=self.max_tokens
+            model=self.model,
+            messages=payload,
+            tools=schemas,
+            max_tokens=self.max_tokens,
+            num_retries=self.num_retries,
+            timeout=self.request_timeout_s,
         )
         if not isinstance(response, litellm.ModelResponse):
             raise TypeError("litellm.completion returned a streaming response")

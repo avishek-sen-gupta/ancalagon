@@ -17,4 +17,6 @@ fileignoreconfig:
   checksum: 3882fe7c9156aa8f7f54090e2b3704b5ca9bbd9c56c3701123b8b31a060943ec
 - filename: tests/unit/test_tools.py
   checksum: eb04e8577ba783deecaa19f5fbe7a4a5b4e3ad0b78593c4fc91b8251972798cf
+- filename: tests/unit/test_llm_adapter.py
+  checksum: dba6d1b8bf59766812bd7e02152d2515ecc1b61c11ffd27398c7627b558ffed0
 version: "1.0"

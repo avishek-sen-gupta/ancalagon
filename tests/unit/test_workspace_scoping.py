@@ -42,6 +42,8 @@ read_roots = ["{read_only}"]
 
 [model]
 name = "claude-opus-5"
+num_retries = 3
+request_timeout_s = 300
 max_tokens = 8000
 
 [budget]
@@ -61,6 +63,8 @@ enabled = ["read_file", "ripgrep"]
     assert config.write_root == write_root
     assert config.read_roots == (read_only,)
     assert config.model == "claude-opus-5"
+    assert config.num_retries == 3
+    assert config.request_timeout_s == 300
     assert config.budget.turns == 20
     assert config.max_concurrent_agents == 1
     assert config.agent_timeout_s == 3600
@@ -82,6 +86,8 @@ read_roots = ["./artifacts"]
 
 [model]
 name = "claude-opus-5"
+num_retries = 3
+request_timeout_s = 300
 max_tokens = 8000
 
 [budget]

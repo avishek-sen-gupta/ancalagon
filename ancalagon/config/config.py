@@ -11,6 +11,8 @@ class Config(pydantic.BaseModel, frozen=True):
     read_roots: tuple[pathlib.Path, ...]
     model: str
     max_tokens: int
+    num_retries: int
+    request_timeout_s: int
     budget: Budget
     max_concurrent_agents: int
     agent_timeout_s: int
