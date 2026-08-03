@@ -4,9 +4,17 @@ An agent harness for reverse engineering.
 
 ## What it does
 
-Give it a data structure and a goal. An agent investigates with tools — ripgrep,
-ast-grep, tree-sitter, stream-only sed, scoped file access — and delegates focused
-subtasks to isolated subagent processes.
+Give it a goal. An agent pursues it with tools — ripgrep, ast-grep, tree-sitter,
+stream-only sed, scoped file access — and delegates focused subtasks to isolated
+subagent processes, each with its own budget and its own typed output contract.
+
+A goal is all it needs. Point `read_roots` at whatever the agent should be able to
+read — a repository, a directory of parsed artifacts, a single JSON file, or nothing
+at all — and it stays inside that boundary.
+
+Subagents return typed results. A parent can write a Pydantic model at runtime and
+require its children to answer in that shape, so a fan-out produces structured data
+rather than prose.
 
 ## Running
 
