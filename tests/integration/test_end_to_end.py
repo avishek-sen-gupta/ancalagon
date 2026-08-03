@@ -10,7 +10,8 @@ from ancalagon.bus.bus import Bus
 from ancalagon.bus.task_status import TaskStatus
 
 
-def _config(tmp_path: pathlib.Path, turns: int, tool_calls: int) -> pathlib.Path:
+def _config(tmp_path: pathlib.Path, turns: int, tool_calls: int, model: str = "") -> pathlib.Path:
+    model = model or os.environ.get("ANCALAGON_MODEL", "claude-opus-5")
     write_root = tmp_path / "ws"
     artifacts = tmp_path / "artifacts"
     write_root.mkdir(exist_ok=True)
@@ -32,7 +33,7 @@ write_root = "{write_root}"
 read_roots = ["{artifacts}"]
 
 [model]
-name = "claude-opus-5"
+name = "{model}"
 max_tokens = 4000
 
 [budget]
@@ -66,10 +67,9 @@ def _run_cli(
 def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
     tmp_path: pathlib.Path,
 ):
-    config = _config(tmp_path, turns=2, tool_calls=4)
-    env = {k: v for k, v in os.environ.items() if "API_KEY" not in k}
+    config = _config(tmp_path, turns=2, tool_calls=4, model="no-such-provider/no-such-model")
 
-    completed = _run_cli(config, "Say hello.", env)
+    completed = _run_cli(config, "Say hello.", dict(os.environ))
     assert completed.returncode == 0, completed.stderr
 
     run_dir = next((tmp_path / "ws" / "runs").iterdir())

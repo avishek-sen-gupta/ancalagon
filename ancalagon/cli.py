@@ -6,12 +6,11 @@ import sys
 
 from ancalagon.bus.bus import Bus
 from ancalagon.config.load import load_config
+from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
 
 LOGGER = logging.getLogger(__name__)
-
-ROOT_CONTRACTS = "import pydantic\n\n\nclass FreeText(pydantic.BaseModel):\n    text: str\n"
 
 ROOT_BEHAVIOUR = (
     "You are a reverse engineering agent. Use your tools to investigate, and delegate "
@@ -34,7 +33,7 @@ def main(config_path: pathlib.Path, goal: str) -> int:
     run_dir = _new_run_dir(config.write_root)
     task_dir = run_dir / "tasks" / "root"
     task_dir.mkdir(parents=True)
-    (task_dir / "contracts.py").write_text(ROOT_CONTRACTS)
+    (task_dir / "contracts.py").write_text(FREE_TEXT_MODULE)
     (task_dir / "spec.json").write_text(
         json.dumps(
             {

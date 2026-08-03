@@ -2,6 +2,7 @@ import json
 import pathlib
 
 from ancalagon.bus.bus import Bus
+from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
@@ -45,5 +46,6 @@ class Delegate:
             + ', "tools": []}'
         )
         (task_dir / "spec.json").write_text(spec_text)
+        (task_dir / "contracts.py").write_text(args.contracts_py or FREE_TEXT_MODULE)
         task = Bus.open(self.run_dir / "bus.db").enqueue(task_dir, parent=self.parent)
         return ctx.result(self.name, f"queued task {task} at {task_dir}")

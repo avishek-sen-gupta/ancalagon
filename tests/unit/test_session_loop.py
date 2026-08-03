@@ -74,7 +74,10 @@ def test_session_runs_tools_completes_and_forces_a_final_answer_when_exhausted(
                 ],
                 stop_reason="tool_calls",
             ),
-            Reply(blocks=[Text(text='{"answer": "payload"}')], stop_reason="stop"),
+            Reply(
+                blocks=[Text(text='Here is my answer.\n\n```json\n{"answer": "payload"}\n```')],
+                stop_reason="stop",
+            ),
         ],
         Budget(turns=5, tool_calls=5),
     )

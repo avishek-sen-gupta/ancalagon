@@ -15,6 +15,7 @@ dev = [
     "pytest>=8.0",
     "black>=24.0",
     "pyright>=1.1.409",
+    "boto3>=1.43.62",
 ]
 
 [project.scripts]

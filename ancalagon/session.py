@@ -8,6 +8,7 @@ from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.exhausted import Exhausted
 from ancalagon.contracts.failed import Failed
+from ancalagon.contracts.json_payload import json_payload
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.outcome import Outcome
@@ -89,6 +90,9 @@ class Session:
     def _text_of(self, reply: Reply) -> str:
         return "".join(b.text for b in reply.blocks if isinstance(b, Text))
 
+    def _answer_of(self, reply: Reply) -> str:
+        return json_payload(self._text_of(reply))
+
     def _run_tools(self, uses: list[ToolUse]) -> None:
         blocks: list[Block] = []
         for use in uses:
@@ -128,7 +132,7 @@ class Session:
         self._record(Role.USER, [Text(text=FINAL_INSTRUCTION)])
         reply = self.llm.complete(self._system(), self.messages, [])
         self._record(Role.ASSISTANT, reply.blocks)
-        text = self._text_of(reply)
+        text = self._answer_of(reply)
         try:
             value = self.output_class.model_validate_json(text)
         except pydantic.ValidationError as exc:
@@ -154,7 +158,7 @@ class Session:
                 if asked:
                     return NeedsInput(question=asked, summary=asked[:200], spent=self._spent())
                 continue
-            text = self._text_of(reply)
+            text = self._answer_of(reply)
             try:
                 value = self.output_class.model_validate_json(text)
             except pydantic.ValidationError as exc:
