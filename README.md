@@ -75,4 +75,8 @@ boundary, without a credential.
 
 ## Design
 
-See `docs/superpowers/specs/2026-08-02-ancalagon-agent-harness-design.md`.
+`docs/architecture.md` follows a single run through every file it touches, in order --
+start there if you are reading the code.
+
+`docs/superpowers/specs/2026-08-02-ancalagon-agent-harness-design.md` is the design
+rationale: what was chosen, what was deliberately cut, and why.
