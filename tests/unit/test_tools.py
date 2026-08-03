@@ -1,7 +1,9 @@
+import json
 import pathlib
 
 import ancalagon.config.config
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.files.delete_file import DeleteFile
 from ancalagon.tools.files.edit_file import EditFile
@@ -106,14 +108,20 @@ def test_search_and_parse_tools_write_outputs_and_never_mutate_inputs(tmp_path: 
         f'{{"pattern": "def (alpha|beta)", "roots": ["{ctx.workspace.write_root}"]}}', ctx
     )
     assert found.ok is True
-    assert "alpha" in found.path.read_text()
-    assert "beta" in found.path.read_text()
+    records = [json.loads(line) for line in found.path.read_text().splitlines()]
+    matches = [r for r in records if r["type"] == "match"]
+    assert [m["data"]["lines"]["text"].strip() for m in matches] == ["def alpha():", "def beta():"]
+    assert all(m["data"]["path"]["text"] == str(source) for m in matches)
 
     missing = Ripgrep().run(
         f'{{"pattern": "zzz_absent", "roots": ["{ctx.workspace.write_root}"]}}', ctx
     )
     assert missing.ok is True
-    assert missing.path.read_text() == ""
+    assert not [
+        r
+        for r in (json.loads(line) for line in missing.path.read_text().splitlines())
+        if r["type"] == "match"
+    ]
 
     streamed = Sed().run(f'{{"script": "s/alpha/gamma/", "path": "{source}"}}', ctx)
     assert streamed.ok is True
@@ -145,10 +153,13 @@ def test_registry_withholds_delegate_once_depth_reaches_max_depth(tmp_path: path
         tools=[],
         summary_chars=100,
     )
-    at_root = build_registry(config, tmp_path, parent=0, depth=0)
-    at_limit = build_registry(config, tmp_path, parent=1, depth=1)
+    at_root = build_registry(config, tmp_path, parent=0, depth=0, output_class=FreeText)
+    at_limit = build_registry(config, tmp_path, parent=1, depth=1, output_class=FreeText)
 
     assert "delegate" in at_root.names()
     assert "need_input" in at_root.names()
     assert "delegate" not in at_limit.names()
     assert "need_input" in at_limit.names()
+    assert "submit_answer" in at_root.names()
+    submit = at_root.get("submit_answer")
+    assert json.loads(submit.schema().parameters_json)["properties"].keys() == {"text"}

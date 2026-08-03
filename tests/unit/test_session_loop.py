@@ -15,6 +15,7 @@ from ancalagon.llm.fake_llm import FakeLLM
 from ancalagon.session import Session
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.need_input.need_input import NeedInput
+from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.transcript.transcript import Transcript
@@ -48,7 +49,7 @@ def _session(tmp_path: pathlib.Path, replies: list[Reply], budget: Budget) -> Se
         transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
         llm=FakeLLM(replies),
-        registry=Registry([ReadFile(), NeedInput()]),
+        registry=Registry([ReadFile(), NeedInput(), SubmitAnswer(Verdict)]),
         ctx=ctx,
         output_class=Verdict,
     )
@@ -163,3 +164,47 @@ def test_session_stops_and_returns_the_question_when_an_agent_needs_input(
     assert outcome.question == "keep both captions or pick one?"
     assert outcome.spent.turns == 1
     assert outcome.spent.tool_calls == 1
+
+
+def test_session_completes_from_a_submit_answer_tool_call(tmp_path: pathlib.Path):
+    session = _session(
+        tmp_path,
+        [
+            Reply(
+                blocks=[
+                    ToolUse(
+                        id="tu_1",
+                        name="submit_answer",
+                        arguments='{"answer": "structured"}',
+                    )
+                ],
+                stop_reason="tool_calls",
+            )
+        ],
+        Budget(turns=5, tool_calls=5),
+    )
+    outcome = session.run()
+    assert isinstance(outcome, Completed)
+    assert outcome.value.model_dump() == {"answer": "structured"}
+    assert outcome.spent.turns == 1
+
+    rejected = _session(
+        tmp_path / "bad",
+        [
+            Reply(
+                blocks=[ToolUse(id="tu_1", name="submit_answer", arguments='{"wrong": 1}')],
+                stop_reason="tool_calls",
+            ),
+            Reply(
+                blocks=[
+                    ToolUse(id="tu_2", name="submit_answer", arguments='{"answer": "second try"}')
+                ],
+                stop_reason="tool_calls",
+            ),
+        ],
+        Budget(turns=5, tool_calls=5),
+    )
+    second = rejected.run()
+    assert isinstance(second, Completed)
+    assert second.value.model_dump() == {"answer": "second try"}
+    assert "did not match the schema" in (tmp_path / "bad" / "transcript.jsonl").read_text()

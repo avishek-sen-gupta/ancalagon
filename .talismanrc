@@ -15,4 +15,6 @@ fileignoreconfig:
   checksum: c3e03c70c44fcf181129d7f9af04fd5a188805694e031023db4ebc8b068d0448
 - filename: tests/unit/test_workspace_scoping.py
   checksum: 3882fe7c9156aa8f7f54090e2b3704b5ca9bbd9c56c3701123b8b31a060943ec
+- filename: tests/unit/test_tools.py
+  checksum: eb04e8577ba783deecaa19f5fbe7a4a5b4e3ad0b78593c4fc91b8251972798cf
 version: "1.0"

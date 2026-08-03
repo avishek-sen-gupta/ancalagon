@@ -9,7 +9,10 @@ from ancalagon.workspace.scope_error import ScopeError
 
 class Ripgrep:
     name = "ripgrep"
-    description = "Search files by regular expression. Returns matching lines with paths."
+    description = (
+        "Search files by regular expression. Returns one JSON record per match, "
+        "with the file path, line number and matched text."
+    )
 
     def schema(self) -> ToolSchema:
         return schema_of(self.name, self.description, GrepArgs)
@@ -20,7 +23,7 @@ class Ripgrep:
             roots = [str(ctx.workspace.resolve_read(r)) for r in args.roots]
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
-        code, out, err = run_command(["rg", "--line-number", "--no-heading", args.pattern, *roots])
+        code, out, err = run_command(["rg", "--json", args.pattern, *roots])
         if code not in (0, 1):
             return ctx.failure(self.name, err)
-        return ctx.result(self.name, out)
+        return ctx.result(self.name, out, ".jsonl")

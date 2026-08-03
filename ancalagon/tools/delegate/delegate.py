@@ -3,6 +3,7 @@ import pathlib
 
 from ancalagon.bus.bus import Bus
 from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
+from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
@@ -12,7 +13,12 @@ from ancalagon.tools.registry.tool_context import ToolContext
 
 class Delegate:
     name = "delegate"
-    description = "Queue a subagent task. Returns its task id immediately without waiting."
+    description = (
+        "Queue a subagent task. Returns its task id immediately without waiting. "
+        "To give the subagent its own output contract, write a Python module "
+        "defining a pydantic model with write_file first, then pass its path as "
+        "contracts_path and name the class in output, e.g. contracts.py:NodeVerdict."
+    )
 
     def __init__(self, run_dir: pathlib.Path, parent: int):
         self.run_dir = run_dir
@@ -30,6 +36,16 @@ class Delegate:
             json.loads(args.input_json)
         except json.JSONDecodeError as exc:
             return ctx.failure(self.name, f"input_json is not valid JSON: {exc}")
+        if args.contracts_path:
+            try:
+                source = ctx.workspace.resolve_read(pathlib.Path(args.contracts_path))
+            except ScopeError as exc:
+                return ctx.failure(self.name, str(exc))
+            if not source.exists():
+                return ctx.failure(self.name, f"no contracts file at {source}")
+            contracts = source.read_text()
+        else:
+            contracts = FREE_TEXT_MODULE
         task_dir.mkdir(parents=True, exist_ok=True)
         scalars: dict[str, str] = {
             "task_id": args.task_id,
@@ -46,6 +62,6 @@ class Delegate:
             + ', "tools": []}'
         )
         (task_dir / "spec.json").write_text(spec_text)
-        (task_dir / "contracts.py").write_text(args.contracts_py or FREE_TEXT_MODULE)
+        (task_dir / "contracts.py").write_text(contracts)
         task = Bus.open(self.run_dir / "bus.db").enqueue(task_dir, parent=self.parent)
         return ctx.result(self.name, f"queued task {task} at {task_dir}")

@@ -9,4 +9,4 @@ class DelegateArgs(pydantic.BaseModel, frozen=True):
     output: str
     turns: int
     tool_calls: int
-    contracts_py: str = ""
+    contracts_path: str = ""

@@ -3,6 +3,8 @@ import logging
 import pathlib
 import sys
 
+import pydantic
+
 from ancalagon.bus.bus import Bus
 from ancalagon.bus.depth_of import depth_of
 from ancalagon.config.config import Config
@@ -27,6 +29,7 @@ from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
+from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.search.ast_grep import AstGrep
 from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.search.sed import Sed
@@ -37,7 +40,13 @@ from ancalagon.workspace.workspace import Workspace
 LOGGER = logging.getLogger(__name__)
 
 
-def build_registry(config: Config, run_dir: pathlib.Path, parent: int, depth: int) -> Registry:
+def build_registry(
+    config: Config,
+    run_dir: pathlib.Path,
+    parent: int,
+    depth: int,
+    output_class: type[pydantic.BaseModel],
+) -> Registry:
     available: list[Tool] = [
         ReadFile(),
         WriteFile(),
@@ -52,6 +61,7 @@ def build_registry(config: Config, run_dir: pathlib.Path, parent: int, depth: in
         CheckTask(run_dir=run_dir),
         CollectTask(run_dir=run_dir),
         NeedInput(),
+        SubmitAnswer(output_class),
     ]
     enabled = set(config.tools)
     permitted = [t for t in available if not enabled or t.name in enabled]
@@ -91,6 +101,7 @@ def main(
                 run_dir,
                 parent=agent_id,
                 depth=depth_of(bus, agent_id),
+                output_class=output_class,
             ),
             ctx=ctx,
             output_class=output_class,

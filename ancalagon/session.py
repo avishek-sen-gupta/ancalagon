@@ -20,6 +20,7 @@ from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.llm.llm import LLM
 from ancalagon.tools.need_input.need_input import NeedInput
+from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.transcript.transcript import Transcript
@@ -28,7 +29,7 @@ LOGGER = logging.getLogger(__name__)
 
 FINAL_INSTRUCTION = (
     "Your budget is exhausted. Answer now from what you already know, "
-    "as a single JSON object matching the required output schema. No tools are available."
+    "using the submit_answer tool. No other tools are available."
 )
 
 
@@ -65,8 +66,9 @@ class Session:
             f"{self.spec.behaviour}\n\n"
             f"Goal: {self.spec.goal}\n\n"
             f"Input: {self.input_json}\n\n"
-            f"When finished, reply with a single JSON object matching this schema "
-            f"and nothing else: {schema}"
+            f"When you have the answer, call the submit_answer tool with it. "
+            f"If that tool is unavailable, reply with a single JSON object and nothing "
+            f"else -- no prose, no markdown fences -- matching this schema: {schema}"
         )
 
     def _record(self, role: Role, blocks: list[Block]) -> None:
@@ -120,6 +122,12 @@ class Session:
             )
         self._record(Role.USER, blocks)
 
+    def _answer_submitted(self) -> str:
+        if "submit_answer" not in self.registry.names():
+            return ""
+        tool = self.registry.get("submit_answer")
+        return tool.answer_json if isinstance(tool, SubmitAnswer) else ""
+
     def _question_asked(self) -> str:
         if "need_input" not in self.registry.names():
             return ""
@@ -130,8 +138,19 @@ class Session:
         if self.messages and self.messages[-1].role is Role.USER:
             self._record(Role.ASSISTANT, [Text(text="Understood.")])
         self._record(Role.USER, [Text(text=FINAL_INSTRUCTION)])
-        reply = self.llm.complete(self._system(), self.messages, [])
+        final_tools = [s for s in self.registry.schemas() if s.name == "submit_answer"]
+        reply = self.llm.complete(self._system(), self.messages, final_tools)
         self._record(Role.ASSISTANT, reply.blocks)
+        uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
+        if uses:
+            self._run_tools(uses)
+            submitted = self._answer_submitted()
+            if submitted:
+                return Exhausted(
+                    value=self.output_class.model_validate_json(submitted),
+                    summary=submitted[:200],
+                    spent=self._spent(),
+                )
         text = self._answer_of(reply)
         try:
             value = self.output_class.model_validate_json(text)
@@ -157,6 +176,13 @@ class Session:
                 asked = self._question_asked()
                 if asked:
                     return NeedsInput(question=asked, summary=asked[:200], spent=self._spent())
+                submitted = self._answer_submitted()
+                if submitted:
+                    return Completed(
+                        value=self.output_class.model_validate_json(submitted),
+                        summary=submitted[:200],
+                        spent=self._spent(),
+                    )
                 continue
             text = self._answer_of(reply)
             try:
