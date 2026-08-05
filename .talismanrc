@@ -14,7 +14,7 @@ fileignoreconfig:
 - filename: uv.lock
   checksum: 4758762d0637ff29c2f196ee4321e494498df0893ae73fa2eedcc71c06637e78
 - filename: tests/unit/test_workspace_scoping.py
-  checksum: 3882fe7c9156aa8f7f54090e2b3704b5ca9bbd9c56c3701123b8b31a060943ec
+  checksum: 1924d98444277713d0631d8c9b5a7e39d7d0153a3cbf97aca7918c507a47dab4
 - filename: tests/unit/test_tools.py
   checksum: eb04e8577ba783deecaa19f5fbe7a4a5b4e3ad0b78593c4fc91b8251972798cf
 - filename: tests/unit/test_llm_adapter.py

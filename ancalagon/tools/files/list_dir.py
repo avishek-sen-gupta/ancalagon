@@ -5,6 +5,7 @@ from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.files.path_args import PathArgs
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.scope_error import ScopeError
+from ancalagon.workspace.workspace import missing_hint
 
 
 class ListDir:
@@ -21,5 +22,7 @@ class ListDir:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
+        if not path.is_dir():
+            return ctx.failure(self.name, missing_hint(path))
         entries = "\n".join(sorted(p.name for p in path.iterdir()))
         return ctx.result(self.name, entries)

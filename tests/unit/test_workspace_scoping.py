@@ -117,3 +117,51 @@ enabled = []
     config = load_config(config_path)
     assert config.write_root == (project / "ws").resolve()
     assert config.read_roots == ((project / "artifacts").resolve(),)
+
+
+def test_tilde_and_relative_roots_resolve_against_home_and_the_config_file(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+):
+    home = tmp_path / "home"
+    (home / "artifacts").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+
+    project = tmp_path / "project"
+    (project / "ws").mkdir(parents=True)
+    config_path = project / "ancalagon.toml"
+    config_path.write_text("""
+[workspace]
+write_root = "./ws"
+read_roots = ["~/artifacts"]
+
+[agent]
+root_behaviour = "You investigate."
+
+[model]
+name = "claude-opus-5"
+num_retries = 3
+request_timeout_s = 300
+max_tokens = 8000
+
+[budget]
+turns = 20
+tool_calls = 60
+
+[limits]
+max_concurrent_agents = 4
+agent_timeout_s = 3600
+max_depth = 1
+summary_chars = 1000
+
+[tools]
+enabled = []
+""")
+    monkeypatch.chdir(tmp_path)
+    config = load_config(config_path)
+    assert config.write_root == (project / "ws").resolve()
+    assert config.read_roots == ((home / "artifacts").resolve(),)
+
+    workspace = Workspace.from_config(config)
+    wanted = home / "artifacts" / "graph.json"
+    wanted.write_text("{}")
+    assert workspace.resolve_read(pathlib.Path("~/artifacts/graph.json")) == wanted.resolve()
