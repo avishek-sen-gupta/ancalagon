@@ -52,6 +52,7 @@ class Supervisor:
             self.bus.record(
                 state.agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=process.pid
             )
+            LOGGER.info("agent %s running as pid %s for %s", state.agent, process.pid, state.dir)
             self.live[state.agent] = process
             self.started[state.agent] = self.clock.time()
 
@@ -91,6 +92,7 @@ class Supervisor:
                     self._finish(agent, AgentStatus.TIMED_OUT, -9, "killed after timeout")
                 continue
             status = AgentStatus.EXITED if code == 0 else AgentStatus.CRASHED
+            LOGGER.info("agent %s %s", agent, status.value)
             self._finish(agent, status, code, f"exited {code}")
 
     def tick(self) -> None:

@@ -7,6 +7,23 @@ from ancalagon.tools.search.run_command import run_command
 from ancalagon.tools.search.symbol_args import SymbolArgs
 from ancalagon.workspace.scope_error import ScopeError
 
+# ctags does not read .gitignore, so vendored trees would swamp every result.
+VENDOR = (
+    ".git",
+    ".venv",
+    "venv",
+    "node_modules",
+    "target",
+    "build",
+    "dist",
+    "__pycache__",
+    ".tox",
+    "vendor",
+    "site-packages",
+    ".gradle",
+    ".mvn",
+)
+
 
 class FindSymbol:
     name = "find_symbol"
@@ -26,7 +43,8 @@ class FindSymbol:
             roots = [str(ctx.workspace.resolve_read(r)) for r in args.roots]
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
-        code, out, err = run_command(["ctags", "-x", "-R", *roots])
+        excludes = [f"--exclude={name}" for name in VENDOR]
+        code, out, err = run_command(["ctags", "-x", "-R", *excludes, *roots])
         if code != 0:
             return ctx.failure(self.name, err)
         if args.name:
