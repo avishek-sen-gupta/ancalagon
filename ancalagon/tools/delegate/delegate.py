@@ -45,7 +45,7 @@ class Delegate:
         if active:
             return ctx.failure(
                 self.name,
-                f"task {args.task_id} is already {active[0].status.value} as agent {active[0].id}",
+                f"task {args.task_id} is already {active[0].status.value} as agent {active[0].agent}",
             )
         try:
             json.loads(args.input_json)
@@ -78,5 +78,5 @@ class Delegate:
         )
         (task_dir / "spec.json").write_text(spec_text)
         (task_dir / "contracts.py").write_text(contracts)
-        task = bus.enqueue(task_dir, parent=self.parent)
-        return ctx.result(self.name, f"queued task {task} at {task_dir}")
+        task = bus.enqueue(task_dir, parent_agent=self.parent)
+        return ctx.result(self.name, f"queued agent {task} for task {args.task_id} at {task_dir}")

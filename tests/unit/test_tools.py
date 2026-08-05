@@ -3,7 +3,8 @@ import pathlib
 
 import ancalagon.config.config
 from ancalagon.bus.bus import Bus
-from ancalagon.bus.task_status import TaskStatus
+from ancalagon.bus.agent_status import AgentStatus
+from ancalagon.bus.event_source import EventSource
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.tool_result import ToolResult
@@ -229,18 +230,23 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
     assert "already queued" in queued.error
 
     bus.claim(limit=1)
+    claimed = delegate.run(args, ctx)
+    assert claimed.ok is False
+    assert "already claimed" in claimed.error
+
+    bus.record(1, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=99)
     running = delegate.run(args, ctx)
     assert running.ok is False
     assert "already running" in running.error
 
-    bus.finish(1, TaskStatus.CRASHED, exit_code=1, summary="died")
+    bus.record(1, AgentStatus.CRASHED, EventSource.SUPERVISOR, exit_code=1, summary="died")
     retried = delegate.run(args, ctx)
     assert retried.ok is True
 
     task_dir = run_dir / "tasks" / "analyse"
-    assert [r.id for r in bus.active_for(task_dir)] == [2]
-    assert bus.get(1).status is TaskStatus.CRASHED
-    assert bus.get(2).dir == str(task_dir)
+    assert [s.agent for s in bus.active_for(task_dir)] == [2]
+    assert bus.state(1).status is AgentStatus.CRASHED
+    assert bus.state(2).dir == str(task_dir)
 
     bad_output = json.dumps({**json.loads(args), "task_id": "other", "output": "FreeText"})
     assert delegate.run(bad_output, ctx).ok is False

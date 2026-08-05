@@ -53,7 +53,8 @@ child cannot hang its parent.
 Everything is on disk and in one SQLite file:
 
 ```bash
-sqlite3 ws/runs/r_0001/bus.db "select id, dir, status, exit_code, summary from tasks"
+sqlite3 ws/runs/r_0001/bus.db \
+  "select agent, status, source, summary from agent_events order by id"
 rg '"agent": 17' ws/runs/r_0001/tasks/*/transcript.jsonl
 ```
 
@@ -64,7 +65,7 @@ readable partial history — which is what makes resumption possible.
 
 ```
 ws/runs/<run>/
-    bus.db
+    bus.db                        tasks, agents, and an append-only event log
     tasks/<task_id>/
         spec.json  outcome.json  transcript.jsonl  stderr-<agent>.log  tools/
 ```

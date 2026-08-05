@@ -51,6 +51,7 @@ The vocabulary is the union of what each party can observe.
 | Status | Source | Meaning |
 |---|---|---|
 | `queued` | supervisor | enqueued, awaiting a slot |
+| `claimed` | supervisor | taken by a supervisor, not yet spawned |
 | `running` | supervisor | process spawned, `pid` recorded |
 | `completed` | worker | the agent answered and it validated |
 | `needs_input` | worker | the agent stopped to ask |
@@ -90,21 +91,16 @@ Nothing here contradicts anything else. "The process exited 0" is true and shoul
 
 ## Migration
 
-`002_agent_events` splits the existing `tasks` table:
-
-- `tasks` keeps `dir` and `parent`, one row per distinct `dir`, earliest row wins for `created`
-- `agents` takes one row per old `tasks` row, preserving `id` so existing transcripts and outcome files stay correct
-- `agent_events` gets two synthetic rows per old agent: `queued` at `started`, and its terminal status at `finished`, carrying `pid`, `exit_code` and `summary`
-
-Preserving `agents.id` is the constraint that matters: transcript lines and `stderr-<id>.log` filenames already reference those integers on disk.
-
-`down` reverses it by collapsing each agent's latest event back onto a single `tasks` row. Old runs stay readable, which is the reason migrations exist here at all.
+None. The project is not in production, so `001_init` is rewritten in place and existing
+run databases are discarded rather than upgraded. That removes the one genuinely delicate
+part of this change — preserving agent ids across a split, because transcript lines and
+`stderr-<id>.log` names already reference them on disk.
 
 ## Testing
 
 Three behaviours, in the project's style.
 
-**`test_migrations`** extends to cover the round trip: up to 2 preserves agent ids and produces the expected events, down to 1 collapses them back.
+**`test_migrations`** covers the round trip against the rewritten schema: up creates the three tables with their CHECK constraints, down drops them.
 
 **`test_bus`** covers the append-only lifecycle: enqueue creates task, agent and `queued`; claim appends `running`; a worker event and a supervisor event both land and neither overwrites; `active_for` sees an agent as live until a terminal event and not after; a retried task has two agents and one directory.
 

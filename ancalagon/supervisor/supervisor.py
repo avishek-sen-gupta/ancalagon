@@ -2,8 +2,9 @@
 import logging
 import pathlib
 
+from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
-from ancalagon.bus.task_status import TaskStatus
+from ancalagon.bus.event_source import EventSource
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.timed_out import TimedOut
 from ancalagon.supervisor.clock import Clock
@@ -41,39 +42,34 @@ class Supervisor:
             claimed = self.bus.claim(limit=1)
             if not claimed:
                 return
-            row = claimed[0]
+            state = claimed[0]
             try:
-                process = self.spawner.spawn(pathlib.Path(row.dir), row.id)
+                process = self.spawner.spawn(pathlib.Path(state.dir), state.agent)
             except Exception as exc:
-                LOGGER.exception("spawn failed for task %s", row.id)
-                self.bus.finish(row.id, TaskStatus.CRASHED, exit_code=-1, summary=str(exc))
-                self.bus.post(
-                    sender=row.id,
-                    addressee=row.parent,
-                    kind="task_done",
-                    summary=f"spawn failed: {exc}",
-                    ref_path=row.dir,
-                )
+                LOGGER.exception("spawn failed for agent %s", state.agent)
+                self._finish(state.agent, AgentStatus.CRASHED, -1, f"spawn failed: {exc}")
                 continue
-            self.bus.mark_running(row.id, pid=process.pid)
-            self.live[row.id] = process
-            self.started[row.id] = self.clock.time()
+            self.bus.record(
+                state.agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=process.pid
+            )
+            self.live[state.agent] = process
+            self.started[state.agent] = self.clock.time()
 
-    def _finish(self, task_id: int, status: TaskStatus, code: int, summary: str) -> None:
-        row = self.bus.get(task_id)
-        self.bus.finish(task_id, status, exit_code=code, summary=summary)
+    def _finish(self, agent: int, status: AgentStatus, code: int, summary: str) -> None:
+        state = self.bus.state(agent)
+        self.bus.record(agent, status, EventSource.SUPERVISOR, exit_code=code, summary=summary)
         self.bus.post(
-            sender=task_id,
-            addressee=row.parent,
+            sender=agent,
+            addressee=state.parent_agent,
             kind="task_done",
             summary=summary,
-            ref_path=row.dir,
+            ref_path=state.dir,
         )
-        del self.live[task_id]
-        del self.started[task_id]
+        self.live.pop(agent, None)
+        self.started.pop(agent, None)
 
-    def _write_timeout_outcome(self, task_id: int) -> None:
-        outcome = pathlib.Path(self.bus.get(task_id).dir) / "outcome.json"
+    def _write_timeout_outcome(self, agent: int) -> None:
+        outcome = pathlib.Path(self.bus.state(agent).dir) / "outcome.json"
         if outcome.exists():
             return
         outcome.parent.mkdir(parents=True, exist_ok=True)
@@ -85,24 +81,17 @@ class Supervisor:
         )
 
     def _reap(self) -> None:
-        for task_id, process in list(self.live.items()):
+        for agent, process in list(self.live.items()):
             code = process.poll()
             if code is None:
-                if self.clock.time() - self.started[task_id] >= self.timeout_s:
-                    LOGGER.warning("killing task %s after %ss", task_id, self.timeout_s)
+                if self.clock.time() - self.started[agent] >= self.timeout_s:
+                    LOGGER.warning("killing agent %s after %ss", agent, self.timeout_s)
                     process.kill()
-                    self._write_timeout_outcome(task_id)
-                    self._finish(task_id, TaskStatus.TIMEOUT, -9, "killed after timeout")
+                    self._write_timeout_outcome(agent)
+                    self._finish(agent, AgentStatus.TIMED_OUT, -9, "killed after timeout")
                 continue
-            status = TaskStatus.COMPLETED if code == 0 else TaskStatus.CRASHED
-            self._finish(task_id, status, code, f"exited {code}")
-
-    def _queued_count(self) -> int:
-        row = self.bus.conn.execute(
-            "SELECT COUNT(*) AS n FROM tasks WHERE status = ?",
-            (TaskStatus.QUEUED.value,),
-        ).fetchone()
-        return int(row["n"])
+            status = AgentStatus.EXITED if code == 0 else AgentStatus.CRASHED
+            self._finish(agent, status, code, f"exited {code}")
 
     def tick(self) -> None:
         self._start_queued()
@@ -111,17 +100,26 @@ class Supervisor:
     def run_until_idle(self) -> None:
         while True:
             self.tick()
-            outstanding = [r.id for r in self.bus.running() if r.id not in self.live]
-            if not self.live and not outstanding and self._queued_count() == 0:
+            if self.live:
+                self.clock.sleep(self.poll_s)
+                continue
+            orphans = [s.agent for s in self.bus.in_flight() if s.agent not in self.live]
+            if orphans:
+                LOGGER.warning("agents in flight with no live process: %s", orphans)
+                for agent in orphans:
+                    self.bus.record(
+                        agent,
+                        AgentStatus.ABANDONED,
+                        EventSource.SUPERVISOR,
+                        exit_code=-1,
+                        summary="orphaned; no live process",
+                    )
                 return
-            if not self.live and outstanding:
-                LOGGER.warning("orphaned running rows with no live process: %s", outstanding)
-                for task_id in outstanding:
-                    self.bus.finish(task_id, TaskStatus.ABANDONED, -1, "orphaned; no live process")
+            if self.bus.queued_count() == 0:
                 return
             self.clock.sleep(self.poll_s)
 
     def shutdown(self) -> None:
-        for task_id, process in list(self.live.items()):
+        for agent, process in list(self.live.items()):
             process.kill()
-            self._finish(task_id, TaskStatus.ABANDONED, -9, "abandoned at shutdown")
+            self._finish(agent, AgentStatus.ABANDONED, -9, "abandoned at shutdown")

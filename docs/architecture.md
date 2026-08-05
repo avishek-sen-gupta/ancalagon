@@ -38,7 +38,8 @@ cli.py ──writes spec.json──▶ tasks/root/
    `contracts/free_text_module.py`) and `spec.json` naming `contracts.py:FreeText` as its
    output.
 4. `bus/bus.py` opens `bus.db`, which runs migrations on first open, and enqueues the task
-   with `parent=0`.
+   with `parent_agent=0`. Enqueuing creates the task if new, adds an agent, and appends a
+   `queued` event; a task retried later reuses the task row and adds another agent.
 5. Constructs the `Supervisor` and calls `run_until_idle()`, then `shutdown()` in a
    `finally`.
 6. Prints `tasks/root/outcome.json`.
@@ -49,14 +50,20 @@ The CLI never spawns anything and never speaks to a model.
 
 `run_until_idle()` loops on `tick()`:
 
-- `_start_queued` claims **one row at a time** — `bus.claim(limit=1)` — and spawns it before
-  claiming the next. Claiming a batch first would strand siblings if one spawn failed.
-  A failed spawn is recorded `CRASHED` and reported to the parent.
-- `_reap` polls each live process. A zero exit is `COMPLETED`, non-zero is `CRASHED`, and a
-  process past `agent_timeout_s` is killed, given a `TimedOut` outcome file, and marked
-  `TIMEOUT`.
-- The loop exits when nothing is live, nothing is queued, and no orphaned `running` rows
-  remain. Orphans — rows a previous supervisor left behind — are marked `ABANDONED`.
+- `_start_queued` claims **one agent at a time** — `bus.claim(limit=1)`, which appends
+  `claimed` — and spawns it before claiming the next. Claiming a batch first would strand
+  siblings if one spawn failed. After spawning it appends `running` with the pid; a failed
+  spawn appends `crashed` and reports to the parent.
+- `_reap` polls each live process and appends what it sees: `exited` on a zero exit,
+  `crashed` otherwise. A process past `agent_timeout_s` is killed, given a `TimedOut`
+  outcome file, and recorded `timed_out`.
+- The loop exits when nothing is live and nothing is queued. Agents the database thinks are
+  `claimed` or `running` but which this supervisor does not own are orphans from a previous
+  supervisor, and are recorded `abandoned`.
+
+Nothing is ever updated: every status is a new row, so an agent's whole history survives.
+The worker appends its own account too — `completed`, `needs_input`, `exhausted` or
+`failed` — which is why the log finally agrees with `outcome.json`.
 
 It never retries. A crash is reported; the parent decides.
 
@@ -81,7 +88,8 @@ Invoked as `python -m ancalagon.worker --run-dir … --dir … --agent-id … --
 4. Builds `SubmitAnswer(output_class)` and `NeedInput()` **once**, and passes the same
    instances to both `build_registry` and the `Session`. Different instances would mean the
    model fills one form while the session reads another.
-5. Runs the session, writes `outcome.json`, returns 0.
+5. Runs the session, appends the agent's own outcome to the event log, writes
+   `outcome.json`, and returns 0.
 
 Any exception writes a `Failed` outcome and returns 1, so a task is never left
 uncollectable.
@@ -154,7 +162,7 @@ the only place third-party type gaps are tolerated.
 
 ```
 ws/runs/r_0001/
-    bus.db                        every task, status, exit code
+    bus.db                        tasks, agents, and every event about them
     tasks/root/
         spec.json                 what was asked
         contracts.py              the output contract
@@ -174,7 +182,8 @@ tail -f ws/runs/r_0001/tasks/root/transcript.jsonl
 Everything is inspectable without ancalagon:
 
 ```bash
-sqlite3 ws/runs/r_0001/bus.db "select id, parent, status, exit_code, summary from tasks"
+sqlite3 ws/runs/r_0001/bus.db \
+  "select agent, status, source, exit_code, summary from agent_events order by id"
 rg '"agent": 1' ws/runs/r_0001/tasks/root/transcript.jsonl
 ```
 

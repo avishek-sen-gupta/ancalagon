@@ -2,7 +2,7 @@ import json
 import pathlib
 
 from ancalagon.bus.bus import Bus
-from ancalagon.bus.task_status import TaskStatus
+from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.supervisor.supervisor import Supervisor
 
 
@@ -48,9 +48,9 @@ class FakeClock:
 
 def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: pathlib.Path):
     bus = Bus.open(tmp_path / "bus.db")
-    good = bus.enqueue(tmp_path / "tasks" / "good", parent=0)
-    bad = bus.enqueue(tmp_path / "tasks" / "bad", parent=0)
-    wedged = bus.enqueue(tmp_path / "tasks" / "wedged", parent=0)
+    good = bus.enqueue(tmp_path / "tasks" / "good", parent_agent=0)
+    bad = bus.enqueue(tmp_path / "tasks" / "bad", parent_agent=0)
+    wedged = bus.enqueue(tmp_path / "tasks" / "wedged", parent_agent=0)
 
     spawner = FakeSpawner([(0, 0), (0, 1), (10_000, 0)])
     clock = FakeClock()
@@ -61,15 +61,15 @@ def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: p
     supervisor.run_until_idle()
 
     assert spawner.spawned == [good, bad, wedged]
-    assert bus.get(good).status is TaskStatus.COMPLETED
-    assert bus.get(good).exit_code == 0
-    assert bus.get(bad).status is TaskStatus.CRASHED
-    assert bus.get(bad).exit_code == 1
-    assert bus.get(wedged).status is TaskStatus.TIMEOUT
-    assert bus.get(wedged).pid == 1000 + wedged
+    assert bus.state(good).status is AgentStatus.EXITED
+    assert bus.state(good).exit_code == 0
+    assert bus.state(bad).status is AgentStatus.CRASHED
+    assert bus.state(bad).exit_code == 1
+    assert bus.state(wedged).status is AgentStatus.TIMED_OUT
+    assert [e.pid for e in bus.history(wedged) if e.pid][0] == 1000 + wedged
     timed_out = json.loads((tmp_path / "tasks" / "wedged" / "outcome.json").read_text())
     assert timed_out["kind"] == "timed_out"
-    assert bus.running() == []
+    assert bus.live() == []
     assert [m.kind for m in bus.inbox(consumer=0)] == ["task_done"] * 3
 
 
@@ -77,7 +77,7 @@ def test_supervisor_respects_concurrency_cap_and_abandons_live_tasks_on_shutdown
     tmp_path: pathlib.Path,
 ):
     bus = Bus.open(tmp_path / "bus.db")
-    ids = [bus.enqueue(tmp_path / "tasks" / f"t{i}", parent=0) for i in range(3)]
+    ids = [bus.enqueue(tmp_path / "tasks" / f"t{i}", parent_agent=0) for i in range(3)]
 
     spawner = FakeSpawner([(10_000, 0)] * 3)
     clock = FakeClock()
@@ -88,10 +88,10 @@ def test_supervisor_respects_concurrency_cap_and_abandons_live_tasks_on_shutdown
     supervisor.tick()
     assert spawner.spawned == ids[:2]
     assert len(supervisor.live) == 2
-    assert [t.id for t in bus.running()] == ids[:2]
+    assert [s.agent for s in bus.in_flight()] == ids[:2]
 
     supervisor.shutdown()
     assert supervisor.live == {}
-    assert bus.get(ids[0]).status is TaskStatus.ABANDONED
-    assert bus.get(ids[1]).status is TaskStatus.ABANDONED
-    assert bus.get(ids[2]).status is TaskStatus.QUEUED
+    assert bus.state(ids[0]).status is AgentStatus.ABANDONED
+    assert bus.state(ids[1]).status is AgentStatus.ABANDONED
+    assert bus.state(ids[2]).status is AgentStatus.QUEUED

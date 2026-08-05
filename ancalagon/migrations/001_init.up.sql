@@ -1,21 +1,34 @@
 PRAGMA journal_mode = WAL;
 
 CREATE TABLE tasks (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    dir        TEXT    NOT NULL,
-    parent     INTEGER NOT NULL DEFAULT 0,
-    status     TEXT    NOT NULL CHECK (status IN
-                   ('queued', 'running', 'completed', 'crashed', 'timeout', 'abandoned')),
-    pid        INTEGER NOT NULL DEFAULT 0,
-    exit_code  INTEGER NOT NULL DEFAULT 0,
-    summary    TEXT    NOT NULL DEFAULT '' CHECK (length(summary) <= 1000),
-    started    TEXT    NOT NULL DEFAULT '',
-    finished   TEXT    NOT NULL DEFAULT ''
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    dir          TEXT    NOT NULL UNIQUE,
+    parent_agent INTEGER NOT NULL DEFAULT 0,
+    created      TEXT    NOT NULL
 );
 
-CREATE INDEX tasks_status ON tasks (status);
-CREATE INDEX tasks_dir    ON tasks (dir);
-CREATE INDEX tasks_parent ON tasks (parent);
+CREATE TABLE agents (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    task    INTEGER NOT NULL REFERENCES tasks (id),
+    created TEXT    NOT NULL
+);
+
+CREATE INDEX agents_task ON agents (task);
+
+CREATE TABLE agent_events (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent     INTEGER NOT NULL REFERENCES agents (id),
+    ts        TEXT    NOT NULL,
+    status    TEXT    NOT NULL CHECK (status IN
+                  ('queued', 'claimed', 'running', 'completed', 'needs_input',
+                   'exhausted', 'failed', 'crashed', 'timed_out', 'abandoned', 'exited')),
+    source    TEXT    NOT NULL CHECK (source IN ('supervisor', 'worker')),
+    pid       INTEGER NOT NULL DEFAULT 0,
+    exit_code INTEGER NOT NULL DEFAULT 0,
+    summary   TEXT    NOT NULL DEFAULT '' CHECK (length(summary) <= 1000)
+);
+
+CREATE INDEX agent_events_agent ON agent_events (agent, id);
 
 CREATE TABLE messages (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,

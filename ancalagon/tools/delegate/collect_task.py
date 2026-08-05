@@ -27,14 +27,16 @@ class CollectTask:
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
         args = TaskArgs.model_validate_json(arguments)
         try:
-            row = Bus.open(self.run_dir / "bus.db").get(args.task)
+            state = Bus.open(self.run_dir / "bus.db").state(args.task)
         except KeyError as exc:
             return ctx.failure(self.name, str(exc))
-        outcome = pathlib.Path(row.dir) / "outcome.json"
+        outcome = pathlib.Path(state.dir) / "outcome.json"
         if not outcome.exists():
-            return ctx.failure(self.name, f"task {row.id} is {row.status.value}, no outcome yet")
+            return ctx.failure(
+                self.name, f"agent {state.agent} is {state.status.value}, no outcome yet"
+            )
         parsed = json.loads(outcome.read_text())
         if "value" in parsed:
             return ctx.result(self.name, json.dumps(parsed["value"]), ".json")
         detail = parsed.get("detail") or parsed.get("error") or parsed.get("summary", "")
-        return ctx.failure(self.name, f"task {row.id} ended as {parsed['kind']}: {detail}")
+        return ctx.failure(self.name, f"agent {state.agent} ended as {parsed['kind']}: {detail}")

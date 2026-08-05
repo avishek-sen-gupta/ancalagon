@@ -23,7 +23,9 @@ class CheckTask:
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
         args = TaskArgs.model_validate_json(arguments)
         try:
-            row = Bus.open(self.run_dir / "bus.db").get(args.task)
+            state = Bus.open(self.run_dir / "bus.db").state(args.task)
         except KeyError as exc:
             return ctx.failure(self.name, str(exc))
-        return ctx.result(self.name, f"task {row.id} is {row.status.value}: {row.summary}")
+        return ctx.result(
+            self.name, f"agent {state.agent} is {state.status.value}: {state.summary}"
+        )

@@ -53,7 +53,7 @@ def main(config_path: pathlib.Path, goal: str) -> int:
     )
 
     bus = Bus.open(run_dir / "bus.db")
-    bus.enqueue(task_dir, parent=0)
+    bus.enqueue(task_dir, parent_agent=0)
     supervisor = Supervisor(
         bus=Bus.open(run_dir / "bus.db"),
         spawner=SubprocessSpawner(run_dir=run_dir, config_path=config_path.resolve()),

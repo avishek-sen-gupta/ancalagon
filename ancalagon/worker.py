@@ -4,7 +4,9 @@ import logging
 import pathlib
 import sys
 
+from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
+from ancalagon.bus.event_source import EventSource
 from ancalagon.bus.depth_of import depth_of
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
@@ -117,6 +119,12 @@ def main(
             need_input=need_input,
         )
         outcome = session.run()
+        bus.record(
+            agent_id,
+            AgentStatus(outcome.kind.value),
+            EventSource.WORKER,
+            summary=outcome.summary,
+        )
         outcome_path.write_text(outcome.model_dump_json())
         return 0
     except Exception as exc:

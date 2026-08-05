@@ -1,12 +1,26 @@
-# The task queue and message inbox. Claiming is atomic so two supervisors never take the same row.
+# The task queue and append-only agent log. Claiming is atomic so two supervisors never overlap.
 import datetime
 import pathlib
 import sqlite3
 
 import ancalagon.migrations
+from ancalagon.bus.agent_event import AgentEvent
+from ancalagon.bus.agent_state import AgentState
+from ancalagon.bus.agent_status import TERMINAL, AgentStatus
+from ancalagon.bus.event_source import EventSource
 from ancalagon.bus.message_row import MessageRow
 from ancalagon.bus.task_row import TaskRow
-from ancalagon.bus.task_status import TaskStatus
+
+LATEST = """
+SELECT a.id AS agent, a.task AS task, t.dir AS dir, t.parent_agent AS parent_agent,
+       e.status AS status, e.pid AS pid, e.exit_code AS exit_code, e.summary AS summary
+FROM agents a
+JOIN tasks t ON t.id = a.task
+JOIN agent_events e ON e.id = (SELECT MAX(id) FROM agent_events WHERE agent = a.id)
+"""
+
+TERMINAL_MARKS = ", ".join("?" for _ in TERMINAL)
+TERMINAL_VALUES = tuple(s.value for s in TERMINAL)
 
 
 def _now() -> str:
@@ -25,52 +39,89 @@ class Bus:
         ancalagon.migrations.migrate(conn, ancalagon.migrations.latest_version())
         return cls(conn)
 
-    def enqueue(self, dir: pathlib.Path, parent: int) -> int:
-        cursor = self.conn.execute(
-            "INSERT INTO tasks (dir, parent, status, started) VALUES (?, ?, ?, ?) RETURNING id",
-            (str(dir), parent, TaskStatus.QUEUED.value, ""),
-        )
-        row = cursor.fetchone()
-        return int(row["id"])
+    def _states(self, where: str, params: tuple[str | int, ...]) -> list[AgentState]:
+        rows = self.conn.execute(LATEST + where, params).fetchall()
+        return [AgentState.model_validate({k: r[k] for k in r.keys()}) for r in rows]
 
-    def claim(self, limit: int) -> list[TaskRow]:
-        self.conn.execute("BEGIN IMMEDIATE")
-        rows = self.conn.execute(
-            "UPDATE tasks SET status = ?, started = ? WHERE id IN "
-            "(SELECT id FROM tasks WHERE status = ? ORDER BY id LIMIT ?) RETURNING *",
-            (TaskStatus.RUNNING.value, _now(), TaskStatus.QUEUED.value, limit),
-        ).fetchall()
-        self.conn.execute("COMMIT")
-        return [TaskRow.model_validate({k: r[k] for k in r.keys()}) for r in rows]
-
-    def mark_running(self, task_id: int, pid: int) -> None:
-        self.conn.execute("UPDATE tasks SET pid = ? WHERE id = ?", (pid, task_id))
-
-    def finish(self, task_id: int, status: TaskStatus, exit_code: int, summary: str) -> None:
+    def record(
+        self,
+        agent: int,
+        status: AgentStatus,
+        source: EventSource,
+        pid: int = 0,
+        exit_code: int = 0,
+        summary: str = "",
+    ) -> None:
         self.conn.execute(
-            "UPDATE tasks SET status = ?, exit_code = ?, summary = ?, finished = ? WHERE id = ?",
-            (status.value, exit_code, summary, _now(), task_id),
+            "INSERT INTO agent_events (agent, ts, status, source, pid, exit_code, summary) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (agent, _now(), status.value, source.value, pid, exit_code, summary[:1000]),
         )
 
-    def get(self, task_id: int) -> TaskRow:
-        row = self.conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    def enqueue(self, dir: pathlib.Path, parent_agent: int) -> int:
+        self.conn.execute("BEGIN IMMEDIATE")
+        task = self.conn.execute("SELECT id FROM tasks WHERE dir = ?", (str(dir),)).fetchone()
+        if task is None:
+            task = self.conn.execute(
+                "INSERT INTO tasks (dir, parent_agent, created) VALUES (?, ?, ?) RETURNING id",
+                (str(dir), parent_agent, _now()),
+            ).fetchone()
+        agent = self.conn.execute(
+            "INSERT INTO agents (task, created) VALUES (?, ?) RETURNING id",
+            (int(task["id"]), _now()),
+        ).fetchone()
+        agent_id = int(agent["id"])
+        self.record(agent_id, AgentStatus.QUEUED, EventSource.SUPERVISOR)
+        self.conn.execute("COMMIT")
+        return agent_id
+
+    def claim(self, limit: int) -> list[AgentState]:
+        self.conn.execute("BEGIN IMMEDIATE")
+        waiting = self._states(
+            "WHERE e.status = ? ORDER BY a.id LIMIT ?", (AgentStatus.QUEUED.value, limit)
+        )
+        for state in waiting:
+            self.record(state.agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+        self.conn.execute("COMMIT")
+        return waiting
+
+    def state(self, agent: int) -> AgentState:
+        found = self._states("WHERE a.id = ?", (agent,))
+        if not found:
+            raise KeyError(f"no agent {agent}")
+        return found[0]
+
+    def live(self) -> list[AgentState]:
+        return self._states(
+            f"WHERE e.status NOT IN ({TERMINAL_MARKS}) ORDER BY a.id", TERMINAL_VALUES
+        )
+
+    def in_flight(self) -> list[AgentState]:
+        return self._states(
+            "WHERE e.status IN (?, ?) ORDER BY a.id",
+            (AgentStatus.CLAIMED.value, AgentStatus.RUNNING.value),
+        )
+
+    def active_for(self, dir: pathlib.Path) -> list[AgentState]:
+        return self._states(
+            f"WHERE t.dir = ? AND e.status NOT IN ({TERMINAL_MARKS}) ORDER BY a.id",
+            (str(dir), *TERMINAL_VALUES),
+        )
+
+    def queued_count(self) -> int:
+        return len(self._states("WHERE e.status = ?", (AgentStatus.QUEUED.value,)))
+
+    def history(self, agent: int) -> list[AgentEvent]:
+        rows = self.conn.execute(
+            "SELECT * FROM agent_events WHERE agent = ? ORDER BY id", (agent,)
+        ).fetchall()
+        return [AgentEvent.model_validate({k: r[k] for k in r.keys()}) for r in rows]
+
+    def task(self, dir: pathlib.Path) -> TaskRow:
+        row = self.conn.execute("SELECT * FROM tasks WHERE dir = ?", (str(dir),)).fetchone()
         if row is None:
-            raise KeyError(f"no task {task_id}")
+            raise KeyError(f"no task at {dir}")
         return TaskRow.model_validate({k: row[k] for k in row.keys()})
-
-    def running(self) -> list[TaskRow]:
-        rows = self.conn.execute(
-            "SELECT * FROM tasks WHERE status = ? ORDER BY id",
-            (TaskStatus.RUNNING.value,),
-        ).fetchall()
-        return [TaskRow.model_validate({k: r[k] for k in r.keys()}) for r in rows]
-
-    def active_for(self, dir: pathlib.Path) -> list[TaskRow]:
-        rows = self.conn.execute(
-            "SELECT * FROM tasks WHERE dir = ? AND status IN (?, ?) ORDER BY id",
-            (str(dir), TaskStatus.QUEUED.value, TaskStatus.RUNNING.value),
-        ).fetchall()
-        return [TaskRow.model_validate({k: r[k] for k in r.keys()}) for r in rows]
 
     def post(self, sender: int, addressee: int, kind: str, summary: str, ref_path: str) -> None:
         self.conn.execute(

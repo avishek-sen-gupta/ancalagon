@@ -7,7 +7,7 @@ import sys
 import pytest
 
 from ancalagon.bus.bus import Bus
-from ancalagon.bus.task_status import TaskStatus
+from ancalagon.bus.agent_status import AgentStatus
 
 
 def _config(tmp_path: pathlib.Path, turns: int, tool_calls: int, model: str = "") -> pathlib.Path:
@@ -86,11 +86,10 @@ def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
     assert outcome["error"] != ""
 
     bus = Bus.open(run_dir / "bus.db")
-    row = bus.get(1)
-    assert row.status is TaskStatus.CRASHED
+    row = bus.state(1)
+    assert row.status is AgentStatus.CRASHED
     assert row.exit_code == 1
-    assert row.finished != ""
-    assert bus.running() == []
+    assert bus.live() == []
     assert [m.kind for m in bus.inbox(consumer=0)] == ["task_done"]
 
     stderr_logs = list(task_dir.glob("stderr-*.log"))
