@@ -27,8 +27,11 @@ uv run ancalagon run --config ancalagon.toml --goal "..."
 Watch a run as it happens, including subagents spawned mid-run:
 
 ```bash
-./scripts/ancwatch.zsh ws          # start before or during a run
+./scripts/ancwatch.zsh ancalagon.toml    # start before or during a run
 ```
+
+Give it the same config the run uses and it watches that config's `write_root`, so
+the two cannot disagree about where runs live. A directory works too.
 
 On Bedrock with a bearer token, `scripts/ancrun.zsh` runs the same command with
 stale AWS credentials stripped from the environment — otherwise litellm signs with

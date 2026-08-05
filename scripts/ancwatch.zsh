@@ -1,12 +1,28 @@
 #!/usr/bin/env zsh
 # Tails every agent transcript under an ancalagon workspace, picking up runs and
 # subagents as they appear. Safe to start before anything exists.
-# Usage: ancwatch [dir]   default .   Give it the write_root from your config,
-# or a runs directory directly; both are found.
+# Usage: ancwatch [config.toml | dir]   default .
+# Given a config it watches that config's write_root, so the run and the watcher
+# cannot disagree. Given a directory it accepts either a workspace or a runs dir.
 ancwatch() {
-  local root=${1:-.}
+  local given=${1:-.}
+  local root=$given
   local -A pids
   local f label from
+
+  # Mirrors load_config: absolute stays absolute, ~ goes home, else relative to the file.
+  if [[ -f $given ]]; then
+    root=$(python3 -c '
+import pathlib, sys, tomllib
+cfg = pathlib.Path(sys.argv[1])
+value = pathlib.Path(tomllib.loads(cfg.read_text())["workspace"]["write_root"]).expanduser()
+print(value if value.is_absolute() else (cfg.resolve().parent / value).resolve())
+' "$given" 2>/dev/null) || {
+      print -u2 "\e[31m-- could not read write_root from $given --\e[0m"
+      return 1
+    }
+    print -u2 "\e[2m-- write_root from $given: $root --\e[0m"
+  fi
 
   trap 'kill ${(v)pids} 2>/dev/null; return 130' INT
 
