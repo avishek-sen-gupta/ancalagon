@@ -1,4 +1,4 @@
-# Locates definitions with ctags: where a symbol is declared, not merely mentioned.
+# Locates definitions with ctags over the files ripgrep would search, so both honour .gitignore.
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
@@ -43,8 +43,12 @@ class FindSymbol:
             roots = [str(ctx.workspace.resolve_read(r)) for r in args.roots]
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
-        excludes = [f"--exclude={name}" for name in VENDOR]
-        code, out, err = run_command(["ctags", "-x", "-R", *excludes, *roots])
+        listed, files, err = run_command(["rg", "--files", *roots])
+        if listed not in (0, 1):
+            return ctx.failure(self.name, err)
+        if not files.strip():
+            return ctx.result(self.name, "")
+        code, out, err = run_command(["ctags", "-x", "-L", "-"], stdin=files)
         if code != 0:
             return ctx.failure(self.name, err)
         if args.name:

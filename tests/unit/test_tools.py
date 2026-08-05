@@ -357,3 +357,26 @@ def test_git_history_reports_intent_and_refuses_option_injection(tmp_path: pathl
     missing = GitHistory().run(f'{{"path": "{tracked}", "operation": "show"}}', ctx)
     assert missing.ok is False
     assert "needs a rev" in missing.error
+
+
+def test_tree_walking_tools_all_honour_gitignore(tmp_path: pathlib.Path):
+    ctx = _ctx(tmp_path)
+    root = ctx.workspace.write_root
+    (root / "src").mkdir()
+    (root / "vendored").mkdir()
+    (root / ".gitignore").write_text("vendored/\n")
+    run_command(["git", "-C", str(root), "init", "-q"])
+    (root / "src" / "real.py").write_text("def real_thing():\n    pass\n")
+    (root / "vendored" / "dep.py").write_text("def vendored_thing():\n    pass\n")
+
+    symbols = FindSymbol().run(f'{{"roots": ["{root}"]}}', ctx).path.read_text()
+    assert "real_thing" in symbols
+    assert "vendored_thing" not in symbols
+
+    matches = Ripgrep().run(f'{{"pattern": "thing", "roots": ["{root}"]}}', ctx).path.read_text()
+    assert "real.py" in matches
+    assert "dep.py" not in matches
+
+    counted = CodeStats().run(f'{{"roots": ["{root}"], "by_file": true}}', ctx).path.read_text()
+    assert "real.py" in counted
+    assert "dep.py" not in counted
