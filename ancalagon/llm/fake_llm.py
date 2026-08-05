@@ -10,14 +10,17 @@ class FakeLLM:
     def __init__(self, replies: list[Reply]):
         self.replies = list(replies)
         self.seen: list[list[Message]] = []
+        self.forced: list[str] = []
 
     def complete(
         self,
         system: str,
         messages: collections.abc.Sequence[Message],
         tools: collections.abc.Sequence[ToolSchema],
+        force_tool: str = "",
     ) -> Reply:
         self.seen.append(list(messages))
+        self.forced.append(force_tool)
         if not self.replies:
             raise RuntimeError("FakeLLM exhausted")
         return self.replies.pop(0)

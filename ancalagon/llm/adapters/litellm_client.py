@@ -49,6 +49,7 @@ class LiteLLMClient:
         system: str,
         messages: collections.abc.Sequence[Message],
         tools: collections.abc.Sequence[ToolSchema],
+        force_tool: str = "",
     ) -> Reply:
         import litellm
 
@@ -67,6 +68,9 @@ class LiteLLMClient:
             }
             for t in tools
         ]
+        wanted: str | dict[str, str | dict[str, str]] = (
+            {"type": "function", "function": {"name": force_tool}} if force_tool else "auto"
+        )
         response = litellm.completion(
             model=self.model,
             messages=payload,
@@ -74,14 +78,15 @@ class LiteLLMClient:
             max_tokens=self.max_tokens,
             num_retries=self.num_retries,
             timeout=self.request_timeout_s,
+            tool_choice=wanted,
         )
         if not isinstance(response, litellm.ModelResponse):
             raise TypeError("litellm.completion returned a streaming response")
-        choice = response.choices[0]
+        first = response.choices[0]
         blocks: list[Block] = []
-        if choice.message.content:
-            blocks.append(Text(text=choice.message.content))
-        for call in choice.message.tool_calls or []:
+        if first.message.content:
+            blocks.append(Text(text=first.message.content))
+        for call in first.message.tool_calls or []:
             blocks.append(
                 ToolUse.model_validate(
                     {
@@ -91,4 +96,4 @@ class LiteLLMClient:
                     }
                 )
             )
-        return Reply(blocks=blocks, stop_reason=choice.finish_reason)
+        return Reply(blocks=blocks, stop_reason=first.finish_reason)

@@ -7,6 +7,7 @@ from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.exhausted import Exhausted
+from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.text import Text
@@ -247,3 +248,30 @@ def test_a_zero_cost_tool_still_works_with_no_tool_call_budget_left(tmp_path: pa
 
     transcript = (tmp_path / "transcript.jsonl").read_text()
     assert "budget exhausted" in transcript
+
+
+def test_final_turn_forces_submit_answer_and_keeps_a_rejected_payload(tmp_path: pathlib.Path):
+    session = _session(
+        tmp_path,
+        [
+            Reply(
+                blocks=[
+                    ToolUse(
+                        id="tu_1",
+                        name="submit_answer",
+                        arguments='{"answer_json": {"answer": "wrapped by mistake"}}',
+                    )
+                ],
+                stop_reason="tool_calls",
+            )
+        ],
+        Budget(turns=0, tool_calls=5),
+    )
+    outcome = session.run()
+
+    fake = session.llm
+    assert isinstance(fake, FakeLLM)
+    assert fake.forced == ["submit_answer"]
+
+    assert isinstance(outcome, Failed)
+    assert "wrapped by mistake" in outcome.summary

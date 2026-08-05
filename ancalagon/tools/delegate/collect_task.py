@@ -1,4 +1,5 @@
-# Reads a finished task's outcome, or says it is not finished.
+# Reads a finished task's answer, or says why there is not one.
+import json
 import pathlib
 
 from ancalagon.bus.bus import Bus
@@ -11,7 +12,10 @@ from ancalagon.tools.registry.tool_context import ToolContext
 
 class CollectTask:
     name = "collect_task"
-    description = "Read the outcome of a finished task. Reports if it is still running."
+    description = (
+        "Read a finished task's answer. Returns the answer itself, not a wrapper. "
+        "Reports an error if the task is unfinished or did not produce one."
+    )
     cost = 1
 
     def __init__(self, run_dir: pathlib.Path):
@@ -29,4 +33,8 @@ class CollectTask:
         outcome = pathlib.Path(row.dir) / "outcome.json"
         if not outcome.exists():
             return ctx.failure(self.name, f"task {row.id} is {row.status.value}, no outcome yet")
-        return ctx.result(self.name, outcome.read_text(), ".json")
+        parsed = json.loads(outcome.read_text())
+        if "value" in parsed:
+            return ctx.result(self.name, json.dumps(parsed["value"]), ".json")
+        detail = parsed.get("detail") or parsed.get("error") or parsed.get("summary", "")
+        return ctx.failure(self.name, f"task {row.id} ended as {parsed['kind']}: {detail}")

@@ -13,4 +13,5 @@ class LLM(typing.Protocol):
         system: str,
         messages: collections.abc.Sequence[Message],
         tools: collections.abc.Sequence[ToolSchema],
+        force_tool: str = "",
     ) -> Reply: ...

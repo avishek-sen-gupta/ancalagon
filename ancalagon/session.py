@@ -138,10 +138,14 @@ class Session:
             self._record(Role.ASSISTANT, [Text(text="Understood.")])
         self._record(Role.USER, [Text(text=FINAL_INSTRUCTION)])
         final_tools = [self.submit.schema()]
-        reply = self.llm.complete(self._system(), self.messages, final_tools)
+        reply = self.llm.complete(
+            self._system(), self.messages, final_tools, force_tool=self.submit.name
+        )
         self._record(Role.ASSISTANT, reply.blocks)
         uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
+        offered = ""
         if uses:
+            offered = uses[0].arguments
             self._run_tools(uses)
             submitted = self.submit.answer_json
             if submitted:
@@ -156,7 +160,7 @@ class Session:
         except pydantic.ValidationError as exc:
             return Failed(
                 error=f"final answer did not validate: {exc}",
-                summary=text[:200],
+                summary=offered[:2000] or text[:2000],
                 spent=self._spent(),
             )
         return Exhausted(value=value, summary=text[:200], spent=self._spent())

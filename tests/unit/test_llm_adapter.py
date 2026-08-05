@@ -44,6 +44,7 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
     }
 
     seen: dict[str, int] = {}
+    chosen: list[str | dict[str, str | dict[str, str]]] = []
 
     class FakeMessage:
         content = "done"
@@ -63,9 +64,11 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
         max_tokens: int,
         num_retries: int,
         timeout: int,
+        tool_choice: str | dict[str, str | dict[str, str]],
     ) -> FakeResponse:
         seen["num_retries"] = num_retries
         seen["timeout"] = timeout
+        chosen.append(tool_choice)
         return FakeResponse()
 
     fake = types.ModuleType("litellm")
@@ -77,6 +80,10 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
     reply = client.complete("sys", [assistant, results], [])
 
     assert seen == {"num_retries": 4, "timeout": 99}
+    assert chosen == ["auto"]
+
+    client.complete("sys", [assistant], [], force_tool="submit_answer")
+    assert chosen[1] == {"type": "function", "function": {"name": "submit_answer"}}
 
     # litellm imports tenacity lazily, only when a retry actually fires, so a
     # missing dependency surfaces at the worst moment rather than at import.
