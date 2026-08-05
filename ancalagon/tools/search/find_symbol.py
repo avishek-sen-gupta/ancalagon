@@ -4,6 +4,7 @@ from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.run_command import run_command
+from ancalagon.tools.search.searchable_files import searchable_files
 from ancalagon.tools.search.symbol_args import SymbolArgs
 from ancalagon.workspace.scope_error import ScopeError
 
@@ -43,12 +44,12 @@ class FindSymbol:
             roots = [str(ctx.workspace.resolve_read(r)) for r in args.roots]
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
-        listed, files, err = run_command(["rg", "--files", *roots])
+        listed, files, err = searchable_files(roots)
         if listed not in (0, 1):
             return ctx.failure(self.name, err)
-        if not files.strip():
+        if not files:
             return ctx.result(self.name, "")
-        code, out, err = run_command(["ctags", "-x", "-L", "-"], stdin=files)
+        code, out, err = run_command(["ctags", "-x", "-L", "-"], stdin="\n".join(files))
         if code != 0:
             return ctx.failure(self.name, err)
         if args.name:

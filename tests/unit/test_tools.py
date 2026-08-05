@@ -28,6 +28,7 @@ from ancalagon.tools.search.run_command import run_command
 from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
+from ancalagon.tools.search.ast_grep import AstGrep
 from ancalagon.tools.search.find_symbol import FindSymbol
 from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.search.sed import Sed
@@ -366,8 +367,8 @@ def test_tree_walking_tools_all_honour_gitignore(tmp_path: pathlib.Path):
     (root / "vendored").mkdir()
     (root / ".gitignore").write_text("vendored/\n")
     run_command(["git", "-C", str(root), "init", "-q"])
-    (root / "src" / "real.py").write_text("def real_thing():\n    pass\n")
-    (root / "vendored" / "dep.py").write_text("def vendored_thing():\n    pass\n")
+    (root / "src" / "real.py").write_text("def real_thing(): pass\n")
+    (root / "vendored" / "dep.py").write_text("def vendored_thing(): pass\n")
 
     symbols = FindSymbol().run(f'{{"roots": ["{root}"]}}', ctx).path.read_text()
     assert "real_thing" in symbols
@@ -380,3 +381,31 @@ def test_tree_walking_tools_all_honour_gitignore(tmp_path: pathlib.Path):
     counted = CodeStats().run(f'{{"roots": ["{root}"], "by_file": true}}', ctx).path.read_text()
     assert "real.py" in counted
     assert "dep.py" not in counted
+
+    structural = (
+        AstGrep().run(f'{{"pattern": "def $N(): pass", "roots": ["{root}"]}}', ctx).path.read_text()
+    )
+    assert "real.py" in structural
+    assert "dep.py" not in structural
+
+
+def test_tree_walking_tools_honour_gitignore_outside_a_repository(tmp_path: pathlib.Path):
+    ctx = _ctx(tmp_path)
+    root = ctx.workspace.write_root
+    (root / "src").mkdir()
+    (root / "vendored").mkdir()
+    (root / ".gitignore").write_text("vendored/\n")
+    (root / "src" / "real.py").write_text("def real_thing(): pass\n")
+    (root / "vendored" / "dep.py").write_text("def vendored_thing(): pass\n")
+    assert not (root / ".git").exists()
+
+    for text in (
+        Ripgrep().run(f'{{"pattern": "thing", "roots": ["{root}"]}}', ctx).path.read_text(),
+        FindSymbol().run(f'{{"roots": ["{root}"]}}', ctx).path.read_text(),
+        AstGrep()
+        .run(f'{{"pattern": "def $N(): pass", "roots": ["{root}"]}}', ctx)
+        .path.read_text(),
+        CodeStats().run(f'{{"roots": ["{root}"], "by_file": true}}', ctx).path.read_text(),
+    ):
+        assert "dep.py" not in text
+        assert "vendored_thing" not in text

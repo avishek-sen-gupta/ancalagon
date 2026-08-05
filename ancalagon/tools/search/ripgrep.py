@@ -26,6 +26,7 @@ class Ripgrep:
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
         flags = ["--json"] if args.structured else ["--line-number", "--no-heading"]
+        flags.append("--no-require-git")
         code, out, err = run_command(["rg", *flags, args.pattern, *roots])
         if code not in (0, 1):
             return ctx.failure(self.name, err)
