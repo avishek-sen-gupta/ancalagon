@@ -1,9 +1,10 @@
 #!/usr/bin/env zsh
 # Tails every agent transcript under an ancalagon workspace, picking up runs and
 # subagents as they appear. Safe to start before anything exists.
-# Usage: ancwatch [workspace]      default ./output   e.g. ancwatch ws
+# Usage: ancwatch [dir]   default .   Give it the write_root from your config,
+# or a runs directory directly; both are found.
 ancwatch() {
-  local root=${1:-output}
+  local root=${1:-.}
   local -A pids
   local f label from
 
@@ -11,13 +12,19 @@ ancwatch() {
 
   # Anything already on disk is history: follow it from the end. Anything that
   # appears later is a new agent: show it from its first message.
-  for f in $root/runs/*/tasks/*/transcript.jsonl(N); do
+  transcripts() { print -l $root/runs/*/tasks/*/transcript.jsonl(N) $root/*/tasks/*/transcript.jsonl(N) }
+
+  for f in $(transcripts); do
     pids[${${f:h:h:h}:t}/${${f:h}:t}]=0
   done
 
+  if [[ ! -d $root/runs && -z $(print -l $root/*/tasks(N)) ]]; then
+    print -u2 "\e[33m-- no runs under $root; is this the write_root from your config? --\e[0m"
+  fi
+
   print -u2 "\e[2m-- watching $root, ${#pids} existing agent(s) skipped --\e[0m"
   while :; do
-    for f in $root/runs/*/tasks/*/transcript.jsonl(N); do
+    for f in $(transcripts); do
       label=${${f:h:h:h}:t}/${${f:h}:t}
       [[ -n ${pids[$label]} && ${pids[$label]} != 0 ]] && continue
       if [[ ${pids[$label]} == 0 ]]; then from="-n 0"; else from="-n +1"; fi
