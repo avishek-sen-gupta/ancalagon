@@ -1,6 +1,9 @@
 import json
 import pathlib
 
+import pydantic
+import pytest
+
 import ancalagon.config.config
 from ancalagon.bus.bus import Bus
 from ancalagon.bus.agent_status import AgentStatus
@@ -15,12 +18,20 @@ from ancalagon.tools.files.list_dir import ListDir
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.files.write_file import WriteFile
 from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
+from ancalagon.tools.artifacts.convert_document import ConvertDocument
+from ancalagon.tools.artifacts.extract_strings import ExtractStrings
+from ancalagon.tools.artifacts.file_type import FileType
+from ancalagon.tools.artifacts.query_json import QueryJson
+from ancalagon.tools.history.git_history import GitHistory
 from ancalagon.tools.registry.registry import Registry
+from ancalagon.tools.search.run_command import run_command
 from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
+from ancalagon.tools.search.find_symbol import FindSymbol
 from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.search.sed import Sed
+from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
 
@@ -121,7 +132,7 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
         f'{{"path": "{ctx.workspace.write_root / "nope.txt"}"}}', ctx
     )
     assert absent.ok is False
-    assert "no file at" in absent.error
+    assert "no file or directory at" in absent.error
 
 
 def test_search_and_parse_tools_write_outputs_and_never_mutate_inputs(tmp_path: pathlib.Path):
@@ -251,3 +262,98 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
 
     bad_output = json.dumps({**json.loads(args), "task_id": "other", "output": "FreeText"})
     assert delegate.run(bad_output, ctx).ok is False
+
+
+def test_survey_and_symbol_tools_report_structure_not_mentions(tmp_path: pathlib.Path):
+    ctx = _ctx(tmp_path)
+    root = ctx.workspace.write_root
+    (root / "widget.py").write_text(
+        "class Widget:\n    def spin(self):\n        return 1\n\n\ndef make_widget():\n"
+        "    return Widget()\n"
+    )
+    (root / "user.py").write_text("from widget import Widget\n\nw = Widget()\nw.spin()\n")
+
+    stats = CodeStats().run(f'{{"roots": ["{root}"]}}', ctx)
+    assert stats.ok is True
+    assert "Python" in stats.path.read_text()
+
+    defined = FindSymbol().run(f'{{"roots": ["{root}"], "name": "Widget"}}', ctx)
+    assert defined.ok is True
+    lines = [l for l in defined.path.read_text().splitlines() if l.strip()]
+    assert len(lines) == 1
+    assert "class" in lines[0]
+    assert "widget.py" in lines[0]
+    assert "user.py" not in defined.path.read_text()
+
+    everything = FindSymbol().run(f'{{"roots": ["{root}"]}}', ctx)
+    assert {l.split()[0] for l in everything.path.read_text().splitlines() if l.strip()} >= {
+        "Widget",
+        "spin",
+        "make_widget",
+    }
+
+    denied = CodeStats().run(f'{{"roots": ["{tmp_path / "elsewhere"}"]}}', ctx)
+    assert denied.ok is False
+
+
+def test_artifact_and_history_tools_read_what_read_file_cannot(tmp_path: pathlib.Path):
+    ctx = _ctx(tmp_path)
+    root = ctx.workspace.write_root
+
+    binary = root / "blob.bin"
+    binary.write_bytes(b"\x00\x01\x02CONNECTION_STRING_HERE\x00\xff" * 3)
+    kind = FileType().run(f'{{"path": "{binary}"}}', ctx)
+    assert kind.ok is True
+    assert kind.summary.strip() != ""
+
+    found = ExtractStrings().run(f'{{"path": "{binary}", "min_length": 8}}', ctx)
+    assert found.ok is True
+    assert "CONNECTION_STRING_HERE" in found.path.read_text()
+
+    doc = root / "graph.json"
+    doc.write_text('{"nodes": [{"id": "a"}, {"id": "b"}]}')
+    ids = QueryJson().run(f'{{"path": "{doc}", "filter": ".nodes[].id"}}', ctx)
+    assert ids.ok is True
+    assert ids.path.read_text().split() == ["a", "b"]
+
+    unsafe = QueryJson().run(f'{{"path": "{doc}", "filter": "--version"}}', ctx)
+    assert unsafe.ok is False
+    assert "may not begin with" in unsafe.error
+
+    page = root / "note.md"
+    page.write_text("# Title\n\nSome *emphasis*.\n")
+    converted = ConvertDocument().run(f'{{"path": "{page}", "to": "plain"}}', ctx)
+    assert converted.ok is True
+    assert "Title" in converted.path.read_text()
+
+
+def test_git_history_reports_intent_and_refuses_option_injection(tmp_path: pathlib.Path):
+    ctx = _ctx(tmp_path)
+    repo = ctx.workspace.write_root
+    tracked = repo / "thing.py"
+    tracked.write_text("x = 1\n")
+    for command in (
+        ["git", "init", "-q"],
+        ["git", "config", "user.email", "t@example.com"],
+        ["git", "config", "user.name", "T"],
+        ["git", "add", "thing.py"],
+        ["git", "commit", "-q", "-m", "workaround for a vendor bug"],
+    ):
+        run_command(["git", "-C", str(repo), *command[1:]])
+
+    log = GitHistory().run(f'{{"path": "{tracked}", "operation": "log"}}', ctx)
+    assert log.ok is True
+    assert "workaround for a vendor bug" in log.path.read_text()
+
+    blame = GitHistory().run(f'{{"path": "{tracked}", "operation": "blame"}}', ctx)
+    assert blame.ok is True
+    assert "x = 1" in blame.path.read_text()
+
+    with pytest.raises(pydantic.ValidationError):
+        GitHistory().run(
+            f'{{"path": "{tracked}", "operation": "show", "rev": "--upload-pack=x"}}', ctx
+        )
+
+    missing = GitHistory().run(f'{{"path": "{tracked}", "operation": "show"}}', ctx)
+    assert missing.ok is False
+    assert "needs a rev" in missing.error

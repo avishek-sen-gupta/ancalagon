@@ -8,6 +8,10 @@ if typing.TYPE_CHECKING:
     from ancalagon.config.config import Config
 
 
+def missing_hint(path: pathlib.Path) -> str:
+    return f"no file or directory at {path}{_hint(path)}"
+
+
 def _hint(path: pathlib.Path) -> str:
     if path.is_absolute():
         return ""

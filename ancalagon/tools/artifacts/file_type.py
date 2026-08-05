@@ -1,0 +1,31 @@
+# Identifies what an artifact actually is, before anything tries to read it as text.
+from ancalagon.contracts.tool_result import ToolResult
+from ancalagon.llm.schema_of import schema_of
+from ancalagon.llm.tool_schema import ToolSchema
+from ancalagon.tools.artifacts.path_arg import PathArg
+from ancalagon.tools.registry.tool_context import ToolContext
+from ancalagon.tools.search.run_command import run_command
+from ancalagon.workspace.scope_error import ScopeError
+
+
+class FileType:
+    name = "file_type"
+    description = (
+        "Identify what a file is -- text, binary, archive, image, database -- before "
+        "trying to read it. Use this first on anything whose format you do not know."
+    )
+    cost = 1
+
+    def schema(self) -> ToolSchema:
+        return schema_of(self.name, self.description, PathArg)
+
+    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
+        args = PathArg.model_validate_json(arguments)
+        try:
+            path = ctx.workspace.resolve_read(args.path)
+        except ScopeError as exc:
+            return ctx.failure(self.name, str(exc))
+        code, out, err = run_command(["file", "-b", str(path)])
+        if code != 0:
+            return ctx.failure(self.name, err)
+        return ctx.result(self.name, out)

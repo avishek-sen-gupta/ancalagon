@@ -17,6 +17,10 @@ from ancalagon.contracts.resolve import resolve_output_class
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient
 from ancalagon.session import Session
+from ancalagon.tools.artifacts.convert_document import ConvertDocument
+from ancalagon.tools.artifacts.extract_strings import ExtractStrings
+from ancalagon.tools.artifacts.file_type import FileType
+from ancalagon.tools.artifacts.query_json import QueryJson
 from ancalagon.tools.delegate.check_task import CheckTask
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.delegate.delegate import Delegate
@@ -25,6 +29,7 @@ from ancalagon.tools.files.edit_file import EditFile
 from ancalagon.tools.files.list_dir import ListDir
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.files.write_file import WriteFile
+from ancalagon.tools.history.git_history import GitHistory
 from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
 from ancalagon.tools.registry.registry import Registry
@@ -32,8 +37,10 @@ from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.search.ast_grep import AstGrep
+from ancalagon.tools.search.find_symbol import FindSymbol
 from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.search.sed import Sed
+from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.transcript.history import load, repair
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.workspace.workspace import Workspace
@@ -58,6 +65,13 @@ def build_registry(
         Ripgrep(),
         AstGrep(),
         Sed(),
+        FindSymbol(),
+        CodeStats(),
+        FileType(),
+        ExtractStrings(),
+        ConvertDocument(),
+        QueryJson(),
+        GitHistory(),
         TreeSitter(),
         Delegate(run_dir=run_dir, parent=parent),
         CheckTask(run_dir=run_dir),

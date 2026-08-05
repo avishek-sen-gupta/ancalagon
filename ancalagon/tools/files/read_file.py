@@ -5,6 +5,7 @@ from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.files.read_args import ReadArgs
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.scope_error import ScopeError
+from ancalagon.workspace.workspace import missing_hint
 
 
 class ReadFile:
@@ -26,11 +27,7 @@ class ReadFile:
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
         if not path.is_file():
-            return ctx.failure(
-                self.name,
-                f"no file at {path}. Relative paths resolve against the working directory; "
-                f"give an absolute path inside {ctx.workspace.read_roots}",
-            )
+            return ctx.failure(self.name, missing_hint(path))
         lines = path.read_text(encoding="utf-8").splitlines()
         end = len(lines) if args.limit <= 0 else min(len(lines), args.offset + args.limit)
         shown = lines[args.offset : end]

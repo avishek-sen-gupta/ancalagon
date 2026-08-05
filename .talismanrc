@@ -23,4 +23,6 @@ fileignoreconfig:
   checksum: 27a17740db3d4fdd7dfc15f416656f7c46613fd0f0be1c8cb1bf26dc94c89e78
 - filename: docs/superpowers/specs/2026-08-06-append-only-agent-events-design.md
   checksum: 7df6da4d961e333a8e5d30812cc17f44b0af833b32064b03392ccf7c97e9114d
+- filename: ancalagon/tools/artifacts/query_json.py
+  checksum: a8bf98f26313f1262814555b993827a702d268b0bc64c4e1647e557d9b0851a4
 version: "1.0"
