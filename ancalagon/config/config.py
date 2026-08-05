@@ -9,6 +9,7 @@ from ancalagon.contracts.budget import Budget
 class Config(pydantic.BaseModel, frozen=True):
     write_root: pathlib.Path
     read_roots: tuple[pathlib.Path, ...]
+    root_behaviour: str
     model: str
     max_tokens: int
     num_retries: int

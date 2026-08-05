@@ -13,11 +13,6 @@ from ancalagon.supervisor.supervisor import Supervisor
 
 LOGGER = logging.getLogger(__name__)
 
-ROOT_BEHAVIOUR = (
-    "You are a reverse engineering agent. Use your tools to investigate, and delegate "
-    "focused subtasks with the delegate tool when a question is self-contained."
-)
-
 
 def _new_run_dir(write_root: pathlib.Path) -> pathlib.Path:
     runs = write_root / "runs"
@@ -39,7 +34,7 @@ def main(config_path: pathlib.Path, goal: str) -> int:
         json.dumps(
             {
                 "task_id": "root",
-                "behaviour": ROOT_BEHAVIOUR,
+                "behaviour": config.root_behaviour,
                 "goal": goal,
                 "input": {"text": goal},
                 "output": "contracts.py:FreeText",

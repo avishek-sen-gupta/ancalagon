@@ -2,6 +2,14 @@
 write_root = "./ws"
 read_roots = ["./artifacts"]
 
+[agent]
+root_behaviour = """
+You investigate a codebase or a set of artifacts to answer the goal you are given.
+Read before concluding, and prefer evidence from the files over recall.
+Delegate a focused subtask when a question is self-contained and you want it
+answered in a shape you can rely on.
+"""
+
 [model]
 name = "claude-opus-5"
 num_retries = 3

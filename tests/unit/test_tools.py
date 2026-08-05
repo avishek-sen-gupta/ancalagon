@@ -177,6 +177,7 @@ def test_registry_withholds_delegate_once_depth_reaches_max_depth(tmp_path: path
     config = ancalagon.config.config.Config(
         write_root=tmp_path,
         read_roots=(tmp_path,),
+        root_behaviour="You investigate.",
         model="claude-opus-5",
         max_tokens=100,
         num_retries=0,

@@ -32,6 +32,9 @@ def _config(tmp_path: pathlib.Path, turns: int, tool_calls: int, model: str = ""
 write_root = "{write_root}"
 read_roots = ["{artifacts}"]
 
+[agent]
+root_behaviour = "You investigate."
+
 [model]
 name = "{model}"
 num_retries = 2

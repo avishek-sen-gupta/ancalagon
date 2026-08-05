@@ -40,6 +40,9 @@ def test_scoping_rejects_every_escape_and_config_round_trips(tmp_path: pathlib.P
 write_root = "{write_root}"
 read_roots = ["{read_only}"]
 
+[agent]
+root_behaviour = "You investigate."
+
 [model]
 name = "claude-opus-5"
 num_retries = 3
@@ -62,6 +65,7 @@ enabled = ["read_file", "ripgrep"]
     config = load_config(config_path)
     assert config.write_root == write_root
     assert config.read_roots == (read_only,)
+    assert config.root_behaviour == "You investigate."
     assert config.model == "claude-opus-5"
     assert config.num_retries == 3
     assert config.request_timeout_s == 300
@@ -83,6 +87,9 @@ def test_config_resolves_relative_roots_against_the_config_file_not_the_cwd(
 [workspace]
 write_root = "./ws"
 read_roots = ["./artifacts"]
+
+[agent]
+root_behaviour = "You investigate."
 
 [model]
 name = "claude-opus-5"

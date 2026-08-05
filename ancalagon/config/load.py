@@ -16,6 +16,7 @@ def load_config(path: pathlib.Path) -> Config:
     return Config(
         write_root=(base / workspace["write_root"]).resolve(),
         read_roots=tuple((base / p).resolve() for p in workspace["read_roots"]),
+        root_behaviour=raw["agent"]["root_behaviour"],
         model=model["name"],
         max_tokens=model["max_tokens"],
         num_retries=model["num_retries"],
