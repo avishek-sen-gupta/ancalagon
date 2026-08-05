@@ -2,9 +2,12 @@ import json
 import pathlib
 
 import ancalagon.config.config
+from ancalagon.bus.bus import Bus
+from ancalagon.bus.task_status import TaskStatus
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.tool_result import ToolResult
+from ancalagon.tools.delegate.delegate import Delegate
 from ancalagon.tools.files.delete_file import DeleteFile
 from ancalagon.tools.files.edit_file import EditFile
 from ancalagon.tools.files.list_dir import ListDir
@@ -200,3 +203,44 @@ def test_registry_withholds_delegate_once_depth_reaches_max_depth(tmp_path: path
     assert "submit_answer" in at_root.names()
     submit = at_root.get("submit_answer")
     assert json.loads(submit.schema().parameters_json)["properties"].keys() == {"text"}
+
+
+def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathlib.Path):
+    ctx = _ctx(tmp_path)
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    delegate = Delegate(run_dir=run_dir, parent=1)
+    args = json.dumps(
+        {
+            "task_id": "analyse",
+            "behaviour": "b",
+            "goal": "g",
+            "input_json": "{}",
+            "output": "contracts.py:FreeText",
+            "turns": 3,
+            "tool_calls": 5,
+        }
+    )
+    bus = Bus.open(run_dir / "bus.db")
+
+    assert delegate.run(args, ctx).ok is True
+    queued = delegate.run(args, ctx)
+    assert queued.ok is False
+    assert "already queued" in queued.error
+
+    bus.claim(limit=1)
+    running = delegate.run(args, ctx)
+    assert running.ok is False
+    assert "already running" in running.error
+
+    bus.finish(1, TaskStatus.CRASHED, exit_code=1, summary="died")
+    retried = delegate.run(args, ctx)
+    assert retried.ok is True
+
+    task_dir = run_dir / "tasks" / "analyse"
+    assert [r.id for r in bus.active_for(task_dir)] == [2]
+    assert bus.get(1).status is TaskStatus.CRASHED
+    assert bus.get(2).dir == str(task_dir)
+
+    bad_output = json.dumps({**json.loads(args), "task_id": "other", "output": "FreeText"})
+    assert delegate.run(bad_output, ctx).ok is False

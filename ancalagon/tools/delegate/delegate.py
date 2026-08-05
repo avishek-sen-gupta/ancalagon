@@ -16,6 +16,8 @@ class Delegate:
     name = "delegate"
     description = (
         "Queue a subagent task. Returns its task id immediately without waiting. "
+        "Reusing a task_id after that task has finished retries it, and the new agent "
+        "inherits the previous one's transcript. Use a new task_id for a clean start. "
         "To give the subagent its own output contract, write a Python module "
         "defining a pydantic model with write_file first, then pass its path as "
         "contracts_path and name the class in output, e.g. contracts.py:NodeVerdict."
@@ -38,8 +40,13 @@ class Delegate:
                 "Use 'contracts.py:FreeText' unless you supply contracts_path.",
             )
         task_dir = self.run_dir / "tasks" / args.task_id
-        if (task_dir / "spec.json").exists():
-            return ctx.failure(self.name, f"task {args.task_id} already exists at {task_dir}")
+        bus = Bus.open(self.run_dir / "bus.db")
+        active = bus.active_for(task_dir)
+        if active:
+            return ctx.failure(
+                self.name,
+                f"task {args.task_id} is already {active[0].status.value} as agent {active[0].id}",
+            )
         try:
             json.loads(args.input_json)
         except json.JSONDecodeError as exc:
@@ -71,5 +78,5 @@ class Delegate:
         )
         (task_dir / "spec.json").write_text(spec_text)
         (task_dir / "contracts.py").write_text(contracts)
-        task = Bus.open(self.run_dir / "bus.db").enqueue(task_dir, parent=self.parent)
+        task = bus.enqueue(task_dir, parent=self.parent)
         return ctx.result(self.name, f"queued task {task} at {task_dir}")

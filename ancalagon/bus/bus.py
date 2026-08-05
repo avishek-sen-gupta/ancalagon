@@ -65,6 +65,13 @@ class Bus:
         ).fetchall()
         return [TaskRow.model_validate({k: r[k] for k in r.keys()}) for r in rows]
 
+    def active_for(self, dir: pathlib.Path) -> list[TaskRow]:
+        rows = self.conn.execute(
+            "SELECT * FROM tasks WHERE dir = ? AND status IN (?, ?) ORDER BY id",
+            (str(dir), TaskStatus.QUEUED.value, TaskStatus.RUNNING.value),
+        ).fetchall()
+        return [TaskRow.model_validate({k: r[k] for k in r.keys()}) for r in rows]
+
     def post(self, sender: int, addressee: int, kind: str, summary: str, ref_path: str) -> None:
         self.conn.execute(
             "INSERT INTO messages (ts, sender, addressee, kind, summary, ref_path) "
