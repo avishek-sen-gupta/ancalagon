@@ -57,6 +57,8 @@ tool_calls = 60
 max_concurrent_agents = 1
 agent_timeout_s = 3600
 max_depth = 1
+compact_above_tokens = 60000
+keep_recent_messages = 8
 summary_chars = 1000
 
 [tools]
@@ -105,6 +107,8 @@ tool_calls = 60
 max_concurrent_agents = 4
 agent_timeout_s = 3600
 max_depth = 1
+compact_above_tokens = 60000
+keep_recent_messages = 8
 summary_chars = 1000
 
 [tools]
@@ -151,6 +155,8 @@ tool_calls = 60
 max_concurrent_agents = 4
 agent_timeout_s = 3600
 max_depth = 1
+compact_above_tokens = 60000
+keep_recent_messages = 8
 summary_chars = 1000
 
 [tools]

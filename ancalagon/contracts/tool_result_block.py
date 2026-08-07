@@ -10,3 +10,5 @@ class ToolResultBlock(pydantic.BaseModel, frozen=True):
     tool_use_id: str
     content: str
     is_error: bool = False
+    path: str = ""
+    byte_count: int = 0

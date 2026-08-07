@@ -20,3 +20,5 @@ class Config(pydantic.BaseModel, frozen=True):
     max_depth: int
     tools: list[str]
     summary_chars: int
+    compact_above_tokens: int
+    keep_recent_messages: int

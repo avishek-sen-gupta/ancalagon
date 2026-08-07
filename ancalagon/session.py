@@ -24,6 +24,7 @@ from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
+from ancalagon.transcript.demote import for_wire
 from ancalagon.transcript.transcript import Transcript
 
 LOGGER = logging.getLogger(__name__)
@@ -48,6 +49,8 @@ class Session:
         output_class: type[pydantic.BaseModel],
         submit: SubmitAnswer,
         need_input: NeedInput,
+        compact_above_tokens: int = 0,
+        keep_recent_messages: int = 8,
     ):
         self.spec = spec
         self.input_json = input_json
@@ -60,10 +63,15 @@ class Session:
         self.output_class = output_class
         self.submit = submit
         self.need_input = need_input
+        self.compact_above_tokens = compact_above_tokens
+        self.keep_recent_messages = keep_recent_messages
         self.remaining = spec.budget
         self.seq = len(messages)
         if not self.messages:
             self._record(Role.USER, [Text(text=f"{spec.goal}\n\nInput: {input_json}")])
+
+    def _wire(self) -> list[Message]:
+        return for_wire(self.messages, self.compact_above_tokens, self.keep_recent_messages)
 
     def _system(self) -> str:
         schema = self.output_class.model_json_schema()
@@ -129,6 +137,8 @@ class Session:
                     tool_use_id=use.id,
                     content=f"{result.summary}\n[full output: {result.path}]",
                     is_error=not result.ok,
+                    path=str(result.path),
+                    byte_count=result.byte_count,
                 )
             )
         self._record(Role.USER, blocks)
@@ -139,7 +149,7 @@ class Session:
         self._record(Role.USER, [Text(text=FINAL_INSTRUCTION)])
         final_tools = [self.submit.schema()]
         reply = self.llm.complete(
-            self._system(), self.messages, final_tools, force_tool=self.submit.name
+            self._system(), self._wire(), final_tools, force_tool=self.submit.name
         )
         self._record(Role.ASSISTANT, reply.blocks)
         uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
@@ -171,7 +181,7 @@ class Session:
             if self.remaining.turns_exhausted:
                 return self._final_turn()
             self.remaining = self.remaining.spend_turn()
-            reply = self.llm.complete(self._system(), self.messages, schemas)
+            reply = self.llm.complete(self._system(), self._wire(), schemas)
             self._record(Role.ASSISTANT, reply.blocks)
             uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
             if uses:

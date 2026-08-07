@@ -131,6 +131,8 @@ def main(
             output_class=output_class,
             submit=submit,
             need_input=need_input,
+            compact_above_tokens=config.compact_above_tokens,
+            keep_recent_messages=config.keep_recent_messages,
         )
         outcome = session.run()
         bus.record(

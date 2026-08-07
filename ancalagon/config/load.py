@@ -32,4 +32,6 @@ def load_config(path: pathlib.Path) -> Config:
         max_depth=limits["max_depth"],
         tools=raw["tools"]["enabled"],
         summary_chars=limits["summary_chars"],
+        compact_above_tokens=limits["compact_above_tokens"],
+        keep_recent_messages=limits["keep_recent_messages"],
     )

@@ -200,6 +200,8 @@ def test_registry_withholds_delegate_once_depth_reaches_max_depth(tmp_path: path
         max_depth=1,
         tools=[],
         summary_chars=100,
+        compact_above_tokens=0,
+        keep_recent_messages=8,
     )
     submit = SubmitAnswer(FreeText)
     need_input = NeedInput()

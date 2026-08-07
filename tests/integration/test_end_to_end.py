@@ -49,6 +49,8 @@ tool_calls = {tool_calls}
 max_concurrent_agents = 1
 agent_timeout_s = 300
 max_depth = 1
+compact_above_tokens = 60000
+keep_recent_messages = 8
 summary_chars = 1000
 
 [tools]
