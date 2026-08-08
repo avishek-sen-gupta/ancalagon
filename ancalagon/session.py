@@ -73,12 +73,22 @@ class Session:
     def _wire(self) -> list[Message]:
         return for_wire(self.messages, self.compact_above_tokens, self.keep_recent_messages)
 
+    def _scopes(self) -> str:
+        readable = ", ".join(str(r) for r in self.ctx.workspace.read_roots)
+        return (
+            f"You may read under: {readable}\n"
+            f"You may write under: {self.ctx.workspace.write_root}\n"
+            f"Give tools absolute paths. A relative path resolves against the working "
+            f"directory, not against these roots, and will usually fail."
+        )
+
     def _system(self) -> str:
         schema = self.output_class.model_json_schema()
         return (
             f"{self.spec.behaviour}\n\n"
             f"Goal: {self.spec.goal}\n\n"
             f"Input: {self.input_json}\n\n"
+            f"{self._scopes()}\n\n"
             f"When you have the answer, call the submit_answer tool with it. "
             f"If that tool is unavailable, reply with a single JSON object and nothing "
             f"else -- no prose, no markdown fences -- matching this schema: {schema}"
