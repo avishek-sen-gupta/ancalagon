@@ -6,6 +6,9 @@ from ancalagon.config.config import Config
 from ancalagon.contracts.budget import Budget
 
 
+# Every key is read by bracket, never .get(), so a config file must be complete:
+# Config's defaults exist for callers building one in code, not to paper over a
+# missing key in a file someone believed they had written correctly.
 def _root(base: pathlib.Path, value: str) -> pathlib.Path:
     given = pathlib.Path(value).expanduser()
     return given.resolve() if given.is_absolute() else (base / given).resolve()

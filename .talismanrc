@@ -14,7 +14,7 @@ fileignoreconfig:
 - filename: uv.lock
   checksum: 4758762d0637ff29c2f196ee4321e494498df0893ae73fa2eedcc71c06637e78
 - filename: tests/unit/test_workspace_scoping.py
-  checksum: 1924d98444277713d0631d8c9b5a7e39d7d0153a3cbf97aca7918c507a47dab4
+  checksum: f08bad3a1a56b3aad1b64377e56910eb3aee1c977799f74acbcccfadaaec3b54
 - filename: tests/unit/test_tools.py
   checksum: 1007c29aab48d45e48f26f6b0f5f83155a2d15526ee727d8a2cf197f0a6e9a15
 - filename: tests/unit/test_llm_adapter.py
@@ -27,4 +27,6 @@ fileignoreconfig:
   checksum: a8bf98f26313f1262814555b993827a702d268b0bc64c4e1647e557d9b0851a4
 - filename: ancalagon/tools/search/searchable_files.py
   checksum: 04787f147a448da52d2062a2590471f9f481cc19dfc01e507f90d512cdba9540
+- filename: ancalagon/config/load.py
+  checksum: 42a07ca13533b547a887b56be446b8c9d591123cdb1a787ee352f1eb4cca435e
 version: "1.0"

@@ -1,8 +1,12 @@
+import json
 import pathlib
+import tomllib
 
 import pytest
 
+from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
+from ancalagon.contracts.budget import Budget
 from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.workspace.workspace import Workspace
 
@@ -171,3 +175,51 @@ enabled = []
     wanted = home / "artifacts" / "graph.json"
     wanted.write_text("{}")
     assert workspace.resolve_read(pathlib.Path("~/artifacts/graph.json")) == wanted.resolve()
+
+
+def test_config_needs_three_fields_in_code_but_a_complete_file_on_disk(
+    tmp_path: pathlib.Path,
+):
+    minimal = Config(write_root=tmp_path, read_roots=(tmp_path,), model="bedrock/some-model")
+    assert minimal.budget == Budget(turns=20, tool_calls=60)
+    assert minimal.max_concurrent_agents == 4
+    assert minimal.compact_above_tokens == 60000
+    assert "prefer evidence from the files" in minimal.root_behaviour
+    assert minimal.tools == []
+
+    assert (
+        Config(
+            write_root=tmp_path,
+            read_roots=(tmp_path,),
+            model="m",
+            budget=Budget(turns=200, tool_calls=500),
+        ).budget.turns
+        == 200
+    )
+
+    example = tomllib.loads(pathlib.Path("ancalagon.example.toml").read_text())
+    for section, key in (
+        ("limits", "summary_chars"),
+        ("model", "num_retries"),
+        ("agent", "root_behaviour"),
+    ):
+        broken = tmp_path / f"missing-{key}.toml"
+        trimmed = {k: dict(v) for k, v in example.items()}
+        del trimmed[section][key]
+        broken.write_text(_toml(trimmed, tmp_path))
+        with pytest.raises(KeyError):
+            load_config(broken)
+
+
+def _toml(data: dict[str, dict[str, object]], root: pathlib.Path) -> str:
+    lines: list[str] = []
+    for section, body in data.items():
+        lines.append(f"[{section}]")
+        for key, value in body.items():
+            if key in ("write_root",):
+                value = str(root)
+            if key == "read_roots":
+                value = [str(root)]
+            lines.append(f"{key} = {json.dumps(value)}")
+        lines.append("")
+    return "\n".join(lines)
