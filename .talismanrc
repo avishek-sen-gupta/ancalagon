@@ -18,7 +18,7 @@ fileignoreconfig:
 - filename: tests/unit/test_tools.py
   checksum: 1007c29aab48d45e48f26f6b0f5f83155a2d15526ee727d8a2cf197f0a6e9a15
 - filename: tests/unit/test_llm_adapter.py
-  checksum: dba6d1b8bf59766812bd7e02152d2515ecc1b61c11ffd27398c7627b558ffed0
+  checksum: 4e349117cdce70f4e5826b48679943272b44c242b322bb29daaad176a363a1c0
 - filename: ancalagon/tools/submit/submit_answer.py
   checksum: 27a17740db3d4fdd7dfc15f416656f7c46613fd0f0be1c8cb1bf26dc94c89e78
 - filename: docs/superpowers/specs/2026-08-06-append-only-agent-events-design.md
