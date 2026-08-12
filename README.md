@@ -77,6 +77,20 @@ sqlite3 ws/runs/r_0001/bus.db \
 rg '"agent": 17' ws/runs/r_0001/tasks/*/transcript.jsonl
 ```
 
+Every model call is recorded too, so a run can be asked what it consumed and
+which agent consumed it:
+
+```bash
+sqlite3 -json ws/runs/r_0001/bus.db \
+  "select agent, model, sum(prompt_tokens), sum(completion_tokens),
+          sum(cache_creation_tokens), sum(cache_read_tokens)
+   from model_calls group by agent"
+```
+
+Tokens are recorded; money is not. Cost needs a price list that changes without
+notice, and a figure computed at one week's prices is silently wrong the next.
+The counters are facts the provider reported; pricing them is the caller's job.
+
 Transcripts are appended and flushed per message, so a killed agent leaves a
 readable partial history — which is what makes resumption possible.
 
@@ -84,7 +98,7 @@ readable partial history — which is what makes resumption possible.
 
 ```
 ws/runs/<run>/
-    bus.db                        tasks, agents, and an append-only event log
+    bus.db                        tasks, agents, an append-only event log, model calls
     tasks/<task_id>/
         spec.json  outcome.json  transcript.jsonl  stderr-<agent>.log  tools/
 ```
