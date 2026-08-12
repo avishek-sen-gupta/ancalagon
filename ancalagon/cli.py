@@ -1,5 +1,6 @@
 # Starts a run: writes the root task, then supervises it to completion.
 import argparse
+import ast
 import json
 import logging
 import pathlib
@@ -34,11 +35,20 @@ def run_dir_of(settings: RunSettings, write_root: pathlib.Path) -> pathlib.Path:
     return allocated
 
 
+def _text_of(path: pathlib.Path, named_by: str) -> str:
+    if not path.is_file():
+        raise ValueError(f"[run] {named_by} names {path}, which does not exist")
+    return path.read_text()
+
+
 def goal_of(settings: RunSettings, given: str) -> str:
     if settings.goal_file and given:
         raise ValueError("a goal came from both --goal and [run] goal_file; give one")
     if settings.goal_file:
-        return pathlib.Path(settings.goal_file).read_text()
+        goal = _text_of(pathlib.Path(settings.goal_file), "goal_file")
+        if not goal.strip():
+            raise ValueError(f"[run] goal_file {settings.goal_file} is empty")
+        return goal
     if given:
         return given
     raise ValueError("no goal: pass --goal or set [run] goal_file")
@@ -50,10 +60,24 @@ def output_of(settings: RunSettings) -> str:
     return f"contracts.py:{settings.contract_class}"
 
 
+def _class_names(source: str, path: str) -> frozenset[str]:
+    try:
+        parsed = ast.parse(source)
+    except SyntaxError as error:
+        raise ValueError(f"[run] contract module {path} does not parse: {error}") from error
+    return frozenset(node.name for node in parsed.body if isinstance(node, ast.ClassDef))
+
+
 def contract_source(settings: RunSettings) -> str:
     if not settings.contract_module:
         return FREE_TEXT_MODULE
-    return pathlib.Path(settings.contract_module).read_text()
+    source = _text_of(pathlib.Path(settings.contract_module), "contract")
+    if settings.contract_class not in _class_names(source, settings.contract_module):
+        raise ValueError(
+            f"[run] contract module {settings.contract_module} defines no class "
+            f"{settings.contract_class}"
+        )
+    return source
 
 
 def main(config_path: pathlib.Path, goal_argument: str) -> int:
