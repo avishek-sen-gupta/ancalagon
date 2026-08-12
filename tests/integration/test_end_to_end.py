@@ -155,6 +155,9 @@ def test_a_named_run_dir_is_reused_by_a_second_invocation(tmp_path: pathlib.Path
     assert [p.name for p in (tmp_path / "ws" / "runs").iterdir()] == ["item-0001"]
 
     bus = Bus.open(named / "bus.db")
+    task = bus.task(named / "tasks" / "root")
+    assert bus.state(1).task == task.id
+    assert bus.state(2).task == task.id
     assert bus.state(1).status is AgentStatus.CRASHED
     assert bus.state(2).status is AgentStatus.CRASHED
     assert len(list((named / "tasks" / "root").glob("stderr-*.log"))) == 2
