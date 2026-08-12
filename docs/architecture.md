@@ -40,15 +40,20 @@ cli.py ──writes spec.json──▶ tasks/root/
    named, otherwise `contracts/free_text_module.py` — and `spec.json` naming the class it must
    answer in. The goal comes from `[run] goal_file` or `--goal`; exactly one. A missing or empty
    file, or a `contract` naming a class its module does not define, exits 2 before any spawn.
-4. `bus/bus.py` opens `bus.db`, which runs migrations on first open, and enqueues the task
-   with `parent_agent=0`. Enqueuing creates the task if new, adds an agent, and appends a
-   `queued` event; a task retried later reuses the task row and adds another agent.
+4. `bus/bus.py` opens `bus.db` and enqueues the task with `parent_agent=0`. Enqueuing creates
+   the task if new, adds an agent, and appends a `queued` event; a task retried later reuses
+   the task row and adds another agent.
 5. Constructs the `Supervisor` and calls `run_until_idle()`, then `shutdown()` in a
    `finally`.
 6. Prints `tasks/root/outcome.json`. Any outcome from a previous attempt is deleted before
    enqueuing, so a run that dies without writing one exits 1 instead of reporting the old one.
 
 The CLI never spawns anything and never speaks to a model.
+
+Opening a bus migrates it to the latest version — on every open, not only the first — so a
+database written by an older build is upgraded in place. A migration that has shipped is
+therefore never edited: databases already at that version skip it, so the edit reaches new
+runs only and leaves older ones missing the change. Add a numbered migration instead.
 
 ### 2. Supervising — `ancalagon/supervisor/supervisor.py`
 
@@ -136,7 +141,12 @@ Four things worth knowing:
 - **`_system()` returns two halves**, `SystemPrompt(static, per_item)`: behaviour and answer
   instructions, identical for every item in a population, then this item's goal, input and
   scopes. Only the static half is cache-marked, so the cached prefix is shared across items.
-  Each turn logs the two usage counters the provider returns, which is the evidence it worked.
+  Each turn logs the cache counters the provider returns, which is the evidence it worked.
+- **Every completion is metered.** `_complete` hands the reply's `CallUsage` to a `Meter`
+  before logging it. `Meter` is a Protocol with one method, so the session neither knows nor
+  cares where the numbers go; the worker passes `BusMeter`, which appends a `model_calls`
+  row, and the default is `Unmetered`, which discards them. A `Session` built in a test or a
+  library caller therefore records nothing until someone asks it to.
 
 ### 5. Calling a tool — `ancalagon/tools/`
 
@@ -170,7 +180,7 @@ the only place third-party type gaps are tolerated.
 
 ```
 ws/runs/r_0001/
-    bus.db                        tasks, agents, and every event about them
+    bus.db                        tasks, agents, every event about them, every model call
     tasks/root/
         spec.json                 what was asked
         contracts.py              the output contract
@@ -192,8 +202,15 @@ Everything is inspectable without ancalagon:
 ```bash
 sqlite3 ws/runs/r_0001/bus.db \
   "select agent, status, source, exit_code, summary from agent_events order by id"
+sqlite3 ws/runs/r_0001/bus.db \
+  "select agent, count(*), sum(prompt_tokens), sum(cache_read_tokens)
+   from model_calls group by agent"
 rg '"agent": 1' ws/runs/r_0001/tasks/root/transcript.jsonl
 ```
+
+There is no `ancalagon usage` verb. `run` is the only command; the schema is the query
+surface, and `Bus.calls` and `Bus.tokens_by_agent` are the same two queries for callers
+already holding a bus.
 
 ## Where to start reading
 
