@@ -10,6 +10,7 @@ from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient, to_wire
+from ancalagon.llm.tool_schema import ToolSchema
 
 WireDict = dict[str, str | list[dict[str, str | dict[str, str]]]]
 
@@ -90,3 +91,51 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
     importlib.import_module("tenacity")
     assert reply.stop_reason == "stop"
     assert [b.text for b in reply.blocks if isinstance(b, Text)] == ["done"]
+
+
+def test_the_system_prompt_is_sent_as_one_cache_marked_block(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    seen: list[list[WireDict]] = []
+
+    class FakeMessage:
+        content = "done"
+        tool_calls: list[str] = []
+
+    class FakeChoice:
+        message = FakeMessage()
+        finish_reason = "stop"
+
+    class FakeResponse:
+        choices = [FakeChoice()]
+
+    def fake_completion(
+        model: str,
+        messages: list[WireDict],
+        tools: list[dict[str, str]],
+        max_tokens: int,
+        num_retries: int,
+        timeout: int,
+        tool_choice: str | dict[str, str | dict[str, str]],
+    ) -> FakeResponse:
+        seen.append(messages)
+        return FakeResponse()
+
+    fake = types.ModuleType("litellm")
+    setattr(fake, "completion", fake_completion)
+    setattr(fake, "ModelResponse", FakeResponse)
+    monkeypatch.setitem(sys.modules, "litellm", fake)
+
+    user = Message(role=Role.USER, blocks=[Text(text="the item")], agent=1, seq=0, ts="")
+    client = LiteLLMClient(model="m", max_tokens=10, num_retries=1, request_timeout_s=9)
+    client.complete(
+        "behave", [user], [ToolSchema(name="rg", description="d", parameters_json="{}")]
+    )
+
+    assert seen[0][0] == {
+        "role": "system",
+        "content": [
+            {"type": "text", "text": "behave", "cache_control": {"type": "ephemeral"}}
+        ],
+    }
+    assert seen[0][1] == {"role": "user", "content": "the item"}

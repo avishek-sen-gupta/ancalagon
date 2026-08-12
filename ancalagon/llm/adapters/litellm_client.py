@@ -10,8 +10,11 @@ from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.llm.adapters.wire_function import WireFunction
 from ancalagon.llm.adapters.wire_message import WireMessage
+from ancalagon.llm.adapters.wire_text_block import WireTextBlock
 from ancalagon.llm.adapters.wire_tool_call import WireToolCall
 from ancalagon.llm.tool_schema import ToolSchema
+
+EPHEMERAL = {"type": "ephemeral"}
 
 
 def to_wire(message: Message) -> list[WireMessage]:
@@ -53,10 +56,15 @@ class LiteLLMClient:
     ) -> Reply:
         import litellm
 
-        wire = [WireMessage(role="system", content=system)]
+        wire = [
+            WireMessage(
+                role="system",
+                content=(WireTextBlock(type="text", text=system, cache_control=EPHEMERAL),),
+            )
+        ]
         for message in messages:
             wire.extend(to_wire(message))
-        payload = [m.model_dump(exclude_defaults=True) for m in wire]
+        payload = [m.model_dump(mode="json", exclude_defaults=True) for m in wire]
         schemas = [
             {
                 "type": "function",
