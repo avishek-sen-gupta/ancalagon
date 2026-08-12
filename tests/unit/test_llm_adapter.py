@@ -95,6 +95,25 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
     assert (reply.cache_creation_input_tokens, reply.cache_read_input_tokens) == (0, 0)
 
 
+def test_a_message_with_nothing_to_say_never_reaches_the_wire():
+    blank = Message(role=Role.ASSISTANT, blocks=[], agent=1, seq=0, ts="")
+    calls_only = Message(
+        role=Role.ASSISTANT,
+        blocks=[ToolUse(id="t1", name="rg", arguments="{}")],
+        agent=1,
+        seq=1,
+        ts="",
+    )
+
+    assert to_wire(blank) == []
+    assert to_wire(calls_only)[0].model_dump(exclude_defaults=True) == {
+        "role": "assistant",
+        "tool_calls": [
+            {"id": "t1", "type": "function", "function": {"name": "rg", "arguments": "{}"}}
+        ],
+    }
+
+
 def test_only_the_static_system_half_is_cache_marked_and_usage_counters_reach_the_reply(
     monkeypatch: pytest.MonkeyPatch,
 ):

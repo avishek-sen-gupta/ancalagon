@@ -40,6 +40,8 @@ def to_wire(message: Message) -> list[WireMessage]:
         for b in message.blocks
         if isinstance(b, ToolUse)
     ]
+    if not text and not calls:
+        return []
     return [WireMessage(role=message.role.value, content=text, tool_calls=calls)]
 
 
