@@ -14,7 +14,9 @@ fileignoreconfig:
 - filename: uv.lock
   checksum: 4758762d0637ff29c2f196ee4321e494498df0893ae73fa2eedcc71c06637e78
 - filename: tests/unit/test_workspace_scoping.py
-  checksum: f08bad3a1a56b3aad1b64377e56910eb3aee1c977799f74acbcccfadaaec3b54
+  checksum: a18aa72c61cc875f0d0d784dd3063f013d776d174c0bb1b031004747d8e8e8cc
+- filename: tests/unit/test_config_load.py
+  checksum: f4624a41022a6ac8f37af41149ac0b0d871edff7b99b211a9b93a8acaf21ff17
 - filename: tests/unit/test_tools.py
   checksum: 1007c29aab48d45e48f26f6b0f5f83155a2d15526ee727d8a2cf197f0a6e9a15
 - filename: tests/unit/test_llm_adapter.py
@@ -28,7 +30,7 @@ fileignoreconfig:
 - filename: ancalagon/tools/search/searchable_files.py
   checksum: 04787f147a448da52d2062a2590471f9f481cc19dfc01e507f90d512cdba9540
 - filename: ancalagon/config/load.py
-  checksum: 42a07ca13533b547a887b56be446b8c9d591123cdb1a787ee352f1eb4cca435e
+  checksum: 2254354bd0f3fcc8fb4c80921ae221ec17b4736c50e357c22d302d276d90e5cf
 - filename: docs/superpowers/plans/2026-08-12-one-run-per-work-item.md
   checksum: 2c8e20ac2036c40ca47ba6f2d1646694e6ee18bdd8f4da20bec4aadda532dd40
 version: "1.0"

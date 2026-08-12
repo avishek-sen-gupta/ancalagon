@@ -67,6 +67,11 @@ summary_chars = 1000
 
 [tools]
 enabled = ["read_file", "ripgrep"]
+
+[run]
+run_dir = ""
+goal_file = ""
+contract = ""
 """)
     config = load_config(config_path)
     assert config.write_root == write_root
@@ -117,6 +122,11 @@ summary_chars = 1000
 
 [tools]
 enabled = []
+
+[run]
+run_dir = ""
+goal_file = ""
+contract = ""
 """)
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
@@ -165,6 +175,11 @@ summary_chars = 1000
 
 [tools]
 enabled = []
+
+[run]
+run_dir = ""
+goal_file = ""
+contract = ""
 """)
     monkeypatch.chdir(tmp_path)
     config = load_config(config_path)
