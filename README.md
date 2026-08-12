@@ -24,6 +24,18 @@ cp ancalagon.example.toml ancalagon.toml   # edit write_root and read_roots
 uv run ancalagon run --config ancalagon.toml --goal "..."
 ```
 
+A driver running one item at a time sets the per-run values in the config instead:
+
+```toml
+[run]
+run_dir = "./ws/units/abc123"    # reused on a second invocation, which continues the transcript
+goal_file = "./ws/units/abc123/goal.md"
+contract = "./shape.py:Answer"   # the root answers in this shape, not free text
+```
+
+`--goal` and `goal_file` are alternatives; give exactly one. An empty `run_dir` allocates the next
+`runs/r_NNNN` as before.
+
 Watch a run as it happens, including subagents spawned mid-run:
 
 ```bash
