@@ -134,8 +134,6 @@ def test_the_system_prompt_is_sent_as_one_cache_marked_block(
 
     assert seen[0][0] == {
         "role": "system",
-        "content": [
-            {"type": "text", "text": "behave", "cache_control": {"type": "ephemeral"}}
-        ],
+        "content": [{"type": "text", "text": "behave", "cache_control": {"type": "ephemeral"}}],
     }
     assert seen[0][1] == {"role": "user", "content": "the item"}

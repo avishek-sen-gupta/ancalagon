@@ -25,9 +25,7 @@ def _allocated_run_dir(write_root: pathlib.Path) -> pathlib.Path:
 
 
 def run_dir_of(settings: RunSettings, write_root: pathlib.Path) -> pathlib.Path:
-    chosen = (
-        pathlib.Path(settings.run_dir) if settings.run_dir else _allocated_run_dir(write_root)
-    )
+    chosen = pathlib.Path(settings.run_dir) if settings.run_dir else _allocated_run_dir(write_root)
     chosen.mkdir(parents=True, exist_ok=True)
     return chosen
 

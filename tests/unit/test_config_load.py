@@ -72,9 +72,7 @@ def test_the_run_section_is_required_and_a_contract_must_name_a_class(
         load_config(_config_file(tmp_path, "absent.toml", ""))
 
     with pytest.raises(KeyError):
-        load_config(
-            _config_file(tmp_path, "partial.toml", '[run]\nrun_dir = ""\ngoal_file = ""\n')
-        )
+        load_config(_config_file(tmp_path, "partial.toml", '[run]\nrun_dir = ""\ngoal_file = ""\n'))
 
     with pytest.raises(ValueError):
         load_config(
