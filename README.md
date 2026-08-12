@@ -28,13 +28,17 @@ A driver running one item at a time sets the per-run values in the config instea
 
 ```toml
 [run]
-run_dir = "./ws/units/abc123"    # reused on a second invocation, which continues the transcript
-goal_file = "./ws/units/abc123/goal.md"
+run_dir = "./ws/runs/item-0001"  # reused on a second invocation, which continues the transcript
+goal_file = "./ws/runs/item-0001/goal.md"
 contract = "./shape.py:Answer"   # the root answers in this shape, not free text
 ```
 
 `--goal` and `goal_file` are alternatives; give exactly one. An empty `run_dir` allocates the next
-`runs/r_NNNN` as before.
+`runs/r_NNNN` as before. A missing or empty `goal_file`, or a `contract` whose module or class is
+not there, exits 2 without starting a run.
+
+Keep a named `run_dir` under `<write_root>/runs/` as above: the watcher below only sees
+`<write_root>/runs/*/tasks/*` and `<write_root>/*/tasks/*`, and a run elsewhere is invisible to it.
 
 Watch a run as it happens, including subagents spawned mid-run:
 

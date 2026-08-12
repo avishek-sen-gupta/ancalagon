@@ -33,18 +33,20 @@ cli.py ──writes spec.json──▶ tasks/root/
 
 1. `config/load.py` reads the TOML. Relative roots resolve against the **config file**, not
    the process cwd, so a worker started elsewhere sees the same paths.
-2. `run_dir_of` uses `[run] run_dir` when set and allocates `<write_root>/runs/r_NNNN` when not,
-   creating either. A directory that already holds a task is reused, which is what makes a
-   second invocation continue rather than start over.
-3. Writes two files into `runs/<run>/tasks/root/`: `contracts.py` — `[run] contract`'s module when
+2. `run_dir_of` uses `[run] run_dir` when set and allocates `<write_root>/runs/r_NNNN` when not.
+   A named directory is created if absent and reused if present, which is what makes a second
+   invocation continue rather than start over; an allocated one must not already exist.
+3. Writes two files into `<run_dir>/tasks/root/`: `contracts.py` — `[run] contract`'s module when
    named, otherwise `contracts/free_text_module.py` — and `spec.json` naming the class it must
-   answer in. The goal comes from `[run] goal_file` or `--goal`; exactly one.
+   answer in. The goal comes from `[run] goal_file` or `--goal`; exactly one. A missing or empty
+   file, or a `contract` naming a class its module does not define, exits 2 before any spawn.
 4. `bus/bus.py` opens `bus.db`, which runs migrations on first open, and enqueues the task
    with `parent_agent=0`. Enqueuing creates the task if new, adds an agent, and appends a
    `queued` event; a task retried later reuses the task row and adds another agent.
 5. Constructs the `Supervisor` and calls `run_until_idle()`, then `shutdown()` in a
    `finally`.
-6. Prints `tasks/root/outcome.json`.
+6. Prints `tasks/root/outcome.json`. Any outcome from a previous attempt is deleted before
+   enqueuing, so a run that dies without writing one exits 1 instead of reporting the old one.
 
 The CLI never spawns anything and never speaks to a model.
 
@@ -108,7 +110,7 @@ the list, and `delegate` is withheld once `bus/depth_of.py` reports the task is 
 while True:
     budget empty? ─────────────────▶ _final_turn() ──▶ Exhausted | Failed
     spend a turn
-    reply = llm.complete(system, messages, schemas)
+    reply = llm.complete(_system(), messages, schemas)
     record it
     did it call tools?
         yes ─▶ _run_tools()
@@ -131,6 +133,10 @@ Four things worth knowing:
   agent reads and corrects; it never breaks the loop.
 - **`_final_turn` offers only `submit_answer`**, and injects a synthetic assistant turn
   first if the last message was a user turn — providers reject two consecutive user turns.
+- **`_system()` returns two halves**, `SystemPrompt(static, per_item)`: behaviour and answer
+  instructions, identical for every item in a population, then this item's goal, input and
+  scopes. Only the static half is cache-marked, so the cached prefix is shared across items.
+  Each turn logs the two usage counters the provider returns, which is the evidence it worked.
 
 ### 5. Calling a tool — `ancalagon/tools/`
 
