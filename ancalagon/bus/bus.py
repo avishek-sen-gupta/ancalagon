@@ -10,6 +10,7 @@ from ancalagon.bus.agent_status import TERMINAL, AgentStatus
 from ancalagon.bus.event_source import EventSource
 from ancalagon.bus.message_row import MessageRow
 from ancalagon.bus.task_row import TaskRow
+from ancalagon.contracts.call_usage import CallUsage
 
 LATEST = """
 SELECT a.id AS agent, a.task AS task, t.dir AS dir, t.parent_agent AS parent_agent,
@@ -122,6 +123,42 @@ class Bus:
         if row is None:
             raise KeyError(f"no task at {dir}")
         return TaskRow.model_validate({k: row[k] for k in row.keys()})
+
+    def record_call(self, agent: int, usage: CallUsage) -> None:
+        self.conn.execute(
+            "INSERT INTO model_calls (agent, ts, model, prompt_tokens, completion_tokens, "
+            "cache_creation_tokens, cache_read_tokens) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                agent,
+                _now(),
+                usage.model,
+                usage.prompt_tokens,
+                usage.completion_tokens,
+                usage.cache_creation_tokens,
+                usage.cache_read_tokens,
+            ),
+        )
+
+    def calls(self, agent: int) -> list[CallUsage]:
+        rows = self.conn.execute(
+            "SELECT model, prompt_tokens, completion_tokens, cache_creation_tokens, "
+            "cache_read_tokens FROM model_calls WHERE agent = ? ORDER BY id",
+            (agent,),
+        ).fetchall()
+        return [CallUsage.model_validate({k: r[k] for k in r.keys()}) for r in rows]
+
+    def tokens_by_agent(self) -> dict[int, CallUsage]:
+        rows = self.conn.execute(
+            "SELECT agent, MAX(model) AS model, SUM(prompt_tokens) AS prompt_tokens, "
+            "SUM(completion_tokens) AS completion_tokens, "
+            "SUM(cache_creation_tokens) AS cache_creation_tokens, "
+            "SUM(cache_read_tokens) AS cache_read_tokens "
+            "FROM model_calls GROUP BY agent ORDER BY agent"
+        ).fetchall()
+        return {
+            int(r["agent"]): CallUsage.model_validate({k: r[k] for k in r.keys() if k != "agent"})
+            for r in rows
+        }
 
     def post(self, sender: int, addressee: int, kind: str, summary: str, ref_path: str) -> None:
         self.conn.execute(

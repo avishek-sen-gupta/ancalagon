@@ -92,7 +92,7 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
     importlib.import_module("tenacity")
     assert reply.stop_reason == "stop"
     assert [b.text for b in reply.blocks if isinstance(b, Text)] == ["done"]
-    assert (reply.cache_creation_input_tokens, reply.cache_read_input_tokens) == (0, 0)
+    assert (reply.usage.cache_creation_tokens, reply.usage.cache_read_tokens) == (0, 0)
 
 
 def test_a_message_with_nothing_to_say_never_reaches_the_wire():
@@ -176,7 +176,7 @@ def test_only_the_static_system_half_is_cache_marked_and_usage_counters_reach_th
             "function": {"name": "rg", "description": "d", "parameters": {"type": "object"}},
         }
     ]
-    assert (reply.cache_creation_input_tokens, reply.cache_read_input_tokens) == (2048, 1024)
+    assert (reply.usage.cache_creation_tokens, reply.usage.cache_read_tokens) == (2048, 1024)
 
     client.complete(SystemPrompt(static="behave"), [user], [])
     assert seen[1][0] == {

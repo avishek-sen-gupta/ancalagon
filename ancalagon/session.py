@@ -20,6 +20,8 @@ from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.llm.llm import LLM
+from ancalagon.llm.meter import Meter
+from ancalagon.llm.unmetered import Unmetered
 from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.need_input.need_input import NeedInput
@@ -53,6 +55,7 @@ class Session:
         need_input: NeedInput,
         compact_above_tokens: int = 0,
         keep_recent_messages: int = 8,
+        meter: Meter = Unmetered(),
     ):
         self.spec = spec
         self.input_json = input_json
@@ -65,6 +68,7 @@ class Session:
         self.output_class = output_class
         self.submit = submit
         self.need_input = need_input
+        self.meter = meter
         self.compact_above_tokens = compact_above_tokens
         self.keep_recent_messages = keep_recent_messages
         self.remaining = spec.budget
@@ -98,10 +102,13 @@ class Session:
 
     def _complete(self, tools: list[ToolSchema], force_tool: str = "") -> Reply:
         reply = self.llm.complete(self._system(), self._wire(), tools, force_tool=force_tool)
+        self.meter.record(self.agent_id, reply.usage)
         LOGGER.info(
-            "cache created %s read %s",
-            reply.cache_creation_input_tokens,
-            reply.cache_read_input_tokens,
+            "in %s out %s cache created %s read %s",
+            reply.usage.prompt_tokens,
+            reply.usage.completion_tokens,
+            reply.usage.cache_creation_tokens,
+            reply.usage.cache_read_tokens,
         )
         return reply
 

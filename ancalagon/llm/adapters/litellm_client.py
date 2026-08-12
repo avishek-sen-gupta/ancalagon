@@ -3,6 +3,7 @@ import collections.abc
 import json
 
 from ancalagon.contracts.block import Block
+from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.text import Text
@@ -112,6 +113,11 @@ class LiteLLMClient:
         return Reply(
             blocks=blocks,
             stop_reason=first.finish_reason,
-            cache_creation_input_tokens=usage.cache_creation_input_tokens,
-            cache_read_input_tokens=usage.cache_read_input_tokens,
+            usage=CallUsage(
+                model=self.model,
+                prompt_tokens=usage.prompt_tokens,
+                completion_tokens=usage.completion_tokens,
+                cache_creation_tokens=usage.cache_creation_input_tokens,
+                cache_read_tokens=usage.cache_read_input_tokens,
+            ),
         )
