@@ -8,6 +8,9 @@ import pytest
 
 from ancalagon.bus.bus import Bus
 from ancalagon.bus.agent_status import AgentStatus
+from ancalagon.cli import main
+from ancalagon.supervisor.process import Process
+from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 
 
 def _config(
@@ -161,3 +164,32 @@ def test_a_named_run_dir_is_reused_by_a_second_invocation(tmp_path: pathlib.Path
     assert bus.state(1).status is AgentStatus.CRASHED
     assert bus.state(2).status is AgentStatus.CRASHED
     assert len(list((named / "tasks" / "root").glob("stderr-*.log"))) == 2
+
+
+def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    named = tmp_path / "ws" / "runs" / "item-0001"
+    config = _config(
+        tmp_path,
+        turns=2,
+        tool_calls=4,
+        model="no-such-provider/no-such-model",
+        run_dir=str(named),
+    )
+    outcome = named / "tasks" / "root" / "outcome.json"
+
+    assert main(config, "Say hello.") == 0
+    assert json.loads(outcome.read_text())["kind"] == "failed"
+    capsys.readouterr()
+
+    def refuse(self: SubprocessSpawner, task_dir: pathlib.Path, agent_id: int) -> Process:
+        raise OSError("no process could be started")
+
+    monkeypatch.setattr(SubprocessSpawner, "spawn", refuse)
+
+    assert main(config, "Say hello.") == 1
+    assert capsys.readouterr().out == ""
+    assert outcome.exists() is False
