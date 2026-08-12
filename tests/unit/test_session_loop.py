@@ -1,7 +1,9 @@
 import json
+import logging
 import pathlib
 
 import pydantic
+import pytest
 
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.budget import Budget
@@ -27,7 +29,13 @@ class Verdict(pydantic.BaseModel):
     answer: str
 
 
-def _session(tmp_path: pathlib.Path, replies: list[Reply], budget: Budget) -> Session:
+def _session(
+    tmp_path: pathlib.Path,
+    replies: list[Reply],
+    budget: Budget,
+    goal: str = "Answer it.",
+    input_json: str = '{"answer": "seed"}',
+) -> Session:
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
     ctx = ToolContext(
@@ -39,7 +47,7 @@ def _session(tmp_path: pathlib.Path, replies: list[Reply], budget: Budget) -> Se
     spec = TaskSpec(
         task_id="t1",
         behaviour="You answer questions.",
-        goal="Answer it.",
+        goal=goal,
         output="contracts.py:Verdict",
         budget=budget,
     )
@@ -47,7 +55,7 @@ def _session(tmp_path: pathlib.Path, replies: list[Reply], budget: Budget) -> Se
     need_input = NeedInput()
     return Session(
         spec=spec,
-        input_json='{"answer": "seed"}',
+        input_json=input_json,
         messages=[],
         transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
@@ -275,3 +283,47 @@ def test_final_turn_forces_submit_answer_and_keeps_a_rejected_payload(tmp_path: 
 
     assert isinstance(outcome, Failed)
     assert "wrapped by mistake" in outcome.summary
+
+
+def test_the_static_system_half_is_shared_across_items_and_the_per_item_half_is_not(
+    tmp_path: pathlib.Path, caplog: pytest.LogCaptureFixture
+):
+    def answering(item: str, goal: str) -> Session:
+        return _session(
+            tmp_path / item,
+            [
+                Reply(
+                    blocks=[Text(text='{"answer": "done"}')],
+                    stop_reason="stop",
+                    cache_creation_input_tokens=2048,
+                    cache_read_input_tokens=1024,
+                )
+            ],
+            Budget(turns=5, tool_calls=5),
+            goal=goal,
+            input_json=f'{{"answer": "{item}"}}',
+        )
+
+    first = answering("item-0001", "Describe the first item.")
+    second = answering("item-0002", "Describe the second item.")
+    with caplog.at_level(logging.INFO, logger="ancalagon.session"):
+        first.run()
+    second.run()
+
+    one, two = first.llm, second.llm
+    assert isinstance(one, FakeLLM)
+    assert isinstance(two, FakeLLM)
+
+    static, per_item = one.systems[0].static, one.systems[0].per_item
+    assert static == two.systems[0].static
+    assert static.startswith("You answer questions.")
+    assert "submit_answer" in static
+    assert "Goal:" not in static
+    assert "You may write under" not in static
+
+    assert per_item != two.systems[0].per_item
+    assert per_item.startswith("Goal: Describe the first item.")
+    assert '"answer": "item-0001"' in per_item
+    assert str(tmp_path / "item-0001" / "ws") in per_item
+
+    assert "cache created 2048 read 1024" in caplog.text
