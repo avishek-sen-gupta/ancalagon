@@ -12,6 +12,7 @@ from ancalagon.contracts.message import Message
 from ancalagon.contracts.outcome import outcome_adapter
 from ancalagon.contracts.resolve import resolve_output_class
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
 
@@ -72,3 +73,14 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
     assert resolved.model_validate_json('{"ok": true}').model_dump() == {"ok": True}
 
     assert FreeText(text="plain").text == "plain"
+
+
+def test_run_settings_require_a_contract_module_and_its_class_together():
+    named = RunSettings(contract_module="shape.py", contract_class="Answer")
+    assert (named.contract_module, named.contract_class) == ("shape.py", "Answer")
+    assert (RunSettings().contract_module, RunSettings().contract_class) == ("", "")
+
+    with pytest.raises(pydantic.ValidationError):
+        RunSettings(contract_module="shape.py")
+    with pytest.raises(pydantic.ValidationError):
+        RunSettings(contract_class="Answer")
