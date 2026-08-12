@@ -29,4 +29,6 @@ fileignoreconfig:
   checksum: 04787f147a448da52d2062a2590471f9f481cc19dfc01e507f90d512cdba9540
 - filename: ancalagon/config/load.py
   checksum: 42a07ca13533b547a887b56be446b8c9d591123cdb1a787ee352f1eb4cca435e
+- filename: docs/superpowers/plans/2026-08-12-one-run-per-work-item.md
+  checksum: 2c8e20ac2036c40ca47ba6f2d1646694e6ee18bdd8f4da20bec4aadda532dd40
 version: "1.0"
