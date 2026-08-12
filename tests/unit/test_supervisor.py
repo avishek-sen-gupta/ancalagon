@@ -47,7 +47,7 @@ class FakeClock:
 
 
 def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: pathlib.Path):
-    bus = Bus.open(tmp_path / "bus.db")
+    bus = Bus.create(tmp_path / "bus.db")
     good = bus.enqueue(tmp_path / "tasks" / "good", parent_agent=0)
     bad = bus.enqueue(tmp_path / "tasks" / "bad", parent_agent=0)
     wedged = bus.enqueue(tmp_path / "tasks" / "wedged", parent_agent=0)
@@ -76,7 +76,7 @@ def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: p
 def test_supervisor_respects_concurrency_cap_and_abandons_live_tasks_on_shutdown(
     tmp_path: pathlib.Path,
 ):
-    bus = Bus.open(tmp_path / "bus.db")
+    bus = Bus.create(tmp_path / "bus.db")
     ids = [bus.enqueue(tmp_path / "tasks" / f"t{i}", parent_agent=0) for i in range(3)]
 
     spawner = FakeSpawner([(10_000, 0)] * 3)

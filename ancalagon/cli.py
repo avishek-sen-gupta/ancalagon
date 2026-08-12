@@ -10,6 +10,7 @@ from ancalagon.bus.bus import Bus
 from ancalagon.config.load import load_config
 from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
 from ancalagon.contracts.run_settings import RunSettings
+from ancalagon.migrate_command import migrate_command
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
 
@@ -108,10 +109,11 @@ def main(config_path: pathlib.Path, goal_argument: str) -> int:
     outcome = task_dir / "outcome.json"
     outcome.unlink(missing_ok=True)
 
-    bus = Bus.open(run_dir / "bus.db")
+    db = run_dir / "bus.db"
+    bus = Bus.open(db) if db.exists() else Bus.create(db)
     bus.enqueue(task_dir, parent_agent=0)
     supervisor = Supervisor(
-        bus=Bus.open(run_dir / "bus.db"),
+        bus=Bus.open(db),
         spawner=SubprocessSpawner(run_dir=run_dir, config_path=config_path.resolve()),
         max_concurrent=config.max_concurrent_agents,
         timeout_s=config.agent_timeout_s,
@@ -130,11 +132,17 @@ def main(config_path: pathlib.Path, goal_argument: str) -> int:
 
 def cli() -> int:
     parser = argparse.ArgumentParser(prog="ancalagon")
-    parser.add_argument("command", choices=["run"])
-    parser.add_argument("--config", type=pathlib.Path, required=True)
-    parser.add_argument("--goal", type=str, default="")
+    commands = parser.add_subparsers(dest="command", required=True)
+    run = commands.add_parser("run")
+    run.add_argument("--config", type=pathlib.Path, required=True)
+    run.add_argument("--goal", type=str, default="")
+    migrate = commands.add_parser("migrate")
+    migrate.add_argument("--db", type=pathlib.Path, required=True)
+    migrate.add_argument("--to", type=int, default=-1)
     args = parser.parse_args()
     try:
+        if args.command == "migrate":
+            return migrate_command(args.db, args.to)
         return main(args.config, args.goal)
     except ValueError as error:
         sys.stderr.write(f"{error}\n")
