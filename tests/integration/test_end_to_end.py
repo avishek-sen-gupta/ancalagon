@@ -19,12 +19,14 @@ def _config(
     tool_calls: int,
     model: str = "",
     run_dir: str = "",
+    goal_file: str = "",
+    contract: str = "",
 ) -> pathlib.Path:
     model = model or os.environ.get("ANCALAGON_MODEL", "claude-opus-5")
     write_root = tmp_path / "ws"
     artifacts = tmp_path / "artifacts"
-    write_root.mkdir(exist_ok=True)
-    artifacts.mkdir(exist_ok=True)
+    write_root.mkdir(parents=True, exist_ok=True)
+    artifacts.mkdir(parents=True, exist_ok=True)
     (artifacts / "graph.json").write_text(
         json.dumps(
             {
@@ -67,8 +69,8 @@ enabled = []
 
 [run]
 run_dir = "{run_dir}"
-goal_file = ""
-contract = ""
+goal_file = "{goal_file}"
+contract = "{contract}"
 """)
     return config
 
@@ -164,6 +166,51 @@ def test_a_named_run_dir_is_reused_by_a_second_invocation(tmp_path: pathlib.Path
     assert bus.state(1).status is AgentStatus.CRASHED
     assert bus.state(2).status is AgentStatus.CRASHED
     assert len(list((named / "tasks" / "root").glob("stderr-*.log"))) == 2
+
+
+ANSWER_MODULE = "import pydantic\n\n\nclass Answer(pydantic.BaseModel):\n    verdict: str\n"
+
+
+def _case(tmp_path: pathlib.Path, name: str) -> pathlib.Path:
+    case = tmp_path / name
+    case.mkdir()
+    (case / "goal.md").write_text("describe the item")
+    return case
+
+
+def test_a_missing_or_unusable_input_exits_two_with_a_message_and_no_traceback(
+    tmp_path: pathlib.Path,
+):
+    def failed(
+        case: pathlib.Path, goal_file: str, contract: str
+    ) -> subprocess.CompletedProcess[str]:
+        config = _config(
+            case, turns=1, tool_calls=1, model="m", goal_file=goal_file, contract=contract
+        )
+        completed = _run_cli(config, "", dict(os.environ))
+        assert completed.returncode == 2, completed.stdout
+        assert "Traceback" not in completed.stderr
+        return completed
+
+    absent = _case(tmp_path, "absent-goal")
+    assert "no-such-goal.md" in failed(absent, str(absent / "no-such-goal.md"), "").stderr
+
+    blank = _case(tmp_path, "blank-goal")
+    (blank / "goal.md").write_text("   \n")
+    assert "empty" in failed(blank, str(blank / "goal.md"), "").stderr
+
+    gone = _case(tmp_path, "absent-contract")
+    contract = f"{gone / 'no-such-shape.py'}:Answer"
+    assert "no-such-shape.py" in failed(gone, str(gone / "goal.md"), contract).stderr
+
+    typo = _case(tmp_path, "misspelt-class")
+    (typo / "shape.py").write_text(ANSWER_MODULE)
+    assert "Answr" in failed(typo, str(typo / "goal.md"), f"{typo / 'shape.py'}:Answr").stderr
+
+    broken = _case(tmp_path, "unparsable-contract")
+    (broken / "shape.py").write_text("class Answer(:\n")
+    stderr = failed(broken, str(broken / "goal.md"), f"{broken / 'shape.py'}:Answer").stderr
+    assert "does not parse" in stderr
 
 
 def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
