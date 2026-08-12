@@ -10,6 +10,7 @@ from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient, to_wire
+from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.tool_schema import ToolSchema
 
 WireDict = dict[str, str | list[dict[str, str | dict[str, str]]]]
@@ -78,12 +79,12 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
     monkeypatch.setitem(sys.modules, "litellm", fake)
 
     client = LiteLLMClient(model="m", max_tokens=10, num_retries=4, request_timeout_s=99)
-    reply = client.complete("sys", [assistant, results], [])
+    reply = client.complete(SystemPrompt(static="sys"), [assistant, results], [])
 
     assert seen == {"num_retries": 4, "timeout": 99}
     assert chosen == ["auto"]
 
-    client.complete("sys", [assistant], [], force_tool="submit_answer")
+    client.complete(SystemPrompt(static="sys"), [assistant], [], force_tool="submit_answer")
     assert chosen[1] == {"type": "function", "function": {"name": "submit_answer"}}
 
     # litellm imports tenacity lazily, only when a retry actually fires, so a
@@ -91,12 +92,14 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
     importlib.import_module("tenacity")
     assert reply.stop_reason == "stop"
     assert [b.text for b in reply.blocks if isinstance(b, Text)] == ["done"]
+    assert (reply.cache_creation_input_tokens, reply.cache_read_input_tokens) == (0, 0)
 
 
-def test_the_system_prompt_is_sent_as_one_cache_marked_block(
+def test_only_the_static_system_half_is_cache_marked_and_usage_counters_reach_the_reply(
     monkeypatch: pytest.MonkeyPatch,
 ):
     seen: list[list[WireDict]] = []
+    offered: list[list[dict[str, str]]] = []
 
     class FakeMessage:
         content = "done"
@@ -106,8 +109,13 @@ def test_the_system_prompt_is_sent_as_one_cache_marked_block(
         message = FakeMessage()
         finish_reason = "stop"
 
+    class FakeUsage:
+        cache_creation_input_tokens = 2048
+        cache_read_input_tokens = 1024
+
     class FakeResponse:
         choices = [FakeChoice()]
+        usage = FakeUsage()
 
     def fake_completion(
         model: str,
@@ -119,6 +127,7 @@ def test_the_system_prompt_is_sent_as_one_cache_marked_block(
         tool_choice: str | dict[str, str | dict[str, str]],
     ) -> FakeResponse:
         seen.append(messages)
+        offered.append(tools)
         return FakeResponse()
 
     fake = types.ModuleType("litellm")
@@ -128,12 +137,30 @@ def test_the_system_prompt_is_sent_as_one_cache_marked_block(
 
     user = Message(role=Role.USER, blocks=[Text(text="the item")], agent=1, seq=0, ts="")
     client = LiteLLMClient(model="m", max_tokens=10, num_retries=1, request_timeout_s=9)
-    client.complete(
-        "behave", [user], [ToolSchema(name="rg", description="d", parameters_json="{}")]
+    reply = client.complete(
+        SystemPrompt(static="behave", per_item="Goal: this one"),
+        [user],
+        [ToolSchema(name="rg", description="d", parameters_json='{"type": "object"}')],
     )
 
     assert seen[0][0] == {
         "role": "system",
-        "content": [{"type": "text", "text": "behave", "cache_control": {"type": "ephemeral"}}],
+        "content": [
+            {"type": "text", "text": "behave", "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": "Goal: this one"},
+        ],
     }
     assert seen[0][1] == {"role": "user", "content": "the item"}
+    assert offered[0] == [
+        {
+            "type": "function",
+            "function": {"name": "rg", "description": "d", "parameters": {"type": "object"}},
+        }
+    ]
+    assert (reply.cache_creation_input_tokens, reply.cache_read_input_tokens) == (2048, 1024)
+
+    client.complete(SystemPrompt(static="behave"), [user], [])
+    assert seen[1][0] == {
+        "role": "system",
+        "content": [{"type": "text", "text": "behave", "cache_control": {"type": "ephemeral"}}],
+    }

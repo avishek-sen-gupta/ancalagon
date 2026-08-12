@@ -3,22 +3,25 @@ import collections.abc
 
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.reply import Reply
+from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.tool_schema import ToolSchema
 
 
 class FakeLLM:
     def __init__(self, replies: list[Reply]):
         self.replies = list(replies)
+        self.systems: list[SystemPrompt] = []
         self.seen: list[list[Message]] = []
         self.forced: list[str] = []
 
     def complete(
         self,
-        system: str,
+        system: SystemPrompt,
         messages: collections.abc.Sequence[Message],
         tools: collections.abc.Sequence[ToolSchema],
         force_tool: str = "",
     ) -> Reply:
+        self.systems.append(system)
         self.seen.append(list(messages))
         self.forced.append(force_tool)
         if not self.replies:

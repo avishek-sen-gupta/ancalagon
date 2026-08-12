@@ -20,6 +20,8 @@ from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.llm.llm import LLM
+from ancalagon.llm.system_prompt import SystemPrompt
+from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.registry.registry import Registry
@@ -82,17 +84,26 @@ class Session:
             f"directory, not against these roots, and will usually fail."
         )
 
-    def _system(self) -> str:
+    def _system(self) -> SystemPrompt:
         schema = self.output_class.model_json_schema()
-        return (
-            f"{self.spec.behaviour}\n\n"
-            f"Goal: {self.spec.goal}\n\n"
-            f"Input: {self.input_json}\n\n"
-            f"{self._scopes()}\n\n"
-            f"When you have the answer, call the submit_answer tool with it. "
-            f"If that tool is unavailable, reply with a single JSON object and nothing "
-            f"else -- no prose, no markdown fences -- matching this schema: {schema}"
+        return SystemPrompt(
+            static=(
+                f"{self.spec.behaviour}\n\n"
+                f"When you have the answer, call the submit_answer tool with it. "
+                f"If that tool is unavailable, reply with a single JSON object and nothing "
+                f"else -- no prose, no markdown fences -- matching this schema: {schema}"
+            ),
+            per_item=f"Goal: {self.spec.goal}\n\nInput: {self.input_json}\n\n{self._scopes()}",
         )
+
+    def _complete(self, tools: list[ToolSchema], force_tool: str = "") -> Reply:
+        reply = self.llm.complete(self._system(), self._wire(), tools, force_tool=force_tool)
+        LOGGER.info(
+            "cache created %s read %s",
+            reply.cache_creation_input_tokens,
+            reply.cache_read_input_tokens,
+        )
+        return reply
 
     def _record(self, role: Role, blocks: list[Block]) -> None:
         message = Message(
@@ -157,10 +168,7 @@ class Session:
         if self.messages and self.messages[-1].role is Role.USER:
             self._record(Role.ASSISTANT, [Text(text="Understood.")])
         self._record(Role.USER, [Text(text=FINAL_INSTRUCTION)])
-        final_tools = [self.submit.schema()]
-        reply = self.llm.complete(
-            self._system(), self._wire(), final_tools, force_tool=self.submit.name
-        )
+        reply = self._complete([self.submit.schema()], force_tool=self.submit.name)
         self._record(Role.ASSISTANT, reply.blocks)
         uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
         offered = ""
@@ -191,7 +199,7 @@ class Session:
             if self.remaining.turns_exhausted:
                 return self._final_turn()
             self.remaining = self.remaining.spend_turn()
-            reply = self.llm.complete(self._system(), self._wire(), schemas)
+            reply = self._complete(schemas)
             self._record(Role.ASSISTANT, reply.blocks)
             uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
             if uses:

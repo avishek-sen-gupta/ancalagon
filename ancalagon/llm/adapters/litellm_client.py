@@ -12,9 +12,16 @@ from ancalagon.llm.adapters.wire_function import WireFunction
 from ancalagon.llm.adapters.wire_message import WireMessage
 from ancalagon.llm.adapters.wire_text_block import WireTextBlock
 from ancalagon.llm.adapters.wire_tool_call import WireToolCall
+from ancalagon.llm.adapters.wire_usage import WireUsage
+from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.tool_schema import ToolSchema
 
-EPHEMERAL = {"type": "ephemeral"}
+
+def _system_blocks(system: SystemPrompt) -> tuple[WireTextBlock, ...]:
+    static = WireTextBlock(type="text", text=system.static, cache_control={"type": "ephemeral"})
+    if not system.per_item:
+        return (static,)
+    return (static, WireTextBlock(type="text", text=system.per_item))
 
 
 def to_wire(message: Message) -> list[WireMessage]:
@@ -49,19 +56,14 @@ class LiteLLMClient:
 
     def complete(
         self,
-        system: str,
+        system: SystemPrompt,
         messages: collections.abc.Sequence[Message],
         tools: collections.abc.Sequence[ToolSchema],
         force_tool: str = "",
     ) -> Reply:
         import litellm
 
-        wire = [
-            WireMessage(
-                role="system",
-                content=(WireTextBlock(type="text", text=system, cache_control=EPHEMERAL),),
-            )
-        ]
+        wire = [WireMessage(role="system", content=_system_blocks(system))]
         for message in messages:
             wire.extend(to_wire(message))
         payload = [m.model_dump(mode="json", exclude_defaults=True) for m in wire]
@@ -104,4 +106,10 @@ class LiteLLMClient:
                     }
                 )
             )
-        return Reply(blocks=blocks, stop_reason=first.finish_reason)
+        usage = WireUsage.model_validate(getattr(response, "usage", WireUsage()))
+        return Reply(
+            blocks=blocks,
+            stop_reason=first.finish_reason,
+            cache_creation_input_tokens=usage.cache_creation_input_tokens,
+            cache_read_input_tokens=usage.cache_read_input_tokens,
+        )
