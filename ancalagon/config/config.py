@@ -5,6 +5,7 @@ import pathlib
 import pydantic
 
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.run_settings import RunSettings
 
 ROOT_BEHAVIOUR = (
     "You investigate a codebase or a set of artifacts to answer the goal you are given.\n"
@@ -30,3 +31,4 @@ class Config(pydantic.BaseModel, frozen=True):
     summary_chars: int = 1000
     compact_above_tokens: int = 60000
     keep_recent_messages: int = 8
+    run: RunSettings = RunSettings()

@@ -10,7 +10,13 @@ from ancalagon.bus.bus import Bus
 from ancalagon.bus.agent_status import AgentStatus
 
 
-def _config(tmp_path: pathlib.Path, turns: int, tool_calls: int, model: str = "") -> pathlib.Path:
+def _config(
+    tmp_path: pathlib.Path,
+    turns: int,
+    tool_calls: int,
+    model: str = "",
+    run_dir: str = "",
+) -> pathlib.Path:
     model = model or os.environ.get("ANCALAGON_MODEL", "claude-opus-5")
     write_root = tmp_path / "ws"
     artifacts = tmp_path / "artifacts"
@@ -55,6 +61,11 @@ summary_chars = 1000
 
 [tools]
 enabled = []
+
+[run]
+run_dir = "{run_dir}"
+goal_file = ""
+contract = ""
 """)
     return config
 

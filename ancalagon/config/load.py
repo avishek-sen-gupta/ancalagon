@@ -4,6 +4,7 @@ import tomllib
 
 from ancalagon.config.config import Config
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.run_settings import RunSettings
 
 
 # Every key is read by bracket, never .get(), so a config file must be complete:
@@ -12,6 +13,22 @@ from ancalagon.contracts.budget import Budget
 def _root(base: pathlib.Path, value: str) -> pathlib.Path:
     given = pathlib.Path(value).expanduser()
     return given.resolve() if given.is_absolute() else (base / given).resolve()
+
+
+def _optional_root(base: pathlib.Path, value: str) -> str:
+    return str(_root(base, value)) if value else ""
+
+
+def _run_settings(base: pathlib.Path, run: dict[str, str]) -> RunSettings:
+    module, _, class_name = run["contract"].partition(":")
+    if run["contract"] and not (module and class_name):
+        raise ValueError(f'contract "{run["contract"]}" must be written path.py:ClassName')
+    return RunSettings(
+        run_dir=_optional_root(base, run["run_dir"]),
+        goal_file=_optional_root(base, run["goal_file"]),
+        contract_module=_optional_root(base, module),
+        contract_class=class_name,
+    )
 
 
 def load_config(path: pathlib.Path) -> Config:
@@ -37,4 +54,5 @@ def load_config(path: pathlib.Path) -> Config:
         summary_chars=limits["summary_chars"],
         compact_above_tokens=limits["compact_above_tokens"],
         keep_recent_messages=limits["keep_recent_messages"],
+        run=_run_settings(base, raw["run"]),
     )
