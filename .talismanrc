@@ -35,4 +35,6 @@ fileignoreconfig:
   checksum: 2c8e20ac2036c40ca47ba6f2d1646694e6ee18bdd8f4da20bec4aadda532dd40
 - filename: tests/integration/test_end_to_end.py
   checksum: 6406210696c275a51b75b6d877bfca5431e2d1f8806f9a0c1d79a9aeccde5df9
+- filename: tests/unit/test_cli_settings.py
+  checksum: cea15c3f08de5aa695d51259ce0c2baa8dcd146131798eb9b7e7127c8ae54afd
 version: "1.0"

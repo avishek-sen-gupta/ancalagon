@@ -25,9 +25,13 @@ def _allocated_run_dir(write_root: pathlib.Path) -> pathlib.Path:
 
 
 def run_dir_of(settings: RunSettings, write_root: pathlib.Path) -> pathlib.Path:
-    chosen = pathlib.Path(settings.run_dir) if settings.run_dir else _allocated_run_dir(write_root)
-    chosen.mkdir(parents=True, exist_ok=True)
-    return chosen
+    if settings.run_dir:
+        named = pathlib.Path(settings.run_dir)
+        named.mkdir(parents=True, exist_ok=True)
+        return named
+    allocated = _allocated_run_dir(write_root)
+    allocated.mkdir(parents=True)
+    return allocated
 
 
 def goal_of(settings: RunSettings, given: str) -> str:
