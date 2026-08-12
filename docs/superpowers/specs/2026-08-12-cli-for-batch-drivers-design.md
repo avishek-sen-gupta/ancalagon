@@ -43,7 +43,7 @@ TOML rather than becoming flags:
 
 ```toml
 [run]
-name = ""       # subdirectory of write_root/runs; empty means allocate the next r_NNNN
+run_dir = ""    # where this run lives; empty means allocate the next write_root/runs/r_NNNN
 goal_file = ""  # empty means the goal comes from --goal
 contract = ""   # "path.py:ClassName"; empty means FreeText
 ```
@@ -53,9 +53,14 @@ already demands of every other setting, read by bracket and never `.get()`, so a
 one fails loudly instead of silently taking a default. Existing config files need the block added,
 and the resulting lookup failure says so.
 
-**`name`** — `_new_run_dir` uses `write_root / "runs" / name` when set, creating it if absent,
-and allocates the next `r_NNNN` when not. There is no second root and nothing to conflict with
-`write_root`. Naming the directory is what lets a driver do two things:
+**`run_dir`** — resolved against the config file like every other path, created if absent, and
+used as the run directory verbatim. Empty falls back to today's behaviour: the next `r_NNNN` under
+`write_root / "runs"`. `write_root` therefore governs only the fallback, and a config setting both
+is stating a directory and an unused default, not a conflict.
+
+Handing the driver the directory rather than a name under `runs/` keeps it ignorant of the layout:
+it computes a path per item and checks that path. Naming the directory is what lets it do two
+things:
 
 - **recognise a finished item** — check `tasks/root/outcome.json`, do not invoke
 - **resume an interrupted one** — the worker already loads and repairs whatever
@@ -88,11 +93,11 @@ mechanism.
 - the system block carries `cache_control` and the tool schemas precede it — assert the payload
   handed to `litellm.completion`, not that a request succeeded
 - `load_config` reads all three `[run]` entries; a config missing the section raises
-- `name` set puts the run at `write_root/runs/<name>`; unset allocates `r_NNNN`
+- `run_dir` set puts the run at exactly that path; empty allocates `write_root/runs/r_NNNN`
 - `goal_file` and `--goal` produce identical `spec.json`; supplying both, or neither, exits non-zero
 - `contract` writes the named class into `spec.json` and copies the module; empty gives `FreeText`
-- one integration test drives a real worker subprocess twice under the same `name` and asserts the
-  second invocation continues the first's transcript
+- one integration test drives a real worker subprocess twice under the same `run_dir` and asserts
+  the second invocation continues the first's transcript
 
 ## Out of scope
 
