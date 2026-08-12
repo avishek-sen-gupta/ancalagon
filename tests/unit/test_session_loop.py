@@ -11,6 +11,7 @@ from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.exhausted import Exhausted
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.needs_input import NeedsInput
+from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
@@ -295,8 +296,7 @@ def test_the_static_system_half_is_shared_across_items_and_the_per_item_half_is_
                 Reply(
                     blocks=[Text(text='{"answer": "done"}')],
                     stop_reason="stop",
-                    cache_creation_input_tokens=2048,
-                    cache_read_input_tokens=1024,
+                    usage=CallUsage(cache_creation_tokens=2048, cache_read_tokens=1024),
                 )
             ],
             Budget(turns=5, tool_calls=5),

@@ -6,6 +6,7 @@ import sys
 
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
+from ancalagon.bus.bus_meter import BusMeter
 from ancalagon.bus.event_source import EventSource
 from ancalagon.bus.depth_of import depth_of
 from ancalagon.config.config import Config
@@ -131,6 +132,7 @@ def main(
             output_class=output_class,
             submit=submit,
             need_input=need_input,
+            meter=BusMeter(bus),
             compact_above_tokens=config.compact_above_tokens,
             keep_recent_messages=config.keep_recent_messages,
         )

@@ -6,9 +6,9 @@ fileignoreconfig:
 - filename: CLAUDE.md
   checksum: a37e2b682c9f59a07b9b06410163a1157a442e4d853dd322a8d4c51d8eb015f1
 - filename: ancalagon/migrations/001_init.up.sql
-  checksum: 00d6a820204aef429b44168114f997fbec9d7767701766f09a803c2c9b08f775
+  checksum: 4436f8ed29bfc5bfe7e044e734cdd561b4f39e9f66a7cd73d02a18b64edbc1b9
 - filename: ancalagon/migrations/001_init.down.sql
-  checksum: f456fb73d762c5d54548c48dbda01f610a7ed965fa724f6712afddfe09d7a483
+  checksum: 669d34aa47bcd28cc3f5730953bd9ab7a42c345d4d0c2d6b91cecf4d6e043075
 - filename: docs/superpowers/plans/2026-08-03-ancalagon-substrate.md
   checksum: dad56bb88ded3533244d7f16f43bd9ce526cacfaba1b511558af92bae52a611a
 - filename: uv.lock
@@ -37,4 +37,6 @@ fileignoreconfig:
   checksum: cea15c3f08de5aa695d51259ce0c2baa8dcd146131798eb9b7e7127c8ae54afd
 - filename: tests/integration/test_end_to_end.py
   checksum: 9a51583ed27d5418a8263732e22f7ab0b5ce86fba6efaba18ed1d6120d9a37c1
+- filename: ancalagon/bus/bus.py
+  checksum: facce559e5bc923708d6a1371d04be24fcfbedbb4053d0eeaa8ebd426bde49bf
 version: "1.0"
