@@ -33,10 +33,12 @@ cli.py ──writes spec.json──▶ tasks/root/
 
 1. `config/load.py` reads the TOML. Relative roots resolve against the **config file**, not
    the process cwd, so a worker started elsewhere sees the same paths.
-2. `_new_run_dir` makes `<write_root>/runs/r_NNNN/`.
-3. Writes two files into `runs/r_NNNN/tasks/root/`: `contracts.py` (from
-   `contracts/free_text_module.py`) and `spec.json` naming `contracts.py:FreeText` as its
-   output.
+2. `run_dir_of` uses `[run] run_dir` when set and allocates `<write_root>/runs/r_NNNN` when not,
+   creating either. A directory that already holds a task is reused, which is what makes a
+   second invocation continue rather than start over.
+3. Writes two files into `runs/<run>/tasks/root/`: `contracts.py` — `[run] contract`'s module when
+   named, otherwise `contracts/free_text_module.py` — and `spec.json` naming the class it must
+   answer in. The goal comes from `[run] goal_file` or `--goal`; exactly one.
 4. `bus/bus.py` opens `bus.db`, which runs migrations on first open, and enqueues the task
    with `parent_agent=0`. Enqueuing creates the task if new, adds an agent, and appends a
    `queued` event; a task retried later reuses the task row and adds another agent.

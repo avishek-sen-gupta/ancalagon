@@ -135,3 +135,26 @@ def test_root_agent_investigates_and_returns_an_outcome(tmp_path: pathlib.Path):
     run_dir = next((tmp_path / "ws" / "runs").iterdir())
     transcript = (run_dir / "tasks" / "root" / "transcript.jsonl").read_text()
     assert transcript.count("\n") >= 2
+
+
+def test_a_named_run_dir_is_reused_by_a_second_invocation(tmp_path: pathlib.Path):
+    named = tmp_path / "ws" / "runs" / "item-0001"
+    config = _config(
+        tmp_path,
+        turns=2,
+        tool_calls=4,
+        model="no-such-provider/no-such-model",
+        run_dir=str(named),
+    )
+
+    first = _run_cli(config, "Say hello.", dict(os.environ))
+    assert first.returncode == 0, first.stderr
+    second = _run_cli(config, "Say hello.", dict(os.environ))
+    assert second.returncode == 0, second.stderr
+
+    assert [p.name for p in (tmp_path / "ws" / "runs").iterdir()] == ["item-0001"]
+
+    bus = Bus.open(named / "bus.db")
+    assert bus.state(1).status is AgentStatus.CRASHED
+    assert bus.state(2).status is AgentStatus.CRASHED
+    assert len(list((named / "tasks" / "root").glob("stderr-*.log"))) == 2
