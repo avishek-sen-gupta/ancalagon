@@ -40,14 +40,6 @@ class Bus:
         return conn
 
     @classmethod
-    def create(cls, path: pathlib.Path) -> "Bus":
-        if path.exists():
-            raise ValueError(f"{path} already exists; open it instead of creating it")
-        conn = cls._connect(path)
-        ancalagon.migrations.migrate(conn, ancalagon.migrations.latest_version())
-        return cls(conn)
-
-    @classmethod
     def open(cls, path: pathlib.Path) -> "Bus":
         if not path.exists():
             raise ValueError(f"{path} does not exist")

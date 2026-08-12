@@ -1,6 +1,7 @@
 import pathlib
 
 from ancalagon.bus.bus import Bus
+from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.bus.bus_meter import BusMeter
 from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.llm.meter import Meter
@@ -8,7 +9,8 @@ from ancalagon.llm.unmetered import Unmetered
 
 
 def test_calls_accumulate_per_agent_and_survive_across_agents(tmp_path: pathlib.Path):
-    bus = Bus.create(tmp_path / "bus.db")
+    migrate_file(tmp_path / "bus.db", latest_version())
+    bus = Bus.open(tmp_path / "bus.db")
     first = bus.enqueue(tmp_path / "tasks" / "alpha", parent_agent=0)
     second = bus.enqueue(tmp_path / "tasks" / "beta", parent_agent=first)
     meter: Meter = BusMeter(bus)
@@ -42,7 +44,9 @@ def test_the_no_op_meter_records_nothing_and_satisfies_the_protocol(tmp_path: pa
     quiet: Meter = Unmetered()
     quiet.record(1, CallUsage(prompt_tokens=999))
 
-    bus = Bus.create(tmp_path / "bus.db")
+    migrate_file(tmp_path / "bus.db", latest_version())
+
+    bus = Bus.open(tmp_path / "bus.db")
     agent = bus.enqueue(tmp_path / "tasks" / "a", parent_agent=0)
     assert bus.calls(agent) == []
     assert bus.tokens_by_agent() == {}

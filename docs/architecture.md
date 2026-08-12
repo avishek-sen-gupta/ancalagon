@@ -40,8 +40,8 @@ cli.py ──writes spec.json──▶ tasks/root/
    named, otherwise `contracts/free_text_module.py` — and `spec.json` naming the class it must
    answer in. The goal comes from `[run] goal_file` or `--goal`; exactly one. A missing or empty
    file, or a `contract` naming a class its module does not define, exits 2 before any spawn.
-4. `bus/bus.py` creates `bus.db` if the run directory has none and opens it otherwise, then
-   enqueues the task with `parent_agent=0`. Enqueuing creates
+4. `bus.db` is migrated to the latest schema — created if the run directory has none — and
+   then opened, and the task is enqueued with `parent_agent=0`. Enqueuing creates
    the task if new, adds an agent, and appends a `queued` event; a task retried later reuses
    the task row and adds another agent.
 5. Constructs the `Supervisor` and calls `run_until_idle()`, then `shutdown()` in a
@@ -51,19 +51,22 @@ cli.py ──writes spec.json──▶ tasks/root/
 
 The CLI never spawns anything and never speaks to a model.
 
-Opening a bus never migrates it. `Bus.create` builds a new database and refuses a path that
-already exists; `Bus.open` requires an existing database already at the latest version and
-raises otherwise, naming the command to run. Upgrading a database is a deliberate offline
-step:
+**Opening a bus never migrates it.** `Bus.open` requires a database that exists and is
+already at the latest version, and raises otherwise, naming the command to run. Migrating is
+`migrations.migrate_file`, called in exactly two places: `main` above, which brings the run's
+own database up before opening it, and the `migrate` command, which does it without starting
+a run:
 
 ```bash
-ancalagon migrate --db ws/runs/r_0001/bus.db     # to the latest version
+ancalagon migrate --db ws/runs/r_0001/bus.db          # to the latest version
 ancalagon migrate --db ws/runs/r_0001/bus.db --to 1   # or back down to a given one
 ```
 
-So a run either works against the schema it was built for or refuses to start. It never
-rewrites a database as a side effect of being looked at, and an older run stays readable by
-an older build until you decide otherwise.
+The split matters because the two acts have different blast radii. Starting a run is a
+deliberate act on a directory you named, so upgrading its schema is part of what you asked
+for. Reading a run is not: every tool, watcher and delegate tool that merely opens the bus
+would otherwise rewrite it, and there would be no way to look at an old run without changing
+it. `Bus.open` is the one everything else uses, and it only ever reads.
 
 A migration that has shipped is never edited: databases already at that version skip it, so
 the edit reaches new runs only and leaves older ones missing the change. Add a numbered
