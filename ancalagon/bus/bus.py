@@ -33,11 +33,32 @@ class Bus:
         self.conn = conn
 
     @classmethod
-    def open(cls, path: pathlib.Path) -> "Bus":
+    def _connect(cls, path: pathlib.Path) -> sqlite3.Connection:
         conn = sqlite3.connect(path, isolation_level=None)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA busy_timeout = 5000")
+        return conn
+
+    @classmethod
+    def create(cls, path: pathlib.Path) -> "Bus":
+        if path.exists():
+            raise ValueError(f"{path} already exists; open it instead of creating it")
+        conn = cls._connect(path)
         ancalagon.migrations.migrate(conn, ancalagon.migrations.latest_version())
+        return cls(conn)
+
+    @classmethod
+    def open(cls, path: pathlib.Path) -> "Bus":
+        if not path.exists():
+            raise ValueError(f"{path} does not exist")
+        conn = cls._connect(path)
+        found = ancalagon.migrations.user_version(conn)
+        latest = ancalagon.migrations.latest_version()
+        if found != latest:
+            raise ValueError(
+                f"{path} is at schema version {found}, not {latest}; "
+                f"run: ancalagon migrate --db {path}"
+            )
         return cls(conn)
 
     def _states(self, where: str, params: tuple[str | int, ...]) -> list[AgentState]:

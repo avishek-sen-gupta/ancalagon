@@ -40,7 +40,8 @@ cli.py ──writes spec.json──▶ tasks/root/
    named, otherwise `contracts/free_text_module.py` — and `spec.json` naming the class it must
    answer in. The goal comes from `[run] goal_file` or `--goal`; exactly one. A missing or empty
    file, or a `contract` naming a class its module does not define, exits 2 before any spawn.
-4. `bus/bus.py` opens `bus.db` and enqueues the task with `parent_agent=0`. Enqueuing creates
+4. `bus/bus.py` creates `bus.db` if the run directory has none and opens it otherwise, then
+   enqueues the task with `parent_agent=0`. Enqueuing creates
    the task if new, adds an agent, and appends a `queued` event; a task retried later reuses
    the task row and adds another agent.
 5. Constructs the `Supervisor` and calls `run_until_idle()`, then `shutdown()` in a
@@ -50,10 +51,23 @@ cli.py ──writes spec.json──▶ tasks/root/
 
 The CLI never spawns anything and never speaks to a model.
 
-Opening a bus migrates it to the latest version — on every open, not only the first — so a
-database written by an older build is upgraded in place. A migration that has shipped is
-therefore never edited: databases already at that version skip it, so the edit reaches new
-runs only and leaves older ones missing the change. Add a numbered migration instead.
+Opening a bus never migrates it. `Bus.create` builds a new database and refuses a path that
+already exists; `Bus.open` requires an existing database already at the latest version and
+raises otherwise, naming the command to run. Upgrading a database is a deliberate offline
+step:
+
+```bash
+ancalagon migrate --db ws/runs/r_0001/bus.db     # to the latest version
+ancalagon migrate --db ws/runs/r_0001/bus.db --to 1   # or back down to a given one
+```
+
+So a run either works against the schema it was built for or refuses to start. It never
+rewrites a database as a side effect of being looked at, and an older run stays readable by
+an older build until you decide otherwise.
+
+A migration that has shipped is never edited: databases already at that version skip it, so
+the edit reaches new runs only and leaves older ones missing the change. Add a numbered
+migration instead.
 
 ### 2. Supervising — `ancalagon/supervisor/supervisor.py`
 
@@ -208,9 +222,9 @@ sqlite3 ws/runs/r_0001/bus.db \
 rg '"agent": 1' ws/runs/r_0001/tasks/root/transcript.jsonl
 ```
 
-There is no `ancalagon usage` verb. `run` is the only command; the schema is the query
-surface, and `Bus.calls` and `Bus.tokens_by_agent` are the same two queries for callers
-already holding a bus.
+There is no `ancalagon usage` verb — `run` and `migrate` are the only commands. The schema is
+the query surface, and `Bus.calls` and `Bus.tokens_by_agent` are the same two queries for
+callers already holding a bus.
 
 ## Where to start reading
 

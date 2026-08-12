@@ -53,6 +53,13 @@ On Bedrock with a bearer token, `scripts/ancrun.zsh` runs the same command with
 stale AWS credentials stripped from the environment — otherwise litellm signs with
 those instead and Bedrock rejects the request.
 
+A run built by an older version of ancalagon refuses to start until its database is
+upgraded, which is a separate deliberate step rather than something opening it does:
+
+```bash
+ancalagon migrate --db ws/runs/r_0001/bus.db
+```
+
 ## How it works
 
 Three kinds of process, communicating only through SQLite rows and files:

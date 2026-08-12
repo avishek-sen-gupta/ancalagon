@@ -237,7 +237,7 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
             "tool_calls": 5,
         }
     )
-    bus = Bus.open(run_dir / "bus.db")
+    bus = Bus.create(run_dir / "bus.db")
 
     assert delegate.run(args, ctx).ok is True
     queued = delegate.run(args, ctx)
