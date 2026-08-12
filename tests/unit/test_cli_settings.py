@@ -17,6 +17,11 @@ def test_a_named_run_dir_is_used_verbatim_and_an_unnamed_one_is_allocated(
     assert named.is_dir()
     assert run_dir_of(RunSettings(run_dir=str(named)), write_root) == named
 
+    (write_root / "runs").mkdir(parents=True)
+    (write_root / "runs" / "unrelated").mkdir()
+    (write_root / "runs" / "r_abc").mkdir()
+    (write_root / "runs" / "r_001x").mkdir()
+
     assert run_dir_of(RunSettings(), write_root) == write_root / "runs" / "r_0001"
     assert run_dir_of(RunSettings(), write_root) == write_root / "runs" / "r_0002"
 
@@ -38,9 +43,7 @@ def test_a_goal_comes_from_exactly_one_of_the_file_and_the_argument(
 
 def test_a_named_contract_replaces_free_text(tmp_path: pathlib.Path):
     module = tmp_path / "shape.py"
-    module.write_text(
-        "import pydantic\n\n\nclass Answer(pydantic.BaseModel):\n    verdict: str\n"
-    )
+    module.write_text("import pydantic\n\n\nclass Answer(pydantic.BaseModel):\n    verdict: str\n")
 
     assert output_of(RunSettings()) == "contracts.py:FreeText"
     assert contract_source(RunSettings()) == FREE_TEXT_MODULE
