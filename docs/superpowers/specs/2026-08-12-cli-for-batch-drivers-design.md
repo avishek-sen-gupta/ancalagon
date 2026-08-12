@@ -62,9 +62,16 @@ Handing the driver the directory rather than a name under `runs/` keeps it ignor
 it computes a path per item and checks that path. Naming the directory is what lets it do two
 things:
 
-- **recognise a finished item** — check `tasks/root/outcome.json`, do not invoke
+- **recognise a completed item** — read `tasks/root/outcome.json` and check its kind. Presence
+  alone is not enough; a failure, a timeout and an exhausted budget all leave a file there, and
+  skipping on presence would cache a failure forever.
 - **resume an interrupted one** — the worker already loads and repairs whatever
   `transcript.jsonl` it finds; this only makes that reachable
+
+Neither involves polling. `run_until_idle` blocks until the run is over, so a driver invokes,
+waits, and reads. Running items concurrently means several `ancalagon run` processes at once, each
+with its own directory and its own `bus.db`; `max_concurrent_agents` governs agents inside one run
+and does nothing for a population of one-agent runs.
 
 Enqueuing an existing task directory already reuses the task row and adds an agent, so a second
 invocation continues rather than collides.
