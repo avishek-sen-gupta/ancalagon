@@ -77,6 +77,9 @@ def main(config_path: pathlib.Path, goal_argument: str) -> int:
         )
     )
 
+    outcome = task_dir / "outcome.json"
+    outcome.unlink(missing_ok=True)
+
     bus = Bus.open(run_dir / "bus.db")
     bus.enqueue(task_dir, parent_agent=0)
     supervisor = Supervisor(
@@ -90,7 +93,6 @@ def main(config_path: pathlib.Path, goal_argument: str) -> int:
     finally:
         supervisor.shutdown()
 
-    outcome = task_dir / "outcome.json"
     if not outcome.exists():
         LOGGER.error("root task produced no outcome; see %s", task_dir)
         return 1
