@@ -5,7 +5,7 @@ import pytest
 
 from ancalagon.bus.bus import Bus
 from ancalagon.migrate_command import migrate_command
-from ancalagon.migrations import latest_version, migrate, user_version
+from ancalagon.migrations import latest_version, migrate, migrate_file, user_version
 
 
 def test_migrations_round_trip_and_checks_reject_bad_rows(tmp_path: pathlib.Path):
@@ -64,9 +64,7 @@ def test_a_bus_never_migrates_itself_and_the_command_does_it_offline(
     with pytest.raises(ValueError, match="does not exist"):
         Bus.open(db)
 
-    Bus.create(db)
-    with pytest.raises(ValueError, match="already exists"):
-        Bus.create(db)
+    assert migrate_file(db, latest_version()) == (0, latest_version())
     Bus.open(db)
 
     stale = tmp_path / "stale.db"

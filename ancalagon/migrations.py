@@ -20,6 +20,14 @@ def _script(version: int, direction: str) -> pathlib.Path:
     return matches[0]
 
 
+def migrate_file(path: pathlib.Path, target: int) -> tuple[int, int]:
+    conn = sqlite3.connect(path, isolation_level=None)
+    conn.execute("PRAGMA busy_timeout = 5000")
+    before = user_version(conn)
+    migrate(conn, target)
+    return before, user_version(conn)
+
+
 def migrate(conn: sqlite3.Connection, target: int) -> None:
     current = user_version(conn)
     if target > current:

@@ -6,6 +6,7 @@ import pytest
 
 import ancalagon.config.config
 from ancalagon.bus.bus import Bus
+from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.event_source import EventSource
 from ancalagon.contracts.budget import Budget
@@ -237,7 +238,8 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
             "tool_calls": 5,
         }
     )
-    bus = Bus.create(run_dir / "bus.db")
+    migrate_file(run_dir / "bus.db", latest_version())
+    bus = Bus.open(run_dir / "bus.db")
 
     assert delegate.run(args, ctx).ok is True
     queued = delegate.run(args, ctx)

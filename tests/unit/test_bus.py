@@ -2,13 +2,15 @@ import pathlib
 
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
+from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.bus.depth_of import depth_of
 from ancalagon.bus.event_source import EventSource
 
 
 def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.Path):
     db = tmp_path / "bus.db"
-    bus = Bus.create(db)
+    migrate_file(db, latest_version())
+    bus = Bus.open(db)
     other = Bus.open(db)
     alpha = tmp_path / "tasks" / "alpha"
 
@@ -52,7 +54,8 @@ def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.
 
 
 def test_depth_counts_ancestors_with_the_root_at_zero(tmp_path: pathlib.Path):
-    bus = Bus.create(tmp_path / "bus.db")
+    migrate_file(tmp_path / "bus.db", latest_version())
+    bus = Bus.open(tmp_path / "bus.db")
     root = bus.enqueue(tmp_path / "tasks" / "root", parent_agent=0)
     child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=root)
     grandchild = bus.enqueue(tmp_path / "tasks" / "grandchild", parent_agent=child)

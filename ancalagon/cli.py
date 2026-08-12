@@ -6,6 +6,7 @@ import logging
 import pathlib
 import sys
 
+import ancalagon.migrations
 from ancalagon.bus.bus import Bus
 from ancalagon.config.load import load_config
 from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
@@ -110,7 +111,8 @@ def main(config_path: pathlib.Path, goal_argument: str) -> int:
     outcome.unlink(missing_ok=True)
 
     db = run_dir / "bus.db"
-    bus = Bus.open(db) if db.exists() else Bus.create(db)
+    ancalagon.migrations.migrate_file(db, ancalagon.migrations.latest_version())
+    bus = Bus.open(db)
     bus.enqueue(task_dir, parent_agent=0)
     supervisor = Supervisor(
         bus=Bus.open(db),
