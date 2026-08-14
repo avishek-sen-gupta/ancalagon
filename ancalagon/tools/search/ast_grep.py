@@ -8,14 +8,13 @@ from ancalagon.tools.search.searchable_files import fits_in_arguments, searchabl
 from ancalagon.workspace.scope_error import ScopeError
 
 
-class AstGrep(Tool):
+class AstGrep(Tool[GrepArgs]):
     name = "ast_grep"
     description = "Structural code search by AST pattern."
     cost = 1
     args_model = GrepArgs
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = GrepArgs.model_validate_json(arguments)
+    def run(self, args: GrepArgs, ctx: ToolContext) -> ToolResult:
         try:
             roots = [str(ctx.workspace.resolve_read(r)) for r in args.roots]
         except ScopeError as exc:

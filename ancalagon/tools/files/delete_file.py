@@ -6,14 +6,13 @@ from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.scope_error import ScopeError
 
 
-class DeleteFile(Tool):
+class DeleteFile(Tool[PathArgs]):
     name = "delete_file"
     description = "Delete a file inside the workspace write root."
     cost = 1
     args_model = PathArgs
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = PathArgs.model_validate_json(arguments)
+    def run(self, args: PathArgs, ctx: ToolContext) -> ToolResult:
         try:
             path = ctx.workspace.resolve_write(args.path)
         except ScopeError as exc:

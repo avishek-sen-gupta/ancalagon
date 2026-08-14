@@ -7,7 +7,7 @@ from ancalagon.tools.search.run_command import run_command
 from ancalagon.workspace.scope_error import ScopeError
 
 
-class QueryJson(Tool):
+class QueryJson(Tool[QueryArgs]):
     name = "query_json"
     description = (
         "Run a jq filter over a JSON file and return only what matches, so a large "
@@ -17,8 +17,7 @@ class QueryJson(Tool):
     cost = 1
     args_model = QueryArgs
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = QueryArgs.model_validate_json(arguments)
+    def run(self, args: QueryArgs, ctx: ToolContext) -> ToolResult:
         if args.filter.startswith("-"):
             return ctx.failure(self.name, f"filter may not begin with '-': {args.filter!r}")
         try:

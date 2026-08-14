@@ -7,7 +7,7 @@ from ancalagon.tools.search.run_command import run_command
 from ancalagon.workspace.scope_error import ScopeError
 
 
-class ExtractStrings(Tool):
+class ExtractStrings(Tool[StringsArgs]):
     name = "extract_strings"
     description = (
         "Pull printable text out of a binary or other non-text artifact. Raise "
@@ -17,8 +17,7 @@ class ExtractStrings(Tool):
     cost = 1
     args_model = StringsArgs
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = StringsArgs.model_validate_json(arguments)
+    def run(self, args: StringsArgs, ctx: ToolContext) -> ToolResult:
         try:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:

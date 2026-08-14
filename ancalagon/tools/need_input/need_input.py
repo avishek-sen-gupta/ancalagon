@@ -5,7 +5,7 @@ from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 
 
-class NeedInput(Tool):
+class NeedInput(Tool[NeedInputArgs]):
     name = "need_input"
     description = (
         "Stop and hand a question back to whoever launched this task. "
@@ -17,7 +17,6 @@ class NeedInput(Tool):
     def __init__(self) -> None:
         self.question = ""
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = NeedInputArgs.model_validate_json(arguments)
+    def run(self, args: NeedInputArgs, ctx: ToolContext) -> ToolResult:
         self.question = args.question
         return ctx.result(self.name, f"question recorded: {args.question}")

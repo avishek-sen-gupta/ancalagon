@@ -9,7 +9,7 @@ from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.workspace.workspace import missing_hint
 
 
-class GitHistory(Tool):
+class GitHistory(Tool[HistoryArgs]):
     name = "git_history"
     description = (
         "Ask git why a file looks the way it does. log lists the commits that touched "
@@ -36,8 +36,7 @@ class GitHistory(Tool):
             return ["git", "-C", repo, "blame", "--date=short", "-e", "--", path]
         return ["git", "-C", repo, "show", "--stat", "--date=short", args.rev]
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = HistoryArgs.model_validate_json(arguments)
+    def run(self, args: HistoryArgs, ctx: ToolContext) -> ToolResult:
         if args.operation is GitOperation.SHOW and not args.rev:
             return ctx.failure(self.name, "show needs a rev")
         try:

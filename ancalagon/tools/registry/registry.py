@@ -2,14 +2,14 @@
 import collections.abc
 
 from ancalagon.llm.tool_schema import ToolSchema
-from ancalagon.tools.registry.tool import Tool
+from ancalagon.tools.registry.bound_tool import BoundTool
 
 
 class Registry:
-    def __init__(self, tools: collections.abc.Sequence[Tool]):
+    def __init__(self, tools: collections.abc.Sequence[BoundTool]):
         self.tools = {t.name: t for t in tools}
 
-    def get(self, name: str) -> Tool:
+    def get(self, name: str) -> BoundTool:
         if name not in self.tools:
             raise KeyError(f"unknown tool {name}")
         return self.tools[name]

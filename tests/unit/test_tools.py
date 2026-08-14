@@ -28,6 +28,21 @@ from ancalagon.tools.artifacts.extract_strings import ExtractStrings
 from ancalagon.tools.artifacts.file_type import FileType
 from ancalagon.tools.artifacts.query_json import QueryJson
 from ancalagon.tools.history.git_history import GitHistory
+from ancalagon.tools.artifacts.convert_args import ConvertArgs
+from ancalagon.tools.artifacts.document_format import DocumentFormat
+from ancalagon.tools.artifacts.path_arg import PathArg
+from ancalagon.tools.artifacts.query_args import QueryArgs
+from ancalagon.tools.artifacts.strings_args import StringsArgs
+from ancalagon.tools.delegate.delegate_args import DelegateArgs
+from ancalagon.tools.delegate.task_args import TaskArgs
+from ancalagon.tools.history.git_operation import GitOperation
+from ancalagon.tools.history.history_args import HistoryArgs
+from ancalagon.tools.parse.parse_args import ParseArgs
+from ancalagon.tools.registry.bind_tool import bind_tool
+from ancalagon.tools.search.grep_args import GrepArgs
+from ancalagon.tools.search.sed_args import SedArgs
+from ancalagon.tools.search.symbol_args import SymbolArgs
+from ancalagon.tools.survey.stats_args import StatsArgs
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.search.run_command import run_command
 from ancalagon.tools.need_input.need_input import NeedInput
@@ -57,7 +72,15 @@ def _ctx(tmp_path: pathlib.Path) -> ToolContext:
 
 def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
-    registry = Registry([ReadFile(), WriteFile(), EditFile(), DeleteFile(), ListDir()])
+    registry = Registry(
+        [
+            bind_tool(ReadFile()),
+            bind_tool(WriteFile()),
+            bind_tool(EditFile()),
+            bind_tool(DeleteFile()),
+            bind_tool(ListDir()),
+        ]
+    )
 
     assert sorted(registry.names()) == [
         "delete_file",
@@ -69,52 +92,54 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
     assert {s.name for s in registry.schemas()} == set(registry.names())
 
     target = ctx.workspace.write_root / "note.txt"
-    written = registry.get("write_file").run(
+    written = registry.get("write_file").invoke(
         f'{{"path": "{target}", "content": "hello world"}}', ctx
     )
     assert written.ok is True
     assert target.read_text() == "hello world"
 
-    read = registry.get("read_file").run(f'{{"path": "{target}"}}', ctx)
+    read = registry.get("read_file").invoke(f'{{"path": "{target}"}}', ctx)
     assert read.ok is True
     assert read.path.read_text() == "hello world"
     assert read.byte_count == 11
 
-    edited = registry.get("edit_file").run(
+    edited = registry.get("edit_file").invoke(
         f'{{"path": "{target}", "old": "world", "new": "there"}}', ctx
     )
     assert edited.ok is True
     assert target.read_text() == "hello there"
 
-    missing_edit = registry.get("edit_file").run(
+    missing_edit = registry.get("edit_file").invoke(
         f'{{"path": "{target}", "old": "absent", "new": "x"}}', ctx
     )
     assert missing_edit.ok is False
     assert "not found" in missing_edit.error
     assert target.read_text() == "hello there"
 
-    listed = registry.get("list_dir").run(f'{{"path": "{ctx.workspace.write_root}"}}', ctx)
+    listed = registry.get("list_dir").invoke(f'{{"path": "{ctx.workspace.write_root}"}}', ctx)
     assert listed.ok is True
     assert "note.txt" in listed.path.read_text()
 
     outside = tmp_path / "outside.txt"
     outside.write_text("secret")
-    denied = registry.get("read_file").run(f'{{"path": "{outside}"}}', ctx)
+    denied = registry.get("read_file").invoke(f'{{"path": "{outside}"}}', ctx)
     assert isinstance(denied, ToolResult)
     assert denied.ok is False
     assert "outside" in denied.error
 
-    denied_write = registry.get("write_file").run(f'{{"path": "{outside}", "content": "x"}}', ctx)
+    denied_write = registry.get("write_file").invoke(
+        f'{{"path": "{outside}", "content": "x"}}', ctx
+    )
     assert denied_write.ok is False
     assert outside.read_text() == "secret"
 
-    deleted = registry.get("delete_file").run(f'{{"path": "{target}"}}', ctx)
+    deleted = registry.get("delete_file").invoke(f'{{"path": "{target}"}}', ctx)
     assert deleted.ok is True
     assert not target.exists()
 
     big = ctx.workspace.write_root / "big.txt"
     big.write_text("\n".join(f"line {i}" for i in range(60)))
-    first = registry.get("read_file").run(f'{{"path": "{big}"}}', ctx)
+    first = registry.get("read_file").invoke(f'{{"path": "{big}"}}', ctx)
     assert first.ok is True
     assert first.truncated is True
     assert "line 0" in first.summary
@@ -122,19 +147,19 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
     shown = int(first.summary.rsplit("offset=", 1)[1].split(" ")[0])
     assert 0 < shown < 60
 
-    rest = registry.get("read_file").run(f'{{"path": "{big}", "offset": {shown}}}', ctx)
+    rest = registry.get("read_file").invoke(f'{{"path": "{big}", "offset": {shown}}}', ctx)
     assert f"line {shown}" in rest.summary
 
-    tail = registry.get("read_file").run(f'{{"path": "{big}", "offset": 58}}', ctx)
+    tail = registry.get("read_file").invoke(f'{{"path": "{big}", "offset": 58}}', ctx)
     assert "line 59" in tail.summary
     assert "end of file" in tail.summary
     assert tail.truncated is False
 
-    relative = registry.get("read_file").run('{"path": "nope.txt"}', ctx)
+    relative = registry.get("read_file").invoke('{"path": "nope.txt"}', ctx)
     assert relative.ok is False
     assert "Relative paths resolve" in relative.error
 
-    absent = registry.get("read_file").run(
+    absent = registry.get("read_file").invoke(
         f'{{"path": "{ctx.workspace.write_root / "nope.txt"}"}}', ctx
     )
     assert absent.ok is False
@@ -150,7 +175,7 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     before = source.read_text()
 
     found = Ripgrep().run(
-        f'{{"pattern": "def (alpha|beta)", "roots": ["{ctx.workspace.write_root}"]}}', ctx
+        GrepArgs(pattern="def (alpha|beta)", roots=[ctx.workspace.write_root]), ctx
     )
     assert found.ok is True
     assert [l.split(":", 2)[2].strip() for l in found.path.read_text().splitlines()] == [
@@ -159,8 +184,7 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     ]
 
     structured = Ripgrep().run(
-        f'{{"pattern": "def alpha", "roots": ["{ctx.workspace.write_root}"], "structured": true}}',
-        ctx,
+        GrepArgs(pattern="def alpha", roots=[ctx.workspace.write_root], structured=True), ctx
     )
     matches = [
         r
@@ -169,40 +193,36 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     ]
     assert str(source) in [m["data"]["path"]["text"] for m in matches]
 
-    missing = Ripgrep().run(
-        f'{{"pattern": "zzz_absent", "roots": ["{ctx.workspace.write_root}"]}}', ctx
-    )
+    missing = Ripgrep().run(GrepArgs(pattern="zzz_absent", roots=[ctx.workspace.write_root]), ctx)
     assert missing.ok is True
     assert missing.path.read_text() == ""
 
-    streamed = Sed().run(f'{{"script": "s/alpha/gamma/", "path": "{source}"}}', ctx)
+    streamed = Sed().run(SedArgs(script="s/alpha/gamma/", path=source), ctx)
     assert streamed.ok is True
     assert "gamma" in streamed.path.read_text()
     assert source.read_text() == before
 
-    parsed = TreeSitter().run(f'{{"path": "{source}", "language": "python"}}', ctx)
+    parsed = TreeSitter().run(ParseArgs(path=source, language="python"), ctx)
     assert parsed.ok is True
     assert '"type": "function_definition"' in parsed.path.read_text()
 
-    unsupported = TreeSitter().run(f'{{"path": "{source}", "language": "cobol"}}', ctx)
+    unsupported = TreeSitter().run(ParseArgs(path=source, language="cobol"), ctx)
     assert unsupported.ok is False
     assert "unsupported language" in unsupported.error
 
-    denied = Sed().run(f'{{"script": "s/a/b/", "path": "{tmp_path / "outside.txt"}"}}', ctx)
+    denied = Sed().run(SedArgs(script="s/a/b/", path=tmp_path / "outside.txt"), ctx)
     assert denied.ok is False
 
     flags = ctx.workspace.write_root / "flags.txt"
     flags.write_text("a line mentioning --files here\n")
 
-    literal = Ripgrep().run(
-        json.dumps({"pattern": "--files", "roots": [str(ctx.workspace.write_root)]}), ctx
-    )
+    literal = Ripgrep().run(GrepArgs(pattern="--files", roots=[ctx.workspace.write_root]), ctx)
     assert literal.ok is True
     assert [l.split(":", 2)[2] for l in literal.path.read_text().splitlines()] == [
         "a line mentioning --files here"
     ]
 
-    dashed = Sed().run(json.dumps({"script": "s/--files/--flags/", "path": str(flags)}), ctx)
+    dashed = Sed().run(SedArgs(script="s/--files/--flags/", path=flags), ctx)
     assert dashed.ok is True
     assert dashed.path.read_text() == "a line mentioning --flags here\n"
 
@@ -261,16 +281,14 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     delegate = Delegate(run_dir=run_dir, parent=1)
-    args = json.dumps(
-        {
-            "task_id": "analyse",
-            "behaviour": "b",
-            "goal": "g",
-            "input_json": '{"text": "look at this"}',
-            "answer_schema": "contracts.py:FreeText",
-            "turns": 3,
-            "tool_calls": 5,
-        }
+    args = DelegateArgs(
+        task_id="analyse",
+        behaviour="b",
+        goal="g",
+        input_json='{"text": "look at this"}',
+        answer_schema="contracts.py:FreeText",
+        turns=3,
+        tool_calls=5,
     )
     migrate_file(run_dir / "bus.db", latest_version())
     bus = Bus.open(run_dir / "bus.db")
@@ -299,37 +317,48 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
     assert bus.state(1).status is AgentStatus.CRASHED
     assert bus.state(2).dir == str(task_dir)
 
-    shape = delegate.schema().parameters.model_json_schema()["properties"]["answer_schema"]
+    shape = DelegateArgs.model_json_schema()["properties"]["answer_schema"]
     assert shape["default"] == "contracts.py:FreeText"
     assert "pattern" in shape
 
     for bad in ("text", "FreeText", "contracts:FreeText", "contracts.py:"):
         with pytest.raises(pydantic.ValidationError):
-            delegate.run(
-                json.dumps({**json.loads(args), "task_id": "o", "answer_schema": bad}), ctx
+            args.model_copy(update={"task_id": "o"}).model_validate(
+                {**args.model_dump(), "task_id": "o", "answer_schema": bad}
             )
 
-    omitted = {k: v for k, v in json.loads(args).items() if k != "answer_schema"}
-    assert delegate.run(json.dumps({**omitted, "task_id": "defaulted"}), ctx).ok is True
+    defaulted = DelegateArgs(
+        task_id="defaulted",
+        behaviour="b",
+        goal="g",
+        input_json='{"text": "look at this"}',
+        turns=3,
+        tool_calls=5,
+    )
+    assert defaulted.answer_schema == "contracts.py:FreeText"
+    assert delegate.run(defaulted, ctx).ok is True
 
     shaped = ctx.workspace.write_root / "shape.py"
     shaped.write_text(
         "import pydantic\n\n\nclass NodeInput(pydantic.BaseModel):\n"
         "    node_id: int\n\n\nclass FreeText(pydantic.BaseModel):\n    text: str\n"
     )
-    typed = {
-        **json.loads(args),
-        "task_id": "typed",
-        "contracts_path": str(shaped),
-        "input_schema": "contracts.py:NodeInput",
-        "input_json": '{"node_id": 5}',
-    }
-    assert delegate.run(json.dumps(typed), ctx).ok is True
+    typed = args.model_copy(
+        update={
+            "task_id": "typed",
+            "contracts_path": str(shaped),
+            "input_schema": "contracts.py:NodeInput",
+            "input_json": '{"node_id": 5}',
+        }
+    )
+    assert delegate.run(typed, ctx).ok is True
     written = (run_dir / "tasks" / "typed" / "spec.json").read_text()
     assert json.loads(written)["input"] == {"node_id": 5}
 
-    mismatched = {**typed, "task_id": "mismatched", "input_json": '{"node_id": "five"}'}
-    refused = delegate.run(json.dumps(mismatched), ctx)
+    mismatched = typed.model_copy(
+        update={"task_id": "mismatched", "input_json": '{"node_id": "five"}'}
+    )
+    refused = delegate.run(mismatched, ctx)
     assert refused.ok is False
     assert "node_id" in refused.error
     assert not (run_dir / "tasks" / "mismatched" / "spec.json").exists()
@@ -344,11 +373,11 @@ def test_survey_and_symbol_tools_report_structure_not_mentions(tmp_path: pathlib
     )
     (root / "user.py").write_text("from widget import Widget\n\nw = Widget()\nw.spin()\n")
 
-    stats = CodeStats().run(f'{{"roots": ["{root}"]}}', ctx)
+    stats = CodeStats().run(StatsArgs(roots=[root]), ctx)
     assert stats.ok is True
     assert "Python" in stats.path.read_text()
 
-    defined = FindSymbol().run(f'{{"roots": ["{root}"], "name": "Widget"}}', ctx)
+    defined = FindSymbol().run(SymbolArgs(roots=[root], name="Widget"), ctx)
     assert defined.ok is True
     lines = [l for l in defined.path.read_text().splitlines() if l.strip()]
     assert len(lines) == 1
@@ -356,14 +385,14 @@ def test_survey_and_symbol_tools_report_structure_not_mentions(tmp_path: pathlib
     assert "widget.py" in lines[0]
     assert "user.py" not in defined.path.read_text()
 
-    everything = FindSymbol().run(f'{{"roots": ["{root}"]}}', ctx)
+    everything = FindSymbol().run(SymbolArgs(roots=[root]), ctx)
     assert {l.split()[0] for l in everything.path.read_text().splitlines() if l.strip()} >= {
         "Widget",
         "spin",
         "make_widget",
     }
 
-    denied = CodeStats().run(f'{{"roots": ["{tmp_path / "elsewhere"}"]}}', ctx)
+    denied = CodeStats().run(StatsArgs(roots=[tmp_path / "elsewhere"]), ctx)
     assert denied.ok is False
 
 
@@ -373,27 +402,27 @@ def test_artifact_and_history_tools_read_what_read_file_cannot(tmp_path: pathlib
 
     binary = root / "blob.bin"
     binary.write_bytes(b"\x00\x01\x02CONNECTION_STRING_HERE\x00\xff" * 3)
-    kind = FileType().run(f'{{"path": "{binary}"}}', ctx)
+    kind = FileType().run(PathArg(path=binary), ctx)
     assert kind.ok is True
     assert kind.summary.strip() != ""
 
-    found = ExtractStrings().run(f'{{"path": "{binary}", "min_length": 8}}', ctx)
+    found = ExtractStrings().run(StringsArgs(path=binary, min_length=8), ctx)
     assert found.ok is True
     assert "CONNECTION_STRING_HERE" in found.path.read_text()
 
     doc = root / "graph.json"
     doc.write_text('{"nodes": [{"id": "a"}, {"id": "b"}]}')
-    ids = QueryJson().run(f'{{"path": "{doc}", "filter": ".nodes[].id"}}', ctx)
+    ids = QueryJson().run(QueryArgs(path=doc, filter=".nodes[].id"), ctx)
     assert ids.ok is True
     assert ids.path.read_text().split() == ["a", "b"]
 
-    unsafe = QueryJson().run(f'{{"path": "{doc}", "filter": "--version"}}', ctx)
+    unsafe = QueryJson().run(QueryArgs(path=doc, filter="--version"), ctx)
     assert unsafe.ok is False
     assert "may not begin with" in unsafe.error
 
     page = root / "note.md"
     page.write_text("# Title\n\nSome *emphasis*.\n")
-    converted = ConvertDocument().run(f'{{"path": "{page}", "to": "plain"}}', ctx)
+    converted = ConvertDocument().run(ConvertArgs(path=page, to=DocumentFormat.PLAIN), ctx)
     assert converted.ok is True
     assert "Title" in converted.path.read_text()
 
@@ -412,20 +441,18 @@ def test_git_history_reports_intent_and_refuses_option_injection(tmp_path: pathl
     ):
         run_command(["git", "-C", str(repo), *command[1:]])
 
-    log = GitHistory().run(f'{{"path": "{tracked}", "operation": "log"}}', ctx)
+    log = GitHistory().run(HistoryArgs(path=tracked, operation=GitOperation.LOG), ctx)
     assert log.ok is True
     assert "workaround for a vendor bug" in log.path.read_text()
 
-    blame = GitHistory().run(f'{{"path": "{tracked}", "operation": "blame"}}', ctx)
+    blame = GitHistory().run(HistoryArgs(path=tracked, operation=GitOperation.BLAME), ctx)
     assert blame.ok is True
     assert "x = 1" in blame.path.read_text()
 
     with pytest.raises(pydantic.ValidationError):
-        GitHistory().run(
-            f'{{"path": "{tracked}", "operation": "show", "rev": "--upload-pack=x"}}', ctx
-        )
+        HistoryArgs(path=tracked, operation=GitOperation.SHOW, rev="--upload-pack=x")
 
-    missing = GitHistory().run(f'{{"path": "{tracked}", "operation": "show"}}', ctx)
+    missing = GitHistory().run(HistoryArgs(path=tracked, operation=GitOperation.SHOW), ctx)
     assert missing.ok is False
     assert "needs a rev" in missing.error
 
@@ -440,20 +467,20 @@ def test_tree_walking_tools_all_honour_gitignore(tmp_path: pathlib.Path):
     (root / "src" / "real.py").write_text("def real_thing(): pass\n")
     (root / "vendored" / "dep.py").write_text("def vendored_thing(): pass\n")
 
-    symbols = FindSymbol().run(f'{{"roots": ["{root}"]}}', ctx).path.read_text()
+    symbols = FindSymbol().run(SymbolArgs(roots=[root]), ctx).path.read_text()
     assert "real_thing" in symbols
     assert "vendored_thing" not in symbols
 
-    matches = Ripgrep().run(f'{{"pattern": "thing", "roots": ["{root}"]}}', ctx).path.read_text()
+    matches = Ripgrep().run(GrepArgs(pattern="thing", roots=[root]), ctx).path.read_text()
     assert "real.py" in matches
     assert "dep.py" not in matches
 
-    counted = CodeStats().run(f'{{"roots": ["{root}"], "by_file": true}}', ctx).path.read_text()
+    counted = CodeStats().run(StatsArgs(roots=[root], by_file=True), ctx).path.read_text()
     assert "real.py" in counted
     assert "dep.py" not in counted
 
     structural = (
-        AstGrep().run(f'{{"pattern": "def $N(): pass", "roots": ["{root}"]}}', ctx).path.read_text()
+        AstGrep().run(GrepArgs(pattern="def $N(): pass", roots=[root]), ctx).path.read_text()
     )
     assert "real.py" in structural
     assert "dep.py" not in structural
@@ -470,12 +497,10 @@ def test_tree_walking_tools_honour_gitignore_outside_a_repository(tmp_path: path
     assert not (root / ".git").exists()
 
     for text in (
-        Ripgrep().run(f'{{"pattern": "thing", "roots": ["{root}"]}}', ctx).path.read_text(),
-        FindSymbol().run(f'{{"roots": ["{root}"]}}', ctx).path.read_text(),
-        AstGrep()
-        .run(f'{{"pattern": "def $N(): pass", "roots": ["{root}"]}}', ctx)
-        .path.read_text(),
-        CodeStats().run(f'{{"roots": ["{root}"], "by_file": true}}', ctx).path.read_text(),
+        Ripgrep().run(GrepArgs(pattern="thing", roots=[root]), ctx).path.read_text(),
+        FindSymbol().run(SymbolArgs(roots=[root]), ctx).path.read_text(),
+        AstGrep().run(GrepArgs(pattern="def $N(): pass", roots=[root]), ctx).path.read_text(),
+        CodeStats().run(StatsArgs(roots=[root], by_file=True), ctx).path.read_text(),
     ):
         assert "dep.py" not in text
         assert "vendored_thing" not in text
@@ -492,16 +517,14 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     collect = CollectTask(run_dir=run_dir)
 
     def queue(task_id: str) -> int:
-        args = json.dumps(
-            {
-                "task_id": task_id,
-                "behaviour": "b",
-                "goal": "g",
-                "input_json": '{"text": "go"}',
-                "answer_schema": "contracts.py:FreeText",
-                "turns": 3,
-                "tool_calls": 5,
-            }
+        args = DelegateArgs(
+            task_id=task_id,
+            behaviour="b",
+            goal="g",
+            input_json='{"text": "go"}',
+            answer_schema="contracts.py:FreeText",
+            turns=3,
+            tool_calls=5,
         )
         assert delegate.run(args, ctx).ok is True
         return int(Bus.open(run_dir / "bus.db").active_for(run_dir / "tasks" / task_id)[0].agent)
@@ -512,7 +535,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     broken = queue("broken")
     asked = queue("asked")
 
-    pending = collect.run(json.dumps({"task": unfinished}), ctx)
+    pending = collect.run(TaskArgs(task=unfinished), ctx)
     assert pending.ok is False
     assert "no outcome yet" in pending.error
 
@@ -521,14 +544,14 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
             value=FreeText(text="the finding"), summary="done", spent=spent
         ).model_dump_json()
     )
-    got = collect.run(json.dumps({"task": answered}), ctx)
+    got = collect.run(TaskArgs(task=answered), ctx)
     assert got.ok is True
     assert json.loads(got.path.read_text()) == {"text": "the finding"}
 
     (run_dir / "tasks" / "broken" / "outcome.json").write_text(
         Failed(error="ImportError: no module", summary="died", spent=spent).model_dump_json()
     )
-    died = collect.run(json.dumps({"task": broken}), ctx)
+    died = collect.run(TaskArgs(task=broken), ctx)
     assert died.ok is False
     assert "failed" in died.error
     assert "ImportError: no module" in died.error
@@ -536,6 +559,6 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     (run_dir / "tasks" / "asked" / "outcome.json").write_text(
         NeedsInput(question="which caption?", summary="stuck", spent=spent).model_dump_json()
     )
-    stuck = collect.run(json.dumps({"task": asked}), ctx)
+    stuck = collect.run(TaskArgs(task=asked), ctx)
     assert stuck.ok is False
     assert "which caption?" in stuck.error

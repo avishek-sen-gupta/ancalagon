@@ -15,7 +15,7 @@ SUFFIX = {
 }
 
 
-class ConvertDocument(Tool):
+class ConvertDocument(Tool[ConvertArgs]):
     name = "convert_document"
     description = (
         "Convert a document -- docx, odt, epub, rtf, latex, html and others -- into "
@@ -25,8 +25,7 @@ class ConvertDocument(Tool):
     cost = 1
     args_model = ConvertArgs
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = ConvertArgs.model_validate_json(arguments)
+    def run(self, args: ConvertArgs, ctx: ToolContext) -> ToolResult:
         try:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:

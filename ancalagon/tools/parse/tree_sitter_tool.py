@@ -26,14 +26,13 @@ def _walk(node: tree_sitter.Node) -> list[AstNode]:
     return [_node_of(node)] + [n for child in node.children for n in _walk(child)]
 
 
-class TreeSitter(Tool):
+class TreeSitter(Tool[ParseArgs]):
     name = "treesitter"
     description = "Parse a source file and emit its AST nodes as JSON."
     cost = 1
     args_model = ParseArgs
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = ParseArgs.model_validate_json(arguments)
+    def run(self, args: ParseArgs, ctx: ToolContext) -> ToolResult:
         if args.language not in LANGUAGES:
             return ctx.failure(self.name, f"unsupported language {args.language}")
         try:

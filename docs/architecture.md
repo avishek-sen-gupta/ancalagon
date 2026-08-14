@@ -110,11 +110,12 @@ Invoked as `python -m ancalagon.worker --run-dir … --dir … --agent-id … --
 
 `main` opens the transcript **first**, so even a failure mid-setup leaves a record, then:
 
-1. Reads `spec.json` as `TaskSpec` — the scalars only. The `input` is pulled out separately
-   as text by `contracts/input_json.py`, because the worker cannot know its class.
-2. `contracts/resolve.py` takes the spec's `answer_schema` — a reference of the form
-   `contracts.py:ClassName` — imports that module and returns the class, refusing any path
-   outside the task directory.
+1. Reads `spec.json` as `TaskSpec` — the scalars only, since the `input`'s class is named by
+   the file itself and so cannot be known before reading it.
+2. `contracts/resolve.py` takes the spec's `answer_schema` and `input_schema` — references of
+   the form `contracts.py:ClassName` — imports that module and returns each class, refusing
+   any path outside the task directory. The spec is then re-read as `AgentSpec[input_class]`,
+   so the `Session` is handed a validated model rather than text.
 3. If a `transcript.jsonl` already exists, `transcript/history.py` loads and **repairs** it:
    a transcript ending in an unanswered tool call is rejected by the API, so interrupted
    calls get synthetic error results. This is the whole of resumption — there is no
@@ -178,24 +179,30 @@ Four things worth knowing:
 
 ### 5. Calling a tool — `ancalagon/tools/`
 
-`registry/registry.py` maps the model's tool name to an object. Every tool declares
-`args_model`, and `Tool.schema()` builds its wire schema from it, so the model a tool's raw
-JSON validates against is part of the protocol rather than a detail inside each tool.
+`Tool` is generic in its arguments: `Ripgrep` is a `Tool[GrepArgs]` and its `run` takes a
+`GrepArgs`. **No tool ever sees a string.**
 
-`run` still takes `str`, and it has to. The registry holds one heterogeneous collection, so
-`run`'s signature must be one the dispatcher can name — and `run` consumes its arguments,
-which makes the parameter contravariant, so `Tool[DelegateArgs]` is not a `Tool[BaseModel]`
-and a generic protocol will not type. `submit_answer` settles it anyway: its model is a
-class the parent agent wrote at runtime, which has no static name at all. The string is the
-one type all 21 share, and each tool narrows on `run`'s first line.
+The registry cannot hold those directly. `run` consumes its argument, so the parameter is
+contravariant and `Tool[GrepArgs]` is not a `Tool[BaseModel]`; a mixed list has no element
+type to name. Enumerating them as a union fails too, because `submit_answer`'s model is a
+class the parent agent wrote at runtime and has no name to write down.
+
+`registry/bind_tool.py` resolves it. It is a **generic function**, so inside it `ArgsT` is
+one concrete type — `args_model.model_validate_json(text)` returns exactly what `run`
+accepts — and it returns a non-generic `BoundTool` holding a closure. The type parameter
+lives in a scope instead of in a field, which is the one place it can live. That closure is
+the single site where a tool call's JSON text becomes a model; there were twenty-one before.
+
+A malformed argument therefore raises inside `invoke`, and `_run_tools` turns it into an
+error result the model reads and corrects — identically for every tool, including
+`submit_answer`, which used to catch its own.
 
 Each tool then:
 
-1. Validates its own arguments from the raw JSON string into a private Pydantic model. This
-   is why no `Any` appears in the tool layer — the registry never sees a parsed structure.
-   A constraint belongs on the field rather than in `run`: `schema_of` builds the tool schema
-   from the same model, so a `pattern`, a `default` and a `description` are shown to the model
-   before it calls, while a hand-rolled check in `run` can only report after it has. The two
+1. Receives its arguments already validated. A constraint belongs on the args model rather
+   than in `run`: `schema_of` builds the tool schema from that same model, so a `pattern`, a
+   `default` and a `description` are shown to the model before it calls, while a hand-rolled
+   check in `run` can only report after it has. The two
    are not equivalent — `delegate`'s `answer_schema` was checked in `run` and the model,
    seeing a bare string, guessed wrong six times in one turn. It was called `output` then,
    which is most of why: it names the class a child must answer in, and a field called

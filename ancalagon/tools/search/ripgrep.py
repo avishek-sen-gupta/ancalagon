@@ -7,7 +7,7 @@ from ancalagon.tools.search.run_command import run_command
 from ancalagon.workspace.scope_error import ScopeError
 
 
-class Ripgrep(Tool):
+class Ripgrep(Tool[GrepArgs]):
     name = "ripgrep"
     description = (
         "Search files by regular expression. Returns path:line:text per match. "
@@ -16,8 +16,7 @@ class Ripgrep(Tool):
     cost = 1
     args_model = GrepArgs
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = GrepArgs.model_validate_json(arguments)
+    def run(self, args: GrepArgs, ctx: ToolContext) -> ToolResult:
         try:
             roots = [str(ctx.workspace.resolve_read(r)) for r in args.roots]
         except ScopeError as exc:

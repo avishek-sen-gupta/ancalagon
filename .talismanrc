@@ -18,7 +18,7 @@ fileignoreconfig:
 - filename: tests/unit/test_config_load.py
   checksum: f4624a41022a6ac8f37af41149ac0b0d871edff7b99b211a9b93a8acaf21ff17
 - filename: tests/unit/test_tools.py
-  checksum: 1007c29aab48d45e48f26f6b0f5f83155a2d15526ee727d8a2cf197f0a6e9a15
+  checksum: ed9c919d580ae0f2f7151fabd8ba18fc779fb8cf8c74a0a3703f3563bcf2350c
 - filename: tests/unit/test_llm_adapter.py
   checksum: 4e349117cdce70f4e5826b48679943272b44c242b322bb29daaad176a363a1c0
 - filename: ancalagon/tools/submit/submit_answer.py

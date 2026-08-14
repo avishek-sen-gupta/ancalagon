@@ -7,14 +7,13 @@ from ancalagon.tools.search.sed_args import SedArgs
 from ancalagon.workspace.scope_error import ScopeError
 
 
-class Sed(Tool):
+class Sed(Tool[SedArgs]):
     name = "sed"
     description = "Apply a sed script to a file and write the transformed stream to a new file."
     cost = 1
     args_model = SedArgs
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = SedArgs.model_validate_json(arguments)
+    def run(self, args: SedArgs, ctx: ToolContext) -> ToolResult:
         try:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
