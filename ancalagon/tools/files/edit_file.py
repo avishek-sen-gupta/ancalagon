@@ -1,7 +1,5 @@
 # Replaces an exact substring, refusing anything outside the workspace write root.
 from ancalagon.contracts.tool_result import ToolResult
-from ancalagon.llm.schema_of import schema_of
-from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.files.edit_args import EditArgs
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -12,9 +10,7 @@ class EditFile(Tool):
     name = "edit_file"
     description = "Replace an exact substring in a file inside the workspace write root."
     cost = 1
-
-    def schema(self) -> ToolSchema:
-        return schema_of(self.name, self.description, EditArgs)
+    args_model = EditArgs
 
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
         args = EditArgs.model_validate_json(arguments)

@@ -1,7 +1,5 @@
 # Queries a JSON or JSONL file with jq, so a large document need not be read whole.
 from ancalagon.contracts.tool_result import ToolResult
-from ancalagon.llm.schema_of import schema_of
-from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.artifacts.query_args import QueryArgs
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -17,9 +15,7 @@ class QueryJson(Tool):
         "is JSONL. Example filters: '.nodes[].id', 'keys', '.[] | select(.kind)'."
     )
     cost = 1
-
-    def schema(self) -> ToolSchema:
-        return schema_of(self.name, self.description, QueryArgs)
+    args_model = QueryArgs
 
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
         args = QueryArgs.model_validate_json(arguments)

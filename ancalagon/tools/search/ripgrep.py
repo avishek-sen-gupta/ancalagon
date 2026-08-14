@@ -1,7 +1,5 @@
 # Regex search. Compact path:line:text by default; structured=true for JSON records.
 from ancalagon.contracts.tool_result import ToolResult
-from ancalagon.llm.schema_of import schema_of
-from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.grep_args import GrepArgs
@@ -16,9 +14,7 @@ class Ripgrep(Tool):
         "Set structured=true for one JSON record per match instead."
     )
     cost = 1
-
-    def schema(self) -> ToolSchema:
-        return schema_of(self.name, self.description, GrepArgs)
+    args_model = GrepArgs
 
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
         args = GrepArgs.model_validate_json(arguments)

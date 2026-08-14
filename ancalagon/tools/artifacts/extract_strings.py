@@ -1,7 +1,5 @@
 # Pulls printable runs out of a binary: the fastest way to guess what one does.
 from ancalagon.contracts.tool_result import ToolResult
-from ancalagon.llm.schema_of import schema_of
-from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.artifacts.strings_args import StringsArgs
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -17,9 +15,7 @@ class ExtractStrings(Tool):
         "reveal what the thing does."
     )
     cost = 1
-
-    def schema(self) -> ToolSchema:
-        return schema_of(self.name, self.description, StringsArgs)
+    args_model = StringsArgs
 
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
         args = StringsArgs.model_validate_json(arguments)

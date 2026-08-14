@@ -178,7 +178,18 @@ Four things worth knowing:
 
 ### 5. Calling a tool — `ancalagon/tools/`
 
-`registry/registry.py` maps the model's tool name to an object. Each tool then:
+`registry/registry.py` maps the model's tool name to an object. Every tool declares
+`args_model`, and `Tool.schema()` builds its wire schema from it, so the model a tool's raw
+JSON validates against is part of the protocol rather than a detail inside each tool.
+
+`run` still takes `str`, and it has to. The registry holds one heterogeneous collection, so
+`run`'s signature must be one the dispatcher can name — and `run` consumes its arguments,
+which makes the parameter contravariant, so `Tool[DelegateArgs]` is not a `Tool[BaseModel]`
+and a generic protocol will not type. `submit_answer` settles it anyway: its model is a
+class the parent agent wrote at runtime, which has no static name at all. The string is the
+one type all 21 share, and each tool narrows on `run`'s first line.
+
+Each tool then:
 
 1. Validates its own arguments from the raw JSON string into a private Pydantic model. This
    is why no `Any` appears in the tool layer — the registry never sees a parsed structure.

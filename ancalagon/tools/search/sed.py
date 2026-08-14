@@ -1,7 +1,5 @@
 # Stream-only transformation. Never -i, so it cannot mutate an artifact under analysis.
 from ancalagon.contracts.tool_result import ToolResult
-from ancalagon.llm.schema_of import schema_of
-from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.run_command import run_command
@@ -13,9 +11,7 @@ class Sed(Tool):
     name = "sed"
     description = "Apply a sed script to a file and write the transformed stream to a new file."
     cost = 1
-
-    def schema(self) -> ToolSchema:
-        return schema_of(self.name, self.description, SedArgs)
+    args_model = SedArgs
 
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
         args = SedArgs.model_validate_json(arguments)
