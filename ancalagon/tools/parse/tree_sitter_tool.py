@@ -1,10 +1,10 @@
 # Parses a source file to a flat list of AST nodes as JSON.
-import json
-
+import pydantic
 import tree_sitter
 import tree_sitter_python
 
 from ancalagon.contracts.tool_result import ToolResult
+from ancalagon.tools.parse.ast_node import AstNode
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.parse.parse_args import ParseArgs
@@ -14,20 +14,17 @@ from ancalagon.workspace.scope_error import ScopeError
 LANGUAGES = {"python": tree_sitter_python.language}
 
 
-def _node_to_dict(node: tree_sitter.Node) -> dict[str, str | int | list[str]]:
-    return {
-        "type": node.type,
-        "start_byte": node.start_byte,
-        "end_byte": node.end_byte,
-        "children": [c.type for c in node.children],
-    }
+def _node_of(node: tree_sitter.Node) -> AstNode:
+    return AstNode(
+        type=node.type,
+        start_byte=node.start_byte,
+        end_byte=node.end_byte,
+        children=[c.type for c in node.children],
+    )
 
 
-def _walk(node: tree_sitter.Node) -> list[dict[str, str | int | list[str]]]:
-    collected = [_node_to_dict(node)]
-    for child in node.children:
-        collected.extend(_walk(child))
-    return collected
+def _walk(node: tree_sitter.Node) -> list[AstNode]:
+    return [_node_of(node)] + [n for child in node.children for n in _walk(child)]
 
 
 class TreeSitter:
@@ -49,4 +46,5 @@ class TreeSitter:
         language = tree_sitter.Language(LANGUAGES[args.language]())
         parser = tree_sitter.Parser(language)
         tree = parser.parse(path.read_bytes())
-        return ctx.result(self.name, json.dumps(_walk(tree.root_node), indent=2), ".json")
+        nodes = pydantic.TypeAdapter(list[AstNode]).dump_json(_walk(tree.root_node), indent=2)
+        return ctx.result(self.name, nodes.decode(), ".json")
