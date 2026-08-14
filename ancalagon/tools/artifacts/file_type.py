@@ -3,12 +3,13 @@ from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.artifacts.path_arg import PathArg
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.run_command import run_command
 from ancalagon.workspace.scope_error import ScopeError
 
 
-class FileType:
+class FileType(Tool):
     name = "file_type"
     description = (
         "Identify what a file is -- text, binary, archive, image, database -- before "

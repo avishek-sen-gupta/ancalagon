@@ -8,6 +8,7 @@ from ancalagon.tools.parse.ast_node import AstNode
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.parse.parse_args import ParseArgs
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.scope_error import ScopeError
 
@@ -27,7 +28,7 @@ def _walk(node: tree_sitter.Node) -> list[AstNode]:
     return [_node_of(node)] + [n for child in node.children for n in _walk(child)]
 
 
-class TreeSitter:
+class TreeSitter(Tool):
     name = "treesitter"
     description = "Parse a source file and emit its AST nodes as JSON."
     cost = 1

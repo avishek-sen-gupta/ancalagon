@@ -3,12 +3,13 @@ from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.files.path_args import PathArgs
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.workspace.workspace import missing_hint
 
 
-class ListDir:
+class ListDir(Tool):
     name = "list_dir"
     description = "List a directory inside the configured read roots."
     cost = 1

@@ -6,10 +6,11 @@ from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.delegate.task_args import TaskArgs
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 
 
-class CheckTask:
+class CheckTask(Tool):
     name = "check_task"
     description = "Report the status of a delegated task without waiting. This does not consume your tool-call budget."
     cost = 0

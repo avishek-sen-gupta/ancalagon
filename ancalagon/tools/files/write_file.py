@@ -3,11 +3,12 @@ from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.files.write_args import WriteArgs
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.scope_error import ScopeError
 
 
-class WriteFile:
+class WriteFile(Tool):
     name = "write_file"
     description = "Write a file inside the workspace write root."
     cost = 1

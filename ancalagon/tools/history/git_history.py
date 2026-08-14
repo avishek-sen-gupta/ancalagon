@@ -4,13 +4,14 @@ from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.history.git_operation import GitOperation
 from ancalagon.tools.history.history_args import HistoryArgs
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.run_command import run_command
 from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.workspace.workspace import missing_hint
 
 
-class GitHistory:
+class GitHistory(Tool):
     name = "git_history"
     description = (
         "Ask git why a file looks the way it does. log lists the commits that touched "
