@@ -13,8 +13,8 @@ from ancalagon.transcript.transcript import Transcript
 def answer_task(run_dir: pathlib.Path, agent: int, answer: str, answered_by: int) -> int:
     bus = Bus.open(run_dir / "bus.db")
     state = bus.state(agent)
-    if state.status is not AgentStatus.NEEDS_INPUT:
-        raise ValueError(f"agent {agent} is {state.status.value}, not needs_input")
+    if not any(e.status is AgentStatus.NEEDS_INPUT for e in bus.history(agent)):
+        raise ValueError(f"agent {agent} is {state.status.value} and never asked a question")
     task_dir = pathlib.Path(state.dir)
     active = bus.active_for(task_dir)
     if active:

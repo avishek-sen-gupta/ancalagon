@@ -242,8 +242,12 @@ long since decided. A parent that cannot answer calls `need_input` itself, which
 question up to the root and out to you; your answer then flows back down. Questions bubble
 up, answers flow down, and the machinery is one append and one enqueue.
 
-Answering refuses unless that agent is the one that asked **and** its task has no live agent,
-so a question cannot be answered twice into two competing resumptions. `delegate/` writes a child's `spec.json` and enqueues it — it does not spawn;
+Answering refuses unless the agent's history **contains** a `needs_input` event and its task
+has no live agent, so a question cannot be answered twice into two competing resumptions.
+Note *contains*, not *ends with*: the worker records `needs_input` and the supervisor then
+records `exited`, so an agent that asked a question has `exited` as its latest status. A
+guard reading the latest status refuses every real agent, and only a test running actual
+worker processes reveals it. `delegate/` writes a child's `spec.json` and enqueues it — it does not spawn;
 the supervisor does.
 
 ### 6. Talking to a provider — `ancalagon/llm/`
