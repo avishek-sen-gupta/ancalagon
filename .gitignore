@@ -30,3 +30,6 @@ output/
 # TLA+ model checking artefacts
 specs/**/states/
 *.toolbox
+
+# JetBrains
+.idea/
