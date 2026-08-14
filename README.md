@@ -139,12 +139,21 @@ No comments beyond a one-line header. See `CLAUDE.md`.
 ```bash
 uv run pytest tests/unit          # no network
 uv run pytest tests/integration   # spawns real worker subprocesses
-ANCALAGON_LIVE=1 uv run pytest tests/integration   # also calls a real model
+ANCALAGON_LIVE=1 uv run pytest tests/integration            # also calls a real model
+ANCALAGON_LOCAL_MODEL=ollama_chat/qwen2.5:14b uv run pytest tests/integration
 ```
 
-The integration suite's offline test exercises the whole pipeline — CLI, bus,
-supervisor, worker subprocess, outcome and stderr capture — up to the model
-boundary, without a credential.
+The integration suite's offline tests exercise the whole pipeline — CLI, bus,
+supervisor, worker subprocess, outcome and stderr capture — without a credential.
+`tests/integration/scripted_model.py` serves an OpenAI-shaped endpoint from a script
+keyed on each agent's goal, so real worker processes can be driven through an exact
+sequence: `test_scripted_escalation.py` runs a whole delegate-ask-escalate-answer-resume
+cycle in nine seconds, deterministically.
+
+The two gated tests answer different questions. `ANCALAGON_LIVE` asks whether a funded
+model can do the work; `ANCALAGON_LOCAL_MODEL` asks whether a real provider accepts a
+resumed transcript — one that ends with an answer to a question the agent asked — and
+carries on from it. No fake can settle that, and a local model settles it for free.
 
 ## Design
 
