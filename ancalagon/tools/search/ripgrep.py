@@ -27,7 +27,7 @@ class Ripgrep:
             return ctx.failure(self.name, str(exc))
         flags = ["--json"] if args.structured else ["--line-number", "--no-heading"]
         flags.append("--no-require-git")
-        code, out, err = run_command(["rg", *flags, args.pattern, *roots])
+        code, out, err = run_command(["rg", *flags, "-e", args.pattern, "--", *roots])
         if code not in (0, 1):
             return ctx.failure(self.name, err)
         return ctx.result(self.name, out, ".jsonl" if args.structured else ".txt")

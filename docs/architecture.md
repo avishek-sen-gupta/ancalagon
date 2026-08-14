@@ -176,6 +176,13 @@ Four things worth knowing:
 3. Writes its full output to a file under the task's `tools/` directory and returns a
    `ToolResult` carrying a capped summary and that path.
 
+A tool that shells out has a fourth obligation: **a model-supplied string never reaches
+argv where the child would read it as an option.** `ripgrep` and `sed` pass theirs behind
+`-e` and terminate options with `--`; `query_json` and `git_history` refuse a leading dash
+at the boundary instead, because a jq filter and a git rev have no legitimate reason to
+begin with one, while a regex does. Without this, `rg --pre=<cmd>` is arbitrary execution
+outside every root the workspace declares.
+
 The session puts the summary and the path into the tool result the model sees. Large output
 never enters the context; the model reads it with `read_file` if it wants to.
 
