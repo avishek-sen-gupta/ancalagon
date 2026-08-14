@@ -19,6 +19,7 @@ from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.unanswered import Unanswered
 from ancalagon.llm.llm import LLM
 from ancalagon.llm.meter import Meter
 from ancalagon.llm.unmetered import Unmetered
@@ -185,11 +186,10 @@ class Session:
         if uses:
             offered = uses[0].arguments
             self._run_tools(uses)
-            submitted = self.submit.answer_json
-            if submitted:
+            if not isinstance(self.submit.answer, Unanswered):
                 return Exhausted(
-                    value=self.output_class.model_validate_json(submitted),
-                    summary=submitted[:200],
+                    value=self.submit.answer,
+                    summary=self.submit.answer.model_dump_json()[:200],
                     spent=self._spent(),
                 )
         text = self._answer_of(reply)
@@ -217,11 +217,10 @@ class Session:
                 asked = self.need_input.question
                 if asked:
                     return NeedsInput(question=asked, summary=asked[:200], spent=self._spent())
-                submitted = self.submit.answer_json
-                if submitted:
+                if not isinstance(self.submit.answer, Unanswered):
                     return Completed(
-                        value=self.output_class.model_validate_json(submitted),
-                        summary=submitted[:200],
+                        value=self.submit.answer,
+                        summary=self.submit.answer.model_dump_json()[:200],
                         spent=self._spent(),
                     )
                 continue
