@@ -7,14 +7,13 @@ from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.workspace.workspace import missing_hint
 
 
-class ListDir(Tool):
+class ListDir(Tool[PathArgs]):
     name = "list_dir"
     description = "List a directory inside the configured read roots."
     cost = 1
     args_model = PathArgs
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = PathArgs.model_validate_json(arguments)
+    def run(self, args: PathArgs, ctx: ToolContext) -> ToolResult:
         try:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:

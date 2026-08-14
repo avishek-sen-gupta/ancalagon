@@ -34,7 +34,8 @@ from ancalagon.tools.history.git_history import GitHistory
 from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
 from ancalagon.tools.registry.registry import Registry
-from ancalagon.tools.registry.tool import Tool
+from ancalagon.tools.registry.bind_tool import bind_tool
+from ancalagon.tools.registry.bound_tool import BoundTool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.search.ast_grep import AstGrep
@@ -57,28 +58,28 @@ def build_registry(
     submit: SubmitAnswer,
     need_input: NeedInput,
 ) -> Registry:
-    available: list[Tool] = [
-        ReadFile(),
-        WriteFile(),
-        EditFile(),
-        DeleteFile(),
-        ListDir(),
-        Ripgrep(),
-        AstGrep(),
-        Sed(),
-        FindSymbol(),
-        CodeStats(),
-        FileType(),
-        ExtractStrings(),
-        ConvertDocument(),
-        QueryJson(),
-        GitHistory(),
-        TreeSitter(),
-        Delegate(run_dir=run_dir, parent=parent),
-        CheckTask(run_dir=run_dir),
-        CollectTask(run_dir=run_dir),
-        need_input,
-        submit,
+    available: list[BoundTool] = [
+        bind_tool(ReadFile()),
+        bind_tool(WriteFile()),
+        bind_tool(EditFile()),
+        bind_tool(DeleteFile()),
+        bind_tool(ListDir()),
+        bind_tool(Ripgrep()),
+        bind_tool(AstGrep()),
+        bind_tool(Sed()),
+        bind_tool(FindSymbol()),
+        bind_tool(CodeStats()),
+        bind_tool(FileType()),
+        bind_tool(ExtractStrings()),
+        bind_tool(ConvertDocument()),
+        bind_tool(QueryJson()),
+        bind_tool(GitHistory()),
+        bind_tool(TreeSitter()),
+        bind_tool(Delegate(run_dir=run_dir, parent=parent)),
+        bind_tool(CheckTask(run_dir=run_dir)),
+        bind_tool(CollectTask(run_dir=run_dir)),
+        bind_tool(need_input),
+        bind_tool(submit),
     ]
     enabled = set(config.tools)
     unknown = enabled - {t.name for t in available}

@@ -8,7 +8,7 @@ from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 
 
-class CheckTask(Tool):
+class CheckTask(Tool[TaskArgs]):
     name = "check_task"
     description = "Report the status of a delegated task without waiting. This does not consume your tool-call budget."
     cost = 0
@@ -17,8 +17,7 @@ class CheckTask(Tool):
     def __init__(self, run_dir: pathlib.Path):
         self.run_dir = run_dir
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = TaskArgs.model_validate_json(arguments)
+    def run(self, args: TaskArgs, ctx: ToolContext) -> ToolResult:
         try:
             state = Bus.open(self.run_dir / "bus.db").state(args.task)
         except KeyError as exc:

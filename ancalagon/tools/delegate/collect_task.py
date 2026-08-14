@@ -23,7 +23,7 @@ def _detail(outcome: Outcome) -> str:
     return outcome.summary
 
 
-class CollectTask(Tool):
+class CollectTask(Tool[TaskArgs]):
     name = "collect_task"
     description = (
         "Read a finished task's answer. Returns the answer itself, not a wrapper. "
@@ -35,8 +35,7 @@ class CollectTask(Tool):
     def __init__(self, run_dir: pathlib.Path):
         self.run_dir = run_dir
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = TaskArgs.model_validate_json(arguments)
+    def run(self, args: TaskArgs, ctx: ToolContext) -> ToolResult:
         try:
             state = Bus.open(self.run_dir / "bus.db").state(args.task)
         except KeyError as exc:

@@ -13,7 +13,7 @@ from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 
 
-class Delegate(Tool):
+class Delegate(Tool[DelegateArgs]):
     name = "delegate"
     description = (
         "Queue a subagent task. Returns its task id immediately without waiting. "
@@ -27,8 +27,7 @@ class Delegate(Tool):
         self.run_dir = run_dir
         self.parent = parent
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = DelegateArgs.model_validate_json(arguments)
+    def run(self, args: DelegateArgs, ctx: ToolContext) -> ToolResult:
         task_dir = self.run_dir / "tasks" / args.task_id
         bus = Bus.open(self.run_dir / "bus.db")
         active = bus.active_for(task_dir)

@@ -7,7 +7,7 @@ from ancalagon.tools.search.run_command import run_command
 from ancalagon.workspace.scope_error import ScopeError
 
 
-class FileType(Tool):
+class FileType(Tool[PathArg]):
     name = "file_type"
     description = (
         "Identify what a file is -- text, binary, archive, image, database -- before "
@@ -16,8 +16,7 @@ class FileType(Tool):
     cost = 1
     args_model = PathArg
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = PathArg.model_validate_json(arguments)
+    def run(self, args: PathArg, ctx: ToolContext) -> ToolResult:
         try:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:

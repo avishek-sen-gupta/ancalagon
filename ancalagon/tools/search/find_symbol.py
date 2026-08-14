@@ -25,7 +25,7 @@ VENDOR = (
 )
 
 
-class FindSymbol(Tool):
+class FindSymbol(Tool[SymbolArgs]):
     name = "find_symbol"
     description = (
         "Find where a symbol is defined, as name, kind, line, file and the declaring "
@@ -35,8 +35,7 @@ class FindSymbol(Tool):
     cost = 1
     args_model = SymbolArgs
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = SymbolArgs.model_validate_json(arguments)
+    def run(self, args: SymbolArgs, ctx: ToolContext) -> ToolResult:
         try:
             roots = [str(ctx.workspace.resolve_read(r)) for r in args.roots]
         except ScopeError as exc:

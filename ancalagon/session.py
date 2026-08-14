@@ -23,6 +23,7 @@ from ancalagon.contracts.unanswered import Unanswered
 from ancalagon.llm.llm import LLM
 from ancalagon.llm.meter import Meter
 from ancalagon.llm.unmetered import Unmetered
+from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.need_input.need_input import NeedInput
@@ -160,7 +161,7 @@ class Session:
                 continue
             self.remaining = self.remaining.spend_tool_calls(tool.cost)
             try:
-                result = tool.run(use.arguments, self.ctx)
+                result = tool.invoke(use.arguments, self.ctx)
             except Exception as exc:
                 LOGGER.warning("tool %s raised: %s", use.name, exc)
                 result = self.ctx.failure(use.name, f"{type(exc).__name__}: {exc}")
@@ -179,7 +180,8 @@ class Session:
         if self.messages and self.messages[-1].role is Role.USER:
             self._record(Role.ASSISTANT, [Text(text="Understood.")])
         self._record(Role.USER, [Text(text=FINAL_INSTRUCTION)])
-        reply = self._complete([self.submit.schema()], force_tool=self.submit.name)
+        offer = schema_of(self.submit.name, self.submit.description, self.submit.args_model)
+        reply = self._complete([offer], force_tool=self.submit.name)
         self._record(Role.ASSISTANT, reply.blocks)
         uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
         offered = ""

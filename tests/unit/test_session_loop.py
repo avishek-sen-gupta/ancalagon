@@ -20,6 +20,7 @@ from ancalagon.session import Session
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
+from ancalagon.tools.registry.bind_tool import bind_tool
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.transcript.transcript import Transcript
@@ -61,7 +62,7 @@ def _session(
         transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
         llm=FakeLLM(replies),
-        registry=Registry([ReadFile(), need_input, submit]),
+        registry=Registry([bind_tool(ReadFile()), bind_tool(need_input), bind_tool(submit)]),
         ctx=ctx,
         output_class=Verdict,
         submit=submit,
@@ -229,7 +230,9 @@ def test_session_completes_from_a_submit_answer_tool_call(tmp_path: pathlib.Path
     second = rejected.run()
     assert isinstance(second, Completed)
     assert second.value.model_dump() == {"answer": "second try"}
-    assert "did not match the schema" in (tmp_path / "bad" / "transcript.jsonl").read_text()
+    refusal = (tmp_path / "bad" / "transcript.jsonl").read_text()
+    assert "ValidationError" in refusal
+    assert "Field required" in refusal
 
 
 def test_a_zero_cost_tool_still_works_with_no_tool_call_budget_left(tmp_path: pathlib.Path):

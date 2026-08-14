@@ -7,7 +7,7 @@ from ancalagon.tools.survey.stats_args import StatsArgs
 from ancalagon.workspace.scope_error import ScopeError
 
 
-class CodeStats(Tool):
+class CodeStats(Tool[StatsArgs]):
     name = "code_stats"
     description = (
         "Survey a tree before reading it: languages, file and line counts, and an "
@@ -17,8 +17,7 @@ class CodeStats(Tool):
     cost = 1
     args_model = StatsArgs
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = StatsArgs.model_validate_json(arguments)
+    def run(self, args: StatsArgs, ctx: ToolContext) -> ToolResult:
         try:
             roots = [str(ctx.workspace.resolve_read(r)) for r in args.roots]
         except ScopeError as exc:

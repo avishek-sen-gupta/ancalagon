@@ -7,7 +7,7 @@ from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.workspace.workspace import missing_hint
 
 
-class ReadFile(Tool):
+class ReadFile(Tool[ReadArgs]):
     name = "read_file"
     description = (
         "Read a file inside the configured read roots. Returns whole lines from offset, "
@@ -17,8 +17,7 @@ class ReadFile(Tool):
     cost = 1
     args_model = ReadArgs
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        args = ReadArgs.model_validate_json(arguments)
+    def run(self, args: ReadArgs, ctx: ToolContext) -> ToolResult:
         try:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:

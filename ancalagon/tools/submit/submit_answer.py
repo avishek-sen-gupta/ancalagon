@@ -9,16 +9,14 @@ from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 
 
-class SubmitAnswer(Tool):
+class SubmitAnswer(Tool[pydantic.BaseModel]):
     name = "submit_answer"
     cost = 0
 
     def __init__(self, output_class: type[pydantic.BaseModel]):
-        self.output_class = output_class
         self.args_model = output_class
         self.answer: pydantic.BaseModel = Unanswered()
-        schema = output_class.model_json_schema()
-        fields = list(schema.get("properties", {}))
+        fields = list(output_class.model_json_schema().get("properties", {}))
         example = json.dumps({f: "..." for f in fields})
         self.description = (
             "Submit your final answer. Call this exactly once, when you are done. "
@@ -27,9 +25,6 @@ class SubmitAnswer(Tool):
             "pass them as a JSON string. This does not consume your tool-call budget."
         )
 
-    def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
-        try:
-            self.answer = self.output_class.model_validate_json(arguments)
-        except pydantic.ValidationError as exc:
-            return ctx.failure(self.name, f"answer did not match the schema: {exc}")
+    def run(self, args: pydantic.BaseModel, ctx: ToolContext) -> ToolResult:
+        self.answer = args
         return ctx.result(self.name, "answer accepted")
