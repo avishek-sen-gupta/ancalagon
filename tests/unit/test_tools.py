@@ -137,7 +137,9 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
     assert "no file or directory at" in absent.error
 
 
-def test_search_and_parse_tools_write_outputs_and_never_mutate_inputs(tmp_path: pathlib.Path):
+def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_options(
+    tmp_path: pathlib.Path,
+):
     ctx = _ctx(tmp_path)
     source = ctx.workspace.write_root / "sample.py"
     source.write_text("def alpha():\n    return 1\n\n\ndef beta():\n    return 2\n")
@@ -184,6 +186,21 @@ def test_search_and_parse_tools_write_outputs_and_never_mutate_inputs(tmp_path: 
 
     denied = Sed().run(f'{{"script": "s/a/b/", "path": "{tmp_path / "outside.txt"}"}}', ctx)
     assert denied.ok is False
+
+    flags = ctx.workspace.write_root / "flags.txt"
+    flags.write_text("a line mentioning --files here\n")
+
+    literal = Ripgrep().run(
+        json.dumps({"pattern": "--files", "roots": [str(ctx.workspace.write_root)]}), ctx
+    )
+    assert literal.ok is True
+    assert [l.split(":", 2)[2] for l in literal.path.read_text().splitlines()] == [
+        "a line mentioning --files here"
+    ]
+
+    dashed = Sed().run(json.dumps({"script": "s/--files/--flags/", "path": str(flags)}), ctx)
+    assert dashed.ok is True
+    assert dashed.path.read_text() == "a line mentioning --flags here\n"
 
 
 def test_registry_withholds_delegate_once_depth_reaches_max_depth(tmp_path: pathlib.Path):

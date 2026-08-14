@@ -22,7 +22,7 @@ class Sed:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
-        code, out, err = run_command(["sed", args.script, str(path)])
+        code, out, err = run_command(["sed", "-e", args.script, "--", str(path)])
         if code != 0:
             return ctx.failure(self.name, err)
         return ctx.result(self.name, out)
