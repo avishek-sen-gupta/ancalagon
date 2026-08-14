@@ -8,6 +8,7 @@ class TaskSpec(pydantic.BaseModel, frozen=True):
     task_id: str
     behaviour: str
     goal: str
+    input_schema: str = "contracts.py:FreeText"
     answer_schema: str
     budget: Budget
     tools: list[str] = []

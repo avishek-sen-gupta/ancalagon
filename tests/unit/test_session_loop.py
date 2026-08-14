@@ -35,7 +35,7 @@ def _session(
     replies: list[Reply],
     budget: Budget,
     goal: str = "Answer it.",
-    input_json: str = '{"answer": "seed"}',
+    given: pydantic.BaseModel = Verdict(answer="seed"),
 ) -> Session:
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
@@ -56,7 +56,7 @@ def _session(
     need_input = NeedInput()
     return Session(
         spec=spec,
-        input_json=input_json,
+        input=given,
         messages=[],
         transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
@@ -301,7 +301,7 @@ def test_the_static_system_half_is_shared_across_items_and_the_per_item_half_is_
             ],
             Budget(turns=5, tool_calls=5),
             goal=goal,
-            input_json=f'{{"answer": "{item}"}}',
+            given=Verdict(answer=item),
         )
 
     first = answering("item-0001", "Describe the first item.")
@@ -323,7 +323,7 @@ def test_the_static_system_half_is_shared_across_items_and_the_per_item_half_is_
 
     assert per_item != two.systems[0].per_item
     assert per_item.startswith("Goal: Describe the first item.")
-    assert '"answer": "item-0001"' in per_item
+    assert '"answer":"item-0001"' in per_item
     assert str(tmp_path / "item-0001" / "ws") in per_item
 
     assert "cache created 2048 read 1024" in caplog.text

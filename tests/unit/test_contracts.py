@@ -10,8 +10,9 @@ from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.outcome import outcome_adapter
-from ancalagon.contracts.resolve import resolve_output_class
+from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
@@ -38,11 +39,21 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
         behaviour="You summarise.",
         goal="Summarise this node.",
         input=NodeSummary(text="body", confidence=1),
+        input_schema="contracts.py:NodeSummary",
         answer_schema="contracts.py:NodeSummary",
         budget=budget,
     )
     assert spec.tools == []
     assert AgentSpec[NodeSummary].model_validate_json(spec.model_dump_json()) == spec
+
+    written = spec.model_dump_json()
+    assert TaskSpec.model_validate_json(written).input_schema == "contracts.py:NodeSummary"
+    assert AgentSpec[NodeSummary].model_validate_json(written).input.confidence == 1
+
+    prose = spec.model_copy(update={"input": FreeText(text="body")}).model_dump_json()
+    assert AgentSpec[FreeText].model_validate_json(prose).input.text == "body"
+    with pytest.raises(pydantic.ValidationError):
+        AgentSpec[NodeSummary].model_validate_json(prose)
 
     message = Message(
         role=Role.ASSISTANT,
@@ -68,7 +79,7 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
 
     module = tmp_path / "contracts.py"
     module.write_text("import pydantic\n\n\nclass Verdict(pydantic.BaseModel):\n    ok: bool\n")
-    resolved = resolve_output_class("contracts.py:Verdict", tmp_path)
+    resolved = resolve_class("contracts.py:Verdict", tmp_path)
     assert resolved.__name__ == "Verdict"
     assert resolved.model_validate_json('{"ok": true}').model_dump() == {"ok": True}
 

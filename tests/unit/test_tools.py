@@ -262,7 +262,7 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
             "task_id": "analyse",
             "behaviour": "b",
             "goal": "g",
-            "input_json": "{}",
+            "input_json": '{"text": "look at this"}',
             "answer_schema": "contracts.py:FreeText",
             "turns": 3,
             "tool_calls": 5,
@@ -307,6 +307,28 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
 
     omitted = {k: v for k, v in json.loads(args).items() if k != "answer_schema"}
     assert delegate.run(json.dumps({**omitted, "task_id": "defaulted"}), ctx).ok is True
+
+    shaped = ctx.workspace.write_root / "shape.py"
+    shaped.write_text(
+        "import pydantic\n\n\nclass NodeInput(pydantic.BaseModel):\n"
+        "    node_id: int\n\n\nclass FreeText(pydantic.BaseModel):\n    text: str\n"
+    )
+    typed = {
+        **json.loads(args),
+        "task_id": "typed",
+        "contracts_path": str(shaped),
+        "input_schema": "contracts.py:NodeInput",
+        "input_json": '{"node_id": 5}',
+    }
+    assert delegate.run(json.dumps(typed), ctx).ok is True
+    written = (run_dir / "tasks" / "typed" / "spec.json").read_text()
+    assert json.loads(written)["input"] == {"node_id": 5}
+
+    mismatched = {**typed, "task_id": "mismatched", "input_json": '{"node_id": "five"}'}
+    refused = delegate.run(json.dumps(mismatched), ctx)
+    assert refused.ok is False
+    assert "node_id" in refused.error
+    assert not (run_dir / "tasks" / "mismatched" / "spec.json").exists()
 
 
 def test_survey_and_symbol_tools_report_structure_not_mentions(tmp_path: pathlib.Path):
