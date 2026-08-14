@@ -229,7 +229,21 @@ The session puts the summary and the path into the tool result the model sees. L
 never enters the context; the model reads it with `read_file` if it wants to.
 
 `submit/submit_answer.py` and `need_input/need_input.py` are the two tools the session
-watches. `delegate/` writes a child's `spec.json` and enqueues it — it does not spawn;
+watches. `need_input` is a **yield, not a dead end**: the agent stops, its question and its
+whole transcript stay on disk, and `answer.py` appends the answer as a user message and
+enqueues the task again. Resumption then does the rest, since a worker loads whatever
+transcript is already in its directory. Nothing blocks and no channel is held open —
+answering is a write and a row, like everything else here.
+
+Both `answer_task` (a parent answering its child, mid-run) and `ancalagon answer` (you
+answering the root, after the run) call the same function. They matter at different moments:
+a run is autonomous, so by the time a person could read a child's question the parent has
+long since decided. A parent that cannot answer calls `need_input` itself, which carries the
+question up to the root and out to you; your answer then flows back down. Questions bubble
+up, answers flow down, and the machinery is one append and one enqueue.
+
+Answering refuses unless that agent is the one that asked **and** its task has no live agent,
+so a question cannot be answered twice into two competing resumptions. `delegate/` writes a child's `spec.json` and enqueues it — it does not spawn;
 the supervisor does.
 
 ### 6. Talking to a provider — `ancalagon/llm/`

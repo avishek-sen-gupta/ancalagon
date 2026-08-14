@@ -12,6 +12,7 @@ from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
 from ancalagon.contracts.run_settings import RunSettings
+from ancalagon.answer_command import answer_command
 from ancalagon.migrate_command import migrate_command
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
@@ -136,10 +137,16 @@ def cli() -> int:
     migrate = commands.add_parser("migrate")
     migrate.add_argument("--db", type=pathlib.Path, required=True)
     migrate.add_argument("--to", type=int, default=-1)
+    answer = commands.add_parser("answer")
+    answer.add_argument("--run-dir", type=pathlib.Path, required=True)
+    answer.add_argument("--task", type=int, required=True)
+    answer.add_argument("--answer", type=str, required=True)
     args = parser.parse_args()
     try:
         if args.command == "migrate":
             return migrate_command(args.db, args.to)
+        if args.command == "answer":
+            return answer_command(args.run_dir, args.task, args.answer)
         return main(args.config, args.goal)
     except ValueError as error:
         sys.stderr.write(f"{error}\n")

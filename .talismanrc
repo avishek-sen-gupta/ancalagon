@@ -51,4 +51,6 @@ fileignoreconfig:
   checksum: 2424354c33a9bfb891d595abfba07be3e5ec6148b5ca1ba66d0efdd9f58d9251
 - filename: ancalagon/migrations/003_drop_messages.down.sql
   checksum: f7e567fb3a51a4839da13049442c689d2a3e2874cd4f6e99aa62e5560650d3d9
+- filename: ancalagon/tools/delegate/answer_task.py
+  checksum: f7661c815195b300de37ab1734ef161c9ec23de9d90b69b05a6105c3bb69bc88
 version: "1.0"
