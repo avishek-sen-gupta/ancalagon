@@ -174,7 +174,13 @@ Four things worth knowing:
 2. Resolves paths through `workspace/workspace.py`, which `resolve()`s first and then checks
    containment, so `..` and symlinks are handled by the same check.
 3. Writes its full output to a file under the task's `tools/` directory and returns a
-   `ToolResult` carrying a capped summary and that path.
+   `ToolResult` carrying a capped summary and that path. That write goes through
+   `resolve_write` like any other, so the same roots bound a tool's own output as bound
+   what it was allowed to read — and the check happens before the directory is created, so
+   a context pointed outside the write root leaves nothing behind. A `ScopeError` here is a
+   misconfigured context rather than a model mistake, so it propagates to the worker and
+   becomes a `Failed` outcome; turning it into a `ToolResult` is impossible anyway, since
+   reporting a failure is itself a write.
 
 A tool that shells out has a fourth obligation: **a model-supplied string never reaches
 argv where the child would read it as an option.** `ripgrep` and `sed` pass theirs behind

@@ -21,8 +21,10 @@ class ToolContext:
         self.counter = itertools.count()
 
     def write_output(self, tool_name: str, text: str, suffix: str) -> pathlib.Path:
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        path = self.output_dir / f"{next(self.counter):04d}-{tool_name}{suffix}"
+        path = self.workspace.resolve_write(
+            self.output_dir / f"{next(self.counter):04d}-{tool_name}{suffix}"
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         return path
 
