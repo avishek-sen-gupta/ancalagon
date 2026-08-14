@@ -5,9 +5,10 @@ from ancalagon.contracts.message import Message
 from ancalagon.contracts.reply import Reply
 from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.tool_schema import ToolSchema
+from ancalagon.llm.llm import LLM
 
 
-class FakeLLM:
+class FakeLLM(LLM):
     def __init__(self, replies: list[Reply]):
         self.replies = list(replies)
         self.systems: list[SystemPrompt] = []

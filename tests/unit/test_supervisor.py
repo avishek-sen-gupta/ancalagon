@@ -5,9 +5,12 @@ from ancalagon.bus.bus import Bus
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.supervisor.supervisor import Supervisor
+from ancalagon.supervisor.process import Process
+from ancalagon.supervisor.spawner import Spawner
+from ancalagon.supervisor.clock import Clock
 
 
-class FakeProcess:
+class FakeProcess(Process):
     def __init__(self, pid: int, exit_after: int, code: int):
         self.pid = pid
         self.exit_after = exit_after
@@ -25,7 +28,7 @@ class FakeProcess:
         self.killed = True
 
 
-class FakeSpawner:
+class FakeSpawner(Spawner):
     def __init__(self, script: list[tuple[int, int]]):
         self.script = list(script)
         self.spawned: list[int] = []
@@ -36,7 +39,7 @@ class FakeSpawner:
         return FakeProcess(pid=1000 + agent_id, exit_after=exit_after, code=code)
 
 
-class FakeClock:
+class FakeClock(Clock):
     def __init__(self) -> None:
         self.now = 0.0
 
