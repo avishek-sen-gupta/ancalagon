@@ -295,8 +295,16 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
     assert bus.state(1).status is AgentStatus.CRASHED
     assert bus.state(2).dir == str(task_dir)
 
-    bad_output = json.dumps({**json.loads(args), "task_id": "other", "output": "FreeText"})
-    assert delegate.run(bad_output, ctx).ok is False
+    shape = json.loads(delegate.schema().parameters_json)["properties"]["output"]
+    assert shape["default"] == "contracts.py:FreeText"
+    assert "pattern" in shape
+
+    for bad in ("text", "FreeText", "contracts:FreeText", "contracts.py:"):
+        with pytest.raises(pydantic.ValidationError):
+            delegate.run(json.dumps({**json.loads(args), "task_id": "o", "output": bad}), ctx)
+
+    omitted = {k: v for k, v in json.loads(args).items() if k != "output"}
+    assert delegate.run(json.dumps({**omitted, "task_id": "defaulted"}), ctx).ok is True
 
 
 def test_survey_and_symbol_tools_report_structure_not_mentions(tmp_path: pathlib.Path):

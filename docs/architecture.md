@@ -181,6 +181,11 @@ Four things worth knowing:
 
 1. Validates its own arguments from the raw JSON string into a private Pydantic model. This
    is why no `Any` appears in the tool layer — the registry never sees a parsed structure.
+   A constraint belongs on the field rather than in `run`: `schema_of` builds the tool schema
+   from the same model, so a `pattern`, a `default` and a `description` are shown to the model
+   before it calls, while a hand-rolled check in `run` can only report after it has. The two
+   are not equivalent — `delegate`'s `output` was checked in `run` and the model, seeing a
+   bare string, guessed wrong six times in one turn.
 2. Resolves paths through `workspace/workspace.py`, which `resolve()`s first and then checks
    containment, so `..` and symlinks are handled by the same check.
 3. Writes its full output to a file under the task's `tools/` directory and returns a
