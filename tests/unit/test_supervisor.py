@@ -72,7 +72,6 @@ def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: p
     timed_out = json.loads((tmp_path / "tasks" / "wedged" / "outcome.json").read_text())
     assert timed_out["kind"] == "timed_out"
     assert bus.live() == []
-    assert [m.kind for m in bus.inbox(consumer=0)] == ["task_done"] * 3
 
 
 def test_supervisor_respects_concurrency_cap_and_abandons_live_tasks_on_shutdown(

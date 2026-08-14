@@ -57,15 +57,7 @@ class Supervisor:
             self.started[state.agent] = self.clock.time()
 
     def _finish(self, agent: int, status: AgentStatus, code: int, summary: str) -> None:
-        state = self.bus.state(agent)
         self.bus.record(agent, status, EventSource.SUPERVISOR, exit_code=code, summary=summary)
-        self.bus.post(
-            sender=agent,
-            addressee=state.parent_agent,
-            kind="task_done",
-            summary=summary,
-            ref_path=state.dir,
-        )
         self.live.pop(agent, None)
         self.started.pop(agent, None)
 
