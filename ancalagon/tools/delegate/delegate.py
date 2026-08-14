@@ -17,10 +17,7 @@ class Delegate:
     description = (
         "Queue a subagent task. Returns its task id immediately without waiting. "
         "Reusing a task_id after that task has finished retries it, and the new agent "
-        "inherits the previous one's transcript. Use a new task_id for a clean start. "
-        "To give the subagent its own output contract, write a Python module "
-        "defining a pydantic model with write_file first, then pass its path as "
-        "contracts_path and name the class in output, e.g. contracts.py:NodeVerdict."
+        "inherits the previous one's transcript. Use a new task_id for a clean start."
     )
     cost = 1
 
@@ -33,12 +30,6 @@ class Delegate:
 
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
         args = DelegateArgs.model_validate_json(arguments)
-        if ":" not in args.output or not args.output.split(":", 1)[0].endswith(".py"):
-            return ctx.failure(
-                self.name,
-                f"output must be '<module>.py:<ClassName>', got {args.output!r}. "
-                "Use 'contracts.py:FreeText' unless you supply contracts_path.",
-            )
         task_dir = self.run_dir / "tasks" / args.task_id
         bus = Bus.open(self.run_dir / "bus.db")
         active = bus.active_for(task_dir)
