@@ -1,7 +1,6 @@
 # Starts a run: writes the root task, then supervises it to completion.
 import argparse
 import ast
-import json
 import logging
 import pathlib
 import sys
@@ -9,6 +8,8 @@ import sys
 import ancalagon.migrations
 from ancalagon.bus.bus import Bus
 from ancalagon.config.load import load_config
+from ancalagon.contracts.agent_spec import AgentSpec
+from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.migrate_command import migrate_command
@@ -91,20 +92,14 @@ def main(config_path: pathlib.Path, goal_argument: str) -> int:
     task_dir.mkdir(parents=True, exist_ok=True)
     (task_dir / "contracts.py").write_text(contract_source(config.run))
     (task_dir / "spec.json").write_text(
-        json.dumps(
-            {
-                "task_id": "root",
-                "behaviour": config.root_behaviour,
-                "goal": goal,
-                "input": {"text": goal},
-                "answer_schema": answer_schema_of(config.run),
-                "budget": {
-                    "turns": config.budget.turns,
-                    "tool_calls": config.budget.tool_calls,
-                },
-                "tools": [],
-            }
-        )
+        AgentSpec[FreeText](
+            task_id="root",
+            behaviour=config.root_behaviour,
+            goal=goal,
+            input=FreeText(text=goal),
+            answer_schema=answer_schema_of(config.run),
+            budget=config.budget,
+        ).model_dump_json()
     )
 
     outcome = task_dir / "outcome.json"

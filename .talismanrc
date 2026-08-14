@@ -45,6 +45,8 @@ fileignoreconfig:
   checksum: 10fb807d4a0703bfe9989143ec08789bea084624da3b5330d2b3ecd28ed471f4
 - filename: docs/architecture.md
   checksum: 124910e4d36cab43a5be1e55f0c0bf4c0e1a61c00b50d0b7b2df7af40cb5b489
+- filename: ancalagon/tools/delegate/delegate_args.py
+  checksum: 374eb9fc49fe06f498fb9d1c713c03c99a5ff7555c4a7bb00d4e1628f506792f
 - filename: ancalagon/migrations/003_drop_messages.up.sql
   checksum: 2424354c33a9bfb891d595abfba07be3e5ec6148b5ca1ba66d0efdd9f58d9251
 - filename: ancalagon/migrations/003_drop_messages.down.sql

@@ -6,6 +6,15 @@ class DelegateArgs(pydantic.BaseModel, frozen=True):
     behaviour: str
     goal: str
     input_json: str
+    input_schema: str = pydantic.Field(
+        default="contracts.py:FreeText",
+        pattern=r"^[^:]+\.py:[A-Za-z_][A-Za-z0-9_]*$",
+        description=(
+            "The shape input_json must match, as '<module>.py:<ClassName>'. Leave it "
+            "unset to pass prose, in which case input_json carries a single text field. "
+            "For structured input, define its model beside the answer's and name it here."
+        ),
+    )
     answer_schema: str = pydantic.Field(
         default="contracts.py:FreeText",
         pattern=r"^[^:]+\.py:[A-Za-z_][A-Za-z0-9_]*$",

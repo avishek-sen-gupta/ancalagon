@@ -13,6 +13,7 @@ class AgentSpec(pydantic.BaseModel, typing.Generic[InT], frozen=True):
     behaviour: str
     goal: str
     input: InT
+    input_schema: str = "contracts.py:FreeText"
     answer_schema: str
     budget: Budget
     tools: list[str] = []

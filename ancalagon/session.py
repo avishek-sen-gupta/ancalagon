@@ -43,7 +43,7 @@ class Session:
     def __init__(
         self,
         spec: TaskSpec,
-        input_json: str,
+        input: pydantic.BaseModel,
         messages: list[Message],
         transcript: Transcript,
         agent_id: int,
@@ -58,7 +58,7 @@ class Session:
         meter: Meter = Unmetered(),
     ):
         self.spec = spec
-        self.input_json = input_json
+        self.input = input
         self.messages = list(messages)
         self.transcript = transcript
         self.agent_id = agent_id
@@ -74,7 +74,7 @@ class Session:
         self.remaining = spec.budget
         self.seq = len(messages)
         if not self.messages:
-            self._record(Role.USER, [Text(text=f"{spec.goal}\n\nInput: {input_json}")])
+            self._record(Role.USER, [Text(text=f"{spec.goal}\n\nInput: {input.model_dump_json()}")])
 
     def _wire(self) -> list[Message]:
         return for_wire(self.messages, self.compact_above_tokens, self.keep_recent_messages)
@@ -97,7 +97,10 @@ class Session:
                 f"If that tool is unavailable, reply with a single JSON object and nothing "
                 f"else -- no prose, no markdown fences -- matching this schema: {schema}"
             ),
-            per_item=f"Goal: {self.spec.goal}\n\nInput: {self.input_json}\n\n{self._scopes()}",
+            per_item=(
+                f"Goal: {self.spec.goal}\n\nInput: {self.input.model_dump_json()}\n\n"
+                f"{self._scopes()}"
+            ),
         )
 
     def _complete(self, tools: list[ToolSchema], force_tool: str = "") -> Reply:

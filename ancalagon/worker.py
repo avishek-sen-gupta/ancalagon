@@ -11,10 +11,10 @@ from ancalagon.bus.event_source import EventSource
 from ancalagon.bus.depth_of import depth_of
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
-from ancalagon.contracts.input_json import input_json_of
+from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.failed import Failed
-from ancalagon.contracts.resolve import resolve_output_class
+from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient
 from ancalagon.session import Session
@@ -104,7 +104,9 @@ def main(
     try:
         spec_text = (task_dir / "spec.json").read_text()
         spec = TaskSpec.model_validate_json(spec_text)
-        output_class = resolve_output_class(spec.answer_schema, task_dir)
+        output_class = resolve_class(spec.answer_schema, task_dir)
+        input_class = resolve_class(spec.input_schema, task_dir)
+        given = AgentSpec[input_class].model_validate_json(spec_text).input
         history = repair(load(transcript_path)) if transcript_path.exists() else []
         ctx = ToolContext(
             workspace=Workspace.from_config(config),
@@ -116,7 +118,7 @@ def main(
         need_input = NeedInput()
         session = Session(
             spec=spec,
-            input_json=input_json_of(spec_text),
+            input=given,
             messages=history,
             transcript=log,
             agent_id=agent_id,
