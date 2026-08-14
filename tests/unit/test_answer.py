@@ -50,10 +50,11 @@ def test_answering_a_suspended_agent_appends_the_answer_and_queues_a_new_attempt
     run_dir, bus, agent = _suspended(tmp_path)
     task_dir = run_dir / "tasks" / "asked"
 
-    with pytest.raises(ValueError, match="running"):
+    with pytest.raises(ValueError, match="never asked"):
         answer_task(run_dir, agent, "too early", answered_by=0)
 
     bus.record(agent, AgentStatus.NEEDS_INPUT, EventSource.WORKER, summary="which one?")
+    bus.record(agent, AgentStatus.EXITED, EventSource.SUPERVISOR, exit_code=0)
 
     resumed = answer_task(run_dir, agent, "the second one", answered_by=0)
     assert resumed != agent
@@ -71,7 +72,7 @@ def test_answering_a_suspended_agent_appends_the_answer_and_queues_a_new_attempt
     assert bus.state(resumed).task == bus.state(agent).task
     assert bus.state(resumed).parent_agent == 0
 
-    with pytest.raises(ValueError, match="queued"):
+    with pytest.raises(ValueError, match="never asked"):
         answer_task(run_dir, resumed, "again", answered_by=0)
 
     with pytest.raises(KeyError):
@@ -83,6 +84,7 @@ def test_the_tool_and_the_command_both_answer_and_report_what_they_queued(
 ):
     run_dir, bus, agent = _suspended(tmp_path)
     bus.record(agent, AgentStatus.NEEDS_INPUT, EventSource.WORKER, summary="which one?")
+    bus.record(agent, AgentStatus.EXITED, EventSource.SUPERVISOR, exit_code=0)
     ctx = _ctx(tmp_path)
 
     tool = AnswerTask(run_dir=run_dir, parent=7)
@@ -106,5 +108,6 @@ def test_the_tool_and_the_command_both_answer_and_report_what_they_queued(
 
     second, other_bus, other = _suspended(tmp_path / "other")
     other_bus.record(other, AgentStatus.NEEDS_INPUT, EventSource.WORKER, summary="q")
+    other_bus.record(other, AgentStatus.EXITED, EventSource.SUPERVISOR, exit_code=0)
     assert answer_command(second, other, "by command") == 0
     assert f"answered agent {other}" in capsys.readouterr().out
