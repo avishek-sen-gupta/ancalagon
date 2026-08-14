@@ -76,6 +76,18 @@ There is no IPC. A parent writes `spec.json` and enqueues a row; a worker writes
 `NeedsInput` and stops rather than asking mid-run, so nothing blocks and a dead
 child cannot hang its parent.
 
+Stopping is not giving up. Answer it and it continues from where it left off, with
+everything it had already worked out:
+
+```bash
+ancalagon answer --run-dir ws/runs/r_0001 --task 1 --answer "keep both captions"
+ancalagon run --config ancalagon.toml          # same run_dir; picks it up
+```
+
+A parent can do the same to its own child mid-run with the `answer_task` tool, and a
+parent that cannot answer passes the question up by asking one itself. Meanwhile the
+other children keep working — so by the time you answer, their results are waiting.
+
 ## Inspecting a run
 
 Everything is on disk and in one SQLite file:

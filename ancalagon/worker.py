@@ -22,6 +22,7 @@ from ancalagon.tools.artifacts.convert_document import ConvertDocument
 from ancalagon.tools.artifacts.extract_strings import ExtractStrings
 from ancalagon.tools.artifacts.file_type import FileType
 from ancalagon.tools.artifacts.query_json import QueryJson
+from ancalagon.tools.delegate.answer_task import AnswerTask
 from ancalagon.tools.delegate.check_task import CheckTask
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.delegate.delegate import Delegate
@@ -78,6 +79,7 @@ def build_registry(
         bind_tool(Delegate(run_dir=run_dir, parent=parent)),
         bind_tool(CheckTask(run_dir=run_dir)),
         bind_tool(CollectTask(run_dir=run_dir)),
+        bind_tool(AnswerTask(run_dir=run_dir, parent=parent)),
         bind_tool(need_input),
         bind_tool(submit),
     ]
