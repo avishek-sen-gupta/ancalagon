@@ -129,7 +129,10 @@ uncollectable.
 
 `build_registry` is the only place tool availability is decided: `[tools] enabled` filters
 the list, and `delegate` is withheld once `bus/depth_of.py` reports the task is at
-`max_depth`.
+`max_depth`. A name in `enabled` that no tool answers to raises, naming both the unknown
+entries and the available set — a filter that silently matches nothing would hand the agent
+a smaller toolset than the config asked for, and the agent would report the consequences
+rather than the cause.
 
 ### 4. The loop — `ancalagon/session.py`
 
