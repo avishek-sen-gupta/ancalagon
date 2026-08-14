@@ -26,3 +26,7 @@ runs/
 
 # Live run artifacts from analysing this repo with itself.
 output/
+
+# TLA+ model checking artefacts
+specs/**/states/
+*.toolbox
