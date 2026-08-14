@@ -7,6 +7,7 @@ import pytest
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.budget import Budget
+from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.workspace.workspace import Workspace
 
@@ -37,6 +38,18 @@ def test_scoping_rejects_every_escape_and_config_round_trips(tmp_path: pathlib.P
     link.symlink_to(outside)
     with pytest.raises(ScopeError):
         ws.resolve_write(link / "secret.txt")
+
+    inside = ToolContext(
+        workspace=ws, output_dir=write_root / "tools", summary_chars=10, agent_id=1
+    )
+    written = inside.result("read_file", "hello")
+    assert written.path == (write_root / "tools" / "0000-read_file.txt").resolve()
+    assert written.path.read_text() == "hello"
+
+    escaping = ToolContext(workspace=ws, output_dir=outside / "tools", summary_chars=10, agent_id=1)
+    with pytest.raises(ScopeError):
+        escaping.result("read_file", "hello")
+    assert not (outside / "tools").exists()
 
     config_path = tmp_path / "ancalagon.toml"
     config_path.write_text(f"""
