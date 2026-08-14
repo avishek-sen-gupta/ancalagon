@@ -2,6 +2,7 @@
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.run_command import run_command
 from ancalagon.tools.search.searchable_files import searchable_files
@@ -26,7 +27,7 @@ VENDOR = (
 )
 
 
-class FindSymbol:
+class FindSymbol(Tool):
     name = "find_symbol"
     description = (
         "Find where a symbol is defined, as name, kind, line, file and the declaring "

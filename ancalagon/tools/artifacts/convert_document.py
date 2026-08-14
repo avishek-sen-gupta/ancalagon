@@ -4,6 +4,7 @@ from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.artifacts.convert_args import ConvertArgs
 from ancalagon.tools.artifacts.document_format import DocumentFormat
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.run_command import run_command
 from ancalagon.workspace.scope_error import ScopeError
@@ -16,7 +17,7 @@ SUFFIX = {
 }
 
 
-class ConvertDocument:
+class ConvertDocument(Tool):
     name = "convert_document"
     description = (
         "Convert a document -- docx, odt, epub, rtf, latex, html and others -- into "

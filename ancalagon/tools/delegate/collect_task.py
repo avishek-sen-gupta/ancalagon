@@ -13,6 +13,7 @@ from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.delegate.task_args import TaskArgs
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 
 
@@ -24,7 +25,7 @@ def _detail(outcome: Outcome) -> str:
     return outcome.summary
 
 
-class CollectTask:
+class CollectTask(Tool):
     name = "collect_task"
     description = (
         "Read a finished task's answer. Returns the answer itself, not a wrapper. "

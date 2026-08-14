@@ -2,6 +2,7 @@
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.grep_args import GrepArgs
 from ancalagon.tools.search.run_command import run_command
@@ -9,7 +10,7 @@ from ancalagon.tools.search.searchable_files import fits_in_arguments, searchabl
 from ancalagon.workspace.scope_error import ScopeError
 
 
-class AstGrep:
+class AstGrep(Tool):
     name = "ast_grep"
     description = "Structural code search by AST pattern."
     cost = 1

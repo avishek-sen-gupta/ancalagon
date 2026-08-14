@@ -3,12 +3,13 @@ from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.artifacts.strings_args import StringsArgs
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.run_command import run_command
 from ancalagon.workspace.scope_error import ScopeError
 
 
-class ExtractStrings:
+class ExtractStrings(Tool):
     name = "extract_strings"
     description = (
         "Pull printable text out of a binary or other non-text artifact. Raise "

@@ -6,10 +6,11 @@ import pydantic
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.contracts.unanswered import Unanswered
 from ancalagon.llm.tool_schema import ToolSchema
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 
 
-class SubmitAnswer:
+class SubmitAnswer(Tool):
     name = "submit_answer"
     cost = 0
 

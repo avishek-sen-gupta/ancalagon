@@ -2,13 +2,14 @@
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.run_command import run_command
 from ancalagon.tools.search.sed_args import SedArgs
 from ancalagon.workspace.scope_error import ScopeError
 
 
-class Sed:
+class Sed(Tool):
     name = "sed"
     description = "Apply a sed script to a file and write the transformed stream to a new file."
     cost = 1

@@ -3,10 +3,11 @@ from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.need_input.need_input_args import NeedInputArgs
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 
 
-class NeedInput:
+class NeedInput(Tool):
     name = "need_input"
     description = (
         "Stop and hand a question back to whoever launched this task. "

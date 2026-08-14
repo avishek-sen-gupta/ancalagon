@@ -11,10 +11,11 @@ from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.delegate.delegate_args import DelegateArgs
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 
 
-class Delegate:
+class Delegate(Tool):
     name = "delegate"
     description = (
         "Queue a subagent task. Returns its task id immediately without waiting. "
