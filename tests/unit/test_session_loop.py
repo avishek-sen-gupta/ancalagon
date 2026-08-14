@@ -49,7 +49,7 @@ def _session(
         task_id="t1",
         behaviour="You answer questions.",
         goal=goal,
-        output="contracts.py:Verdict",
+        answer_schema="contracts.py:Verdict",
         budget=budget,
     )
     submit = SubmitAnswer(Verdict)

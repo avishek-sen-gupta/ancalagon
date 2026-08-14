@@ -38,7 +38,7 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
         behaviour="You summarise.",
         goal="Summarise this node.",
         input=NodeSummary(text="body", confidence=1),
-        output="contracts.py:NodeSummary",
+        answer_schema="contracts.py:NodeSummary",
         budget=budget,
     )
     assert spec.tools == []

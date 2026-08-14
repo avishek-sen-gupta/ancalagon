@@ -56,7 +56,7 @@ def goal_of(settings: RunSettings, given: str) -> str:
     raise ValueError("no goal: pass --goal or set [run] goal_file")
 
 
-def output_of(settings: RunSettings) -> str:
+def answer_schema_of(settings: RunSettings) -> str:
     if not settings.contract_class:
         return FREE_TEXT_OUTPUT
     return f"contracts.py:{settings.contract_class}"
@@ -97,7 +97,7 @@ def main(config_path: pathlib.Path, goal_argument: str) -> int:
                 "behaviour": config.root_behaviour,
                 "goal": goal,
                 "input": {"text": goal},
-                "output": output_of(config.run),
+                "answer_schema": answer_schema_of(config.run),
                 "budget": {
                     "turns": config.budget.turns,
                     "tool_calls": config.budget.tool_calls,

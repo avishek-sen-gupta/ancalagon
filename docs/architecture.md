@@ -112,8 +112,9 @@ Invoked as `python -m ancalagon.worker --run-dir … --dir … --agent-id … --
 
 1. Reads `spec.json` as `TaskSpec` — the scalars only. The `input` is pulled out separately
    as text by `contracts/input_json.py`, because the worker cannot know its class.
-2. `contracts/resolve.py` imports the task's `contracts.py` and returns the output class,
-   refusing any path outside the task directory.
+2. `contracts/resolve.py` takes the spec's `answer_schema` — a reference of the form
+   `contracts.py:ClassName` — imports that module and returns the class, refusing any path
+   outside the task directory.
 3. If a `transcript.jsonl` already exists, `transcript/history.py` loads and **repairs** it:
    a transcript ending in an unanswered tool call is rejected by the API, so interrupted
    calls get synthetic error results. This is the whole of resumption — there is no
@@ -184,8 +185,10 @@ Four things worth knowing:
    A constraint belongs on the field rather than in `run`: `schema_of` builds the tool schema
    from the same model, so a `pattern`, a `default` and a `description` are shown to the model
    before it calls, while a hand-rolled check in `run` can only report after it has. The two
-   are not equivalent — `delegate`'s `output` was checked in `run` and the model, seeing a
-   bare string, guessed wrong six times in one turn.
+   are not equivalent — `delegate`'s `answer_schema` was checked in `run` and the model,
+   seeing a bare string, guessed wrong six times in one turn. It was called `output` then,
+   which is most of why: it names the class a child must answer in, and a field called
+   `output` invites a model to describe a kind of output instead. It answered `"text"`.
 2. Resolves paths through `workspace/workspace.py`, which `resolve()`s first and then checks
    containment, so `..` and symlinks are handled by the same check.
 3. Writes its full output to a file under the task's `tools/` directory and returns a

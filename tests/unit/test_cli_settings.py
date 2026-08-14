@@ -3,7 +3,7 @@ import pathlib
 import pytest
 
 from ancalagon import cli
-from ancalagon.cli import contract_source, goal_of, output_of, run_dir_of
+from ancalagon.cli import contract_source, goal_of, answer_schema_of, run_dir_of
 from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
 from ancalagon.contracts.run_settings import RunSettings
 
@@ -62,9 +62,9 @@ def test_a_named_contract_replaces_free_text(tmp_path: pathlib.Path):
     module = tmp_path / "shape.py"
     module.write_text("import pydantic\n\n\nclass Answer(pydantic.BaseModel):\n    verdict: str\n")
 
-    assert output_of(RunSettings()) == "contracts.py:FreeText"
+    assert answer_schema_of(RunSettings()) == "contracts.py:FreeText"
     assert contract_source(RunSettings()) == FREE_TEXT_MODULE
 
     named = RunSettings(contract_module=str(module), contract_class="Answer")
-    assert output_of(named) == "contracts.py:Answer"
+    assert answer_schema_of(named) == "contracts.py:Answer"
     assert "class Answer" in contract_source(named)
