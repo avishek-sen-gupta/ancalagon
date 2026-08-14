@@ -57,7 +57,7 @@ class Delegate:
             "task_id": args.task_id,
             "behaviour": args.behaviour,
             "goal": args.goal,
-            "output": args.output,
+            "answer_schema": args.answer_schema,
         }
         head = ", ".join(f"{json.dumps(k)}: {json.dumps(v)}" for k, v in scalars.items())
         spec_text = (

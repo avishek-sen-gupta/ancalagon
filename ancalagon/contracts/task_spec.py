@@ -8,6 +8,6 @@ class TaskSpec(pydantic.BaseModel, frozen=True):
     task_id: str
     behaviour: str
     goal: str
-    output: str
+    answer_schema: str
     budget: Budget
     tools: list[str] = []

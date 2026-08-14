@@ -6,7 +6,7 @@ class DelegateArgs(pydantic.BaseModel, frozen=True):
     behaviour: str
     goal: str
     input_json: str
-    output: str = pydantic.Field(
+    answer_schema: str = pydantic.Field(
         default="contracts.py:FreeText",
         pattern=r"^[^:]+\.py:[A-Za-z_][A-Za-z0-9_]*$",
         description=(

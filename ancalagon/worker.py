@@ -104,7 +104,7 @@ def main(
     try:
         spec_text = (task_dir / "spec.json").read_text()
         spec = TaskSpec.model_validate_json(spec_text)
-        output_class = resolve_output_class(spec.output, task_dir)
+        output_class = resolve_output_class(spec.answer_schema, task_dir)
         history = repair(load(transcript_path)) if transcript_path.exists() else []
         ctx = ToolContext(
             workspace=Workspace.from_config(config),

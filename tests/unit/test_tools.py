@@ -263,7 +263,7 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
             "behaviour": "b",
             "goal": "g",
             "input_json": "{}",
-            "output": "contracts.py:FreeText",
+            "answer_schema": "contracts.py:FreeText",
             "turns": 3,
             "tool_calls": 5,
         }
@@ -295,15 +295,17 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
     assert bus.state(1).status is AgentStatus.CRASHED
     assert bus.state(2).dir == str(task_dir)
 
-    shape = json.loads(delegate.schema().parameters_json)["properties"]["output"]
+    shape = json.loads(delegate.schema().parameters_json)["properties"]["answer_schema"]
     assert shape["default"] == "contracts.py:FreeText"
     assert "pattern" in shape
 
     for bad in ("text", "FreeText", "contracts:FreeText", "contracts.py:"):
         with pytest.raises(pydantic.ValidationError):
-            delegate.run(json.dumps({**json.loads(args), "task_id": "o", "output": bad}), ctx)
+            delegate.run(
+                json.dumps({**json.loads(args), "task_id": "o", "answer_schema": bad}), ctx
+            )
 
-    omitted = {k: v for k, v in json.loads(args).items() if k != "output"}
+    omitted = {k: v for k, v in json.loads(args).items() if k != "answer_schema"}
     assert delegate.run(json.dumps({**omitted, "task_id": "defaulted"}), ctx).ok is True
 
 
