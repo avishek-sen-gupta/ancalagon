@@ -23,4 +23,13 @@ These override defaults and are not negotiable.
 
 JSON exists only as text in files. The moment it enters Python it becomes a concrete Pydantic model via `model_validate_json`. Where the model class is generated at runtime, the containing type is **generic** (`AgentSpec[InT]`, `Completed[OutT]`) and the class is resolved by import before validation — the type is not unknown, only late-bound. If you reach for a JSON type, you have skipped resolving it.
 
+**Text is a boundary, never a carrier.** Four rules, and they are not negotiable:
+
+1. **Anything from a model is validated on arrival.** The first thing a model's output meets is `model_validate_json`. Past that line there are no strings holding structure and no untyped objects — only instances.
+2. **Anything going to a model is serialised at the last possible moment.** Hold the model or the class; call `model_dump_json` or `model_json_schema` in the adapter, where the wire actually needs text. Serialising early and parsing back later is the same defect written twice.
+3. **Anything read from a JSON file becomes a model immediately.** Never index a parsed dict. If a typed reader exists, use it; if one does not, write it.
+4. **Nowhere else does data live in a string.** A field named `*_json` is either the single validated boundary or a bug. Prose bound for a prompt is text; a record with fields is not.
+
+The exception that proves the rule: a value whose class is not knowable until runtime — a tool's arguments before dispatch, a subagent's input before its contract is resolved — may cross **one** boundary as text, and is parsed the instant the class is known. One hop, never two.
+
 **Few tests, each covering a whole behaviour.** Aggregate assertions logically into single tests. One test per coherent behaviour, asserting everything that behaviour implies — not one test per assertion. A module with eight behaviours gets eight tests, not eighty.
