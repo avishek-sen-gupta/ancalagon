@@ -5,8 +5,6 @@ import tree_sitter_python
 
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.parse.ast_node import AstNode
-from ancalagon.llm.schema_of import schema_of
-from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.parse.parse_args import ParseArgs
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -32,9 +30,7 @@ class TreeSitter(Tool):
     name = "treesitter"
     description = "Parse a source file and emit its AST nodes as JSON."
     cost = 1
-
-    def schema(self) -> ToolSchema:
-        return schema_of(self.name, self.description, ParseArgs)
+    args_model = ParseArgs
 
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
         args = ParseArgs.model_validate_json(arguments)

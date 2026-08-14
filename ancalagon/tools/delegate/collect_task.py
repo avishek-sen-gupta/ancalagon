@@ -10,8 +10,6 @@ from ancalagon.contracts.outcome import Outcome, outcome_adapter
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.tool_result import ToolResult
-from ancalagon.llm.schema_of import schema_of
-from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.delegate.task_args import TaskArgs
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -32,12 +30,10 @@ class CollectTask(Tool):
         "Reports an error if the task is unfinished or did not produce one."
     )
     cost = 1
+    args_model = TaskArgs
 
     def __init__(self, run_dir: pathlib.Path):
         self.run_dir = run_dir
-
-    def schema(self) -> ToolSchema:
-        return schema_of(self.name, self.description, TaskArgs)
 
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
         args = TaskArgs.model_validate_json(arguments)

@@ -8,8 +8,6 @@ from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.contracts.tool_result import ToolResult
-from ancalagon.llm.schema_of import schema_of
-from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.delegate.delegate_args import DelegateArgs
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -23,13 +21,11 @@ class Delegate(Tool):
         "inherits the previous one's transcript. Use a new task_id for a clean start."
     )
     cost = 1
+    args_model = DelegateArgs
 
     def __init__(self, run_dir: pathlib.Path, parent: int):
         self.run_dir = run_dir
         self.parent = parent
-
-    def schema(self) -> ToolSchema:
-        return schema_of(self.name, self.description, DelegateArgs)
 
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
         args = DelegateArgs.model_validate_json(arguments)

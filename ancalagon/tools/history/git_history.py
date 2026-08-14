@@ -1,7 +1,5 @@
 # Asks git why code looks the way it does, which no amount of reading the present tense answers.
 from ancalagon.contracts.tool_result import ToolResult
-from ancalagon.llm.schema_of import schema_of
-from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.history.git_operation import GitOperation
 from ancalagon.tools.history.history_args import HistoryArgs
 from ancalagon.tools.registry.tool import Tool
@@ -19,9 +17,7 @@ class GitHistory(Tool):
         "commit given rev. Commit messages often state intent that the code cannot."
     )
     cost = 1
-
-    def schema(self) -> ToolSchema:
-        return schema_of(self.name, self.description, HistoryArgs)
+    args_model = HistoryArgs
 
     def _command(self, args: HistoryArgs, path: str, repo: str) -> list[str]:
         if args.operation is GitOperation.LOG:

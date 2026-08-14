@@ -5,7 +5,6 @@ import pydantic
 
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.contracts.unanswered import Unanswered
-from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 
@@ -16,6 +15,7 @@ class SubmitAnswer(Tool):
 
     def __init__(self, output_class: type[pydantic.BaseModel]):
         self.output_class = output_class
+        self.args_model = output_class
         self.answer: pydantic.BaseModel = Unanswered()
         schema = output_class.model_json_schema()
         fields = list(schema.get("properties", {}))
@@ -25,11 +25,6 @@ class SubmitAnswer(Tool):
             f"Its arguments are the answer itself: pass {', '.join(fields)} at the top "
             f"level, for example {example}. Do not wrap them in another object or "
             "pass them as a JSON string. This does not consume your tool-call budget."
-        )
-
-    def schema(self) -> ToolSchema:
-        return ToolSchema(
-            name=self.name, description=self.description, parameters=self.output_class
         )
 
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:

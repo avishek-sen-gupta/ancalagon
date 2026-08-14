@@ -1,7 +1,5 @@
 # Reads a file, refusing anything outside the configured read roots.
 from ancalagon.contracts.tool_result import ToolResult
-from ancalagon.llm.schema_of import schema_of
-from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.files.read_args import ReadArgs
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -17,9 +15,7 @@ class ReadFile(Tool):
         "one reply can carry, call again with offset set past the last line shown."
     )
     cost = 1
-
-    def schema(self) -> ToolSchema:
-        return schema_of(self.name, self.description, ReadArgs)
+    args_model = ReadArgs
 
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
         args = ReadArgs.model_validate_json(arguments)

@@ -1,7 +1,5 @@
 # Identifies what an artifact actually is, before anything tries to read it as text.
 from ancalagon.contracts.tool_result import ToolResult
-from ancalagon.llm.schema_of import schema_of
-from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.artifacts.path_arg import PathArg
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -16,9 +14,7 @@ class FileType(Tool):
         "trying to read it. Use this first on anything whose format you do not know."
     )
     cost = 1
-
-    def schema(self) -> ToolSchema:
-        return schema_of(self.name, self.description, PathArg)
+    args_model = PathArg
 
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
         args = PathArg.model_validate_json(arguments)

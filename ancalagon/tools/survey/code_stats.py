@@ -1,7 +1,5 @@
 # Surveys a tree with scc: what languages, how much of each, where the complexity sits.
 from ancalagon.contracts.tool_result import ToolResult
-from ancalagon.llm.schema_of import schema_of
-from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.run_command import run_command
@@ -17,9 +15,7 @@ class CodeStats(Tool):
         "carry the most complexity, which is usually where to start reading."
     )
     cost = 1
-
-    def schema(self) -> ToolSchema:
-        return schema_of(self.name, self.description, StatsArgs)
+    args_model = StatsArgs
 
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:
         args = StatsArgs.model_validate_json(arguments)
