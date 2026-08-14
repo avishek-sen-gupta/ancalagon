@@ -46,12 +46,6 @@ def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.
     assert bus.task(alpha).id == bus.state(first).task == bus.state(retried).task
     assert [s.agent for s in bus.active_for(alpha)] == [retried]
 
-    bus.post(sender=first, addressee=0, kind="task_done", summary="done", ref_path=str(alpha))
-    inbox = bus.inbox(consumer=0)
-    assert [m.kind for m in inbox] == ["task_done"]
-    assert inbox[0].sender == first
-    assert bus.inbox(consumer=0) == []
-
 
 def test_depth_counts_ancestors_with_the_root_at_zero(tmp_path: pathlib.Path):
     migrate_file(tmp_path / "bus.db", latest_version())

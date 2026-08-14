@@ -8,7 +8,6 @@ from ancalagon.bus.agent_event import AgentEvent
 from ancalagon.bus.agent_state import AgentState
 from ancalagon.bus.agent_status import TERMINAL, AgentStatus
 from ancalagon.bus.event_source import EventSource
-from ancalagon.bus.message_row import MessageRow
 from ancalagon.bus.task_row import TaskRow
 from ancalagon.contracts.call_usage import CallUsage
 
@@ -172,27 +171,3 @@ class Bus:
             int(r["agent"]): CallUsage.model_validate({k: r[k] for k in r.keys() if k != "agent"})
             for r in rows
         }
-
-    def post(self, sender: int, addressee: int, kind: str, summary: str, ref_path: str) -> None:
-        self.conn.execute(
-            "INSERT INTO messages (ts, sender, addressee, kind, summary, ref_path) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (_now(), sender, addressee, kind, summary, ref_path),
-        )
-
-    def inbox(self, consumer: int) -> list[MessageRow]:
-        seen = self.conn.execute(
-            "SELECT last_seen_id FROM cursors WHERE consumer = ?", (consumer,)
-        ).fetchone()
-        last = int(seen["last_seen_id"]) if seen is not None else 0
-        rows = self.conn.execute(
-            "SELECT * FROM messages WHERE addressee = ? AND id > ? ORDER BY id",
-            (consumer, last),
-        ).fetchall()
-        if rows:
-            self.conn.execute(
-                "INSERT INTO cursors (consumer, last_seen_id) VALUES (?, ?) "
-                "ON CONFLICT(consumer) DO UPDATE SET last_seen_id = excluded.last_seen_id",
-                (consumer, int(rows[-1]["id"])),
-            )
-        return [MessageRow.model_validate({k: r[k] for k in r.keys()}) for r in rows]

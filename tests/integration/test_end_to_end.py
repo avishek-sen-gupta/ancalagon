@@ -111,7 +111,6 @@ def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
     assert row.status is AgentStatus.CRASHED
     assert row.exit_code == 1
     assert bus.live() == []
-    assert [m.kind for m in bus.inbox(consumer=0)] == ["task_done"]
 
     stderr_logs = list(task_dir.glob("stderr-*.log"))
     assert len(stderr_logs) == 1

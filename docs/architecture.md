@@ -91,6 +91,13 @@ Nothing is ever updated: every status is a new row, so an agent's whole history 
 The worker appends its own account too — `completed`, `needs_input`, `exhausted` or
 `failed` — which is why the log finally agrees with `outcome.json`.
 
+That holds for the whole schema, not just this table. There is no row anywhere in `bus.db`
+that is written twice: current state is *derived* by taking the latest event per agent, so
+`claim` appends a `claimed` event rather than setting a flag. A parent learns what happened
+to a child the same way everything else does — by reading its events and its
+`outcome.json`, through `check_task` and `collect_task`. There is no notification to
+deliver and no cursor to advance.
+
 It never retries. A crash is reported; the parent decides.
 
 `subprocess_spawner.py` is the only module that constructs a process. `process.py`,
