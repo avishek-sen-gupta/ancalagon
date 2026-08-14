@@ -81,6 +81,12 @@ def build_registry(
         submit,
     ]
     enabled = set(config.tools)
+    unknown = enabled - {t.name for t in available}
+    if unknown:
+        raise ValueError(
+            f"unknown tool names in [tools] enabled: {sorted(unknown)}; "
+            f"available: {sorted(t.name for t in available)}"
+        )
     permitted = [t for t in available if not enabled or t.name in enabled]
     if depth >= config.max_depth:
         permitted = [t for t in permitted if t.name != "delegate"]

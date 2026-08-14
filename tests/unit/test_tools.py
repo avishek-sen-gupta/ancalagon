@@ -203,7 +203,9 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     assert dashed.path.read_text() == "a line mentioning --flags here\n"
 
 
-def test_registry_withholds_delegate_once_depth_reaches_max_depth(tmp_path: pathlib.Path):
+def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names(
+    tmp_path: pathlib.Path,
+):
     config = ancalagon.config.config.Config(
         write_root=tmp_path,
         read_roots=(tmp_path,),
@@ -235,8 +237,19 @@ def test_registry_withholds_delegate_once_depth_reaches_max_depth(tmp_path: path
     assert "delegate" not in at_limit.names()
     assert "need_input" in at_limit.names()
     assert "submit_answer" in at_root.names()
-    submit = at_root.get("submit_answer")
-    assert json.loads(submit.schema().parameters_json)["properties"].keys() == {"text"}
+    answer_shape = json.loads(at_root.get("submit_answer").schema().parameters_json)
+    assert set(answer_shape["properties"]) == {"text"}
+
+    chosen = config.model_copy(update={"tools": ["read_file", "ripgrep"]})
+    assert build_registry(
+        chosen, tmp_path, parent=0, depth=0, submit=submit, need_input=need_input
+    ).names() == ["read_file", "ripgrep"]
+
+    typo = config.model_copy(update={"tools": ["read_file", "rigrep", "grep"]})
+    with pytest.raises(ValueError) as refused:
+        build_registry(typo, tmp_path, parent=0, depth=0, submit=submit, need_input=need_input)
+    assert "'grep', 'rigrep'" in str(refused.value)
+    assert "ripgrep" in str(refused.value)
 
 
 def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathlib.Path):
