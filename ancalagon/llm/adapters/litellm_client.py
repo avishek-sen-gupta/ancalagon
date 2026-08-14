@@ -76,7 +76,7 @@ class LiteLLMClient:
                 "function": {
                     "name": t.name,
                     "description": t.description,
-                    "parameters": json.loads(t.parameters_json),
+                    "parameters": t.parameters.model_json_schema(),
                 },
             }
             for t in tools

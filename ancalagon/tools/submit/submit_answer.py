@@ -28,9 +28,7 @@ class SubmitAnswer:
 
     def schema(self) -> ToolSchema:
         return ToolSchema(
-            name=self.name,
-            description=self.description,
-            parameters_json=json.dumps(self.output_class.model_json_schema()),
+            name=self.name, description=self.description, parameters=self.output_class
         )
 
     def run(self, arguments: str, ctx: ToolContext) -> ToolResult:

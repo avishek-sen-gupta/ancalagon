@@ -12,6 +12,7 @@ from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient, to_wire
 from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.tool_schema import ToolSchema
+from ancalagon.tools.search.grep_args import GrepArgs
 
 WireDict = dict[str, str | list[dict[str, str | dict[str, str]]]]
 
@@ -159,7 +160,7 @@ def test_only_the_static_system_half_is_cache_marked_and_usage_counters_reach_th
     reply = client.complete(
         SystemPrompt(static="behave", per_item="Goal: this one"),
         [user],
-        [ToolSchema(name="rg", description="d", parameters_json='{"type": "object"}')],
+        [ToolSchema(name="rg", description="d", parameters=GrepArgs)],
     )
 
     assert seen[0][0] == {
@@ -173,7 +174,11 @@ def test_only_the_static_system_half_is_cache_marked_and_usage_counters_reach_th
     assert offered[0] == [
         {
             "type": "function",
-            "function": {"name": "rg", "description": "d", "parameters": {"type": "object"}},
+            "function": {
+                "name": "rg",
+                "description": "d",
+                "parameters": GrepArgs.model_json_schema(),
+            },
         }
     ]
     assert (reply.usage.cache_creation_tokens, reply.usage.cache_read_tokens) == (2048, 1024)

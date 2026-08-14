@@ -237,7 +237,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     assert "delegate" not in at_limit.names()
     assert "need_input" in at_limit.names()
     assert "submit_answer" in at_root.names()
-    answer_shape = json.loads(at_root.get("submit_answer").schema().parameters_json)
+    answer_shape = at_root.get("submit_answer").schema().parameters.model_json_schema()
     assert set(answer_shape["properties"]) == {"text"}
 
     chosen = config.model_copy(update={"tools": ["read_file", "ripgrep"]})
@@ -295,7 +295,7 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
     assert bus.state(1).status is AgentStatus.CRASHED
     assert bus.state(2).dir == str(task_dir)
 
-    shape = json.loads(delegate.schema().parameters_json)["properties"]["answer_schema"]
+    shape = delegate.schema().parameters.model_json_schema()["properties"]["answer_schema"]
     assert shape["default"] == "contracts.py:FreeText"
     assert "pattern" in shape
 
