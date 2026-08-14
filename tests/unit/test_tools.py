@@ -12,6 +12,10 @@ from ancalagon.bus.event_source import EventSource
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.tool_result import ToolResult
+from ancalagon.contracts.completed import Completed
+from ancalagon.contracts.failed import Failed
+from ancalagon.contracts.needs_input import NeedsInput
+from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.delegate.delegate import Delegate
 from ancalagon.tools.files.delete_file import DeleteFile
 from ancalagon.tools.files.edit_file import EditFile
@@ -475,3 +479,63 @@ def test_tree_walking_tools_honour_gitignore_outside_a_repository(tmp_path: path
     ):
         assert "dep.py" not in text
         assert "vendored_thing" not in text
+
+
+def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
+    tmp_path: pathlib.Path,
+):
+    ctx = _ctx(tmp_path)
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    migrate_file(run_dir / "bus.db", latest_version())
+    delegate = Delegate(run_dir=run_dir, parent=1)
+    collect = CollectTask(run_dir=run_dir)
+
+    def queue(task_id: str) -> int:
+        args = json.dumps(
+            {
+                "task_id": task_id,
+                "behaviour": "b",
+                "goal": "g",
+                "input_json": '{"text": "go"}',
+                "answer_schema": "contracts.py:FreeText",
+                "turns": 3,
+                "tool_calls": 5,
+            }
+        )
+        assert delegate.run(args, ctx).ok is True
+        return int(Bus.open(run_dir / "bus.db").active_for(run_dir / "tasks" / task_id)[0].agent)
+
+    spent = Budget(turns=1, tool_calls=1)
+    answered = queue("answered")
+    unfinished = queue("unfinished")
+    broken = queue("broken")
+    asked = queue("asked")
+
+    pending = collect.run(json.dumps({"task": unfinished}), ctx)
+    assert pending.ok is False
+    assert "no outcome yet" in pending.error
+
+    (run_dir / "tasks" / "answered" / "outcome.json").write_text(
+        Completed[FreeText](
+            value=FreeText(text="the finding"), summary="done", spent=spent
+        ).model_dump_json()
+    )
+    got = collect.run(json.dumps({"task": answered}), ctx)
+    assert got.ok is True
+    assert json.loads(got.path.read_text()) == {"text": "the finding"}
+
+    (run_dir / "tasks" / "broken" / "outcome.json").write_text(
+        Failed(error="ImportError: no module", summary="died", spent=spent).model_dump_json()
+    )
+    died = collect.run(json.dumps({"task": broken}), ctx)
+    assert died.ok is False
+    assert "failed" in died.error
+    assert "ImportError: no module" in died.error
+
+    (run_dir / "tasks" / "asked" / "outcome.json").write_text(
+        NeedsInput(question="which caption?", summary="stuck", spent=spent).model_dump_json()
+    )
+    stuck = collect.run(json.dumps({"task": asked}), ctx)
+    assert stuck.ok is False
+    assert "which caption?" in stuck.error
