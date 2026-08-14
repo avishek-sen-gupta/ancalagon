@@ -4,9 +4,10 @@ import subprocess
 import sys
 
 from ancalagon.supervisor.process import Process
+from ancalagon.supervisor.spawner import Spawner
 
 
-class SubprocessSpawner:
+class SubprocessSpawner(Spawner):
     def __init__(self, run_dir: pathlib.Path, config_path: pathlib.Path):
         self.run_dir = run_dir
         self.config_path = config_path

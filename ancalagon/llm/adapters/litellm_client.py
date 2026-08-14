@@ -16,6 +16,7 @@ from ancalagon.llm.adapters.wire_tool_call import WireToolCall
 from ancalagon.llm.adapters.wire_usage import WireUsage
 from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.tool_schema import ToolSchema
+from ancalagon.llm.llm import LLM
 
 
 def _system_blocks(system: SystemPrompt) -> tuple[WireTextBlock, ...]:
@@ -50,7 +51,7 @@ def _to_arguments(raw: str | collections.abc.Mapping[str, str]) -> str:
     return raw if isinstance(raw, str) else json.dumps(dict(raw))
 
 
-class LiteLLMClient:
+class LiteLLMClient(LLM):
     def __init__(self, model: str, max_tokens: int, num_retries: int, request_timeout_s: int):
         self.model = model
         self.max_tokens = max_tokens

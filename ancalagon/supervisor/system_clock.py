@@ -1,8 +1,9 @@
 # The real clock, used everywhere outside tests.
 import time
+from ancalagon.supervisor.clock import Clock
 
 
-class SystemClock:
+class SystemClock(Clock):
     def time(self) -> float:
         return time.monotonic()
 
