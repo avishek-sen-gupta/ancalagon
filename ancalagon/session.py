@@ -13,7 +13,7 @@ from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.json_payload import json_payload
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.needs_input import NeedsInput
-from ancalagon.contracts.outcome import Outcome
+from ancalagon.contracts.outcome import SUMMARY_CHARS, Outcome
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
@@ -35,6 +35,9 @@ from ancalagon.transcript.demote import for_wire
 from ancalagon.transcript.transcript import Transcript
 
 LOGGER = logging.getLogger(__name__)
+
+# A rejected final answer is quoted at length, because it is the evidence for the failure.
+REJECTED_CHARS = 2000
 
 FINAL_INSTRUCTION = (
     "Your budget is exhausted. Answer now from what you already know, "
@@ -192,7 +195,7 @@ class Session:
             if not isinstance(self.submit.answer, Unanswered):
                 return Exhausted(
                     value=self.submit.answer,
-                    summary=self.submit.answer.model_dump_json()[:200],
+                    summary=self.submit.answer.model_dump_json()[:SUMMARY_CHARS],
                     spent=self._spent(),
                 )
         text = self._answer_of(reply)
@@ -201,10 +204,10 @@ class Session:
         except pydantic.ValidationError as exc:
             return Failed(
                 error=f"final answer did not validate: {exc}",
-                summary=offered[:2000] or text[:2000],
+                summary=offered[:REJECTED_CHARS] or text[:REJECTED_CHARS],
                 spent=self._spent(),
             )
-        return Exhausted(value=value, summary=text[:200], spent=self._spent())
+        return Exhausted(value=value, summary=text[:SUMMARY_CHARS], spent=self._spent())
 
     def run(self) -> Outcome:
         schemas = self.registry.schemas()
@@ -219,11 +222,13 @@ class Session:
                 self._run_tools(uses)
                 asked = self.need_input.question
                 if asked:
-                    return NeedsInput(question=asked, summary=asked[:200], spent=self._spent())
+                    return NeedsInput(
+                        question=asked, summary=asked[:SUMMARY_CHARS], spent=self._spent()
+                    )
                 if not isinstance(self.submit.answer, Unanswered):
                     return Completed(
                         value=self.submit.answer,
-                        summary=self.submit.answer.model_dump_json()[:200],
+                        summary=self.submit.answer.model_dump_json()[:SUMMARY_CHARS],
                         spent=self._spent(),
                     )
                 continue
@@ -237,4 +242,4 @@ class Session:
                     [Text(text=f"That did not match the schema: {exc}. Reply with JSON only.")],
                 )
                 continue
-            return Completed(value=value, summary=text[:200], spent=self._spent())
+            return Completed(value=value, summary=text[:SUMMARY_CHARS], spent=self._spent())

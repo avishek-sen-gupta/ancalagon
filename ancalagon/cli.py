@@ -6,7 +6,7 @@ import pathlib
 import sys
 
 import ancalagon.migrations
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.bus import HUMAN, Bus
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.free_text import FreeText
@@ -109,7 +109,7 @@ def main(config_path: pathlib.Path, goal_argument: str) -> int:
     db = run_dir / "bus.db"
     ancalagon.migrations.migrate_file(db, ancalagon.migrations.latest_version())
     bus = Bus.open(db)
-    bus.enqueue(task_dir, parent_agent=0)
+    bus.enqueue(task_dir, parent_agent=HUMAN)
     supervisor = Supervisor(
         bus=Bus.open(db),
         spawner=SubprocessSpawner(run_dir=run_dir, config_path=config_path.resolve()),
