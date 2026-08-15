@@ -1,8 +1,9 @@
 # Answers a suspended agent's question, which queues a fresh attempt at the same task.
-import datetime
 import pathlib
 
 from ancalagon.bus.agent_status import AgentStatus
+from ancalagon.clock.clock import Clock
+from ancalagon.clock.system_clock import SystemClock
 from ancalagon.bus.bus import Bus
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.role import Role
@@ -10,8 +11,14 @@ from ancalagon.contracts.text import Text
 from ancalagon.transcript.transcript import Transcript
 
 
-def answer_task(run_dir: pathlib.Path, agent: int, answer: str, answered_by: int) -> int:
-    bus = Bus.open(run_dir / "bus.db")
+def answer_task(
+    run_dir: pathlib.Path,
+    agent: int,
+    answer: str,
+    answered_by: int,
+    clock: Clock = SystemClock(),
+) -> int:
+    bus = Bus.open(run_dir / "bus.db", clock)
     state = bus.state(agent)
     if not any(e.status is AgentStatus.NEEDS_INPUT for e in bus.history(agent)):
         raise ValueError(f"agent {agent} is {state.status.value} and never asked a question")
@@ -30,7 +37,7 @@ def answer_task(run_dir: pathlib.Path, agent: int, answer: str, answered_by: int
             blocks=[Text(text=answer)],
             agent=answered_by,
             seq=len(path.read_text(encoding="utf-8").splitlines()),
-            ts=datetime.datetime.now(datetime.UTC).isoformat(),
+            ts=clock.now().isoformat(),
         )
     )
     log.close()

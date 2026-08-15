@@ -5,12 +5,14 @@ from ancalagon.bus.bus import Bus
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.bus.depth_of import depth_of
 from ancalagon.bus.event_source import EventSource
+from ancalagon.clock.fake_clock import FakeClock
 
 
 def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.Path):
     db = tmp_path / "bus.db"
     migrate_file(db, latest_version())
-    bus = Bus.open(db)
+    clock = FakeClock()
+    bus = Bus.open(db, clock)
     other = Bus.open(db)
     alpha = tmp_path / "tasks" / "alpha"
 
@@ -31,6 +33,8 @@ def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.
     bus.record(first, AgentStatus.NEEDS_INPUT, EventSource.WORKER, summary="which caption?")
     bus.record(first, AgentStatus.EXITED, EventSource.SUPERVISOR, exit_code=0)
 
+    assert [e.ts for e in bus.history(first)] == ["2026-01-01T00:00:00+00:00"] * 5
+
     assert [(e.status.value, e.source.value) for e in bus.history(first)] == [
         ("queued", "supervisor"),
         ("claimed", "supervisor"),
@@ -41,8 +45,10 @@ def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.
     assert [s.agent for s in bus.live()] == [second]
     assert bus.active_for(alpha) == []
 
+    clock.sleep(90)
     retried = bus.enqueue(alpha, parent_agent=0)
     assert retried != first
+    assert bus.history(retried)[0].ts == "2026-01-01T00:01:30+00:00"
     assert bus.task(alpha).id == bus.state(first).task == bus.state(retried).task
     assert [s.agent for s in bus.active_for(alpha)] == [retried]
 

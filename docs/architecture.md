@@ -100,9 +100,15 @@ deliver and no cursor to advance.
 
 It never retries. A crash is reported; the parent decides.
 
-`subprocess_spawner.py` is the only module that constructs a process. `process.py`,
-`spawner.py` and `clock.py` are protocols so the supervisor can be tested without launching
-interpreters or waiting on real time.
+`subprocess_spawner.py` is the only module that constructs a process. `process.py` and
+`spawner.py` are protocols so the supervisor can be tested without launching interpreters.
+
+`clock/` holds the third: one `Clock`, with `now()` for the instant a row or a message is
+stamped with and `time()`/`sleep()` for how long an agent has been running. The supervisor,
+the bus and the session all take one, defaulting to `SystemClock`, so no timestamp anywhere
+comes from calling `datetime.now` in place. `FakeClock` starts at a fixed instant and moves
+only when slept, which is what lets a test assert what a transcript or an event log says
+rather than merely that it says something.
 
 ### 3. One attempt — `ancalagon/worker.py`
 
