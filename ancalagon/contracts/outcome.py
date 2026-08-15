@@ -7,6 +7,9 @@ from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.timed_out import TimedOut
 
+# How much of an answer or a question is quoted into an outcome's summary.
+SUMMARY_CHARS = 200
+
 Outcome = (
     Completed[pydantic.BaseModel] | Exhausted[pydantic.BaseModel] | NeedsInput | Failed | TimedOut
 )

@@ -16,6 +16,7 @@ from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.failed import Failed
+from ancalagon.contracts.outcome import SUMMARY_CHARS
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient
@@ -164,7 +165,7 @@ def main(
         LOGGER.exception("worker failed")
         failure = Failed(
             error=f"{type(exc).__name__}: {exc}",
-            summary=str(exc)[:200],
+            summary=str(exc)[:SUMMARY_CHARS],
             spent=Budget(turns=0, tool_calls=0),
         )
         outcome_path.write_text(failure.model_dump_json())

@@ -19,6 +19,12 @@ JOIN tasks t ON t.id = a.task
 JOIN agent_events e ON e.id = (SELECT MAX(id) FROM agent_events WHERE agent = a.id)
 """
 
+# Agent ids start at 1, so 0 is the person who started the run rather than any agent.
+HUMAN = 0
+
+# The schema's CHECK constraint on agent_events.summary; longer text is truncated.
+SUMMARY_LIMIT = 1000
+
 TERMINAL_MARKS = ", ".join("?" for _ in TERMINAL)
 TERMINAL_VALUES = tuple(s.value for s in TERMINAL)
 
@@ -68,7 +74,7 @@ class Bus:
         self.conn.execute(
             "INSERT INTO agent_events (agent, ts, status, source, pid, exit_code, summary) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (agent, _now(), status.value, source.value, pid, exit_code, summary[:1000]),
+            (agent, _now(), status.value, source.value, pid, exit_code, summary[:SUMMARY_LIMIT]),
         )
 
     def enqueue(self, dir: pathlib.Path, parent_agent: int) -> int:
