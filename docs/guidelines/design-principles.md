@@ -36,5 +36,6 @@
 
 - Ports-and-adapters. Functional core, imperative shell.
 - Mutable state is permitted only in the imperative shell (file writes, subprocess spawning, SQLite, LLM calls). The functional core receives and returns immutable values.
+- The shell is named, not assumed. `Session` is shell — its messages, remaining budget and sequence number advance a turn at a time, and threading them through the loop as parameters would move the mutation without removing it. `ToolContext`'s output counter is shell for the same reason: one instance per worker process, advanced only from a sequential loop. Everything else that holds values is a frozen model, and a class claiming to be shell needs the same argument these two have.
 - Dependency injection for external systems (LLM clients, file I/O, clocks, GUIDs, subprocess spawning).
 - No static methods.
