@@ -261,7 +261,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     assert "delegate" not in at_limit.names()
     assert "need_input" in at_limit.names()
     assert "submit_answer" in at_root.names()
-    answer_shape = at_root.get("submit_answer").schema().parameters.model_json_schema()
+    answer_shape = at_root.get("submit_answer").declaration.parameters.model_json_schema()
     assert set(answer_shape["properties"]) == {"text"}
 
     chosen = config.model_copy(update={"tools": ["read_file", "ripgrep"]})

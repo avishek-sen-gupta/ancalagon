@@ -18,4 +18,4 @@ class Registry:
         return list(self.tools)
 
     def schemas(self) -> list[ToolSchema]:
-        return [t.schema() for t in self.tools.values()]
+        return [t.declaration for t in self.tools.values()]
