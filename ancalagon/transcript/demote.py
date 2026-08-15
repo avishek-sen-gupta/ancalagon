@@ -1,4 +1,5 @@
 # Replaces an old tool result's body with a pointer to the file it was already written to.
+import collections.abc
 from ancalagon.contracts.block import Block
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.tool_result_block import ToolResultBlock
@@ -26,7 +27,9 @@ def demoted(message: Message) -> Message:
     return message.model_copy(update={"blocks": blocks})
 
 
-def for_wire(messages: list[Message], above_tokens: int, keep_recent: int) -> list[Message]:
+def for_wire(
+    messages: collections.abc.Sequence[Message], above_tokens: int, keep_recent: int
+) -> collections.abc.Sequence[Message]:
     if above_tokens <= 0:
         return messages
     if sum(len(m.model_dump_json()) for m in messages) // 4 < above_tokens:

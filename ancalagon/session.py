@@ -1,4 +1,5 @@
 # The agent loop: one turn per model call, until an answer, a question, or no turns left.
+import collections.abc
 import datetime
 import logging
 
@@ -46,7 +47,7 @@ class Session:
         self,
         spec: TaskSpec,
         input: pydantic.BaseModel,
-        messages: list[Message],
+        messages: collections.abc.Sequence[Message],
         transcript: Transcript,
         agent_id: int,
         llm: LLM,
@@ -78,7 +79,7 @@ class Session:
         if not self.messages:
             self._record(Role.USER, [Text(text=f"{spec.goal}\n\nInput: {input.model_dump_json()}")])
 
-    def _wire(self) -> list[Message]:
+    def _wire(self) -> collections.abc.Sequence[Message]:
         return for_wire(self.messages, self.compact_above_tokens, self.keep_recent_messages)
 
     def _scopes(self) -> str:
@@ -105,7 +106,7 @@ class Session:
             ),
         )
 
-    def _complete(self, tools: list[ToolSchema], force_tool: str = "") -> Reply:
+    def _complete(self, tools: collections.abc.Sequence[ToolSchema], force_tool: str = "") -> Reply:
         reply = self.llm.complete(self._system(), self._wire(), tools, force_tool=force_tool)
         self.meter.record(self.agent_id, reply.usage)
         LOGGER.info(
@@ -117,10 +118,10 @@ class Session:
         )
         return reply
 
-    def _record(self, role: Role, blocks: list[Block]) -> None:
+    def _record(self, role: Role, blocks: collections.abc.Sequence[Block]) -> None:
         message = Message(
             role=role,
-            blocks=blocks,
+            blocks=list(blocks),
             agent=self.agent_id,
             seq=self.seq,
             ts=datetime.datetime.now(datetime.UTC).isoformat(),
