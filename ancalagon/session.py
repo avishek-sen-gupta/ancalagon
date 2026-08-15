@@ -166,8 +166,8 @@ class Session:
             self.remaining = self.remaining.spend_tool_calls(tool.cost)
             try:
                 result = tool.invoke(use.arguments, self.ctx)
-            except Exception as exc:
-                LOGGER.warning("tool %s raised: %s", use.name, exc)
+            except pydantic.ValidationError as exc:
+                LOGGER.info("tool %s was called with bad arguments: %s", use.name, exc)
                 result = self.ctx.failure(use.name, f"{type(exc).__name__}: {exc}")
             blocks.append(
                 ToolResultBlock(
