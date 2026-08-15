@@ -9,7 +9,7 @@ Every non-trivial task goes through these phases. Do not skip. Do not start impl
 3. **Test first** — Write failing tests that define the expected behaviour. No implementation code until at least one test exists.
 4. **Implement** — Write the minimum code to make the tests pass.
 5. **Self-review** — Before verifying, review your own diff. Check against the Guardrails in CLAUDE.md and the Design Principles. Look for: comments that shouldn't exist, workaround guards, mutation in loops, weak assertions, speculative abstractions.
-6. **Verify** — `uv run python -m black . && uv run python -m pytest tests/`. All checks must pass.
+6. **Verify** — `uv run python -m black . && uv run pyright && uv run python -m pytest tests/`. All checks must pass. The pre-commit hook runs these too, so a rejected commit means one of them failed rather than something new.
 7. **Commit** — One logical unit per commit.
 
 When asked to audit or show issues, only report findings — do not fix unless explicitly asked.

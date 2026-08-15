@@ -57,4 +57,10 @@ fileignoreconfig:
   checksum: 4ecfbd9e1d55a47775073c2f209e5d9f4cec3aa60ecc83139890ef2cdb98ced5
 - filename: README.md
   checksum: 9847348c66319b18c1a81fc76feefe6645e86cfe69288f3030ef4299286280de
+- filename: docs/guidelines/code-review.md
+  checksum: 5256f2878a5cfa74c80e2e86e9c4a0dfa7c9696e8349d0f362416086a8a8531b
+- filename: docs/guidelines/tools-skills.md
+  checksum: d550104c144f3fed1b5f8565cd3002ca072cf3002a8706050fcc3d013a0d7673
+- filename: docs/guidelines/refactoring.md
+  checksum: 2b36baeee1e9393db3bb7eb0eb62104ace5a46ebe183b6c391d275fa70900b05
 version: "1.0"
