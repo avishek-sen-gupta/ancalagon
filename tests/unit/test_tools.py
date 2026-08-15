@@ -45,9 +45,7 @@ from ancalagon.tools.search.symbol_args import SymbolArgs
 from ancalagon.tools.survey.stats_args import StatsArgs
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.search.run_command import run_command
-from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.registry.tool_context import ToolContext
-from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.search.ast_grep import AstGrep
 from ancalagon.tools.search.find_symbol import FindSymbol
 from ancalagon.tools.search.ripgrep import Ripgrep
@@ -142,17 +140,17 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
     first = registry.get("read_file").invoke(f'{{"path": "{big}"}}', ctx)
     assert first.ok is True
     assert first.truncated is True
-    assert "line 0" in first.summary
-    assert "of 60" in first.summary
-    shown = int(first.summary.rsplit("offset=", 1)[1].split(" ")[0])
+    assert "line 0" in first.summary.text_for_model()
+    assert "of 60" in first.summary.text_for_model()
+    shown = int(first.summary.text_for_model().rsplit("offset=", 1)[1].split(" ")[0])
     assert 0 < shown < 60
 
     rest = registry.get("read_file").invoke(f'{{"path": "{big}", "offset": {shown}}}', ctx)
-    assert f"line {shown}" in rest.summary
+    assert f"line {shown}" in rest.summary.text_for_model()
 
     tail = registry.get("read_file").invoke(f'{{"path": "{big}", "offset": 58}}', ctx)
-    assert "line 59" in tail.summary
-    assert "end of file" in tail.summary
+    assert "line 59" in tail.summary.text_for_model()
+    assert "end of file" in tail.summary.text_for_model()
     assert tail.truncated is False
 
     relative = registry.get("read_file").invoke('{"path": "nope.txt"}', ctx)
@@ -247,14 +245,8 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         compact_above_tokens=0,
         keep_recent_messages=8,
     )
-    submit = SubmitAnswer(FreeText)
-    need_input = NeedInput()
-    at_root = build_registry(
-        config, tmp_path, parent=0, depth=0, submit=submit, need_input=need_input
-    )
-    at_limit = build_registry(
-        config, tmp_path, parent=1, depth=1, submit=submit, need_input=need_input
-    )
+    at_root = build_registry(config, tmp_path, parent=0, depth=0, output_class=FreeText)
+    at_limit = build_registry(config, tmp_path, parent=1, depth=1, output_class=FreeText)
 
     assert "delegate" in at_root.names()
     assert "need_input" in at_root.names()
@@ -265,13 +257,14 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     assert set(answer_shape["properties"]) == {"text"}
 
     chosen = config.model_copy(update={"tools": ["read_file", "ripgrep"]})
-    assert build_registry(
-        chosen, tmp_path, parent=0, depth=0, submit=submit, need_input=need_input
-    ).names() == ["read_file", "ripgrep"]
+    assert build_registry(chosen, tmp_path, parent=0, depth=0, output_class=FreeText).names() == [
+        "read_file",
+        "ripgrep",
+    ]
 
     typo = config.model_copy(update={"tools": ["read_file", "rigrep", "grep"]})
     with pytest.raises(ValueError) as refused:
-        build_registry(typo, tmp_path, parent=0, depth=0, submit=submit, need_input=need_input)
+        build_registry(typo, tmp_path, parent=0, depth=0, output_class=FreeText)
     assert "'grep', 'rigrep'" in str(refused.value)
     assert "ripgrep" in str(refused.value)
 
@@ -404,7 +397,7 @@ def test_artifact_and_history_tools_read_what_read_file_cannot(tmp_path: pathlib
     binary.write_bytes(b"\x00\x01\x02CONNECTION_STRING_HERE\x00\xff" * 3)
     kind = FileType().run(PathArg(path=binary), ctx)
     assert kind.ok is True
-    assert kind.summary.strip() != ""
+    assert kind.summary.text_for_model().strip() != ""
 
     found = ExtractStrings().run(StringsArgs(path=binary, min_length=8), ctx)
     assert found.ok is True

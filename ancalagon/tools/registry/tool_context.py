@@ -3,6 +3,7 @@ import collections.abc
 import itertools
 import pathlib
 
+from ancalagon.contracts.text_answer import TextAnswer
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.workspace.workspace import Workspace
 
@@ -33,7 +34,7 @@ class ToolContext:
         path = self.write_output(tool_name, text, suffix)
         return ToolResult(
             ok=True,
-            summary=text[: self.summary_chars],
+            summary=TextAnswer(text=text[: self.summary_chars]),
             path=path,
             byte_count=len(text.encode("utf-8")),
             truncated=len(text) > self.summary_chars,
@@ -63,7 +64,7 @@ class ToolContext:
         path = self.write_output(tool_name, "\n".join(lines), ".txt")
         return ToolResult(
             ok=True,
-            summary=f"{body}\n{note}",
+            summary=TextAnswer(text=f"{body}\n{note}"),
             path=path,
             byte_count=len("\n".join(lines).encode("utf-8")),
             truncated=last < total,
@@ -71,4 +72,9 @@ class ToolContext:
 
     def failure(self, tool_name: str, error: str) -> ToolResult:
         path = self.write_output(tool_name, error, ".err.txt")
-        return ToolResult(ok=False, summary=error[: self.summary_chars], path=path, error=error)
+        return ToolResult(
+            ok=False,
+            summary=TextAnswer(text=error[: self.summary_chars]),
+            path=path,
+            error=error,
+        )

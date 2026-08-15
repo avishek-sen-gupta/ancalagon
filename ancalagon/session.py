@@ -5,6 +5,8 @@ import logging
 
 import pydantic
 
+from ancalagon.contracts.asked import Asked
+from ancalagon.contracts.submitted import Submitted
 from ancalagon.contracts.block import Block
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.completed import Completed
@@ -18,17 +20,14 @@ from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
+from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
-from ancalagon.contracts.unanswered import Unanswered
 from ancalagon.llm.llm import LLM
 from ancalagon.llm.meter import Meter
 from ancalagon.llm.unmetered import Unmetered
-from ancalagon.llm.schema_of import schema_of
 from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.tool_schema import ToolSchema
-from ancalagon.tools.need_input.need_input import NeedInput
-from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.transcript.demote import for_wire
@@ -44,6 +43,8 @@ FINAL_INSTRUCTION = (
     "using the submit_answer tool. No other tools are available."
 )
 
+SUBMIT = "submit_answer"
+
 
 class Session:
     def __init__(
@@ -57,8 +58,6 @@ class Session:
         registry: Registry,
         ctx: ToolContext,
         output_class: type[pydantic.BaseModel],
-        submit: SubmitAnswer,
-        need_input: NeedInput,
         compact_above_tokens: int = 0,
         keep_recent_messages: int = 8,
         meter: Meter = Unmetered(),
@@ -72,8 +71,6 @@ class Session:
         self.registry = registry
         self.ctx = ctx
         self.output_class = output_class
-        self.submit = submit
-        self.need_input = need_input
         self.meter = meter
         self.compact_above_tokens = compact_above_tokens
         self.keep_recent_messages = keep_recent_messages
@@ -145,8 +142,9 @@ class Session:
     def _answer_of(self, reply: Reply) -> str:
         return json_payload(self._text_of(reply))
 
-    def _run_tools(self, uses: list[ToolUse]) -> None:
+    def _run_tools(self, uses: list[ToolUse]) -> list[ToolResult]:
         blocks: list[Block] = []
+        results: list[ToolResult] = []
         for use in uses:
             try:
                 tool = self.registry.get(use.name)
@@ -169,35 +167,36 @@ class Session:
             except pydantic.ValidationError as exc:
                 LOGGER.info("tool %s was called with bad arguments: %s", use.name, exc)
                 result = self.ctx.failure(use.name, f"{type(exc).__name__}: {exc}")
+            results.append(result)
             blocks.append(
                 ToolResultBlock(
                     tool_use_id=use.id,
-                    content=f"{result.summary}\n[full output: {result.path}]",
+                    content=f"{result.summary.text_for_model()}\n[full output: {result.path}]",
                     is_error=not result.ok,
                     path=str(result.path),
                     byte_count=result.byte_count,
                 )
             )
         self._record(Role.USER, blocks)
+        return results
 
     def _final_turn(self) -> Outcome:
         if self.messages and self.messages[-1].role is Role.USER:
             self._record(Role.ASSISTANT, [Text(text="Understood.")])
         self._record(Role.USER, [Text(text=FINAL_INSTRUCTION)])
-        offer = schema_of(self.submit.name, self.submit.description, self.submit.args_model)
-        reply = self._complete([offer], force_tool=self.submit.name)
+        reply = self._complete([self.registry.get(SUBMIT).declaration], force_tool=SUBMIT)
         self._record(Role.ASSISTANT, reply.blocks)
         uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
         offered = ""
         if uses:
             offered = uses[0].arguments
-            self._run_tools(uses)
-            if not isinstance(self.submit.answer, Unanswered):
-                return Exhausted(
-                    value=self.submit.answer,
-                    summary=self.submit.answer.model_dump_json()[:SUMMARY_CHARS],
-                    spent=self._spent(),
-                )
+            for result in self._run_tools(uses):
+                if isinstance(result.summary, Submitted):
+                    return Exhausted(
+                        value=result.summary.answer,
+                        summary=result.summary.answer.model_dump_json()[:SUMMARY_CHARS],
+                        spent=self._spent(),
+                    )
         text = self._answer_of(reply)
         try:
             value = self.output_class.model_validate_json(text)
@@ -219,18 +218,19 @@ class Session:
             self._record(Role.ASSISTANT, reply.blocks)
             uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
             if uses:
-                self._run_tools(uses)
-                asked = self.need_input.question
-                if asked:
-                    return NeedsInput(
-                        question=asked, summary=asked[:SUMMARY_CHARS], spent=self._spent()
-                    )
-                if not isinstance(self.submit.answer, Unanswered):
-                    return Completed(
-                        value=self.submit.answer,
-                        summary=self.submit.answer.model_dump_json()[:SUMMARY_CHARS],
-                        spent=self._spent(),
-                    )
+                for result in self._run_tools(uses):
+                    if isinstance(result.summary, Asked):
+                        return NeedsInput(
+                            question=result.summary.question,
+                            summary=result.summary.question[:SUMMARY_CHARS],
+                            spent=self._spent(),
+                        )
+                    if isinstance(result.summary, Submitted):
+                        return Completed(
+                            value=result.summary.answer,
+                            summary=result.summary.answer.model_dump_json()[:SUMMARY_CHARS],
+                            spent=self._spent(),
+                        )
                 continue
             text = self._answer_of(reply)
             try:

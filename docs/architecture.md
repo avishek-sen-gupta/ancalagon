@@ -120,9 +120,8 @@ Invoked as `python -m ancalagon.worker --run-dir … --dir … --agent-id … --
    a transcript ending in an unanswered tool call is rejected by the API, so interrupted
    calls get synthetic error results. This is the whole of resumption — there is no
    "resume mode".
-4. Builds `SubmitAnswer(output_class)` and `NeedInput()` **once**, and passes the same
-   instances to both `build_registry` and the `Session`. Different instances would mean the
-   model fills one form while the session reads another.
+4. Builds the registry, which is the only thing the `Session` is given: it holds no reference
+   to any tool.
 5. Runs the session, appends the agent's own outcome to the event log, writes
    `outcome.json`, and returns 0.
 
@@ -160,9 +159,10 @@ while True:
 
 Four things worth knowing:
 
-- **The run ends in exactly three places**, all visible above. `submit` and `need_input` are
-  constructor arguments precisely so this is readable rather than hidden behind registry
-  lookups.
+- **The run ends in exactly three places**, all visible above. `submit_answer` and
+  `need_input` end it by *returning* it: their `ToolResult` is an `Answered` or an `Asked`,
+  and `_run_tools` hands its results back for `run` to read. No tool holds state, and the
+  session holds no second reference to one — the ending travels along the call it came from.
 - **`_run_tools` refuses calls past the budget** rather than letting it go negative, and
   returns the refusal to the model as an error result.
 - **A tool called with bad arguments is caught** and becomes an error result, so the model
@@ -216,7 +216,13 @@ Each tool then:
 2. Resolves paths through `workspace/workspace.py`, which `resolve()`s first and then checks
    containment, so `..` and symlinks are handled by the same check.
 3. Writes its full output to a file under the task's `tools/` directory and returns a
-   `ToolResult` carrying a capped summary and that path. That write goes through
+   `ToolResult` carrying that path and a **`Payload`** — a model, not a string. `TextAnswer`
+   is the ordinary one and renders to exactly the text the tool produced, so a ripgrep result
+   still reaches the model as `path:line:text`. `Submitted` carries the validated answer and
+   `Asked` the question, which is how the session recognises an ending: `isinstance` on the
+   payload, with no tool state to read and no name to match. Rendering is
+   `payload.text_for_model()`, so each type decides how it reads rather than the session
+   branching on which it got. That write goes through
    `resolve_write` like any other, so the same roots bound a tool's own output as bound
    what it was allowed to read — and the check happens before the directory is created, so
    a context pointed outside the write root leaves nothing behind. A `ScopeError` here is a
@@ -234,8 +240,8 @@ outside every root the workspace declares.
 The session puts the summary and the path into the tool result the model sees. Large output
 never enters the context; the model reads it with `read_file` if it wants to.
 
-`submit/submit_answer.py` and `need_input/need_input.py` are the two tools the session
-watches. `need_input` is a **yield, not a dead end**: the agent stops, its question and its
+`submit/submit_answer.py` and `need_input/need_input.py` are the two tools whose results the
+session reads. `need_input` is a **yield, not a dead end**: the agent stops, its question and its
 whole transcript stay on disk, and `answer.py` appends the answer as a user message and
 enqueues the task again. Resumption then does the rest, since a worker loads whatever
 transcript is already in its directory. Nothing blocks and no channel is held open —

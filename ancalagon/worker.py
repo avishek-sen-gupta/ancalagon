@@ -4,6 +4,8 @@ import argparse
 import logging
 import pathlib
 import sys
+
+import pydantic
 import traceback
 
 from ancalagon.bus.agent_status import AgentStatus
@@ -60,8 +62,7 @@ def build_registry(
     run_dir: pathlib.Path,
     parent: int,
     depth: int,
-    submit: SubmitAnswer,
-    need_input: NeedInput,
+    output_class: type[pydantic.BaseModel],
 ) -> Registry:
     available: list[BoundTool] = [
         bind_tool(ReadFile()),
@@ -84,8 +85,8 @@ def build_registry(
         bind_tool(CheckTask(run_dir=run_dir)),
         bind_tool(CollectTask(run_dir=run_dir)),
         bind_tool(AnswerTask(run_dir=run_dir, parent=parent)),
-        bind_tool(need_input),
-        bind_tool(submit),
+        bind_tool(NeedInput()),
+        bind_tool(SubmitAnswer(output_class)),
     ]
     enabled = set(config.tools)
     unknown = enabled - {t.name for t in available}
@@ -123,8 +124,6 @@ def main(
             summary_chars=config.summary_chars,
             agent_id=agent_id,
         )
-        submit = SubmitAnswer(output_class)
-        need_input = NeedInput()
         session = Session(
             spec=spec,
             input=given,
@@ -142,13 +141,10 @@ def main(
                 run_dir,
                 parent=agent_id,
                 depth=depth_of(bus, agent_id),
-                submit=submit,
-                need_input=need_input,
+                output_class=output_class,
             ),
             ctx=ctx,
             output_class=output_class,
-            submit=submit,
-            need_input=need_input,
             meter=BusMeter(bus),
             compact_above_tokens=config.compact_above_tokens,
             keep_recent_messages=config.keep_recent_messages,

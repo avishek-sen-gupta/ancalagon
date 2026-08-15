@@ -53,8 +53,6 @@ def _session(
         answer_schema="contracts.py:Verdict",
         budget=budget,
     )
-    submit = SubmitAnswer(Verdict)
-    need_input = NeedInput()
     return Session(
         spec=spec,
         input=given,
@@ -62,11 +60,11 @@ def _session(
         transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
         llm=FakeLLM(replies),
-        registry=Registry([bind_tool(ReadFile()), bind_tool(need_input), bind_tool(submit)]),
+        registry=Registry(
+            [bind_tool(ReadFile()), bind_tool(NeedInput()), bind_tool(SubmitAnswer(Verdict))]
+        ),
         ctx=ctx,
         output_class=Verdict,
-        submit=submit,
-        need_input=need_input,
     )
 
 
@@ -114,6 +112,9 @@ def test_session_runs_tools_completes_and_forces_a_final_answer_when_exhausted(
     assert all(json.loads(line)["agent"] == 17 for line in lines)
     assert "Answer it." in lines[0]
     assert "read_file" in lines[1]
+
+    returned = json.loads(lines[2])["blocks"][0]["content"]
+    assert returned.startswith("payload\n[lines 0-1 of 1; end of file]\n[full output: ")
 
     second = tmp_path / "second"
     second.mkdir(parents=True, exist_ok=True)

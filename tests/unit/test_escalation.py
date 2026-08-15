@@ -55,8 +55,6 @@ def _run(
         summary_chars=400,
         agent_id=agent,
     )
-    submit = SubmitAnswer(FreeText)
-    need_input = NeedInput()
     bus = Bus.open(run_dir / "bus.db")
     bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=100 + agent)
@@ -73,14 +71,12 @@ def _run(
                 bind_tool(CheckTask(run_dir=run_dir)),
                 bind_tool(CollectTask(run_dir=run_dir)),
                 bind_tool(AnswerTask(run_dir=run_dir, parent=agent)),
-                bind_tool(need_input),
-                bind_tool(submit),
+                bind_tool(NeedInput()),
+                bind_tool(SubmitAnswer(FreeText)),
             ]
         ),
         ctx=ctx,
         output_class=FreeText,
-        submit=submit,
-        need_input=need_input,
     )
     outcome = session.run()
     bus.record(agent, AgentStatus(outcome.kind.value), EventSource.WORKER, summary=outcome.summary)
