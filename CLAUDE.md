@@ -1,11 +1,14 @@
-# RedDragon — Agent Instructions
+# Ancalagon — Agent Instructions
 
-#import .claude/core/project-context.md
-#import .claude/core/workflow.md
-#import .claude/core/implementation.md
-#import .claude/core/tools-search.md
-#import .claude/conditional/design-principles.md
-#import .claude/conditional/testing-patterns.md
+@docs/guidelines/project-context.md
+@docs/guidelines/workflow.md
+@docs/guidelines/implementation.md
+@docs/guidelines/tools-search.md
+@docs/guidelines/design-principles.md
+@docs/guidelines/testing-patterns.md
+@docs/guidelines/refactoring.md
+@docs/guidelines/code-review.md
+@docs/guidelines/tools-skills.md
 
 ## Guardrails
 
