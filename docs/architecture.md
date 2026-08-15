@@ -126,8 +126,10 @@ Invoked as `python -m ancalagon.worker --run-dir … --dir … --agent-id … --
 5. Runs the session, appends the agent's own outcome to the event log, writes
    `outcome.json`, and returns 0.
 
-Any exception writes a `Failed` outcome and returns 1, so a task is never left
-uncollectable.
+Any exception writes a `Failed` outcome carrying the traceback and returns 1, so a task is
+never left uncollectable. This is the one catch-all in the codebase and it is deliberate: it
+is the outermost frame of a process, and a worker that dies without an `outcome.json` is
+indistinguishable to `collect_task` from one still working, for ever.
 
 `build_registry` is the only place tool availability is decided: `[tools] enabled` filters
 the list, and `delegate` is withheld once `bus/depth_of.py` reports the task is at
@@ -163,8 +165,12 @@ Four things worth knowing:
   lookups.
 - **`_run_tools` refuses calls past the budget** rather than letting it go negative, and
   returns the refusal to the model as an error result.
-- **A tool that raises is caught** and becomes an error result. Tool failure is a value the
-  agent reads and corrects; it never breaks the loop.
+- **A tool called with bad arguments is caught** and becomes an error result, so the model
+  reads its own mistake and corrects it. Only `pydantic.ValidationError` is caught, which is
+  what `bind_tool` raises when the model's JSON does not match the tool's args model. Anything
+  else a tool raises is a defect rather than a move the model made, and it propagates to the
+  worker, where it becomes a `Failed` outcome carrying the traceback — visible, rather than
+  handed back as a tool error the agent burns turns retrying against.
 - **`_final_turn` offers only `submit_answer`**, and injects a synthetic assistant turn
   first if the last message was a user turn — providers reject two consecutive user turns.
 - **`_system()` returns two halves**, `SystemPrompt(static, per_item)`: behaviour and answer

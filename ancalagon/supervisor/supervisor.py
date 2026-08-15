@@ -45,7 +45,7 @@ class Supervisor:
             state = claimed[0]
             try:
                 process = self.spawner.spawn(pathlib.Path(state.dir), state.agent)
-            except Exception as exc:
+            except OSError as exc:
                 LOGGER.exception("spawn failed for agent %s", state.agent)
                 self._finish(state.agent, AgentStatus.CRASHED, -1, f"spawn failed: {exc}")
                 continue

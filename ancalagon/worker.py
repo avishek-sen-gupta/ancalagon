@@ -4,6 +4,7 @@ import argparse
 import logging
 import pathlib
 import sys
+import traceback
 
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
@@ -164,7 +165,7 @@ def main(
     except Exception as exc:
         LOGGER.exception("worker failed")
         failure = Failed(
-            error=f"{type(exc).__name__}: {exc}",
+            error=traceback.format_exc(),
             summary=str(exc)[:SUMMARY_CHARS],
             spent=Budget(turns=0, tool_calls=0),
         )
