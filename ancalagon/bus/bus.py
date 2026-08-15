@@ -1,5 +1,4 @@
 # The task queue and append-only agent log. Claiming is atomic so two supervisors never overlap.
-import datetime
 import pathlib
 import sqlite3
 
@@ -9,6 +8,8 @@ from ancalagon.bus.agent_state import AgentState
 from ancalagon.bus.agent_status import TERMINAL, AgentStatus
 from ancalagon.bus.event_source import EventSource
 from ancalagon.bus.task_row import TaskRow
+from ancalagon.clock.clock import Clock
+from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.call_usage import CallUsage
 
 LATEST = """
@@ -29,13 +30,13 @@ TERMINAL_MARKS = ", ".join("?" for _ in TERMINAL)
 TERMINAL_VALUES = tuple(s.value for s in TERMINAL)
 
 
-def _now() -> str:
-    return datetime.datetime.now(datetime.UTC).isoformat()
-
-
 class Bus:
-    def __init__(self, conn: sqlite3.Connection):
+    def __init__(self, conn: sqlite3.Connection, clock: Clock = SystemClock()):
         self.conn = conn
+        self.clock = clock
+
+    def _now(self) -> str:
+        return self.clock.now().isoformat()
 
     @classmethod
     def _connect(cls, path: pathlib.Path) -> sqlite3.Connection:
@@ -45,7 +46,7 @@ class Bus:
         return conn
 
     @classmethod
-    def open(cls, path: pathlib.Path) -> "Bus":
+    def open(cls, path: pathlib.Path, clock: Clock = SystemClock()) -> "Bus":
         if not path.exists():
             raise ValueError(f"{path} does not exist")
         conn = cls._connect(path)
@@ -56,7 +57,7 @@ class Bus:
                 f"{path} is at schema version {found}, not {latest}; "
                 f"run: ancalagon migrate --db {path}"
             )
-        return cls(conn)
+        return cls(conn, clock)
 
     def _states(self, where: str, params: tuple[str | int, ...]) -> list[AgentState]:
         rows = self.conn.execute(LATEST + where, params).fetchall()
@@ -74,7 +75,15 @@ class Bus:
         self.conn.execute(
             "INSERT INTO agent_events (agent, ts, status, source, pid, exit_code, summary) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (agent, _now(), status.value, source.value, pid, exit_code, summary[:SUMMARY_LIMIT]),
+            (
+                agent,
+                self._now(),
+                status.value,
+                source.value,
+                pid,
+                exit_code,
+                summary[:SUMMARY_LIMIT],
+            ),
         )
 
     def enqueue(self, dir: pathlib.Path, parent_agent: int) -> int:
@@ -83,11 +92,11 @@ class Bus:
         if task is None:
             task = self.conn.execute(
                 "INSERT INTO tasks (dir, parent_agent, created) VALUES (?, ?, ?) RETURNING id",
-                (str(dir), parent_agent, _now()),
+                (str(dir), parent_agent, self._now()),
             ).fetchone()
         agent = self.conn.execute(
             "INSERT INTO agents (task, created) VALUES (?, ?) RETURNING id",
-            (int(task["id"]), _now()),
+            (int(task["id"]), self._now()),
         ).fetchone()
         agent_id = int(agent["id"])
         self.record(agent_id, AgentStatus.QUEUED, EventSource.SUPERVISOR)
@@ -148,7 +157,7 @@ class Bus:
             "cache_creation_tokens, cache_read_tokens) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 agent,
-                _now(),
+                self._now(),
                 usage.model,
                 usage.prompt_tokens,
                 usage.completion_tokens,

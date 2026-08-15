@@ -15,6 +15,7 @@ from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.llm.fake_llm import FakeLLM
 from ancalagon.session import Session
 from ancalagon.tools.files.read_file import ReadFile
@@ -65,6 +66,7 @@ def _session(
         ),
         ctx=ctx,
         output_class=Verdict,
+        clock=FakeClock(),
     )
 
 
@@ -110,6 +112,7 @@ def test_session_runs_tools_completes_and_forces_a_final_answer_when_exhausted(
     ]
     assert [json.loads(line)["seq"] for line in lines] == [0, 1, 2, 3]
     assert all(json.loads(line)["agent"] == 17 for line in lines)
+    assert all(json.loads(line)["ts"] == "2026-01-01T00:00:00+00:00" for line in lines)
     assert "Answer it." in lines[0]
     assert "read_file" in lines[1]
 

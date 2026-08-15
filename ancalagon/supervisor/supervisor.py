@@ -7,10 +7,10 @@ from ancalagon.bus.bus import Bus
 from ancalagon.bus.event_source import EventSource
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.timed_out import TimedOut
-from ancalagon.supervisor.clock import Clock
+from ancalagon.clock.clock import Clock
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
-from ancalagon.supervisor.system_clock import SystemClock
+from ancalagon.clock.system_clock import SystemClock
 
 LOGGER = logging.getLogger(__name__)
 

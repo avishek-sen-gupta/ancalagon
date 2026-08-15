@@ -1,10 +1,11 @@
 # The agent loop: one turn per model call, until an answer, a question, or no turns left.
 import collections.abc
-import datetime
 import logging
 
 import pydantic
 
+from ancalagon.clock.clock import Clock
+from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.asked import Asked
 from ancalagon.contracts.submitted import Submitted
 from ancalagon.contracts.block import Block
@@ -58,6 +59,7 @@ class Session:
         registry: Registry,
         ctx: ToolContext,
         output_class: type[pydantic.BaseModel],
+        clock: Clock = SystemClock(),
         compact_above_tokens: int = 0,
         keep_recent_messages: int = 8,
         meter: Meter = Unmetered(),
@@ -72,6 +74,7 @@ class Session:
         self.ctx = ctx
         self.output_class = output_class
         self.meter = meter
+        self.clock = clock
         self.compact_above_tokens = compact_above_tokens
         self.keep_recent_messages = keep_recent_messages
         self.remaining = spec.budget
@@ -124,7 +127,7 @@ class Session:
             blocks=list(blocks),
             agent=self.agent_id,
             seq=self.seq,
-            ts=datetime.datetime.now(datetime.UTC).isoformat(),
+            ts=self.clock.now().isoformat(),
         )
         self.seq += 1
         self.messages.append(message)

@@ -7,7 +7,7 @@ from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.supervisor.supervisor import Supervisor
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
-from ancalagon.supervisor.clock import Clock
+from ancalagon.clock.fake_clock import FakeClock
 
 
 class FakeProcess(Process):
@@ -37,17 +37,6 @@ class FakeSpawner(Spawner):
         self.spawned.append(agent_id)
         exit_after, code = self.script.pop(0)
         return FakeProcess(pid=1000 + agent_id, exit_after=exit_after, code=code)
-
-
-class FakeClock(Clock):
-    def __init__(self) -> None:
-        self.now = 0.0
-
-    def time(self) -> float:
-        return self.now
-
-    def sleep(self, seconds: float) -> None:
-        self.now += seconds
 
 
 def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: pathlib.Path):
