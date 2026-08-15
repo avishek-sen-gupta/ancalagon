@@ -90,7 +90,7 @@ def test_the_tool_and_the_command_both_answer_and_report_what_they_queued(
     tool = AnswerTask(run_dir=run_dir, parent=7)
     answered = tool.run(AnswerArgs(task=agent, answer="by tool"), ctx)
     assert answered.ok is True
-    assert f"answered agent {agent}" in answered.summary
+    assert f"answered agent {agent}" in answered.summary.text_for_model()
 
     lines = [
         json.loads(l)

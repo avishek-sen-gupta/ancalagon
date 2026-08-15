@@ -1,4 +1,5 @@
 # Ends a run with a question; there is no channel to ask a live parent by design.
+from ancalagon.contracts.asked import Asked
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.need_input.need_input_args import NeedInputArgs
 from ancalagon.tools.registry.tool import Tool
@@ -14,9 +15,7 @@ class NeedInput(Tool[NeedInputArgs]):
     cost = 0
     args_model = NeedInputArgs
 
-    def __init__(self) -> None:
-        self.question = ""
-
     def run(self, args: NeedInputArgs, ctx: ToolContext) -> ToolResult:
-        self.question = args.question
-        return ctx.result(self.name, f"question recorded: {args.question}")
+        payload = Asked(question=args.question)
+        path = ctx.write_output(self.name, payload.text_for_model(), ".txt")
+        return ToolResult(ok=True, summary=payload, path=path)
