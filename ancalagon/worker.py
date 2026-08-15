@@ -1,4 +1,5 @@
 # Entry point for one agent process: runs a single attempt at one task directory.
+import collections.abc
 import argparse
 import logging
 import pathlib
@@ -12,6 +13,7 @@ from ancalagon.bus.depth_of import depth_of
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
+from ancalagon.contracts.message import Message
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.resolve import resolve_class
@@ -110,7 +112,9 @@ def main(
         output_class = resolve_class(spec.answer_schema, task_dir)
         input_class = resolve_class(spec.input_schema, task_dir)
         given = AgentSpec[input_class].model_validate_json(spec_text).input
-        history = repair(load(transcript_path)) if transcript_path.exists() else []
+        history: collections.abc.Sequence[Message] = (
+            repair(load(transcript_path)) if transcript_path.exists() else []
+        )
         ctx = ToolContext(
             workspace=Workspace.from_config(config),
             output_dir=task_dir / "tools",

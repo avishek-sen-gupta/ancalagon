@@ -1,4 +1,5 @@
 # What a tool is given to do its work, and the writer that puts every output on disk.
+import collections.abc
 import itertools
 import pathlib
 
@@ -38,7 +39,13 @@ class ToolContext:
             truncated=len(text) > self.summary_chars,
         )
 
-    def paged(self, tool_name: str, lines: list[str], offset: int, total: int) -> ToolResult:
+    def paged(
+        self,
+        tool_name: str,
+        lines: collections.abc.Sequence[str],
+        offset: int,
+        total: int,
+    ) -> ToolResult:
         kept: list[str] = []
         used = 0
         for line in lines:

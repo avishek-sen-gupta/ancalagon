@@ -1,3 +1,4 @@
+import collections.abc
 import json
 import pathlib
 
@@ -7,6 +8,7 @@ from ancalagon.answer_command import answer_command
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
 from ancalagon.bus.event_source import EventSource
+from ancalagon.contracts.message import Message
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.needs_input import NeedsInput
@@ -44,7 +46,9 @@ def _run(
 ) -> Outcome:
     spec = TaskSpec.model_validate_json((task_dir / "spec.json").read_text())
     transcript_path = task_dir / "transcript.jsonl"
-    history = repair(load(transcript_path)) if transcript_path.exists() else []
+    history: collections.abc.Sequence[Message] = (
+        repair(load(transcript_path)) if transcript_path.exists() else []
+    )
     ctx = ToolContext(
         workspace=Workspace(write_root=run_dir, read_roots=(run_dir,)),
         output_dir=task_dir / "tools",

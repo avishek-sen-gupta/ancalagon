@@ -9,7 +9,7 @@ from ancalagon.llm.llm import LLM
 
 
 class FakeLLM(LLM):
-    def __init__(self, replies: list[Reply]):
+    def __init__(self, replies: collections.abc.Sequence[Reply]):
         self.replies = list(replies)
         self.systems: list[SystemPrompt] = []
         self.seen: list[list[Message]] = []

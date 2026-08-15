@@ -1,4 +1,5 @@
 # Loads a transcript, giving interrupted tool calls synthetic results so the API accepts it.
+import collections.abc
 import pathlib
 
 from ancalagon.contracts.message import Message
@@ -14,7 +15,7 @@ def load(path: pathlib.Path) -> list[Message]:
     return [Message.model_validate_json(line) for line in lines]
 
 
-def repair(messages: list[Message]) -> list[Message]:
+def repair(messages: collections.abc.Sequence[Message]) -> collections.abc.Sequence[Message]:
     if not messages:
         return messages
     last = messages[-1]
