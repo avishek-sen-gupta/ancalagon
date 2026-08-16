@@ -77,17 +77,26 @@ may spawn ten children of a 20-turn role. It is bounded instead by the role grap
 
 Roles are known at worker startup, before the tool schema is built. So there is one delegate
 tool **per role**, its argument model built then with `create_model`, exactly as
-`AgentSpec[InT]` and `Completed[OutT]` are built today:
+`AgentSpec[InT]` and `Completed[OutT]` are built today. What a spawning role is shown is two
+more entries in the tool list it already receives, whose schemas happen to have been computed
+at startup rather than written down:
 
-```
-delegate_component_analyst(task_id: str, input: ComponentQuery)
-delegate_scout            (task_id: str, input: FreeText)
+```json
+{"name": "delegate_component_analyst",
+ "input_schema": {"type": "object",
+                  "properties": {"task_id": {"type": "string"},
+                                 "input": {"$ref": "#/$defs/ComponentQuery"}}}}
+{"name": "delegate_scout",
+ "input_schema": {"type": "object",
+                  "properties": {"task_id": {"type": "string"},
+                                 "input": {"$ref": "#/$defs/FreeText"}}}}
 ```
 
-Nothing is generated on disk and no code is written per role. One hand-written class varies
-only in its `args_model`, because roles differ in data and not in behaviour: look up the
-role, write `spec.json`, enqueue. Adding `[roles.foo]` to the config makes `delegate_foo`
-exist the next time a worker starts; deleting it removes the tool.
+The Python is one hand-written class. Roles differ in data, not in behaviour — look up the
+role, write `spec.json`, enqueue — so all of them share a single `run`, and only `args_model`
+varies, built by `create_model` from the role's input contract. Nothing is written to disk
+and no file is generated. Adding `[roles.foo]` to the config makes `delegate_foo` appear in
+that list the next time a worker starts; deleting the role removes it.
 
 The model therefore sees each role's real input schema, and `input_json: str` is gone — with
 it the last use of the one-hop-as-text exception `CLAUDE.md` grants, since the class is no
