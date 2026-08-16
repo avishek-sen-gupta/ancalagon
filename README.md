@@ -58,7 +58,9 @@ Runs are sandboxed by default: every worker process is wrapped with `fence`, so 
 be installed (`brew install fencesandbox/fence/fence` or see the project's own instructions).
 Set `[sandbox] strategy = "none"` in the config to run unsandboxed instead. The sandbox
 confines writes to `write_root`; it does not restrict reads, so a sandboxed agent can still
-read anything the user running it can.
+read anything the user running it can. On macOS, fence also grants an implicit write
+carve-out for the whole `$TMPDIR` tree regardless of the policy — a known limitation, not
+enforced by us.
 
 `run` brings its own run database up to the latest schema before opening it, so an existing
 run directory keeps working after an upgrade. Nothing else migrates: opening a bus to read
