@@ -41,4 +41,4 @@ class Fence(Sandbox):
         return ["fence", "-s", str(self.policy), "--", *command]
 
     def environment(self) -> collections.abc.Mapping[str, str]:
-        return {"no_proxy": "", "NO_PROXY": ""}
+        return {"no_proxy": "", "NO_PROXY": "", "ALL_PROXY": "", "all_proxy": ""}

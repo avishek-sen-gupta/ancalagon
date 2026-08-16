@@ -52,9 +52,10 @@ Watch a run as it happens, including subagents spawned mid-run:
 Give it the same config the run uses and it watches that config's `write_root`, so
 the two cannot disagree about where runs live. A directory works too.
 
-On Bedrock with a bearer token, `scripts/ancrun.zsh` runs the same command with
-stale AWS credentials stripped from the environment — otherwise litellm signs with
-those instead and Bedrock rejects the request.
+On Bedrock with a bearer token, `scripts/ancrun.zsh` runs the same command with stale AWS
+credentials stripped from the environment — otherwise litellm signs with those instead and
+Bedrock rejects the request. It reads `AWS_BEARER_TOKEN_BEDROCK` from the environment and
+refuses to start without it.
 
 Runs are sandboxed by default: every worker process is wrapped with `fence`, so `fence` must
 be installed (`brew install fencesandbox/fence/fence` or see the project's own instructions).
