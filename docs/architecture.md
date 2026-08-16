@@ -107,7 +107,9 @@ before spawning: `Fence` writes its policy as `fence.json` into the run director
 records what it ran under, and prepends `fence -s <policy> --`; `Unsandboxed` returns the
 command unchanged. The sandbox confines writes to `write_root` but leaves reads unrestricted
 — fence cannot express "deny everything except the roots" without also denying the roots
-themselves, as `docs/superpowers/specs/2026-08-16-sandbox-mode-design.md` shows.
+themselves, as `docs/superpowers/specs/2026-08-16-sandbox-mode-design.md` shows. On macOS,
+fence also grants an implicit write carve-out for the whole `$TMPDIR` tree independent of the
+policy — a known limitation, recorded there rather than fixed.
 
 `clock/` holds the third: one `Clock`, with `now()` for the instant a row or a message is
 stamped with and `time()`/`sleep()` for how long an agent has been running. The supervisor,
