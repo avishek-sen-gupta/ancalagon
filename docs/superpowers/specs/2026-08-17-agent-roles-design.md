@@ -85,10 +85,12 @@ at startup rather than written down:
 {"name": "delegate_component_analyst",
  "input_schema": {"type": "object",
                   "properties": {"task_id": {"type": "string"},
+                                 "goal": {"type": "string"},
                                  "input": {"$ref": "#/$defs/ComponentQuery"}}}}
 {"name": "delegate_scout",
  "input_schema": {"type": "object",
                   "properties": {"task_id": {"type": "string"},
+                                 "goal": {"type": "string"},
                                  "input": {"$ref": "#/$defs/FreeText"}}}}
 ```
 
@@ -117,8 +119,13 @@ back as `input_json: str` — works and matches what the worker already does wit
 `AgentSpec[InT]`, but it constrains only the role name and leaves the parent guessing the
 payload. That guess failed three times in `r_0004`.
 
-`behaviour`, `contracts`, `turns`, `tool_calls` and `input_json` all go. Two fields remain
-on each tool: what to call the task, and what to give it. The role is the tool.
+`behaviour`, `contracts`, `turns`, `tool_calls` and `input_json` all go. Three fields remain
+on each tool: what to call the task, what it is for, and what to give it. The role is the
+tool, so the role name is no longer a field at all.
+
+`goal` stays for the same reason the root keeps `goal_file` beside `input_file`: `AgentSpec`
+models the standing instruction and the per-call one separately, `behaviour` is the first,
+and a parent still needs to say which of two calls to the same role is the awkward one.
 
 ## The root is a role
 
