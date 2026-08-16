@@ -2,6 +2,7 @@
 import pathlib
 
 from ancalagon.bus.bus import Bus
+from ancalagon.clock.clock import Clock
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.delegate.task_args import TaskArgs
 from ancalagon.tools.registry.tool import Tool
@@ -14,12 +15,13 @@ class CheckTask(Tool[TaskArgs]):
     cost = 0
     args_model = TaskArgs
 
-    def __init__(self, run_dir: pathlib.Path):
+    def __init__(self, run_dir: pathlib.Path, clock: Clock):
         self.run_dir = run_dir
+        self.clock = clock
 
     def run(self, args: TaskArgs, ctx: ToolContext) -> ToolResult:
         try:
-            state = Bus.open(self.run_dir / "bus.db").state(args.task)
+            state = Bus.open(self.run_dir / "bus.db", self.clock).state(args.task)
         except KeyError as exc:
             return ctx.failure(self.name, str(exc))
         return ctx.result(

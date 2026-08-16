@@ -9,7 +9,6 @@ from ancalagon.bus.agent_status import TERMINAL, AgentStatus
 from ancalagon.bus.event_source import EventSource
 from ancalagon.bus.task_row import TaskRow
 from ancalagon.clock.clock import Clock
-from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.call_usage import CallUsage
 
 LATEST = """
@@ -31,7 +30,7 @@ TERMINAL_VALUES = tuple(s.value for s in TERMINAL)
 
 
 class Bus:
-    def __init__(self, conn: sqlite3.Connection, clock: Clock = SystemClock()):
+    def __init__(self, conn: sqlite3.Connection, clock: Clock):
         self.conn = conn
         self.clock = clock
 
@@ -46,7 +45,7 @@ class Bus:
         return conn
 
     @classmethod
-    def open(cls, path: pathlib.Path, clock: Clock = SystemClock()) -> "Bus":
+    def open(cls, path: pathlib.Path, clock: Clock) -> "Bus":
         if not path.exists():
             raise ValueError(f"{path} does not exist")
         conn = cls._connect(path)

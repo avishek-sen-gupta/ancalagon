@@ -3,7 +3,6 @@ import pathlib
 
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.clock.clock import Clock
-from ancalagon.clock.system_clock import SystemClock
 from ancalagon.bus.bus import Bus
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.role import Role
@@ -16,7 +15,7 @@ def answer_task(
     agent: int,
     answer: str,
     answered_by: int,
-    clock: Clock = SystemClock(),
+    clock: Clock,
 ) -> int:
     bus = Bus.open(run_dir / "bus.db", clock)
     state = bus.state(agent)

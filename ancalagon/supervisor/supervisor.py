@@ -10,7 +10,6 @@ from ancalagon.contracts.timed_out import TimedOut
 from ancalagon.clock.clock import Clock
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
-from ancalagon.clock.system_clock import SystemClock
 
 LOGGER = logging.getLogger(__name__)
 
@@ -22,8 +21,8 @@ class Supervisor:
         spawner: Spawner,
         max_concurrent: int,
         timeout_s: int,
+        clock: Clock,
         poll_s: float = 0.05,
-        clock: Clock = SystemClock(),
     ):
         self.bus = bus
         self.spawner = spawner

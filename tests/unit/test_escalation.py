@@ -7,6 +7,7 @@ import pytest
 from ancalagon.answer_command import answer_command
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
+from ancalagon.clock.system_clock import SystemClock
 from ancalagon.bus.event_source import EventSource
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.completed import Completed
@@ -55,7 +56,7 @@ def _run(
         summary_chars=400,
         agent_id=agent,
     )
-    bus = Bus.open(run_dir / "bus.db")
+    bus = Bus.open(run_dir / "bus.db", SystemClock())
     bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=100 + agent)
     session = Session(
@@ -67,16 +68,19 @@ def _run(
         llm=FakeLLM(replies),
         registry=Registry(
             [
-                bind_tool(Delegate(run_dir=run_dir, parent=agent, budget=spec.budget)),
-                bind_tool(CheckTask(run_dir=run_dir)),
-                bind_tool(CollectTask(run_dir=run_dir)),
-                bind_tool(AnswerTask(run_dir=run_dir, parent=agent)),
+                bind_tool(
+                    Delegate(run_dir=run_dir, parent=agent, budget=spec.budget, clock=SystemClock())
+                ),
+                bind_tool(CheckTask(run_dir=run_dir, clock=SystemClock())),
+                bind_tool(CollectTask(run_dir=run_dir, clock=SystemClock())),
+                bind_tool(AnswerTask(run_dir=run_dir, parent=agent, clock=SystemClock())),
                 bind_tool(NeedInput()),
                 bind_tool(SubmitAnswer(FreeText)),
             ]
         ),
         ctx=ctx,
         output_class=FreeText,
+        clock=SystemClock(),
     )
     outcome = session.run()
     bus.record(agent, AgentStatus(outcome.kind.value), EventSource.WORKER, summary=outcome.summary)
@@ -118,7 +122,7 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
         )
     )
     migrate_file(run_dir / "bus.db", latest_version())
-    bus = Bus.open(run_dir / "bus.db")
+    bus = Bus.open(run_dir / "bus.db", SystemClock())
     root = bus.enqueue(root_dir, parent_agent=0)
 
     first = _run(

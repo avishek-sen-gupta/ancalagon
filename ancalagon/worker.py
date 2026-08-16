@@ -13,6 +13,8 @@ from ancalagon.bus.bus import Bus
 from ancalagon.bus.bus_meter import BusMeter
 from ancalagon.bus.event_source import EventSource
 from ancalagon.bus.depth_of import depth_of
+from ancalagon.clock.clock import Clock
+from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
@@ -64,6 +66,7 @@ def build_registry(
     depth: int,
     output_class: type[pydantic.BaseModel],
     budget: Budget,
+    clock: Clock,
 ) -> Registry:
     available: list[BoundTool] = [
         bind_tool(ReadFile()),
@@ -82,10 +85,10 @@ def build_registry(
         bind_tool(QueryJson()),
         bind_tool(GitHistory()),
         bind_tool(TreeSitter()),
-        bind_tool(Delegate(run_dir=run_dir, parent=parent, budget=budget)),
-        bind_tool(CheckTask(run_dir=run_dir)),
-        bind_tool(CollectTask(run_dir=run_dir)),
-        bind_tool(AnswerTask(run_dir=run_dir, parent=parent)),
+        bind_tool(Delegate(run_dir=run_dir, parent=parent, budget=budget, clock=clock)),
+        bind_tool(CheckTask(run_dir=run_dir, clock=clock)),
+        bind_tool(CollectTask(run_dir=run_dir, clock=clock)),
+        bind_tool(AnswerTask(run_dir=run_dir, parent=parent, clock=clock)),
         bind_tool(NeedInput()),
         bind_tool(SubmitAnswer(output_class)),
     ]
@@ -109,7 +112,8 @@ def main(
     outcome_path = task_dir / "outcome.json"
     transcript_path = task_dir / "transcript.jsonl"
     log = Transcript(path=transcript_path, agent_id=agent_id)
-    bus = Bus.open(run_dir / "bus.db")
+    clock = SystemClock()
+    bus = Bus.open(run_dir / "bus.db", clock)
     try:
         spec_text = (task_dir / "spec.json").read_text()
         spec = TaskSpec.model_validate_json(spec_text)
@@ -144,9 +148,11 @@ def main(
                 depth=depth_of(bus, agent_id),
                 output_class=output_class,
                 budget=spec.budget,
+                clock=clock,
             ),
             ctx=ctx,
             output_class=output_class,
+            clock=clock,
             meter=BusMeter(bus),
             compact_above_tokens=config.compact_above_tokens,
             keep_recent_messages=config.keep_recent_messages,

@@ -6,6 +6,7 @@ import pytest
 
 import ancalagon.config.config
 from ancalagon.bus.bus import Bus
+from ancalagon.clock.system_clock import SystemClock
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.event_source import EventSource
@@ -250,10 +251,22 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         keep_recent_messages=8,
     )
     at_root = build_registry(
-        config, tmp_path, parent=0, depth=0, output_class=FreeText, budget=config.budget
+        config,
+        tmp_path,
+        parent=0,
+        depth=0,
+        output_class=FreeText,
+        budget=config.budget,
+        clock=SystemClock(),
     )
     at_limit = build_registry(
-        config, tmp_path, parent=1, depth=1, output_class=FreeText, budget=config.budget
+        config,
+        tmp_path,
+        parent=1,
+        depth=1,
+        output_class=FreeText,
+        budget=config.budget,
+        clock=SystemClock(),
     )
 
     assert "delegate" in at_root.names()
@@ -266,7 +279,13 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
 
     chosen = config.model_copy(update={"tools": ["read_file", "ripgrep"]})
     assert build_registry(
-        chosen, tmp_path, parent=0, depth=0, output_class=FreeText, budget=config.budget
+        chosen,
+        tmp_path,
+        parent=0,
+        depth=0,
+        output_class=FreeText,
+        budget=config.budget,
+        clock=SystemClock(),
     ).names() == [
         "read_file",
         "ripgrep",
@@ -275,7 +294,13 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     typo = config.model_copy(update={"tools": ["read_file", "rigrep", "grep"]})
     with pytest.raises(ValueError) as refused:
         build_registry(
-            typo, tmp_path, parent=0, depth=0, output_class=FreeText, budget=config.budget
+            typo,
+            tmp_path,
+            parent=0,
+            depth=0,
+            output_class=FreeText,
+            budget=config.budget,
+            clock=SystemClock(),
         )
     assert "'grep', 'rigrep'" in str(refused.value)
     assert "ripgrep" in str(refused.value)
@@ -285,7 +310,12 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
     ctx = _ctx(tmp_path)
     run_dir = tmp_path / "run"
     run_dir.mkdir()
-    delegate = Delegate(run_dir=run_dir, parent=1, budget=Budget(turns=20, tool_calls=60))
+    delegate = Delegate(
+        run_dir=run_dir,
+        parent=1,
+        budget=Budget(turns=20, tool_calls=60),
+        clock=SystemClock(),
+    )
     args = DelegateArgs(
         task_id="analyse",
         behaviour="b",
@@ -295,7 +325,7 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
         tool_calls=5,
     )
     migrate_file(run_dir / "bus.db", latest_version())
-    bus = Bus.open(run_dir / "bus.db")
+    bus = Bus.open(run_dir / "bus.db", SystemClock())
 
     assert delegate.run(args, ctx).ok is True
     queued = delegate.run(args, ctx)
@@ -515,8 +545,13 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     migrate_file(run_dir / "bus.db", latest_version())
-    delegate = Delegate(run_dir=run_dir, parent=1, budget=Budget(turns=20, tool_calls=60))
-    collect = CollectTask(run_dir=run_dir)
+    delegate = Delegate(
+        run_dir=run_dir,
+        parent=1,
+        budget=Budget(turns=20, tool_calls=60),
+        clock=SystemClock(),
+    )
+    collect = CollectTask(run_dir=run_dir, clock=SystemClock())
 
     def queue(task_id: str) -> int:
         args = DelegateArgs(
@@ -528,7 +563,11 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
             tool_calls=5,
         )
         assert delegate.run(args, ctx).ok is True
-        return int(Bus.open(run_dir / "bus.db").active_for(run_dir / "tasks" / task_id)[0].agent)
+        return int(
+            Bus.open(run_dir / "bus.db", SystemClock())
+            .active_for(run_dir / "tasks" / task_id)[0]
+            .agent
+        )
 
     spent = Budget(turns=1, tool_calls=1)
     answered = queue("answered")

@@ -7,6 +7,7 @@ from ancalagon.answer import answer_task
 from ancalagon.answer_command import answer_command
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
+from ancalagon.clock.system_clock import SystemClock
 from ancalagon.bus.event_source import EventSource
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.tools.delegate.answer_args import AnswerArgs
@@ -37,7 +38,7 @@ def _suspended(tmp_path: pathlib.Path) -> tuple[pathlib.Path, Bus, int]:
         '"agent":1,"seq":1,"ts":"t"}\n'
     )
     migrate_file(run_dir / "bus.db", latest_version())
-    bus = Bus.open(run_dir / "bus.db")
+    bus = Bus.open(run_dir / "bus.db", SystemClock())
     agent = bus.enqueue(task_dir, parent_agent=0)
     bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
@@ -51,12 +52,12 @@ def test_answering_a_suspended_agent_appends_the_answer_and_queues_a_new_attempt
     task_dir = run_dir / "tasks" / "asked"
 
     with pytest.raises(ValueError, match="never asked"):
-        answer_task(run_dir, agent, "too early", answered_by=0)
+        answer_task(run_dir, agent, "too early", answered_by=0, clock=SystemClock())
 
     bus.record(agent, AgentStatus.NEEDS_INPUT, EventSource.WORKER, summary="which one?")
     bus.record(agent, AgentStatus.EXITED, EventSource.SUPERVISOR, exit_code=0)
 
-    resumed = answer_task(run_dir, agent, "the second one", answered_by=0)
+    resumed = answer_task(run_dir, agent, "the second one", answered_by=0, clock=SystemClock())
     assert resumed != agent
 
     lines = [json.loads(l) for l in (task_dir / "transcript.jsonl").read_text().splitlines()]
@@ -73,10 +74,10 @@ def test_answering_a_suspended_agent_appends_the_answer_and_queues_a_new_attempt
     assert bus.state(resumed).parent_agent == 0
 
     with pytest.raises(ValueError, match="never asked"):
-        answer_task(run_dir, resumed, "again", answered_by=0)
+        answer_task(run_dir, resumed, "again", answered_by=0, clock=SystemClock())
 
     with pytest.raises(KeyError):
-        answer_task(run_dir, 99, "nobody", answered_by=0)
+        answer_task(run_dir, 99, "nobody", answered_by=0, clock=SystemClock())
 
 
 def test_the_tool_and_the_command_both_answer_and_report_what_they_queued(
@@ -87,7 +88,7 @@ def test_the_tool_and_the_command_both_answer_and_report_what_they_queued(
     bus.record(agent, AgentStatus.EXITED, EventSource.SUPERVISOR, exit_code=0)
     ctx = _ctx(tmp_path)
 
-    tool = AnswerTask(run_dir=run_dir, parent=7)
+    tool = AnswerTask(run_dir=run_dir, parent=7, clock=SystemClock())
     answered = tool.run(AnswerArgs(task=agent, answer="by tool"), ctx)
     assert answered.ok is True
     assert f"answered agent {agent}" in answered.summary.text_for_model()

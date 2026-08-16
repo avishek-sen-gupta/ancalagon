@@ -7,6 +7,7 @@ import sys
 
 import ancalagon.migrations
 from ancalagon.bus.bus import HUMAN, Bus
+from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.class_ref import ClassRef
@@ -111,13 +112,15 @@ def main(config_path: pathlib.Path, goal_argument: str) -> int:
 
     db = run_dir / "bus.db"
     ancalagon.migrations.migrate_file(db, ancalagon.migrations.latest_version())
-    bus = Bus.open(db)
+    clock = SystemClock()
+    bus = Bus.open(db, clock)
     bus.enqueue(task_dir, parent_agent=HUMAN)
     supervisor = Supervisor(
-        bus=Bus.open(db),
+        bus=Bus.open(db, clock),
         spawner=SubprocessSpawner(run_dir=run_dir, config_path=config_path.resolve()),
         max_concurrent=config.max_concurrent_agents,
         timeout_s=config.agent_timeout_s,
+        clock=clock,
     )
     try:
         supervisor.run_until_idle()

@@ -2,6 +2,7 @@
 import pathlib
 
 from ancalagon.bus.bus import Bus
+from ancalagon.clock.clock import Clock
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.exhausted import Exhausted
 from ancalagon.contracts.failed import Failed
@@ -32,12 +33,13 @@ class CollectTask(Tool[TaskArgs]):
     cost = 1
     args_model = TaskArgs
 
-    def __init__(self, run_dir: pathlib.Path):
+    def __init__(self, run_dir: pathlib.Path, clock: Clock):
         self.run_dir = run_dir
+        self.clock = clock
 
     def run(self, args: TaskArgs, ctx: ToolContext) -> ToolResult:
         try:
-            state = Bus.open(self.run_dir / "bus.db").state(args.task)
+            state = Bus.open(self.run_dir / "bus.db", self.clock).state(args.task)
         except KeyError as exc:
             return ctx.failure(self.name, str(exc))
         task_dir = pathlib.Path(state.dir)

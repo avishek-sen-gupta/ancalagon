@@ -2,6 +2,7 @@
 import pathlib
 
 from ancalagon.answer import answer_task
+from ancalagon.clock.clock import Clock
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.delegate.answer_args import AnswerArgs
 from ancalagon.tools.registry.tool import Tool
@@ -18,13 +19,16 @@ class AnswerTask(Tool[AnswerArgs]):
     cost = 1
     args_model = AnswerArgs
 
-    def __init__(self, run_dir: pathlib.Path, parent: int):
+    def __init__(self, run_dir: pathlib.Path, parent: int, clock: Clock):
         self.run_dir = run_dir
         self.parent = parent
+        self.clock = clock
 
     def run(self, args: AnswerArgs, ctx: ToolContext) -> ToolResult:
         try:
-            resumed = answer_task(self.run_dir, args.task, args.answer, answered_by=self.parent)
+            resumed = answer_task(
+                self.run_dir, args.task, args.answer, answered_by=self.parent, clock=self.clock
+            )
         except (KeyError, ValueError) as exc:
             return ctx.failure(self.name, str(exc))
         return ctx.result(self.name, f"answered agent {args.task}; queued agent {resumed}")
