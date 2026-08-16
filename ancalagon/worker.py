@@ -67,6 +67,7 @@ def build_registry(
     output_class: type[pydantic.BaseModel],
     budget: Budget,
     clock: Clock,
+    tools: collections.abc.Sequence[str] = (),
 ) -> Registry:
     available: list[BoundTool] = [
         bind_tool(ReadFile()),
@@ -92,11 +93,11 @@ def build_registry(
         bind_tool(NeedInput()),
         bind_tool(SubmitAnswer(output_class)),
     ]
-    enabled = set(config.tools)
+    enabled = set(tools)
     unknown = enabled - {t.name for t in available}
     if unknown:
         raise ValueError(
-            f"unknown tool names in [tools] enabled: {sorted(unknown)}; "
+            f"unknown role tool names: {sorted(unknown)}; "
             f"available: {sorted(t.name for t in available)}"
         )
     permitted = [t for t in available if not enabled or t.name in enabled]

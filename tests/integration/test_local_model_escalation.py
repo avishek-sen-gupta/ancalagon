@@ -24,13 +24,6 @@ def _config(tmp_path: pathlib.Path, run_dir: pathlib.Path, goal: str) -> pathlib
 write_root = "{write_root}"
 read_roots = ["{write_root}"]
 
-[agent]
-root_behaviour = \"\"\"
-You answer a question you have been asked. You have already asked for guidance and
-been given it; the guidance is the last message. Call submit_answer with what you
-decided, and nothing else.
-\"\"\"
-
 [model]
 name = "{MODEL}"
 num_retries = 1
@@ -49,9 +42,6 @@ max_depth = 0
 compact_above_tokens = 0
 keep_recent_messages = 8
 summary_chars = 400
-
-[tools]
-enabled = ["need_input", "submit_answer"]
 
 [sandbox]
 strategy = "none"

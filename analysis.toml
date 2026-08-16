@@ -7,14 +7,6 @@ contract = ""
 write_root = "./output"
 read_roots = ["./ancalagon", "./docs", "/Users/asgupta/code/java-bytecode-tools"]
 
-[agent]
-root_behaviour = """
-You investigate a codebase or a set of artifacts to answer the goal you are given.
-Read before concluding, and prefer evidence from the files over recall.
-Delegate a focused subtask when a question is self-contained and you want it
-answered in a shape you can rely on.
-"""
-
 [model]
 name = "bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 num_retries = 3
@@ -34,6 +26,3 @@ max_depth = 1
 compact_above_tokens = 60000
 keep_recent_messages = 8
 summary_chars = 2000
-
-[tools]
-enabled = []

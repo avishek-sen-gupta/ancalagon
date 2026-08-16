@@ -26,6 +26,13 @@ from ancalagon.supervisor.supervisor import Supervisor
 
 LOGGER = logging.getLogger(__name__)
 
+ROOT_BEHAVIOUR = (
+    "You investigate a codebase or a set of artifacts to answer the goal you are given.\n"
+    "Read before concluding, and prefer evidence from the files over recall.\n"
+    "Delegate a focused subtask when a question is self-contained and you want it\n"
+    "answered in a shape you can rely on.\n"
+)
+
 
 def _allocated_run_dir(write_root: pathlib.Path) -> pathlib.Path:
     runs = write_root / "runs"
@@ -115,7 +122,7 @@ def main(config_path: pathlib.Path) -> int:
     (task_dir / "spec.json").write_text(
         AgentSpec[FreeText](
             task_id="root",
-            behaviour=config.root_behaviour,
+            behaviour=ROOT_BEHAVIOUR,
             goal=goal,
             input=FreeText(text=goal),
             answer_schema=answers_in,

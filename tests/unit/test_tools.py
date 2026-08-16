@@ -236,7 +236,6 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     config = ancalagon.config.config.Config(
         write_root=tmp_path,
         read_roots=(tmp_path,),
-        root_behaviour="You investigate.",
         model="claude-opus-5",
         max_tokens=100,
         num_retries=0,
@@ -245,7 +244,6 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         max_concurrent_agents=1,
         agent_timeout_s=1,
         max_depth=1,
-        tools=[],
         summary_chars=100,
         compact_above_tokens=0,
         keep_recent_messages=8,
@@ -277,30 +275,30 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     answer_shape = at_root.get("submit_answer").declaration.parameters.model_json_schema()
     assert set(answer_shape["properties"]) == {"text"}
 
-    chosen = config.model_copy(update={"tools": ["read_file", "ripgrep"]})
     assert build_registry(
-        chosen,
+        config,
         tmp_path,
         parent=0,
         depth=0,
         output_class=FreeText,
         budget=config.budget,
         clock=SystemClock(),
+        tools=["read_file", "ripgrep"],
     ).names() == [
         "read_file",
         "ripgrep",
     ]
 
-    typo = config.model_copy(update={"tools": ["read_file", "rigrep", "grep"]})
     with pytest.raises(ValueError) as refused:
         build_registry(
-            typo,
+            config,
             tmp_path,
             parent=0,
             depth=0,
             output_class=FreeText,
             budget=config.budget,
             clock=SystemClock(),
+            tools=["read_file", "rigrep", "grep"],
         )
     assert "'grep', 'rigrep'" in str(refused.value)
     assert "ripgrep" in str(refused.value)

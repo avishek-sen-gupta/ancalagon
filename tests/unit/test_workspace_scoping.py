@@ -57,9 +57,6 @@ def test_scoping_rejects_every_escape_and_config_round_trips(tmp_path: pathlib.P
 write_root = "{write_root}"
 read_roots = ["{read_only}"]
 
-[agent]
-root_behaviour = "You investigate."
-
 [model]
 name = "claude-opus-5"
 num_retries = 3
@@ -79,9 +76,6 @@ compact_above_tokens = 60000
 keep_recent_messages = 8
 summary_chars = 1000
 
-[tools]
-enabled = ["read_file", "ripgrep"]
-
 [sandbox]
 strategy = "none"
 
@@ -94,14 +88,12 @@ contract_class = ""
     config = load_config(config_path)
     assert config.write_root == write_root
     assert config.read_roots == (read_only,)
-    assert config.root_behaviour == "You investigate."
     assert config.model == "claude-opus-5"
     assert config.num_retries == 3
     assert config.request_timeout_s == 300
     assert config.budget.turns == 20
     assert config.max_concurrent_agents == 1
     assert config.agent_timeout_s == 3600
-    assert config.tools == ["read_file", "ripgrep"]
     assert Workspace.from_config(config).resolve_read(read_only / "a.txt").exists()
 
 
@@ -116,9 +108,6 @@ def test_config_resolves_relative_roots_against_the_config_file_not_the_cwd(
 [workspace]
 write_root = "./ws"
 read_roots = ["./artifacts"]
-
-[agent]
-root_behaviour = "You investigate."
 
 [model]
 name = "claude-opus-5"
@@ -138,9 +127,6 @@ max_depth = 1
 compact_above_tokens = 60000
 keep_recent_messages = 8
 summary_chars = 1000
-
-[tools]
-enabled = []
 
 [sandbox]
 strategy = "none"
@@ -175,9 +161,6 @@ def test_tilde_and_relative_roots_resolve_against_home_and_the_config_file(
 write_root = "./ws"
 read_roots = ["~/artifacts"]
 
-[agent]
-root_behaviour = "You investigate."
-
 [model]
 name = "claude-opus-5"
 num_retries = 3
@@ -196,9 +179,6 @@ max_depth = 1
 compact_above_tokens = 60000
 keep_recent_messages = 8
 summary_chars = 1000
-
-[tools]
-enabled = []
 
 [sandbox]
 strategy = "none"
@@ -227,8 +207,7 @@ def test_config_needs_three_fields_in_code_but_a_complete_file_on_disk(
     assert minimal.budget == Budget(turns=20, tool_calls=60)
     assert minimal.max_concurrent_agents == 4
     assert minimal.compact_above_tokens == 60000
-    assert "prefer evidence from the files" in minimal.root_behaviour
-    assert minimal.tools == []
+    assert minimal.roles == {}
 
     assert (
         Config(
@@ -244,7 +223,7 @@ def test_config_needs_three_fields_in_code_but_a_complete_file_on_disk(
     for section, key in (
         ("limits", "summary_chars"),
         ("model", "num_retries"),
-        ("agent", "root_behaviour"),
+        ("budget", "turns"),
     ):
         broken = tmp_path / f"missing-{key}.toml"
         trimmed = {k: dict(v) for k, v in example.items()}

@@ -44,9 +44,6 @@ def _config(tmp_path: pathlib.Path, run_dir: pathlib.Path, goal: str) -> pathlib
 write_root = "{write_root}"
 read_roots = ["{write_root}"]
 
-[agent]
-root_behaviour = "You coordinate."
-
 [model]
 name = "openai/scripted"
 num_retries = 0
@@ -65,9 +62,6 @@ max_depth = 1
 compact_above_tokens = 0
 keep_recent_messages = 8
 summary_chars = 400
-
-[tools]
-enabled = []
 
 [sandbox]
 strategy = "none"
