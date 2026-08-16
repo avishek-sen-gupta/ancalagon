@@ -4,18 +4,11 @@ import pathlib
 import pytest
 
 from ancalagon import cli
-from ancalagon.cli import (
-    answer_schema_of,
-    contract_source,
-    goal_of,
-    install_contracts,
-    run_dir_of,
-    sandbox_of,
-)
+from ancalagon.cli import goal_of, root_spec, run_dir_of, sandbox_of
 from ancalagon.config.config import Config
+from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
-from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
-from ancalagon.contracts.resolve import resolve_class
+from ancalagon.contracts.role import Role
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.sandbox.fence import Fence
 from ancalagon.sandbox.strategy import Strategy
@@ -75,45 +68,39 @@ def test_a_goal_comes_from_the_file_and_from_nowhere_else(tmp_path: pathlib.Path
         goal_of(RunSettings(goal_file=str(absent)))
 
 
-def test_a_named_contract_replaces_free_text(tmp_path: pathlib.Path):
-    module = tmp_path / "shape.py"
-    module.write_text("import pydantic\n\n\nclass Answer(pydantic.BaseModel):\n    verdict: str\n")
-
-    assert answer_schema_of(RunSettings()) == ClassRef(module="free_text.py", name="FreeText")
-    assert contract_source(RunSettings()) == FREE_TEXT_MODULE
-
-    named = RunSettings(contract_module=str(module), contract_class="Answer")
-    assert answer_schema_of(named) == ClassRef(module="shape.py", name="Answer")
-    assert "class Answer" in contract_source(named)
-
-
-def test_the_root_task_dir_carries_both_contracts_the_worker_resolves(tmp_path: pathlib.Path):
-    module = tmp_path / "shape.py"
-    module.write_text("import pydantic\n\n\nclass Answer(pydantic.BaseModel):\n    verdict: str\n")
-
-    default_dir = tmp_path / "default"
-    default_dir.mkdir()
-    assert install_contracts(RunSettings(), default_dir) == ClassRef(
-        module=str(default_dir / "free_text.py"), name="FreeText"
+def test_the_root_spec_comes_from_its_role_and_its_two_files(tmp_path: pathlib.Path):
+    shapes = tmp_path / "shapes.py"
+    shapes.write_text("import pydantic\n\n\nclass Query(pydantic.BaseModel):\n    area: str\n")
+    (tmp_path / "goal.md").write_text("map it")
+    (tmp_path / "input.json").write_text('{"area": "bus"}')
+    role = Role(
+        behaviour="Analyse.",
+        input=ClassRef(module=str(shapes), name="Query"),
+        tools=("read_file", "submit_answer"),
+        budget=Budget(turns=3, tool_calls=6),
     )
-    assert sorted(p.name for p in default_dir.iterdir()) == ["free_text.py"]
+    config = Config(
+        write_root=tmp_path,
+        read_roots=(),
+        model="anthropic/claude",
+        roles={"analyst": role},
+        run=RunSettings(
+            goal_file=str(tmp_path / "goal.md"),
+            input_file=str(tmp_path / "input.json"),
+            role="analyst",
+        ),
+    )
 
-    named_dir = tmp_path / "named"
-    named_dir.mkdir()
-    named = RunSettings(contract_module=str(module), contract_class="Answer")
+    spec = root_spec(config)
 
-    assert install_contracts(named, named_dir) == ClassRef(
-        module=str(named_dir / "shape.py"), name="Answer"
-    )
-    assert sorted(p.name for p in named_dir.iterdir()) == ["free_text.py", "shape.py"]
-    assert (
-        resolve_class(ClassRef(module=str(named_dir / "free_text.py"), name="FreeText")).__name__
-        == "FreeText"
-    )
-    assert (
-        resolve_class(ClassRef(module=str(named_dir / "shape.py"), name="Answer")).__name__
-        == "Answer"
-    )
+    assert spec.task_id == "root"
+    assert spec.role == role
+    assert spec.goal == "map it"
+    assert spec.input.model_dump() == {"area": "bus"}
+
+    absent = config.model_copy(update={"run": config.run.model_copy(update={"role": "nobody"})})
+    with pytest.raises(ValueError, match="no role named nobody"):
+        root_spec(absent)
 
 
 def test_sandbox_of_resolves_each_strategy_and_fence_is_the_unstated_default(

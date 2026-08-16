@@ -26,8 +26,16 @@ summary_chars = 1000
 [sandbox]
 strategy = "fence"   # or "none"
 
+[roles.root]
+behaviour = "You investigate a codebase or a set of artifacts to answer the goal you are given."
+tools = ["read_file", "ripgrep", "ast_grep", "list_dir"]
+
+[roles.root.budget]
+turns = 20
+tool_calls = 60
+
 [run]
 run_dir = ""    # where this run lives; empty allocates the next write_root/runs/r_NNNN
 goal_file = "./goal.md"  # the run's goal; required
-contract_module = ""   # "shape.py"; empty means the built-in FreeText
-contract_class = ""    # "Answer"; set with contract_module or not at all
+input_file = ""   # "input.json"; validated against the root role's input class; empty means {"text": goal}
+role = "root"     # which [roles.*] table the root runs as

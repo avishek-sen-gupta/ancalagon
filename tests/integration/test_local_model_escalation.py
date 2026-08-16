@@ -46,11 +46,19 @@ summary_chars = 400
 [sandbox]
 strategy = "none"
 
+[roles.root]
+behaviour = "You investigate and answer the goal you are given."
+tools = ["need_input"]
+
+[roles.root.budget]
+turns = 4
+tool_calls = 8
+
 [run]
 run_dir = "{run_dir}"
 goal_file = "{goal_file}"
-contract_module = ""
-contract_class = ""
+input_file = ""
+role = "root"
 """)
     return config
 

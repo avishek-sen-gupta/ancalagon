@@ -13,6 +13,10 @@ from ancalagon.cli import main
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 
+ROOT_BEHAVIOUR = (
+    "You investigate a codebase or a set of artifacts to answer the goal you are given."
+)
+
 
 def _config(
     tmp_path: pathlib.Path,
@@ -22,8 +26,10 @@ def _config(
     run_dir: str = "",
     goal: str = "",
     goal_file: str = "",
-    contract_module: str = "",
-    contract_class: str = "",
+    input_file: str = "",
+    input_module: str = "",
+    input_class: str = "",
+    role_name: str = "root",
 ) -> pathlib.Path:
     model = model or os.environ.get("ANCALAGON_MODEL", "claude-opus-5")
     write_root = tmp_path / "ws"
@@ -44,6 +50,9 @@ def _config(
     if goal:
         written.write_text(goal)
     goal_source = str(written) if goal else goal_file
+    input_line = (
+        f'input = {{ module = "{input_module}", name = "{input_class}" }}\n' if input_module else ""
+    )
     config = tmp_path / "ancalagon.toml"
     config.write_text(f"""
 [workspace]
@@ -72,11 +81,19 @@ summary_chars = 1000
 [sandbox]
 strategy = "none"
 
+[roles.{role_name}]
+behaviour = "{ROOT_BEHAVIOUR}"
+{input_line}tools = ["read_file"]
+
+[roles.{role_name}.budget]
+turns = {turns}
+tool_calls = {tool_calls}
+
 [run]
 run_dir = "{run_dir}"
 goal_file = "{goal_source}"
-contract_module = "{contract_module}"
-contract_class = "{contract_class}"
+input_file = "{input_file}"
+role = "{role_name}"
 """)
     return config
 
@@ -110,7 +127,7 @@ def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
 
     assert (run_dir / "bus.db").exists()
     assert (task_dir / "spec.json").exists()
-    assert (task_dir / "free_text.py").exists()
+    assert json.loads((task_dir / "spec.json").read_text())["role"]["behaviour"] == ROOT_BEHAVIOUR
 
     outcome = json.loads((task_dir / "outcome.json").read_text())
     assert outcome["kind"] == "failed"
@@ -179,7 +196,7 @@ def test_a_named_run_dir_is_reused_by_a_second_invocation(tmp_path: pathlib.Path
     assert len(list((named / "tasks" / "root").glob("stderr-*.log"))) == 2
 
 
-ANSWER_MODULE = "import pydantic\n\n\nclass Answer(pydantic.BaseModel):\n    verdict: str\n"
+QUERY_MODULE = "import pydantic\n\n\nclass Query(pydantic.BaseModel):\n    area: str\n"
 
 
 def _case(tmp_path: pathlib.Path, name: str) -> pathlib.Path:
@@ -192,42 +209,44 @@ def _case(tmp_path: pathlib.Path, name: str) -> pathlib.Path:
 def test_a_missing_or_unusable_input_exits_two_with_a_message_and_no_traceback(
     tmp_path: pathlib.Path,
 ):
-    def failed(
-        case: pathlib.Path, goal_file: str, contract_module: str, contract_class: str
-    ) -> subprocess.CompletedProcess[str]:
-        config = _config(
-            case,
-            turns=1,
-            tool_calls=1,
-            model="m",
-            goal_file=goal_file,
-            contract_module=contract_module,
-            contract_class=contract_class,
-        )
+    def failed(case: pathlib.Path, **run_kwargs: str) -> subprocess.CompletedProcess[str]:
+        config = _config(case, turns=1, tool_calls=1, model="m", **run_kwargs)
         completed = _run_cli(config, dict(os.environ))
         assert completed.returncode == 2, completed.stdout
         assert "Traceback" not in completed.stderr
         return completed
 
     absent = _case(tmp_path, "absent-goal")
-    assert "no-such-goal.md" in failed(absent, str(absent / "no-such-goal.md"), "", "").stderr
+    assert "no-such-goal.md" in failed(absent, goal_file=str(absent / "no-such-goal.md")).stderr
 
     blank = _case(tmp_path, "blank-goal")
     (blank / "goal.md").write_text("   \n")
-    assert "empty" in failed(blank, str(blank / "goal.md"), "", "").stderr
+    assert "empty" in failed(blank, goal_file=str(blank / "goal.md")).stderr
 
-    gone = _case(tmp_path, "absent-contract")
-    missing = failed(gone, str(gone / "goal.md"), str(gone / "no-such-shape.py"), "Answer")
-    assert "no-such-shape.py" in missing.stderr
+    gone = _case(tmp_path, "absent-input-file")
+    missing = failed(
+        gone, goal_file=str(gone / "goal.md"), input_file=str(gone / "no-such-input.json")
+    )
+    assert "no-such-input.json" in missing.stderr
 
-    typo = _case(tmp_path, "misspelt-class")
-    (typo / "shape.py").write_text(ANSWER_MODULE)
-    assert "Answr" in failed(typo, str(typo / "goal.md"), str(typo / "shape.py"), "Answr").stderr
+    unnamed = _case(tmp_path, "unknown-role")
+    config = _config(unnamed, turns=1, tool_calls=1, model="m", goal_file=str(unnamed / "goal.md"))
+    config.write_text(config.read_text().replace('role = "root"', 'role = "ghost"'))
+    completed = _run_cli(config, dict(os.environ))
+    assert completed.returncode == 2, completed.stdout
+    assert "Traceback" not in completed.stderr
+    assert "no role named ghost" in completed.stderr
 
-    broken = _case(tmp_path, "unparsable-contract")
-    (broken / "shape.py").write_text("class Answer(:\n")
-    stderr = failed(broken, str(broken / "goal.md"), str(broken / "shape.py"), "Answer").stderr
-    assert "does not parse" in stderr
+    shapes = tmp_path / "shapes.py"
+    shapes.write_text(QUERY_MODULE)
+    structured = _case(tmp_path, "structured-without-input")
+    incomplete = failed(
+        structured,
+        goal_file=str(structured / "goal.md"),
+        input_module=str(shapes),
+        input_class="Query",
+    )
+    assert "area" in incomplete.stderr
 
 
 def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(

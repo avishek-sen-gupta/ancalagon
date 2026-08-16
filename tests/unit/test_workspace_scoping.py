@@ -1,3 +1,4 @@
+import collections.abc
 import json
 import pathlib
 import tomllib
@@ -82,8 +83,8 @@ strategy = "none"
 [run]
 run_dir = ""
 goal_file = ""
-contract_module = ""
-contract_class = ""
+input_file = ""
+role = ""
 """)
     config = load_config(config_path)
     assert config.write_root == write_root
@@ -134,8 +135,8 @@ strategy = "none"
 [run]
 run_dir = ""
 goal_file = ""
-contract_module = ""
-contract_class = ""
+input_file = ""
+role = ""
 """)
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
@@ -186,8 +187,8 @@ strategy = "none"
 [run]
 run_dir = ""
 goal_file = ""
-contract_module = ""
-contract_class = ""
+input_file = ""
+role = ""
 """)
     monkeypatch.chdir(tmp_path)
     config = load_config(config_path)
@@ -233,15 +234,38 @@ def test_config_needs_three_fields_in_code_but_a_complete_file_on_disk(
             load_config(broken)
 
 
-def _toml(data: dict[str, dict[str, object]], root: pathlib.Path) -> str:
-    lines: list[str] = []
-    for section, body in data.items():
-        lines.append(f"[{section}]")
-        for key, value in body.items():
-            if key in ("write_root",):
-                value = str(root)
-            if key == "read_roots":
-                value = [str(root)]
-            lines.append(f"{key} = {json.dumps(value)}")
-        lines.append("")
-    return "\n".join(lines)
+TomlScalar = str | int | bool
+TomlValue = TomlScalar | list[TomlScalar]
+TomlTable = dict[str, TomlValue]
+
+
+def _literal(value: TomlValue | TomlTable) -> str:
+    if isinstance(value, dict):
+        return "{ " + ", ".join(f"{k} = {_literal(v)}" for k, v in value.items()) + " }"
+    return json.dumps(value)
+
+
+def _entry_value(
+    key: str, value: TomlValue | TomlTable, root: pathlib.Path
+) -> TomlValue | TomlTable:
+    if key == "write_root":
+        return str(root)
+    if key == "read_roots":
+        return [str(root)]
+    return value
+
+
+def _section(
+    name: str, body: collections.abc.Mapping[str, TomlValue | TomlTable], root: pathlib.Path
+) -> str:
+    entries = "\n".join(
+        f"{key} = {_literal(_entry_value(key, value, root))}" for key, value in body.items()
+    )
+    return f"[{name}]\n{entries}\n"
+
+
+def _toml(
+    data: collections.abc.Mapping[str, collections.abc.Mapping[str, TomlValue | TomlTable]],
+    root: pathlib.Path,
+) -> str:
+    return "\n".join(_section(section, body, root) for section, body in data.items())

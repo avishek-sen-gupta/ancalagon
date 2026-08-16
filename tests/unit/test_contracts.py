@@ -93,15 +93,10 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
     assert FreeText(text="plain").text == "plain"
 
 
-def test_run_settings_require_a_contract_module_and_its_class_together():
-    named = RunSettings(contract_module="shape.py", contract_class="Answer")
-    assert (named.contract_module, named.contract_class) == ("shape.py", "Answer")
-    assert (RunSettings().contract_module, RunSettings().contract_class) == ("", "")
-
-    with pytest.raises(pydantic.ValidationError):
-        RunSettings(contract_module="shape.py")
-    with pytest.raises(pydantic.ValidationError):
-        RunSettings(contract_class="Answer")
+def test_run_settings_default_to_empty_and_carry_a_role_name():
+    named = RunSettings(input_file="input.json", role="analyst")
+    assert (named.input_file, named.role) == ("input.json", "analyst")
+    assert (RunSettings().input_file, RunSettings().role) == ("", "")
 
 
 def test_a_role_defaults_to_prose_and_resolves_the_contracts_it_names(tmp_path: pathlib.Path):
