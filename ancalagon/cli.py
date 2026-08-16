@@ -13,6 +13,7 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
+from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.run_settings import RunSettings
@@ -70,6 +71,28 @@ def _from_goal(input_class: type[pydantic.BaseModel], role: Role, goal: str) -> 
         ) from error
 
 
+def _contract_fault(name: str, field: str, ref: ClassRef) -> str:
+    try:
+        resolve_class(ref)
+        return ""
+    except Exception as error:
+        return (
+            f"[roles.{name}] {field} names {ref.name} in {ref.module}, "
+            f"which cannot be loaded: {type(error).__name__}: {error}"
+        )
+
+
+def check_contracts(config: Config) -> None:
+    faults = [
+        fault
+        for name, role in config.roles.items()
+        for field, ref in (("input", role.input), ("answer", role.answer))
+        if (fault := _contract_fault(name, field, ref))
+    ]
+    if faults:
+        raise ValueError("\n".join(faults))
+
+
 def root_spec(config: Config) -> AgentSpec[pydantic.BaseModel]:
     if config.run.role not in config.roles:
         raise ValueError(
@@ -99,6 +122,7 @@ def sandbox_of(config: Config, run_dir: pathlib.Path) -> Sandbox:
 def main(config_path: pathlib.Path) -> int:
     logging.basicConfig(level=logging.INFO)
     config = load_config(config_path)
+    check_contracts(config)
     run_dir = run_dir_of(config.run, config.write_root)
     task_dir = run_dir / "tasks" / "root"
     task_dir.mkdir(parents=True, exist_ok=True)

@@ -63,7 +63,9 @@ role = "root"
 
 An empty `run_dir` allocates the next `runs/r_NNNN`. An unset, missing or empty `goal_file`
 exits 2 without starting a run, and so does `[run] role` naming a role `[roles.*]` does not
-declare.
+declare. Every declared role's `input` and `answer` are resolved before the run starts too, so
+a contract module that does not parse or does not exist exits 2 naming the role and the path,
+rather than crashing a worker later.
 
 `tools` is per role, and it is a change of default from the version before roles existed: an
 empty list now means *no tools*, not all of them. Every tool a role may use must be named,
