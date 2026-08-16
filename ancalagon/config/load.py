@@ -51,7 +51,6 @@ def load_config(path: pathlib.Path) -> Config:
     raw = tomllib.loads(path.read_text())
     workspace = raw["workspace"]
     model = raw["model"]
-    budget = raw["budget"]
     limits = raw["limits"]
     return Config(
         write_root=_root(base, workspace["write_root"]),
@@ -64,7 +63,6 @@ def load_config(path: pathlib.Path) -> Config:
         max_tokens=model["max_tokens"],
         num_retries=model["num_retries"],
         request_timeout_s=model["request_timeout_s"],
-        budget=Budget(turns=budget["turns"], tool_calls=budget["tool_calls"]),
         max_concurrent_agents=limits["max_concurrent_agents"],
         agent_timeout_s=limits["agent_timeout_s"],
         max_depth=limits["max_depth"],

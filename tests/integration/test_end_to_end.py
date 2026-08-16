@@ -66,10 +66,6 @@ request_timeout_s = 120
 max_tokens = 4000
 allowed_domains = []
 
-[budget]
-turns = {turns}
-tool_calls = {tool_calls}
-
 [limits]
 max_concurrent_agents = 1
 agent_timeout_s = 300

@@ -5,7 +5,6 @@ import pathlib
 
 import pydantic
 
-from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.sandbox.strategy import Strategy
@@ -19,7 +18,6 @@ class Config(pydantic.BaseModel, frozen=True):
     max_tokens: int = 8000
     num_retries: int = 3
     request_timeout_s: int = 300
-    budget: Budget = Budget(turns=20, tool_calls=60)
     max_concurrent_agents: int = 4
     agent_timeout_s: int = 3600
     max_depth: int = 1

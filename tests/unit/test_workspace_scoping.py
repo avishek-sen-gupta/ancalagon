@@ -1,13 +1,9 @@
-import collections.abc
-import json
 import pathlib
-import tomllib
 
 import pytest
 
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
-from ancalagon.contracts.budget import Budget
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.workspace.workspace import Workspace
@@ -65,10 +61,6 @@ request_timeout_s = 300
 max_tokens = 8000
 allowed_domains = []
 
-[budget]
-turns = 20
-tool_calls = 60
-
 [limits]
 max_concurrent_agents = 1
 agent_timeout_s = 3600
@@ -92,7 +84,6 @@ role = ""
     assert config.model == "claude-opus-5"
     assert config.num_retries == 3
     assert config.request_timeout_s == 300
-    assert config.budget.turns == 20
     assert config.max_concurrent_agents == 1
     assert config.agent_timeout_s == 3600
     assert Workspace.from_config(config).resolve_read(read_only / "a.txt").exists()
@@ -116,10 +107,6 @@ num_retries = 3
 request_timeout_s = 300
 max_tokens = 8000
 allowed_domains = []
-
-[budget]
-turns = 20
-tool_calls = 60
 
 [limits]
 max_concurrent_agents = 4
@@ -169,10 +156,6 @@ request_timeout_s = 300
 max_tokens = 8000
 allowed_domains = []
 
-[budget]
-turns = 20
-tool_calls = 60
-
 [limits]
 max_concurrent_agents = 4
 agent_timeout_s = 3600
@@ -205,7 +188,6 @@ def test_config_needs_three_fields_in_code_but_a_complete_file_on_disk(
     tmp_path: pathlib.Path,
 ):
     minimal = Config(write_root=tmp_path, read_roots=(tmp_path,), model="bedrock/some-model")
-    assert minimal.budget == Budget(turns=20, tool_calls=60)
     assert minimal.max_concurrent_agents == 4
     assert minimal.compact_above_tokens == 60000
     assert minimal.roles == {}
@@ -215,57 +197,30 @@ def test_config_needs_three_fields_in_code_but_a_complete_file_on_disk(
             write_root=tmp_path,
             read_roots=(tmp_path,),
             model="m",
-            budget=Budget(turns=200, tool_calls=500),
-        ).budget.turns
-        == 200
+            max_concurrent_agents=7,
+        ).max_concurrent_agents
+        == 7
     )
 
-    example = tomllib.loads(pathlib.Path("ancalagon.example.toml").read_text())
+    example = pathlib.Path("ancalagon.example.toml").read_text()
     for section, key in (
         ("limits", "summary_chars"),
         ("model", "num_retries"),
-        ("budget", "turns"),
+        ("sandbox", "strategy"),
     ):
         broken = tmp_path / f"missing-{key}.toml"
-        trimmed = {k: dict(v) for k, v in example.items()}
-        del trimmed[section][key]
-        broken.write_text(_toml(trimmed, tmp_path))
+        broken.write_text(_without_key(example, section, key))
         with pytest.raises(KeyError):
             load_config(broken)
 
 
-TomlScalar = str | int | bool
-TomlValue = TomlScalar | list[TomlScalar]
-TomlTable = dict[str, TomlValue]
-
-
-def _literal(value: TomlValue | TomlTable) -> str:
-    if isinstance(value, dict):
-        return "{ " + ", ".join(f"{k} = {_literal(v)}" for k, v in value.items()) + " }"
-    return json.dumps(value)
-
-
-def _entry_value(
-    key: str, value: TomlValue | TomlTable, root: pathlib.Path
-) -> TomlValue | TomlTable:
-    if key == "write_root":
-        return str(root)
-    if key == "read_roots":
-        return [str(root)]
-    return value
-
-
-def _section(
-    name: str, body: collections.abc.Mapping[str, TomlValue | TomlTable], root: pathlib.Path
-) -> str:
-    entries = "\n".join(
-        f"{key} = {_literal(_entry_value(key, value, root))}" for key, value in body.items()
+def _without_key(text: str, section: str, key: str) -> str:
+    blocks = text.split("\n\n")
+    return "\n\n".join(
+        (
+            "\n".join(line for line in block.splitlines() if not line.startswith(f"{key} ="))
+            if block.startswith(f"[{section}]")
+            else block
+        )
+        for block in blocks
     )
-    return f"[{name}]\n{entries}\n"
-
-
-def _toml(
-    data: collections.abc.Mapping[str, collections.abc.Mapping[str, TomlValue | TomlTable]],
-    root: pathlib.Path,
-) -> str:
-    return "\n".join(_section(section, body, root) for section, body in data.items())

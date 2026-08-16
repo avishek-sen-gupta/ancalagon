@@ -1,28 +1,35 @@
-[run]
-run_dir = ""
-goal_file = ""
-contract = ""
-
 [workspace]
 write_root = "./output"
-read_roots = ["./ancalagon", "./docs", "/Users/asgupta/code/java-bytecode-tools"]
+read_roots = ["./ancalagon", "./docs", "./target"]
 
 [model]
 name = "bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 num_retries = 3
 request_timeout_s = 300
 max_tokens = 8000
-
-[budget]
-turns = 30
-tool_calls = 80
+allowed_domains = ["bedrock-runtime.us-east-1.amazonaws.com"]
 
 [limits]
 max_concurrent_agents = 4
 agent_timeout_s = 600
 max_depth = 1
-# Old tool results are replaced by a pointer to the file they were written to,
-# once the conversation passes this size. 0 disables it.
 compact_above_tokens = 60000
 keep_recent_messages = 8
 summary_chars = 2000
+
+[sandbox]
+strategy = "fence"
+
+[roles.root]
+behaviour = "You investigate a codebase or a set of artifacts to answer the goal you are given."
+tools = ["read_file", "ripgrep", "ast_grep", "list_dir"]
+
+[roles.root.budget]
+turns = 30
+tool_calls = 80
+
+[run]
+run_dir = ""
+goal_file = ""
+input_file = ""
+role = "root"

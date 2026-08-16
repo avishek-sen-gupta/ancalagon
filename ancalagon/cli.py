@@ -14,6 +14,7 @@ from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.resolve import resolve_class
+from ancalagon.contracts.role import Role
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.migrate_command import migrate_command
 from ancalagon.sandbox.fence import Fence
@@ -58,6 +59,17 @@ def goal_of(settings: RunSettings) -> str:
     return goal
 
 
+def _from_goal(input_class: type[pydantic.BaseModel], role: Role, goal: str) -> pydantic.BaseModel:
+    try:
+        return input_class.model_validate({"text": goal})
+    except pydantic.ValidationError as error:
+        raise ValueError(
+            f"[run] input_file is unset, so root's input was built from the goal alone as "
+            f"{{'text': goal}}; that does not satisfy {role.input.name}, the role's input "
+            f"class: {error}"
+        ) from error
+
+
 def root_spec(config: Config) -> AgentSpec[pydantic.BaseModel]:
     if config.run.role not in config.roles:
         raise ValueError(
@@ -69,7 +81,7 @@ def root_spec(config: Config) -> AgentSpec[pydantic.BaseModel]:
     given = (
         input_class.model_validate_json(_text_of(pathlib.Path(config.run.input_file), "input_file"))
         if config.run.input_file
-        else input_class.model_validate({"text": goal})
+        else _from_goal(input_class, role, goal)
     )
     return AgentSpec[input_class](task_id="root", role=role, goal=goal, input=given)
 
