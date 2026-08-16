@@ -20,14 +20,11 @@ def _optional_root(base: pathlib.Path, value: str) -> str:
 
 
 def _run_settings(base: pathlib.Path, run: dict[str, str]) -> RunSettings:
-    module, _, class_name = run["contract"].partition(":")
-    if run["contract"] and not (module and class_name):
-        raise ValueError(f'contract "{run["contract"]}" must be written path.py:ClassName')
     return RunSettings(
         run_dir=_optional_root(base, run["run_dir"]),
         goal_file=_optional_root(base, run["goal_file"]),
-        contract_module=_optional_root(base, module),
-        contract_class=class_name,
+        contract_module=_optional_root(base, run["contract_module"]),
+        contract_class=run["contract_class"],
     )
 
 

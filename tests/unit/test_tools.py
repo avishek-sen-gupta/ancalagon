@@ -10,6 +10,10 @@ from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.event_source import EventSource
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.contract_pair import ContractPair
+from ancalagon.contracts.contract_source import ContractSource
+from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.contracts.completed import Completed
@@ -279,7 +283,6 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
         behaviour="b",
         goal="g",
         input_json='{"text": "look at this"}',
-        answer_schema="contracts.py:FreeText",
         turns=3,
         tool_calls=5,
     )
@@ -310,43 +313,41 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
     assert bus.state(1).status is AgentStatus.CRASHED
     assert bus.state(2).dir == str(task_dir)
 
-    shape = DelegateArgs.model_json_schema()["properties"]["answer_schema"]
-    assert shape["default"] == "contracts.py:FreeText"
-    assert "pattern" in shape
+    assert args.contracts == ContractPair()
+    assert delegate.run(args.model_copy(update={"task_id": "defaulted"}), ctx).ok is True
+    prose = TaskSpec.model_validate_json(
+        (run_dir / "tasks" / "defaulted" / "spec.json").read_text()
+    )
+    assert prose.answer_schema == ClassRef(module="free_text.py", name="FreeText")
+    assert (run_dir / "tasks" / "defaulted" / "free_text.py").exists()
 
-    for bad in ("text", "FreeText", "contracts:FreeText", "contracts.py:"):
+    for bad in ({"module": "../escape.py", "name": "X"}, {"module": "no_suffix", "name": "X"}):
         with pytest.raises(pydantic.ValidationError):
-            args.model_copy(update={"task_id": "o"}).model_validate(
-                {**args.model_dump(), "task_id": "o", "answer_schema": bad}
-            )
+            ClassRef.model_validate(bad)
 
-    defaulted = DelegateArgs(
-        task_id="defaulted",
-        behaviour="b",
-        goal="g",
-        input_json='{"text": "look at this"}',
-        turns=3,
-        tool_calls=5,
+    node_input = ctx.workspace.write_root / "node_input.py"
+    node_input.write_text(
+        "import pydantic\n\n\nclass NodeInput(pydantic.BaseModel):\n    node_id: int\n"
     )
-    assert defaulted.answer_schema == "contracts.py:FreeText"
-    assert delegate.run(defaulted, ctx).ok is True
-
-    shaped = ctx.workspace.write_root / "shape.py"
-    shaped.write_text(
-        "import pydantic\n\n\nclass NodeInput(pydantic.BaseModel):\n"
-        "    node_id: int\n\n\nclass FreeText(pydantic.BaseModel):\n    text: str\n"
-    )
+    verdict = ctx.workspace.write_root / "verdict.py"
+    verdict.write_text("import pydantic\n\n\nclass Verdict(pydantic.BaseModel):\n    ok: bool\n")
     typed = args.model_copy(
         update={
             "task_id": "typed",
-            "contracts_path": str(shaped),
-            "input_schema": "contracts.py:NodeInput",
+            "contracts": ContractPair(
+                input=ContractSource(path=str(node_input), name="NodeInput"),
+                answer=ContractSource(path=str(verdict), name="Verdict"),
+            ),
             "input_json": '{"node_id": 5}',
         }
     )
     assert delegate.run(typed, ctx).ok is True
-    written = (run_dir / "tasks" / "typed" / "spec.json").read_text()
-    assert json.loads(written)["input"] == {"node_id": 5}
+    child = run_dir / "tasks" / "typed"
+    assert json.loads((child / "spec.json").read_text())["input"] == {"node_id": 5}
+    assert sorted(p.name for p in child.glob("*.py")) == ["node_input.py", "verdict.py"]
+    written = TaskSpec.model_validate_json((child / "spec.json").read_text())
+    assert written.input_schema == ClassRef(module="node_input.py", name="NodeInput")
+    assert written.answer_schema == ClassRef(module="verdict.py", name="Verdict")
 
     mismatched = typed.model_copy(
         update={"task_id": "mismatched", "input_json": '{"node_id": "five"}'}
@@ -515,7 +516,6 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
             behaviour="b",
             goal="g",
             input_json='{"text": "go"}',
-            answer_schema="contracts.py:FreeText",
             turns=3,
             tool_calls=5,
         )

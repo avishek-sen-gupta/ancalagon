@@ -84,7 +84,8 @@ enabled = ["read_file", "ripgrep"]
 [run]
 run_dir = ""
 goal_file = ""
-contract = ""
+contract_module = ""
+contract_class = ""
 """)
     config = load_config(config_path)
     assert config.write_root == write_root
@@ -139,7 +140,8 @@ enabled = []
 [run]
 run_dir = ""
 goal_file = ""
-contract = ""
+contract_module = ""
+contract_class = ""
 """)
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
@@ -192,7 +194,8 @@ enabled = []
 [run]
 run_dir = ""
 goal_file = ""
-contract = ""
+contract_module = ""
+contract_class = ""
 """)
     monkeypatch.chdir(tmp_path)
     config = load_config(config_path)

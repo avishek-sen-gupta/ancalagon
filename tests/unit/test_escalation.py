@@ -102,7 +102,7 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
     run_dir = tmp_path / "run"
     root_dir = run_dir / "tasks" / "root"
     root_dir.mkdir(parents=True)
-    (root_dir / "contracts.py").write_text(
+    (root_dir / "free_text.py").write_text(
         "import pydantic\n\n\nclass FreeText(pydantic.BaseModel):\n    text: str\n"
     )
     (root_dir / "spec.json").write_text(
@@ -112,7 +112,7 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
                 "behaviour": "You coordinate.",
                 "goal": "Investigate both halves.",
                 "input": {"text": "go"},
-                "answer_schema": "contracts.py:FreeText",
+                "answer_schema": {"module": "free_text.py", "name": "FreeText"},
                 "budget": {"turns": 8, "tool_calls": 20},
             }
         )

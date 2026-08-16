@@ -5,6 +5,7 @@ import pytest
 
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.free_text import FreeText
@@ -39,15 +40,17 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
         behaviour="You summarise.",
         goal="Summarise this node.",
         input=NodeSummary(text="body", confidence=1),
-        input_schema="contracts.py:NodeSummary",
-        answer_schema="contracts.py:NodeSummary",
+        input_schema=ClassRef(module="node_summary.py", name="NodeSummary"),
+        answer_schema=ClassRef(module="node_summary.py", name="NodeSummary"),
         budget=budget,
     )
     assert spec.tools == []
     assert AgentSpec[NodeSummary].model_validate_json(spec.model_dump_json()) == spec
 
     written = spec.model_dump_json()
-    assert TaskSpec.model_validate_json(written).input_schema == "contracts.py:NodeSummary"
+    assert TaskSpec.model_validate_json(written).input_schema == ClassRef(
+        module="node_summary.py", name="NodeSummary"
+    )
     assert AgentSpec[NodeSummary].model_validate_json(written).input.confidence == 1
 
     prose = spec.model_copy(update={"input": FreeText(text="body")}).model_dump_json()
@@ -77,9 +80,11 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
     failed = Failed(error="boom", summary="died", spent=Budget(turns=0, tool_calls=0))
     assert adapter.validate_json(failed.model_dump_json()) == failed
 
-    module = tmp_path / "contracts.py"
+    module = tmp_path / "verdict.py"
     module.write_text("import pydantic\n\n\nclass Verdict(pydantic.BaseModel):\n    ok: bool\n")
-    resolved = resolve_class("contracts.py:Verdict", tmp_path)
+    resolved = resolve_class(ClassRef(module="verdict.py", name="Verdict"), tmp_path)
+    with pytest.raises(pydantic.ValidationError):
+        ClassRef(module="../escape.py", name="Verdict")
     assert resolved.__name__ == "Verdict"
     assert resolved.model_validate_json('{"ok": true}').model_dump() == {"ok": True}
 

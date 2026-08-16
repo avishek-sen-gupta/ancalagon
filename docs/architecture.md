@@ -118,10 +118,18 @@ Invoked as `python -m ancalagon.worker --run-dir … --dir … --agent-id … --
 
 1. Reads `spec.json` as `TaskSpec` — the scalars only, since the `input`'s class is named by
    the file itself and so cannot be known before reading it.
-2. `contracts/resolve.py` takes the spec's `answer_schema` and `input_schema` — references of
-   the form `contracts.py:ClassName` — imports that module and returns each class, refusing
-   any path outside the task directory. The spec is then re-read as `AgentSpec[input_class]`,
-   so the `Session` is handed a validated model rather than text.
+2. `contracts/resolve.py` takes the spec's `answer_schema` and `input_schema` — each a
+   `ClassRef`, a module name and a class name — imports that module from the task directory
+   and returns each class. A `ClassRef`'s module is constrained to a bare `*.py` filename, so
+   a reference cannot name a path at all, and `resolve_class` still resolves and contains in
+   case a symlink says otherwise. The spec is then re-read as `AgentSpec[input_class]`, so the
+   `Session` is handed a validated model rather than text.
+
+   **One contract, one file.** Both writers copy each contract module into the task directory
+   under its own basename, so a child given a typed input and a typed answer gets two files and
+   two refs. Naming a class used to mean writing `contracts.py:NodeVerdict` — a pair joined by
+   a colon, split by `partition` in two places, whose first half was always the same value
+   because both writers wrote to one fixed filename.
 3. If a `transcript.jsonl` already exists, `transcript/history.py` loads and **repairs** it:
    a transcript ending in an unanswered tool call is rejected by the API, so interrupted
    calls get synthetic error results. This is the whole of resumption — there is no

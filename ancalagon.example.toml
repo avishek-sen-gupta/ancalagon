@@ -36,4 +36,5 @@ enabled = []
 [run]
 run_dir = ""    # where this run lives; empty allocates the next write_root/runs/r_NNNN
 goal_file = ""  # empty means the goal comes from --goal
-contract = ""   # "path.py:ClassName"; empty means FreeText
+contract_module = ""   # "shape.py"; empty means the built-in FreeText
+contract_class = ""    # "Answer"; set with contract_module or not at all
