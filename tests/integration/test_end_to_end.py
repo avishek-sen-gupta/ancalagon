@@ -50,9 +50,6 @@ def _config(
 write_root = "{write_root}"
 read_roots = ["{artifacts}"]
 
-[agent]
-root_behaviour = "You investigate."
-
 [model]
 name = "{model}"
 num_retries = 2
@@ -71,9 +68,6 @@ max_depth = 1
 compact_above_tokens = 60000
 keep_recent_messages = 8
 summary_chars = 1000
-
-[tools]
-enabled = []
 
 [sandbox]
 strategy = "none"

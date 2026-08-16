@@ -3,7 +3,10 @@ import pathlib
 import tomllib
 
 from ancalagon.config.config import Config
+from ancalagon.config.raw_role import RawClassRef, RawRole
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.role import FREE_TEXT, Role
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.sandbox.strategy import Strategy
 
@@ -29,6 +32,20 @@ def _run_settings(base: pathlib.Path, run: dict[str, str]) -> RunSettings:
     )
 
 
+def _class_ref(base: pathlib.Path, raw: RawClassRef) -> ClassRef:
+    return ClassRef(module=str(_root(base, raw.module)), name=raw.name)
+
+
+def _role(base: pathlib.Path, raw: RawRole) -> Role:
+    return Role(
+        behaviour=raw.behaviour,
+        input=_class_ref(base, raw.input) if raw.input.module else FREE_TEXT,
+        answer=_class_ref(base, raw.answer) if raw.answer.module else FREE_TEXT,
+        tools=tuple(raw.tools),
+        budget=Budget(turns=raw.budget.turns, tool_calls=raw.budget.tool_calls),
+    )
+
+
 def load_config(path: pathlib.Path) -> Config:
     base = path.resolve().parent
     raw = tomllib.loads(path.read_text())
@@ -39,7 +56,10 @@ def load_config(path: pathlib.Path) -> Config:
     return Config(
         write_root=_root(base, workspace["write_root"]),
         read_roots=tuple(_root(base, p) for p in workspace["read_roots"]),
-        root_behaviour=raw["agent"]["root_behaviour"],
+        roles={
+            name: _role(base, RawRole.model_validate(table))
+            for name, table in raw.get("roles", {}).items()
+        },
         model=model["name"],
         max_tokens=model["max_tokens"],
         num_retries=model["num_retries"],
@@ -48,7 +68,6 @@ def load_config(path: pathlib.Path) -> Config:
         max_concurrent_agents=limits["max_concurrent_agents"],
         agent_timeout_s=limits["agent_timeout_s"],
         max_depth=limits["max_depth"],
-        tools=raw["tools"]["enabled"],
         summary_chars=limits["summary_chars"],
         compact_above_tokens=limits["compact_above_tokens"],
         keep_recent_messages=limits["keep_recent_messages"],

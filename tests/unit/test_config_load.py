@@ -3,15 +3,15 @@ import pathlib
 import pytest
 
 from ancalagon.config.load import load_config
+from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.role import FREE_TEXT
 from ancalagon.sandbox.strategy import Strategy
 
 TEMPLATE = """
 [workspace]
 write_root = "./ws"
 read_roots = ["./artifacts"]
-
-[agent]
-root_behaviour = "You investigate."
 
 [model]
 name = "some-provider/some-model"
@@ -32,18 +32,24 @@ compact_above_tokens = 60000
 keep_recent_messages = 8
 summary_chars = 1000
 
-[tools]
-enabled = []
-
 [sandbox]
 strategy = "fence"
 {run}
+{block}
 """
+
+REQUIRED_RUN = '[run]\nrun_dir = ""\ngoal_file = ""\ncontract_module = ""\ncontract_class = ""\n'
 
 
 def _config_file(tmp_path: pathlib.Path, name: str, run: str) -> pathlib.Path:
     path = tmp_path / name
-    path.write_text(TEMPLATE.format(run=run))
+    path.write_text(TEMPLATE.format(run=run, block=""))
+    return path
+
+
+def _written(tmp_path: pathlib.Path, block: str) -> pathlib.Path:
+    path = tmp_path / "config.toml"
+    path.write_text(TEMPLATE.format(run=REQUIRED_RUN, block=block))
     return path
 
 
@@ -107,3 +113,33 @@ def test_the_sandbox_strategy_and_its_domains_come_from_the_config(tmp_path: pat
 
     assert config.sandbox is Strategy.FENCE
     assert config.allowed_domains == ("bedrock-runtime.us-east-1.amazonaws.com",)
+
+
+def test_roles_load_with_their_contracts_and_prose_is_the_absent_default(tmp_path: pathlib.Path):
+    shapes = tmp_path / "shapes.py"
+    shapes.write_text("import pydantic\n\n\nclass Component(pydantic.BaseModel):\n    name: str\n")
+    config = _written(
+        tmp_path,
+        """
+[roles.analyst]
+behaviour = "Analyse."
+answer = { module = "./shapes.py", name = "Component" }
+tools = ["read_file", "delegate_scout"]
+budget = { turns = 12, tool_calls = 30 }
+
+[roles.scout]
+behaviour = "Investigate."
+tools = ["read_file"]
+budget = { turns = 4, tool_calls = 8 }
+""",
+    )
+
+    roles = load_config(config).roles
+
+    assert sorted(roles) == ["analyst", "scout"]
+    assert roles["analyst"].behaviour == "Analyse."
+    assert roles["analyst"].answer == ClassRef(module=str(shapes), name="Component")
+    assert roles["analyst"].tools == ("read_file", "delegate_scout")
+    assert roles["analyst"].budget == Budget(turns=12, tool_calls=30)
+    assert roles["scout"].answer == FREE_TEXT
+    assert roles["scout"].input == FREE_TEXT
