@@ -114,6 +114,13 @@ themselves, as `docs/superpowers/specs/2026-08-16-sandbox-mode-design.md` shows.
 fence also grants an implicit write carve-out for the whole `$TMPDIR` tree independent of the
 policy — a known limitation, recorded there rather than fixed.
 
+Network traffic leaves through fence's own proxies, which it advertises to the child by
+setting `ALL_PROXY` to a SOCKS5 endpoint and `HTTP_PROXY`/`HTTPS_PROXY` to an HTTP one. It
+overwrites all four proxy variables, and `no_proxy` with them, whatever the parent passed —
+so `Sandbox.environment()` cannot influence them and the project depends on `httpx[socks]`
+instead, which is what lets litellm use the SOCKS endpoint fence prefers. The spec's claim
+that clearing `no_proxy` from the parent fixes loopback does not hold for that reason.
+
 `clock/` holds the third: one `Clock`, with `now()` for the instant a row or a message is
 stamped with and `time()`/`sleep()` for how long an agent has been running. The supervisor,
 the bus and the session all take one, defaulting to `SystemClock`, so no timestamp anywhere
