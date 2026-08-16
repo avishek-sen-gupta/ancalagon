@@ -63,4 +63,6 @@ fileignoreconfig:
   checksum: d550104c144f3fed1b5f8565cd3002ca072cf3002a8706050fcc3d013a0d7673
 - filename: docs/guidelines/refactoring.md
   checksum: 2b36baeee1e9393db3bb7eb0eb62104ace5a46ebe183b6c391d275fa70900b05
+- filename: .python-fp-lint/rules/no-subscript-tuple-mutation.yml
+  checksum: e15ef52716569a749ac3d9ea5c0710dfce9085a24a6c6a6b2e99a8bee34923b6
 version: "1.0"

@@ -1,4 +1,9 @@
 repos:
+  - repo: https://github.com/avishek-sen-gupta/python-fp-lint
+    rev: main
+    hooks:
+      - id: python-fp-lint
+        args: [--config, fp.json]
   - repo: local
     hooks:
       - id: talisman
