@@ -62,9 +62,10 @@ An omitted `input` or `answer` means `FreeText`, which is how a role opts into p
 naming a path inside the installed package. So prose is still a contract, and declaring a
 role is still the only way to get an agent.
 
-`tools` is per-role, replacing the global `[tools] enabled`. A role whose `tools` omits
-`delegate` cannot spawn anything — which is how a program pins a subtree to depth 1 without
-a new mechanism.
+`tools` is per-role, replacing the global `[tools] enabled`. It names tools, and the delegate
+tools are named `delegate_<role>`, so `tools = ["read_file", "delegate_scout"]` is a role that
+may spawn scouts and nothing else. A role naming no `delegate_*` tool cannot spawn at all,
+which is how a program pins a subtree to depth 1 without a new mechanism.
 
 `budget` is authoritative and fixed. A parent does not choose it and cannot be wrong about
 it. This means total work is no longer bounded by the root's budget: a parent with 8 turns
@@ -74,24 +75,41 @@ may spawn ten children of a 20-turn role. It is bounded instead by the role grap
 
 ## What `delegate` becomes
 
-Roles are known at worker startup, before the tool schema is built. So `delegate`'s argument
-model is generated then: one variant per declared role, discriminated on `role`, built with
-`create_model` exactly as `AgentSpec[InT]` and `Completed[OutT]` are built today.
+Roles are known at worker startup, before the tool schema is built. So there is one delegate
+tool **per role**, its argument model built then with `create_model`, exactly as
+`AgentSpec[InT]` and `Completed[OutT]` are built today:
 
 ```
-delegate(role: "component_analyst", task_id: str, input: ComponentQuery)
-delegate(role: "scout",             task_id: str, input: FreeText)
+delegate_component_analyst(task_id: str, input: ComponentQuery)
+delegate_scout            (task_id: str, input: FreeText)
 ```
 
-A run declaring one role gets a `delegate` with one legal value, and a run whose roles all
-omit `delegate` from their `tools` gets no `delegate` tool at all.
+Nothing is generated on disk and no code is written per role. One hand-written class varies
+only in its `args_model`, because roles differ in data and not in behaviour: look up the
+role, write `spec.json`, enqueue. Adding `[roles.foo]` to the config makes `delegate_foo`
+exist the next time a worker starts; deleting it removes the tool.
 
-The model sees each role's real input schema. `input_json: str` is gone, and with it the
-last use of the one-hop-as-text exception `CLAUDE.md` grants: the class is no longer unknown
-at authoring time, only late-bound, which is what generics are for.
+The model therefore sees each role's real input schema, and `input_json: str` is gone — with
+it the last use of the one-hop-as-text exception `CLAUDE.md` grants, since the class is no
+longer unknown at authoring time, only late-bound.
 
-`behaviour`, `contracts`, `turns` and `tool_calls` all leave `DelegateArgs`. Three fields
-remain: which role, what to call it, what to give it.
+A single `delegate` taking `role` plus a typed `input` was rejected. A tool has one schema,
+so one shared `input` field cannot be `ComponentQuery` and `FreeText` at once. Making it vary
+by the `role` value needs a discriminated union, whose JSON Schema is a top-level `oneOf`
+while the tool API wants `type: object` with properties. Annotating the field `BaseModel`
+instead was also tried and is worse: it is shown to the model as `{"properties": {}}`, it
+serialises a populated instance as `{}` from a containing model, and parsing it back yields a
+bare `BaseModel` with no fields — the payload is gone before any role lookup could recover
+it. Pydantic discriminates on data, and we do not control the user's contract classes, so we
+cannot put a tag inside them. Splitting by tool is what makes each schema concrete.
+
+The remaining alternative — one `delegate` with `role` as a runtime `Literal` and the payload
+back as `input_json: str` — works and matches what the worker already does with
+`AgentSpec[InT]`, but it constrains only the role name and leaves the parent guessing the
+payload. That guess failed three times in `r_0004`.
+
+`behaviour`, `contracts`, `turns`, `tool_calls` and `input_json` all go. Two fields remain
+on each tool: what to call the task, and what to give it. The role is the tool.
 
 ## The root is a role
 
@@ -101,9 +119,9 @@ remain: which role, what to call it, what to give it.
 `AgentSpec` carries `goal` and `input` separately, and the root has always faked the second
 as `FreeText(text=goal)`. Once a root role can declare a structured input contract, something
 must fill it, so `[run] input_file` joins `goal_file`: a JSON file validated against the
-role's input contract at startup, the same validation `delegate` performs on a child's input.
-An absent `input_file` on a role whose input is `FreeText` builds it from the goal, so a
-quick run still needs only a goal file.
+role's input contract at startup, the same validation a `delegate_*` tool performs on a
+child's input. An absent `input_file` on a role whose input is `FreeText` builds it from
+the goal, so a quick run still needs only a goal file.
 
 The root then differs from a subagent in one thing: it has no parent, so its goal and input
 come from files rather than from a `delegate` call. Every asymmetry that produced the
@@ -125,9 +143,10 @@ problem.
 
 ## What this does not do
 
-**It does not constrain which roles a role may delegate to.** `tools` decides whether a role
-can delegate at all; beyond that any declared role is reachable. A `delegates = [...]` field
-is a plausible next constraint and is deliberately not built.
+**It adds no separate mechanism for which roles a role may delegate to.** That constraint
+falls out of one tool per role: `tools` names `delegate_<role>` entries like any other tool,
+so the role graph is expressed in the same list that grants `read_file`. No `delegates = [...]`
+field is needed.
 
 **It does not address coordination cost.** A parent still spends a turn per `check_task`
 round, which was 149,000 of the root's 277,000 input tokens in `r_0004`. Roles make that
