@@ -65,6 +65,7 @@ name = "claude-opus-5"
 num_retries = 3
 request_timeout_s = 300
 max_tokens = 8000
+allowed_domains = []
 
 [budget]
 turns = 20
@@ -80,6 +81,9 @@ summary_chars = 1000
 
 [tools]
 enabled = ["read_file", "ripgrep"]
+
+[sandbox]
+strategy = "none"
 
 [run]
 run_dir = ""
@@ -121,6 +125,7 @@ name = "claude-opus-5"
 num_retries = 3
 request_timeout_s = 300
 max_tokens = 8000
+allowed_domains = []
 
 [budget]
 turns = 20
@@ -136,6 +141,9 @@ summary_chars = 1000
 
 [tools]
 enabled = []
+
+[sandbox]
+strategy = "none"
 
 [run]
 run_dir = ""
@@ -175,6 +183,7 @@ name = "claude-opus-5"
 num_retries = 3
 request_timeout_s = 300
 max_tokens = 8000
+allowed_domains = []
 
 [budget]
 turns = 20
@@ -190,6 +199,9 @@ summary_chars = 1000
 
 [tools]
 enabled = []
+
+[sandbox]
+strategy = "none"
 
 [run]
 run_dir = ""

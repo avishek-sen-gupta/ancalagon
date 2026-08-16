@@ -53,6 +53,7 @@ name = "{model}"
 num_retries = 2
 request_timeout_s = 120
 max_tokens = 4000
+allowed_domains = []
 
 [budget]
 turns = {turns}
@@ -68,6 +69,9 @@ summary_chars = 1000
 
 [tools]
 enabled = []
+
+[sandbox]
+strategy = "none"
 
 [run]
 run_dir = "{run_dir}"

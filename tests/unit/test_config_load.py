@@ -3,6 +3,7 @@ import pathlib
 import pytest
 
 from ancalagon.config.load import load_config
+from ancalagon.sandbox.strategy import Strategy
 
 TEMPLATE = """
 [workspace]
@@ -17,6 +18,7 @@ name = "some-provider/some-model"
 num_retries = 2
 request_timeout_s = 120
 max_tokens = 4000
+allowed_domains = ["bedrock-runtime.us-east-1.amazonaws.com"]
 
 [budget]
 turns = 4
@@ -32,6 +34,9 @@ summary_chars = 1000
 
 [tools]
 enabled = []
+
+[sandbox]
+strategy = "fence"
 {run}
 """
 
@@ -90,3 +95,15 @@ def test_the_run_section_is_required_and_a_contract_must_name_a_class(
                 '[run]\nrun_dir = ""\ngoal_file = ""\ncontract_module = "./shape.py"\ncontract_class = ""\n',
             )
         )
+
+
+def test_the_sandbox_strategy_and_its_domains_come_from_the_config(tmp_path: pathlib.Path):
+    path = _config_file(
+        tmp_path,
+        "sandboxed.toml",
+        '[run]\nrun_dir = ""\ngoal_file = ""\ncontract_module = ""\ncontract_class = ""\n',
+    )
+    config = load_config(path)
+
+    assert config.sandbox is Strategy.FENCE
+    assert config.allowed_domains == ("bedrock-runtime.us-east-1.amazonaws.com",)

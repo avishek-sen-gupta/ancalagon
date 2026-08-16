@@ -6,6 +6,7 @@ import pydantic
 
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.run_settings import RunSettings
+from ancalagon.sandbox.strategy import Strategy
 
 ROOT_BEHAVIOUR = (
     "You investigate a codebase or a set of artifacts to answer the goal you are given.\n"
@@ -32,3 +33,5 @@ class Config(pydantic.BaseModel, frozen=True):
     compact_above_tokens: int = 60000
     keep_recent_messages: int = 8
     run: RunSettings = RunSettings()
+    allowed_domains: tuple[str, ...] = ()
+    sandbox: Strategy = Strategy.FENCE
