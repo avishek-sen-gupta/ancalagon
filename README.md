@@ -12,9 +12,10 @@ A goal is all it needs. Point `read_roots` at whatever the agent should be able 
 read — a repository, a directory of parsed artifacts, a single JSON file, or nothing
 at all — and it stays inside that boundary.
 
-Subagents return typed results. A parent can write a Pydantic model at runtime and
-require its children to answer in that shape, so a fan-out produces structured data
-rather than prose.
+Subagents return typed results. A child's shape is not invented by its parent at
+runtime — it comes from a role declared in the config before the run starts, so a
+fan-out produces structured data because the contract was decided up front, not
+guessed at mid-run.
 
 ## Running
 
