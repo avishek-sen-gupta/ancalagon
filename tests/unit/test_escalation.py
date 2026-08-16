@@ -115,11 +115,20 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
         json.dumps(
             {
                 "task_id": "root",
-                "behaviour": "You coordinate.",
+                "role": {
+                    "behaviour": "You coordinate.",
+                    "answer": {"module": "free_text.py", "name": "FreeText"},
+                    "tools": [
+                        "delegate_investigate",
+                        "check_task",
+                        "collect_task",
+                        "answer_task",
+                        "need_input",
+                    ],
+                    "budget": {"turns": 8, "tool_calls": 20},
+                },
                 "goal": "Investigate both halves.",
                 "input": {"text": "go"},
-                "answer_schema": {"module": "free_text.py", "name": "FreeText"},
-                "budget": {"turns": 8, "tool_calls": 20},
             }
         )
     )

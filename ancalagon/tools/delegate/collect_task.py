@@ -49,7 +49,7 @@ class CollectTask(Tool[TaskArgs]):
                 self.name, f"agent {state.agent} is {state.status.value}, no outcome yet"
             )
         spec = TaskSpec.model_validate_json((task_dir / "spec.json").read_text())
-        answer_class = resolve_class(spec.answer_schema)
+        answer_class = resolve_class(spec.role.answer)
         outcome = outcome_adapter(answer_class).validate_json(written.read_text())
         if isinstance(outcome, (Completed, Exhausted)):
             return ctx.full_result(self.name, outcome.value.model_dump_json(), ".json")

@@ -33,20 +33,24 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
     assert budget.spend_tool_calls(0) == budget
     assert Budget(turns=0, tool_calls=5).turns_exhausted is True
 
-    spec = AgentSpec[NodeSummary](
-        task_id="node_7",
+    role = Role(
         behaviour="You summarise.",
-        goal="Summarise this node.",
-        input=NodeSummary(text="body", confidence=1),
-        input_schema=ClassRef(module="node_summary.py", name="NodeSummary"),
-        answer_schema=ClassRef(module="node_summary.py", name="NodeSummary"),
+        input=ClassRef(module="node_summary.py", name="NodeSummary"),
+        answer=ClassRef(module="node_summary.py", name="NodeSummary"),
+        tools=(),
         budget=budget,
     )
-    assert spec.tools == []
+    spec = AgentSpec[NodeSummary](
+        task_id="node_7",
+        role=role,
+        goal="Summarise this node.",
+        input=NodeSummary(text="body", confidence=1),
+    )
+    assert spec.role.tools == ()
     assert AgentSpec[NodeSummary].model_validate_json(spec.model_dump_json()) == spec
 
     written = spec.model_dump_json()
-    assert TaskSpec.model_validate_json(written).input_schema == ClassRef(
+    assert TaskSpec.model_validate_json(written).role.input == ClassRef(
         module="node_summary.py", name="NodeSummary"
     )
     assert AgentSpec[NodeSummary].model_validate_json(written).input.confidence == 1

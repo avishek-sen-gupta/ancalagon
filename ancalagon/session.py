@@ -76,7 +76,7 @@ class Session:
         self.clock = clock
         self.compact_above_tokens = compact_above_tokens
         self.keep_recent_messages = keep_recent_messages
-        self.remaining = spec.budget
+        self.remaining = spec.role.budget
         self.seq = len(messages)
         if not self.messages:
             self._record(
@@ -99,7 +99,7 @@ class Session:
         schema = self.output_class.model_json_schema()
         return SystemPrompt(
             static=(
-                f"{self.spec.behaviour}\n\n"
+                f"{self.spec.role.behaviour}\n\n"
                 f"When you have the answer, call the submit_answer tool with it. "
                 f"If that tool is unavailable, reply with a single JSON object and nothing "
                 f"else -- no prose, no markdown fences -- matching this schema: {schema}"
@@ -136,8 +136,8 @@ class Session:
 
     def _spent(self) -> Budget:
         return Budget(
-            turns=self.spec.budget.turns - self.remaining.turns,
-            tool_calls=self.spec.budget.tool_calls - self.remaining.tool_calls,
+            turns=self.spec.role.budget.turns - self.remaining.turns,
+            tool_calls=self.spec.role.budget.tool_calls - self.remaining.tool_calls,
         )
 
     def _text_of(self, reply: Reply) -> str:

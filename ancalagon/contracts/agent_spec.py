@@ -3,19 +3,13 @@ import typing
 
 import pydantic
 
-from ancalagon.contracts.budget import Budget
-from ancalagon.contracts.class_ref import ClassRef
-from ancalagon.contracts.role import FREE_TEXT
+from ancalagon.contracts.role import Role
 
 InT = typing.TypeVar("InT", bound=pydantic.BaseModel, covariant=True)
 
 
 class AgentSpec(pydantic.BaseModel, typing.Generic[InT], frozen=True):
     task_id: str
-    behaviour: str
+    role: Role
     goal: str
     input: InT
-    input_schema: ClassRef = FREE_TEXT
-    answer_schema: ClassRef
-    budget: Budget
-    tools: list[str] = []

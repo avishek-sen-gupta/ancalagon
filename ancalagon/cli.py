@@ -14,6 +14,8 @@ from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.free_text_module import FREE_TEXT_FILE, FREE_TEXT_MODULE
+from ancalagon.contracts.resolve import resolve_class
+from ancalagon.contracts.role import Role
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.answer_command import answer_command
 from ancalagon.migrate_command import migrate_command
@@ -23,6 +25,7 @@ from ancalagon.sandbox.strategy import Strategy
 from ancalagon.sandbox.unsandboxed import Unsandboxed
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
+from ancalagon.worker import available_tools
 
 LOGGER = logging.getLogger(__name__)
 
@@ -119,14 +122,16 @@ def main(config_path: pathlib.Path) -> int:
     task_dir = run_dir / "tasks" / "root"
     task_dir.mkdir(parents=True, exist_ok=True)
     answers_in = install_contracts(config.run, task_dir)
+    clock = SystemClock()
+    root_tools = tuple(
+        t.name for t in available_tools(config, run_dir, HUMAN, resolve_class(answers_in), clock)
+    )
+    root_role = Role(
+        behaviour=ROOT_BEHAVIOUR, answer=answers_in, tools=root_tools, budget=config.budget
+    )
     (task_dir / "spec.json").write_text(
         AgentSpec[FreeText](
-            task_id="root",
-            behaviour=ROOT_BEHAVIOUR,
-            goal=goal,
-            input=FreeText(text=goal),
-            answer_schema=answers_in,
-            budget=config.budget,
+            task_id="root", role=root_role, goal=goal, input=FreeText(text=goal)
         ).model_dump_json()
     )
 
@@ -135,7 +140,6 @@ def main(config_path: pathlib.Path) -> int:
 
     db = run_dir / "bus.db"
     ancalagon.migrations.migrate_file(db, ancalagon.migrations.latest_version())
-    clock = SystemClock()
     bus = Bus.open(db, clock)
     bus.enqueue(task_dir, parent_agent=HUMAN)
     supervisor = Supervisor(
