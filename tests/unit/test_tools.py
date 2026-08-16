@@ -613,5 +613,17 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     assert spec["input"] == {"area": "bus", "depth": 2}
     assert spec["role"]["budget"] == {"turns": 12, "tool_calls": 30}
 
+    prose = tools[1].declaration.parameters.model_json_schema()
+    assert sorted(prose["$defs"]["FreeText"]["properties"]) == ["text"]
+    looked = tools[1].invoke(
+        '{"task_id": "t3", "goal": "look around", "input": {"text": "start at the bus"}}', ctx
+    )
+    assert looked.ok is True
+    scouted = json.loads((run_dir / "tasks" / "t3" / "spec.json").read_text())
+    assert scouted["goal"] == "look around"
+    assert scouted["input"] == {"text": "start at the bus"}
+    assert scouted["role"]["budget"] == {"turns": 4, "tool_calls": 8}
+
     with pytest.raises(pydantic.ValidationError, match="depth"):
         tools[0].invoke('{"task_id": "t2", "goal": "g", "input": {"area": "bus"}}', ctx)
+    assert (run_dir / "tasks" / "t2").exists() is False
