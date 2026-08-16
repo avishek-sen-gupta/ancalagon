@@ -20,23 +20,25 @@ rather than prose.
 
 ```bash
 uv sync
-cp ancalagon.example.toml ancalagon.toml   # edit write_root and read_roots
-uv run ancalagon run --config ancalagon.toml --goal "..."
+cp ancalagon.example.toml ancalagon.toml   # edit write_root, read_roots and goal_file
+echo "..." > goal.md
+uv run ancalagon run --config ancalagon.toml
 ```
 
-A driver running one item at a time sets the per-run values in the config instead:
+The goal is a file, named by the config, and there is no command-line alternative. A run is
+described entirely by its config, so re-running one means re-running the same command:
 
 ```toml
 [run]
 run_dir = "./ws/runs/item-0001"  # reused on a second invocation, which continues the transcript
-goal_file = "./ws/runs/item-0001/goal.md"
+goal_file = "./goal.md"
 contract_module = "./shape.py"   # the root answers in this shape, not free text
 contract_class = "Answer"
 ```
 
-`--goal` and `goal_file` are alternatives; give exactly one. An empty `run_dir` allocates the next
-`runs/r_NNNN` as before. A missing or empty `goal_file`, or a `contract_module` that is absent or
-does not define `contract_class`, exits 2 without starting a run. Set both keys or neither.
+An empty `run_dir` allocates the next `runs/r_NNNN`. An unset, missing or empty `goal_file`, or a
+`contract_module` that is absent or does not define `contract_class`, exits 2 without starting a
+run. Set both contract keys or neither.
 
 Keep a named `run_dir` under `<write_root>/runs/` as above: the watcher below only sees
 `<write_root>/runs/*/tasks/*` and `<write_root>/*/tasks/*`, and a run elsewhere is invisible to it.

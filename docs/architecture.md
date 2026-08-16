@@ -36,10 +36,13 @@ cli.py ──writes spec.json──▶ tasks/root/
 2. `run_dir_of` uses `[run] run_dir` when set and allocates `<write_root>/runs/r_NNNN` when not.
    A named directory is created if absent and reused if present, which is what makes a second
    invocation continue rather than start over; an allocated one must not already exist.
-3. Writes two files into `<run_dir>/tasks/root/`: `contracts.py` — `[run] contract`'s module when
-   named, otherwise `contracts/free_text_module.py` — and `spec.json` naming the class it must
-   answer in. The goal comes from `[run] goal_file` or `--goal`; exactly one. A missing or empty
-   file, or a `contract` naming a class its module does not define, exits 2 before any spawn.
+3. `install_contracts` writes both contract modules into `<run_dir>/tasks/root/`: `free_text.py`
+   always, because the root's `input_schema` is always `FreeText`, and `[run] contract_module`'s
+   source under its own basename when named. The worker resolves each `ClassRef` against that
+   directory, so a module the spec names and the directory lacks is a crash. `spec.json` follows,
+   naming the class the root must answer in. The goal comes from `[run] goal_file` and nowhere
+   else. An unset, missing or empty goal file, or a `contract_module` defining no
+   `contract_class`, exits 2 before any spawn.
 4. `bus.db` is migrated to the latest schema — created if the run directory has none — and
    then opened, and the task is enqueued with `parent_agent=0`. Enqueuing creates
    the task if new, adds an agent, and appends a `queued` event; a task retried later reuses

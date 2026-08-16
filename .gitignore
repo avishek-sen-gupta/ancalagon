@@ -33,3 +33,7 @@ specs/**/states/
 
 # JetBrains
 .idea/
+
+# Personal run config; contains local paths and a chosen model.
+ancalagon.toml
+goal.md

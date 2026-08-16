@@ -8,12 +8,15 @@ from ancalagon.cli import (
     answer_schema_of,
     contract_source,
     goal_of,
+    install_contracts,
     run_dir_of,
     sandbox_of,
 )
 from ancalagon.config.config import Config
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
+from ancalagon.contracts.free_text_ref import FREE_TEXT_REF
+from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.sandbox.fence import Fence
 from ancalagon.sandbox.strategy import Strategy
@@ -55,19 +58,22 @@ def test_an_allocated_run_dir_refuses_a_directory_another_run_already_took(
         run_dir_of(RunSettings(), write_root)
 
 
-def test_a_goal_comes_from_exactly_one_of_the_file_and_the_argument(
-    tmp_path: pathlib.Path,
-):
+def test_a_goal_comes_from_the_file_and_from_nowhere_else(tmp_path: pathlib.Path):
     goal_file = tmp_path / "goal.md"
     goal_file.write_text("describe the item")
 
-    assert goal_of(RunSettings(goal_file=str(goal_file)), "") == "describe the item"
-    assert goal_of(RunSettings(), "inline") == "inline"
+    assert goal_of(RunSettings(goal_file=str(goal_file))) == "describe the item"
 
-    with pytest.raises(ValueError):
-        goal_of(RunSettings(goal_file=str(goal_file)), "inline")
-    with pytest.raises(ValueError):
-        goal_of(RunSettings(), "")
+    with pytest.raises(ValueError, match="no goal"):
+        goal_of(RunSettings())
+
+    goal_file.write_text("   \n")
+    with pytest.raises(ValueError, match="empty"):
+        goal_of(RunSettings(goal_file=str(goal_file)))
+
+    absent = tmp_path / "no-such-goal.md"
+    with pytest.raises(ValueError, match="does not exist"):
+        goal_of(RunSettings(goal_file=str(absent)))
 
 
 def test_a_named_contract_replaces_free_text(tmp_path: pathlib.Path):
@@ -80,6 +86,25 @@ def test_a_named_contract_replaces_free_text(tmp_path: pathlib.Path):
     named = RunSettings(contract_module=str(module), contract_class="Answer")
     assert answer_schema_of(named) == ClassRef(module="shape.py", name="Answer")
     assert "class Answer" in contract_source(named)
+
+
+def test_the_root_task_dir_carries_both_contracts_the_worker_resolves(tmp_path: pathlib.Path):
+    module = tmp_path / "shape.py"
+    module.write_text("import pydantic\n\n\nclass Answer(pydantic.BaseModel):\n    verdict: str\n")
+
+    default_dir = tmp_path / "default"
+    default_dir.mkdir()
+    assert install_contracts(RunSettings(), default_dir) == FREE_TEXT_REF
+    assert sorted(p.name for p in default_dir.iterdir()) == ["free_text.py"]
+
+    named_dir = tmp_path / "named"
+    named_dir.mkdir()
+    named = RunSettings(contract_module=str(module), contract_class="Answer")
+
+    assert install_contracts(named, named_dir) == ClassRef(module="shape.py", name="Answer")
+    assert sorted(p.name for p in named_dir.iterdir()) == ["free_text.py", "shape.py"]
+    assert resolve_class(FREE_TEXT_REF, named_dir).__name__ == "FreeText"
+    assert resolve_class(ClassRef(module="shape.py", name="Answer"), named_dir).__name__ == "Answer"
 
 
 def test_sandbox_of_resolves_each_strategy_and_fence_is_the_unstated_default(
