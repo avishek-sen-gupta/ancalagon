@@ -20,6 +20,7 @@ def _config(
     tool_calls: int,
     model: str = "",
     run_dir: str = "",
+    goal: str = "",
     goal_file: str = "",
     contract_module: str = "",
     contract_class: str = "",
@@ -39,6 +40,10 @@ def _config(
             }
         )
     )
+    written = tmp_path / "goal.md"
+    if goal:
+        written.write_text(goal)
+    goal_source = str(written) if goal else goal_file
     config = tmp_path / "ancalagon.toml"
     config.write_text(f"""
 [workspace]
@@ -75,18 +80,16 @@ strategy = "none"
 
 [run]
 run_dir = "{run_dir}"
-goal_file = "{goal_file}"
+goal_file = "{goal_source}"
 contract_module = "{contract_module}"
 contract_class = "{contract_class}"
 """)
     return config
 
 
-def _run_cli(
-    config: pathlib.Path, goal: str, env: dict[str, str]
-) -> subprocess.CompletedProcess[str]:
+def _run_cli(config: pathlib.Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-m", "ancalagon.cli", "run", "--config", str(config), "--goal", goal],
+        [sys.executable, "-m", "ancalagon.cli", "run", "--config", str(config)],
         capture_output=True,
         text=True,
         timeout=300,
@@ -97,9 +100,15 @@ def _run_cli(
 def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
     tmp_path: pathlib.Path,
 ):
-    config = _config(tmp_path, turns=2, tool_calls=4, model="no-such-provider/no-such-model")
+    config = _config(
+        tmp_path,
+        turns=2,
+        tool_calls=4,
+        model="no-such-provider/no-such-model",
+        goal="Say hello.",
+    )
 
-    completed = _run_cli(config, "Say hello.", dict(os.environ))
+    completed = _run_cli(config, dict(os.environ))
     assert completed.returncode == 0, completed.stderr
 
     run_dir = next((tmp_path / "ws" / "runs").iterdir())
@@ -129,14 +138,15 @@ def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
     reason="live model test; set ANCALAGON_LIVE=1 with a funded credential to run",
 )
 def test_root_agent_investigates_and_returns_an_outcome(tmp_path: pathlib.Path):
-    config = _config(tmp_path, turns=8, tool_calls=20)
     artifacts = tmp_path / "artifacts"
-
-    completed = _run_cli(
-        config,
-        f"Read {artifacts / 'graph.json'} and state in one sentence what node 'a' does.",
-        dict(os.environ),
+    config = _config(
+        tmp_path,
+        turns=8,
+        tool_calls=20,
+        goal=f"Read {artifacts / 'graph.json'} and state in one sentence what node 'a' does.",
     )
+
+    completed = _run_cli(config, dict(os.environ))
     assert completed.returncode == 0, completed.stderr
 
     outcome = json.loads(completed.stdout.strip().splitlines()[-1])
@@ -156,11 +166,12 @@ def test_a_named_run_dir_is_reused_by_a_second_invocation(tmp_path: pathlib.Path
         tool_calls=4,
         model="no-such-provider/no-such-model",
         run_dir=str(named),
+        goal="Say hello.",
     )
 
-    first = _run_cli(config, "Say hello.", dict(os.environ))
+    first = _run_cli(config, dict(os.environ))
     assert first.returncode == 0, first.stderr
-    second = _run_cli(config, "Say hello.", dict(os.environ))
+    second = _run_cli(config, dict(os.environ))
     assert second.returncode == 0, second.stderr
 
     assert [p.name for p in (tmp_path / "ws" / "runs").iterdir()] == ["item-0001"]
@@ -199,7 +210,7 @@ def test_a_missing_or_unusable_input_exits_two_with_a_message_and_no_traceback(
             contract_module=contract_module,
             contract_class=contract_class,
         )
-        completed = _run_cli(config, "", dict(os.environ))
+        completed = _run_cli(config, dict(os.environ))
         assert completed.returncode == 2, completed.stdout
         assert "Traceback" not in completed.stderr
         return completed
@@ -237,10 +248,11 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
         tool_calls=4,
         model="no-such-provider/no-such-model",
         run_dir=str(named),
+        goal="Say hello.",
     )
     outcome = named / "tasks" / "root" / "outcome.json"
 
-    assert main(config, "Say hello.") == 0
+    assert main(config) == 0
     assert json.loads(outcome.read_text())["kind"] == "failed"
     capsys.readouterr()
 
@@ -249,6 +261,6 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
 
     monkeypatch.setattr(SubprocessSpawner, "spawn", refuse)
 
-    assert main(config, "Say hello.") == 1
+    assert main(config) == 1
     assert capsys.readouterr().out == ""
     assert outcome.exists() is False

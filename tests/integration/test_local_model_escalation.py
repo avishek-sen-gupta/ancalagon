@@ -13,9 +13,11 @@ from ancalagon.cli import main
 MODEL = os.environ.get("ANCALAGON_LOCAL_MODEL", "")
 
 
-def _config(tmp_path: pathlib.Path, run_dir: pathlib.Path) -> pathlib.Path:
+def _config(tmp_path: pathlib.Path, run_dir: pathlib.Path, goal: str) -> pathlib.Path:
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
+    goal_file = tmp_path / "goal.md"
+    goal_file.write_text(goal)
     config = tmp_path / "ancalagon.toml"
     config.write_text(f"""
 [workspace]
@@ -56,7 +58,7 @@ strategy = "none"
 
 [run]
 run_dir = "{run_dir}"
-goal_file = ""
+goal_file = "{goal_file}"
 contract_module = ""
 contract_class = ""
 """)
@@ -69,13 +71,13 @@ contract_class = ""
 )
 def test_a_real_model_asks_a_question_and_acts_on_the_answer(tmp_path: pathlib.Path):
     run_dir = tmp_path / "ws" / "runs" / "asked"
-    config = _config(tmp_path, run_dir)
     goal = (
         "Decide whether to keep both captions or pick one. You do not have the captions "
         "and cannot obtain them, so you must call need_input to ask which is wanted."
     )
+    config = _config(tmp_path, run_dir, goal)
 
-    assert main(config, goal) == 0
+    assert main(config) == 0
     bus = Bus.open(run_dir / "bus.db", SystemClock())
     assert any(e.status is AgentStatus.NEEDS_INPUT for e in bus.history(1)), (
         "the model did not ask; local models vary, and this test is about the resumed "
@@ -86,7 +88,7 @@ def test_a_real_model_asks_a_question_and_acts_on_the_answer(tmp_path: pathlib.P
     assert asked["question"].strip() != ""
 
     assert answer_command(run_dir, 1, "Keep both captions.") == 0
-    assert main(config, goal) == 0
+    assert main(config) == 0
 
     answered = json.loads((run_dir / "tasks" / "root" / "outcome.json").read_text())
     assert answered["kind"] in ("completed", "exhausted")

@@ -33,9 +33,11 @@ def _delegate(id: str, task_id: str, goal: str) -> ToolUse:
     )
 
 
-def _config(tmp_path: pathlib.Path, run_dir: pathlib.Path) -> pathlib.Path:
+def _config(tmp_path: pathlib.Path, run_dir: pathlib.Path, goal: str) -> pathlib.Path:
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
+    goal_file = tmp_path / "goal.md"
+    goal_file.write_text(goal)
     config = tmp_path / "ancalagon.toml"
     config.write_text(f"""
 [workspace]
@@ -72,7 +74,7 @@ strategy = "none"
 
 [run]
 run_dir = "{run_dir}"
-goal_file = ""
+goal_file = "{goal_file}"
 contract_module = ""
 contract_class = ""
 """)
@@ -105,10 +107,10 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
     model = ScriptedModel(decide)
     monkeypatch.setenv("OPENAI_BASE_URL", model.base_url)
     monkeypatch.setenv("OPENAI_API_KEY", "scripted")
-    config = _config(tmp_path, run_dir)
+    config = _config(tmp_path, run_dir, ROOT)
 
     try:
-        assert main(config, ROOT) == 0
+        assert main(config) == 0
         bus = Bus.open(run_dir / "bus.db", SystemClock())
 
         def asked(agent: int) -> bool:
@@ -119,7 +121,7 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
         assert any(e.status is AgentStatus.COMPLETED for e in bus.history(3))
 
         assert answer_command(run_dir, 1, "keep both") == 0
-        assert main(config, ROOT) == 0
+        assert main(config) == 0
 
         resumed_root = bus.active_for(run_dir / "tasks" / "root")
         assert resumed_root == []

@@ -51,17 +51,13 @@ def _text_of(path: pathlib.Path, named_by: str) -> str:
     return path.read_text()
 
 
-def goal_of(settings: RunSettings, given: str) -> str:
-    if settings.goal_file and given:
-        raise ValueError("a goal came from both --goal and [run] goal_file; give one")
-    if settings.goal_file:
-        goal = _text_of(pathlib.Path(settings.goal_file), "goal_file")
-        if not goal.strip():
-            raise ValueError(f"[run] goal_file {settings.goal_file} is empty")
-        return goal
-    if given:
-        return given
-    raise ValueError("no goal: pass --goal or set [run] goal_file")
+def goal_of(settings: RunSettings) -> str:
+    if not settings.goal_file:
+        raise ValueError("no goal: set [run] goal_file")
+    goal = _text_of(pathlib.Path(settings.goal_file), "goal_file")
+    if not goal.strip():
+        raise ValueError(f"[run] goal_file {settings.goal_file} is empty")
+    return goal
 
 
 def answer_schema_of(settings: RunSettings) -> ClassRef:
@@ -92,6 +88,13 @@ def contract_source(settings: RunSettings) -> str:
     return source
 
 
+def install_contracts(settings: RunSettings, task_dir: pathlib.Path) -> ClassRef:
+    answers_in = answer_schema_of(settings)
+    (task_dir / FREE_TEXT_REF.module).write_text(FREE_TEXT_MODULE)
+    (task_dir / answers_in.module).write_text(contract_source(settings))
+    return answers_in
+
+
 def sandbox_of(config: Config, run_dir: pathlib.Path) -> Sandbox:
     if config.sandbox is Strategy.NONE:
         return Unsandboxed()
@@ -102,15 +105,14 @@ def sandbox_of(config: Config, run_dir: pathlib.Path) -> Sandbox:
     )
 
 
-def main(config_path: pathlib.Path, goal_argument: str) -> int:
+def main(config_path: pathlib.Path) -> int:
     logging.basicConfig(level=logging.INFO)
     config = load_config(config_path)
-    goal = goal_of(config.run, goal_argument)
+    goal = goal_of(config.run)
     run_dir = run_dir_of(config.run, config.write_root)
     task_dir = run_dir / "tasks" / "root"
     task_dir.mkdir(parents=True, exist_ok=True)
-    answers_in = answer_schema_of(config.run)
-    (task_dir / answers_in.module).write_text(contract_source(config.run))
+    answers_in = install_contracts(config.run, task_dir)
     (task_dir / "spec.json").write_text(
         AgentSpec[FreeText](
             task_id="root",
@@ -158,7 +160,6 @@ def cli() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     run = commands.add_parser("run")
     run.add_argument("--config", type=pathlib.Path, required=True)
-    run.add_argument("--goal", type=str, default="")
     migrate = commands.add_parser("migrate")
     migrate.add_argument("--db", type=pathlib.Path, required=True)
     migrate.add_argument("--to", type=int, default=-1)
@@ -172,7 +173,7 @@ def cli() -> int:
             return migrate_command(args.db, args.to)
         if args.command == "answer":
             return answer_command(args.run_dir, args.task, args.answer)
-        return main(args.config, args.goal)
+        return main(args.config)
     except ValueError as error:
         sys.stderr.write(f"{error}\n")
         return 2
