@@ -68,5 +68,5 @@ fileignoreconfig:
 - filename: docs/superpowers/plans/2026-08-16-sandbox-mode.md
   checksum: a0687d175eb12fe46cd3f54e8be35be6e20cf35a5da25291db6a148b467b1c08
 - filename: tests/unit/test_contracts.py
-  checksum: becf24e09b6cea77137641b5a38bb19e69f4c7ab6065f0483805a293443c128d
+  checksum: 8eecaf74c4fe71d0e874b18b62c0fd7d38f8219537d97e618f167f9d0d1f11ab
 version: "1.0"

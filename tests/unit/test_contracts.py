@@ -122,5 +122,26 @@ def test_a_role_defaults_to_prose_and_resolves_the_contracts_it_names(tmp_path: 
     assert resolve_class(named.answer).model_fields.keys() == {"name"}
     assert resolve_class(named.input) is FreeText
 
+    dir_a = tmp_path / "a"
+    dir_b = tmp_path / "b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+    (dir_a / "shapes.py").write_text(
+        "import pydantic\n\n\nclass Shape(pydantic.BaseModel):\n    width: int\n"
+    )
+    (dir_b / "shapes.py").write_text(
+        "import pydantic\n\n\nclass Shape(pydantic.BaseModel):\n    height: int\n"
+    )
+    ref_a = ClassRef(module=str(dir_a / "shapes.py"), name="Shape")
+    ref_b = ClassRef(module=str(dir_b / "shapes.py"), name="Shape")
+
+    shape_a = resolve_class(ref_a)
+    shape_b = resolve_class(ref_b)
+    shape_a_again = resolve_class(ref_a)
+
+    assert shape_a.model_fields.keys() == {"width"}
+    assert shape_b.model_fields.keys() == {"height"}
+    assert shape_a_again is shape_a
+
     with pytest.raises(AttributeError):
         resolve_class(ClassRef(module=str(module), name="Absent"))
