@@ -1,5 +1,6 @@
 # Loads a Config from a TOML file on disk.
 import pathlib
+import re
 import tomllib
 
 from ancalagon.config.config import Config
@@ -9,6 +10,8 @@ from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.role import FREE_TEXT, Role
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.sandbox.strategy import Strategy
+
+ROLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 # Every key is read by bracket, never .get(), so a config file must be complete:
@@ -36,7 +39,12 @@ def _class_ref(base: pathlib.Path, raw: RawClassRef) -> ClassRef:
     return ClassRef(module=str(_root(base, raw.module)), name=raw.name)
 
 
-def _role(base: pathlib.Path, raw: RawRole) -> Role:
+def _role(base: pathlib.Path, name: str, raw: RawRole) -> Role:
+    if not ROLE_NAME.match(name):
+        raise ValueError(
+            f"[roles.{name}]: a role name becomes the tool name delegate_{name}, "
+            f"so it must match {ROLE_NAME.pattern}"
+        )
     return Role(
         behaviour=raw.behaviour,
         input=_class_ref(base, raw.input) if raw.input.module else FREE_TEXT,
@@ -56,7 +64,7 @@ def load_config(path: pathlib.Path) -> Config:
         write_root=_root(base, workspace["write_root"]),
         read_roots=tuple(_root(base, p) for p in workspace["read_roots"]),
         roles={
-            name: _role(base, RawRole.model_validate(table))
+            name: _role(base, name, RawRole.model_validate(table))
             for name, table in raw.get("roles", {}).items()
         },
         model=model["name"],

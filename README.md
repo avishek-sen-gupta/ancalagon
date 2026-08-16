@@ -49,6 +49,7 @@ tool list, only what each role states. A role a worker may spawn gets a `delegat
 built at worker startup from that role's own input contract, so a parent sees the child's real
 input schema rather than a string it has to guess the shape of. A worker builds those tools for
 the roles its own `tools` list names, so it never loads the contracts of roles it cannot spawn.
+A role name becomes a tool name, so it must be a Python identifier.
 
 The root is a role like any other. `[run] role` names which one it runs as, and its goal and
 input come from files rather than from a `delegate` call, since it has no parent to call one:
