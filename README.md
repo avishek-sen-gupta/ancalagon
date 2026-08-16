@@ -25,20 +25,68 @@ echo "..." > goal.md
 uv run ancalagon run --config ancalagon.toml
 ```
 
-The goal is a file, named by the config, and there is no command-line alternative. A run is
-described entirely by its config, so re-running one means re-running the same command:
+Everything an agent is — its behaviour, what it is told, what shape it must answer in, its
+tools, its budget — is a **role**, declared under `[roles.*]` and never authored at runtime:
+
+```toml
+[roles.root]
+behaviour = "You investigate a codebase or a set of artifacts to answer the goal you are given."
+tools = ["read_file", "ripgrep", "ast_grep", "list_dir", "delegate_component_analyst"]
+budget = { turns = 20, tool_calls = 60 }
+
+[roles.component_analyst]
+behaviour = "Read before concluding. Cite the files you read."
+input  = { module = "./shapes.py", name = "ComponentQuery" }
+answer = { module = "./shapes.py", name = "Component" }
+tools  = ["read_file", "ripgrep", "find_symbol"]
+budget = { turns = 12, tool_calls = 30 }
+```
+
+Omitting `input` or `answer` means `FreeText` — that is how a role opts into prose instead of
+naming a path. A role that names no contract gets none; there is no default global budget or
+tool list, only what each role states. Each declared role gets its own `delegate_<role>` tool,
+built at worker startup from the role's own input contract, so a parent sees the child's real
+input schema rather than a string it has to guess the shape of.
+
+The root is a role like any other. `[run] role` names which one it runs as, and its goal and
+input come from files rather than from a `delegate` call, since it has no parent to call one:
 
 ```toml
 [run]
 run_dir = "./ws/runs/item-0001"  # reused on a second invocation, which continues the transcript
 goal_file = "./goal.md"
-contract_module = "./shape.py"   # the root answers in this shape, not free text
-contract_class = "Answer"
+input_file = ""                  # validated against the root role's input class; empty + FreeText means {"text": goal}
+role = "root"
 ```
 
-An empty `run_dir` allocates the next `runs/r_NNNN`. An unset, missing or empty `goal_file`, or a
-`contract_module` that is absent or does not define `contract_class`, exits 2 without starting a
-run. Set both contract keys or neither.
+An empty `run_dir` allocates the next `runs/r_NNNN`. An unset, missing or empty `goal_file`
+exits 2 without starting a run, and so does `[run] role` naming a role `[roles.*]` does not
+declare.
+
+`tools` is per role, and it is a change of default from the version before roles existed: an
+empty list now means *no tools*, not all of them. Every tool a role may use must be named,
+except `submit_answer`, which every role gets regardless of its `tools` list — the session
+forces the final turn to offer it, so an author who forgot to list it would only produce a
+harness crash, not a deliberately toolless agent.
+
+The harness does not check that a role graph makes sense. A role holding `delegate_x` but not
+`collect_task` can spawn children whose answers it can never read; a role whose children call
+`need_input`, but which itself lacks `answer_task`, leaves them waiting until they time out.
+Getting the pairing right is the config author's job.
+
+A `spec.json` embeds the whole role as it was when the task was queued, not a name pointing
+into the config, so an edit to `[roles.*]` affects only tasks queued afterwards — a config
+change mid-run cannot silently redefine a task already sitting in the bus. That freeze is not
+total: a frozen role naming `delegate_x` still fails on resume if role `x` is later removed
+from the config, and the contract *source* is never frozen, since `{module = "./shapes.py"}`
+is a path — editing that file changes the shape a resumed run works to, even though the role
+itself did not change.
+
+`load_config` reads every field it needs by name, so a config missing one fails loudly. It
+never validates the whole document, though, so a config left over from before roles existed —
+a stray `[agent]`, `[tools]` or `[budget]` section — loads silently and is simply ignored.
+Upgrading a config means deleting those sections yourself; nothing will tell you they are
+dead weight.
 
 Keep a named `run_dir` under `<write_root>/runs/` as above: the watcher below only sees
 `<write_root>/runs/*/tasks/*` and `<write_root>/*/tasks/*`, and a run elsewhere is invisible to it.

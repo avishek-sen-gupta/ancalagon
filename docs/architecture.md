@@ -29,20 +29,22 @@ cli.py ──writes spec.json──▶ tasks/root/
 
 ### 1. Starting a run — `ancalagon/cli.py`
 
-`main(config_path, goal)`:
+`main(config_path)`:
 
 1. `config/load.py` reads the TOML. Relative roots resolve against the **config file**, not
    the process cwd, so a worker started elsewhere sees the same paths.
 2. `run_dir_of` uses `[run] run_dir` when set and allocates `<write_root>/runs/r_NNNN` when not.
    A named directory is created if absent and reused if present, which is what makes a second
    invocation continue rather than start over; an allocated one must not already exist.
-3. `install_contracts` writes both contract modules into `<run_dir>/tasks/root/`: `free_text.py`
-   always, because the root's `input_schema` is always `FreeText`, and `[run] contract_module`'s
-   source under its own basename when named. The worker resolves each `ClassRef` against that
-   directory, so a module the spec names and the directory lacks is a crash. `spec.json` follows,
-   naming the class the root must answer in. The goal comes from `[run] goal_file` and nowhere
-   else. An unset, missing or empty goal file, or a `contract_module` defining no
-   `contract_class`, exits 2 before any spawn.
+3. `root_spec` builds the root's `AgentSpec` from `[run] role`, looked up in `config.roles` and
+   embedded whole — not copied to disk, since the path in a role's `input`/`answer` `ClassRef`
+   already names where the config says the contract module lives, and the worker resolves it
+   there directly. The goal comes from `[run] goal_file` and nowhere else; the input comes from
+   `[run] input_file` when set, validated against the role's input class, or is built as
+   `{"text": goal}` when the role's input is `FreeText` and no `input_file` is given. `spec.json`
+   is then just `root_spec(config).model_dump_json()`. An unset, missing or empty goal file, a
+   role that `[run] role` names but `[roles.*]` does not declare, or an `input_file` that fails
+   to validate against the role's input class, exits 2 before any spawn.
 4. `bus.db` is migrated to the latest schema — created if the run directory has none — and
    then opened, and the task is enqueued with `parent_agent=0`. Enqueuing creates
    the task if new, adds an agent, and appends a `queued` event; a task retried later reuses
@@ -134,20 +136,20 @@ Invoked as `python -m ancalagon.worker --run-dir … --dir … --agent-id … --
 
 `main` opens the transcript **first**, so even a failure mid-setup leaves a record, then:
 
-1. Reads `spec.json` as `TaskSpec` — the scalars only, since the `input`'s class is named by
-   the file itself and so cannot be known before reading it.
-2. `contracts/resolve.py` takes the spec's `answer_schema` and `input_schema` — each a
-   `ClassRef`, a module name and a class name — imports that module from the task directory
-   and returns each class. A `ClassRef`'s module is constrained to a bare `*.py` filename, so
-   a reference cannot name a path at all, and `resolve_class` still resolves and contains in
-   case a symlink says otherwise. The spec is then re-read as `AgentSpec[input_class]`, so the
-   `Session` is handed a validated model rather than text.
+1. Reads `spec.json` as `TaskSpec` — `task_id`, `role: Role` and `goal`, the scalars and the
+   whole role, since the `input`'s class is named by the role itself and so cannot be known
+   before reading it.
+2. `contracts/resolve.py` takes the role's `answer` and `input` — each a `ClassRef`, a module
+   *path* and a class name — imports that module from the path the config named when the role
+   was declared, and returns each class. Nothing is copied and nothing is defended against: the
+   path comes from configuration, not from a model, so there is no directory to contain it
+   inside. The spec is then re-read as `AgentSpec[input_class]`, so the `Session` is handed a
+   validated model rather than text.
 
-   **One contract, one file.** Both writers copy each contract module into the task directory
-   under its own basename, so a child given a typed input and a typed answer gets two files and
-   two refs. Naming a class used to mean writing `contracts.py:NodeVerdict` — a pair joined by
-   a colon, split by `partition` in two places, whose first half was always the same value
-   because both writers wrote to one fixed filename.
+   The cost is provenance, not correctness: a run no longer freezes the *shapes* it ran under,
+   only the `ClassRef` naming where to find them. Editing the module a role's contract points at
+   between a run and its resumption silently changes the contract later agents work to — the
+   config file is the record, and a mid-run edit is the operator's problem.
 3. If a `transcript.jsonl` already exists, `transcript/history.py` loads and **repairs** it:
    a transcript ending in an unanswered tool call is rejected by the API, so interrupted
    calls get synthetic error results. This is the whole of resumption — there is no
@@ -162,12 +164,14 @@ never left uncollectable. This is the one catch-all in the codebase and it is de
 is the outermost frame of a process, and a worker that dies without an `outcome.json` is
 indistinguishable to `collect_task` from one still working, for ever.
 
-`build_registry` is the only place tool availability is decided: `[tools] enabled` filters
-the list, and `delegate` is withheld once `bus/depth_of.py` reports the task is at
-`max_depth`. A name in `enabled` that no tool answers to raises, naming both the unknown
-entries and the available set — a filter that silently matches nothing would hand the agent
-a smaller toolset than the config asked for, and the agent would report the consequences
-rather than the cause.
+`build_registry` is the only place tool availability is decided: the role's own `tools` filters
+the list, and every `delegate_<name>` entry is withheld once `bus/depth_of.py` reports the task
+is at `max_depth`. `submit_answer` is added unconditionally, regardless of what `tools` names —
+the session's final turn forces it, and a role author who left it out never chose to crash the
+harness. A name in `tools` that no tool answers to raises, naming both the unknown entries and
+the available set. An empty `tools` list now means no tools at all, the inverse of the old
+global `[tools] enabled = []`, which meant every tool — a role written against the old default
+gets a much smaller toolset than its author expects, silently, unless `tools` is filled in.
 
 ### 4. The loop — `ancalagon/session.py`
 
@@ -222,8 +226,9 @@ Four things worth knowing:
 
 The registry cannot hold those directly. `run` consumes its argument, so the parameter is
 contravariant and `Tool[GrepArgs]` is not a `Tool[BaseModel]`; a mixed list has no element
-type to name. Enumerating them as a union fails too, because `submit_answer`'s model is a
-class the parent agent wrote at runtime and has no name to write down.
+type to name. Enumerating them as a union fails too, because `submit_answer`'s model and each
+`delegate_<role>`'s model are resolved per role at worker startup — known only once the config
+and the spec are read, not at authoring time — and a union has to name its members up front.
 
 `registry/bind_tool.py` resolves it. It is a **generic function**, so inside it `ArgsT` is
 one concrete type — `args_model.model_validate_json(text)` returns exactly what `run`
@@ -275,14 +280,14 @@ never enters the context; the model reads it with `read_file` if it wants to.
 `submit/submit_answer.py` and `need_input/need_input.py` are the two tools whose results the
 session reads.
 
-`delegate` does not grant a child whatever it asks for. An `Allowance` decides, and the
-default `WithinParent` slices from the budget this agent was given, so a child cannot be
-handed more turns than its parent had. `AsAsked` defers entirely to the parent's judgement.
-The protocol is injected, so a run that wants clamping rather than refusal, or a cap taken
-from what the parent has left, writes one class. Note that a cap on *remaining* budget only
-bounds a single child: nothing deducts a grant from the parent, so three children can each
-be granted the same remainder. Making that a total means delegation has to cost budget,
-which is a decision about what a turn is for rather than a choice of allowance. `need_input` is a **yield, not a dead end**: the agent stops, its question and its
+There is no `delegate` tool any more — there is one `delegate_<role>` per role declared in the
+config, built by `delegate_tools` (`ancalagon/tools/delegate/delegate_tools.py`) at worker
+startup, each a `DelegateTo` bound with that role already closed over. A parent does not grant
+a child whatever it asks for and cannot be wrong about the grant: `DelegateTo` writes the
+*role's* `budget` into the child's `spec.json` unchanged, so a parent with 8 turns left may
+still spawn a 20-turn child. Total work across a run is therefore bounded by the role graph and
+`max_depth`, not by the root's own budget — the config author's business, not the harness's.
+A role naming no `delegate_<x>` tool cannot spawn at all. `need_input` is a **yield, not a dead end**: the agent stops, its question and its
 whole transcript stay on disk, and `answer.py` appends the answer as a user message and
 enqueues the task again. Resumption then does the rest, since a worker loads whatever
 transcript is already in its directory. Nothing blocks and no channel is held open —
@@ -300,7 +305,7 @@ has no live agent, so a question cannot be answered twice into two competing res
 Note *contains*, not *ends with*: the worker records `needs_input` and the supervisor then
 records `exited`, so an agent that asked a question has `exited` as its latest status. A
 guard reading the latest status refuses every real agent, and only a test running actual
-worker processes reveals it. `delegate/` writes a child's `spec.json` and enqueues it — it does not spawn;
+worker processes reveals it. `delegate_to.py` writes a child's `spec.json` and enqueues it — it does not spawn;
 the supervisor does.
 
 ### 6. Talking to a provider — `ancalagon/llm/`
@@ -319,8 +324,7 @@ the only place third-party type gaps are tolerated.
 ws/runs/r_0001/
     bus.db                        tasks, agents, every event about them, every model call
     tasks/root/
-        spec.json                 what was asked
-        contracts.py              the output contract
+        spec.json                 what was asked, with the whole role embedded
         transcript.jsonl          every message, one per line, tagged by agent id
         outcome.json              the result
         stderr-1.log              the worker's stderr

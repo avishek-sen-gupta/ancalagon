@@ -22,16 +22,25 @@ summary_chars = 1000
 [sandbox]
 strategy = "fence"   # or "none"
 
+# Nothing is built in: a role is prose until it names a contract. Omitting `input`
+# and `answer` means FreeText, so `root` here takes a free-text goal and answers in
+# prose. `budget` is authoritative — a parent cannot ask for more than a role grants.
 [roles.root]
 behaviour = "You investigate a codebase or a set of artifacts to answer the goal you are given."
-tools = ["read_file", "ripgrep", "ast_grep", "list_dir"]
+tools = ["read_file", "ripgrep", "ast_grep", "list_dir", "delegate_component_analyst"]
+budget = { turns = 20, tool_calls = 60 }
 
-[roles.root.budget]
-turns = 20
-tool_calls = 60
+# A role naming a contract gets a typed delegate tool: `delegate_component_analyst`
+# shows its caller ComponentQuery's real schema, not a string to guess at.
+[roles.component_analyst]
+behaviour = "Read before concluding. Cite the files you read."
+input = { module = "./shapes.py", name = "ComponentQuery" }
+answer = { module = "./shapes.py", name = "Component" }
+tools = ["read_file", "ripgrep", "find_symbol"]
+budget = { turns = 12, tool_calls = 30 }
 
 [run]
 run_dir = ""    # where this run lives; empty allocates the next write_root/runs/r_NNNN
 goal_file = "./goal.md"  # the run's goal; required
-input_file = ""   # "input.json"; validated against the root role's input class; empty means {"text": goal}
+input_file = ""   # "input.json"; validated against the root role's input class; empty means {"text": goal} for FreeText roles
 role = "root"     # which [roles.*] table the root runs as
