@@ -579,14 +579,25 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert pending.ok is False
     assert "no outcome yet" in pending.error
 
+    long_finding = "the finding " * 20
+    assert len(long_finding) > ctx.summary_chars
     (run_dir / "tasks" / "answered" / "outcome.json").write_text(
         Completed[FreeText](
-            value=FreeText(text="the finding"), summary="done", spent=spent
+            value=FreeText(text=long_finding), summary="done", spent=spent
         ).model_dump_json()
     )
     got = collect.run(TaskArgs(task=answered), ctx)
     assert got.ok is True
-    assert json.loads(got.path.read_text()) == {"text": "the finding"}
+    assert got.truncated is False
+    assert json.loads(got.summary.text_for_model()) == {"text": long_finding}
+    assert json.loads(got.path.read_text()) == {"text": long_finding}
+
+    haystack = ctx.workspace.write_root / "haystack.txt"
+    haystack.write_text("\n".join(f"needle {i}" for i in range(30)) + "\n")
+    still_truncates = Ripgrep().run(GrepArgs(pattern="needle", roots=[haystack]), ctx)
+    assert still_truncates.ok is True
+    assert still_truncates.truncated is True
+    assert len(still_truncates.summary.text_for_model()) == ctx.summary_chars
 
     (run_dir / "tasks" / "broken" / "outcome.json").write_text(
         Failed(error="ImportError: no module", summary="died", spent=spent).model_dump_json()

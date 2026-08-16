@@ -40,6 +40,16 @@ class ToolContext:
             truncated=len(text) > self.summary_chars,
         )
 
+    def full_result(self, tool_name: str, text: str, suffix: str = ".txt") -> ToolResult:
+        path = self.write_output(tool_name, text, suffix)
+        return ToolResult(
+            ok=True,
+            summary=TextAnswer(text=text),
+            path=path,
+            byte_count=len(text.encode("utf-8")),
+            truncated=False,
+        )
+
     def paged(
         self,
         tool_name: str,

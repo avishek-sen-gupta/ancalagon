@@ -52,7 +52,7 @@ class CollectTask(Tool[TaskArgs]):
         answer_class = resolve_class(spec.answer_schema, task_dir)
         outcome = outcome_adapter(answer_class).validate_json(written.read_text())
         if isinstance(outcome, (Completed, Exhausted)):
-            return ctx.result(self.name, outcome.value.model_dump_json(), ".json")
+            return ctx.full_result(self.name, outcome.value.model_dump_json(), ".json")
         return ctx.failure(
             self.name, f"agent {state.agent} ended as {outcome.kind.value}: {_detail(outcome)}"
         )
