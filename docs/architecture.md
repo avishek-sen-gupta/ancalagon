@@ -102,6 +102,12 @@ It never retries. A crash is reported; the parent decides.
 
 `subprocess_spawner.py` is the only module that constructs a process. `process.py` and
 `spawner.py` are protocols so the supervisor can be tested without launching interpreters.
+It wraps the command it builds with an injected `Sandbox` (`ancalagon/sandbox/sandbox.py`)
+before spawning: `Fence` writes its policy as `fence.json` into the run directory, so a run
+records what it ran under, and prepends `fence -s <policy> --`; `Unsandboxed` returns the
+command unchanged. The sandbox confines writes to `write_root` but leaves reads unrestricted
+— fence cannot express "deny everything except the roots" without also denying the roots
+themselves, as `docs/superpowers/specs/2026-08-16-sandbox-mode-design.md` shows.
 
 `clock/` holds the third: one `Clock`, with `now()` for the instant a row or a message is
 stamped with and `time()`/`sleep()` for how long an agent has been running. The supervisor,
