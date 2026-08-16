@@ -33,7 +33,7 @@ class Fence(Sandbox):
         self.policy.write_text(
             Policy(
                 network=Network(allowedDomains=list(allowed_domains)),
-                filesystem=Filesystem(allowWrite=[str(write_root)]),
+                filesystem=Filesystem(allowWrite=[str(write_root), str(run_dir)]),
             ).model_dump_json()
         )
 
