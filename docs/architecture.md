@@ -255,7 +255,16 @@ The session puts the summary and the path into the tool result the model sees. L
 never enters the context; the model reads it with `read_file` if it wants to.
 
 `submit/submit_answer.py` and `need_input/need_input.py` are the two tools whose results the
-session reads. `need_input` is a **yield, not a dead end**: the agent stops, its question and its
+session reads.
+
+`delegate` does not grant a child whatever it asks for. An `Allowance` decides, and the
+default `WithinParent` slices from the budget this agent was given, so a child cannot be
+handed more turns than its parent had. `AsAsked` defers entirely to the parent's judgement.
+The protocol is injected, so a run that wants clamping rather than refusal, or a cap taken
+from what the parent has left, writes one class. Note that a cap on *remaining* budget only
+bounds a single child: nothing deducts a grant from the parent, so three children can each
+be granted the same remainder. Making that a total means delegation has to cost budget,
+which is a decision about what a turn is for rather than a choice of allowance. `need_input` is a **yield, not a dead end**: the agent stops, its question and its
 whole transcript stay on disk, and `answer.py` appends the answer as a user message and
 enqueues the task again. Resumption then does the rest, since a worker loads whatever
 transcript is already in its directory. Nothing blocks and no channel is held open —

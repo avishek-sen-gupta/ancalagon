@@ -63,6 +63,7 @@ def build_registry(
     parent: int,
     depth: int,
     output_class: type[pydantic.BaseModel],
+    budget: Budget,
 ) -> Registry:
     available: list[BoundTool] = [
         bind_tool(ReadFile()),
@@ -81,7 +82,7 @@ def build_registry(
         bind_tool(QueryJson()),
         bind_tool(GitHistory()),
         bind_tool(TreeSitter()),
-        bind_tool(Delegate(run_dir=run_dir, parent=parent)),
+        bind_tool(Delegate(run_dir=run_dir, parent=parent, budget=budget)),
         bind_tool(CheckTask(run_dir=run_dir)),
         bind_tool(CollectTask(run_dir=run_dir)),
         bind_tool(AnswerTask(run_dir=run_dir, parent=parent)),
@@ -142,6 +143,7 @@ def main(
                 parent=agent_id,
                 depth=depth_of(bus, agent_id),
                 output_class=output_class,
+                budget=spec.budget,
             ),
             ctx=ctx,
             output_class=output_class,
