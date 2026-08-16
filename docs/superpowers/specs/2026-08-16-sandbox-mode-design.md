@@ -144,3 +144,15 @@ it running.
 bubblewrap on Linux, which gives absence rather than denial, so the guarantees should be at
 least as strong — but "should be" is not "was observed", and the Linux path needs its own
 pass before anyone relies on it.
+
+**It does not confine `$TMPDIR`.** fence 0.1.66 on macOS grants an implicit write carve-out
+for the entire `$TMPDIR` tree, independent of `allowWrite`. Reproduced twice: a write to
+`$TMPDIR/probe/x.txt` succeeded with `allowWrite` naming an unrelated directory, and the same
+write with `TMPDIR` unset for the child was refused with "Operation not permitted".
+
+`Fence.environment()` does not set `TMPDIR`, so production inherits the parent's, and a
+sandboxed agent can write anywhere under `$TMPDIR` for the life of the run. The integration
+test pops `TMPDIR` from the child environment precisely so it can test the policy rather than
+the carve-out — which means the test runs a configuration production does not. Setting
+`TMPDIR` inside `write_root` was verified to close the hole; it was not done, and this is
+recorded as a known limitation rather than a bug awaiting a fix.
