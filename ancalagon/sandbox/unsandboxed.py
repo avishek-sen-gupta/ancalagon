@@ -10,3 +10,6 @@ class Unsandboxed(Sandbox):
 
     def environment(self) -> collections.abc.Mapping[str, str]:
         return {}
+
+
+UNSANDBOXED = Unsandboxed()
