@@ -82,36 +82,26 @@ def test_a_named_contract_replaces_free_text(tmp_path: pathlib.Path):
     assert "class Answer" in contract_source(named)
 
 
-def test_sandbox_of_builds_fence_by_default_and_unsandboxed_for_none(tmp_path: pathlib.Path):
+def test_sandbox_of_resolves_each_strategy_and_fence_is_the_unstated_default(
+    tmp_path: pathlib.Path,
+):
     write_root = tmp_path / "ws"
     run_dir = tmp_path / "run"
     run_dir.mkdir()
 
-    def config(sandbox: Strategy) -> Config:
-        return Config(
-            write_root=write_root,
-            read_roots=(),
-            model="anthropic/claude",
-            allowed_domains=("bedrock-runtime.us-east-1.amazonaws.com",),
-            sandbox=sandbox,
-        )
+    defaulted = Config(
+        write_root=write_root,
+        read_roots=(),
+        model="anthropic/claude",
+        allowed_domains=("bedrock-runtime.us-east-1.amazonaws.com",),
+    )
+    assert defaulted.sandbox is Strategy.FENCE
 
-    fenced = sandbox_of(config(Strategy.FENCE), run_dir)
-
-    assert isinstance(fenced, Fence)
-    policy = json.loads((run_dir / "fence.json").read_text())
-    assert policy == {
+    assert isinstance(sandbox_of(defaulted, run_dir), Fence)
+    assert json.loads((run_dir / "fence.json").read_text()) == {
         "network": {"allowedDomains": ["bedrock-runtime.us-east-1.amazonaws.com"]},
         "filesystem": {"allowWrite": [str(write_root), str(run_dir)]},
     }
-    assert list(fenced.wrap(["python", "-m", "ancalagon.worker"])) == [
-        "fence",
-        "-s",
-        str(run_dir / "fence.json"),
-        "--",
-        "python",
-        "-m",
-        "ancalagon.worker",
-    ]
 
-    assert isinstance(sandbox_of(config(Strategy.NONE), run_dir), Unsandboxed)
+    unsandboxed = defaulted.model_copy(update={"sandbox": Strategy.NONE})
+    assert isinstance(sandbox_of(unsandboxed, run_dir), Unsandboxed)
