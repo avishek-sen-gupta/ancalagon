@@ -1,23 +1,20 @@
 # Starts a run: writes the root task, then supervises it to completion.
 import argparse
-import ast
 import logging
 import pathlib
 import sys
 
+import pydantic
+
 import ancalagon.migrations
+from ancalagon.answer_command import answer_command
 from ancalagon.bus.bus import HUMAN, Bus
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
-from ancalagon.contracts.class_ref import ClassRef
-from ancalagon.contracts.free_text import FreeText
-from ancalagon.contracts.free_text_module import FREE_TEXT_FILE, FREE_TEXT_MODULE
 from ancalagon.contracts.resolve import resolve_class
-from ancalagon.contracts.role import Role
 from ancalagon.contracts.run_settings import RunSettings
-from ancalagon.answer_command import answer_command
 from ancalagon.migrate_command import migrate_command
 from ancalagon.sandbox.fence import Fence
 from ancalagon.sandbox.sandbox import Sandbox
@@ -25,16 +22,8 @@ from ancalagon.sandbox.strategy import Strategy
 from ancalagon.sandbox.unsandboxed import Unsandboxed
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
-from ancalagon.worker import available_tools
 
 LOGGER = logging.getLogger(__name__)
-
-ROOT_BEHAVIOUR = (
-    "You investigate a codebase or a set of artifacts to answer the goal you are given.\n"
-    "Read before concluding, and prefer evidence from the files over recall.\n"
-    "Delegate a focused subtask when a question is self-contained and you want it\n"
-    "answered in a shape you can rely on.\n"
-)
 
 
 def _allocated_run_dir(write_root: pathlib.Path) -> pathlib.Path:
@@ -69,39 +58,20 @@ def goal_of(settings: RunSettings) -> str:
     return goal
 
 
-def answer_schema_of(settings: RunSettings) -> ClassRef:
-    if not settings.contract_class:
-        return ClassRef(module=FREE_TEXT_FILE, name="FreeText")
-    return ClassRef(
-        module=pathlib.Path(settings.contract_module).name, name=settings.contract_class
-    )
-
-
-def _class_names(source: str, path: str) -> frozenset[str]:
-    try:
-        parsed = ast.parse(source)
-    except SyntaxError as error:
-        raise ValueError(f"[run] contract module {path} does not parse: {error}") from error
-    return frozenset(node.name for node in parsed.body if isinstance(node, ast.ClassDef))
-
-
-def contract_source(settings: RunSettings) -> str:
-    if not settings.contract_module:
-        return FREE_TEXT_MODULE
-    source = _text_of(pathlib.Path(settings.contract_module), "contract")
-    if settings.contract_class not in _class_names(source, settings.contract_module):
+def root_spec(config: Config) -> AgentSpec[pydantic.BaseModel]:
+    if config.run.role not in config.roles:
         raise ValueError(
-            f"[run] contract module {settings.contract_module} defines no class "
-            f"{settings.contract_class}"
+            f"[run] role: no role named {config.run.role}; declared: {sorted(config.roles)}"
         )
-    return source
-
-
-def install_contracts(settings: RunSettings, task_dir: pathlib.Path) -> ClassRef:
-    answers_in = answer_schema_of(settings)
-    (task_dir / FREE_TEXT_FILE).write_text(FREE_TEXT_MODULE)
-    (task_dir / answers_in.module).write_text(contract_source(settings))
-    return ClassRef(module=str(task_dir / answers_in.module), name=answers_in.name)
+    role = config.roles[config.run.role]
+    goal = goal_of(config.run)
+    input_class = resolve_class(role.input)
+    given = (
+        input_class.model_validate_json(_text_of(pathlib.Path(config.run.input_file), "input_file"))
+        if config.run.input_file
+        else input_class.model_validate({"text": goal})
+    )
+    return AgentSpec[input_class](task_id="root", role=role, goal=goal, input=given)
 
 
 def sandbox_of(config: Config, run_dir: pathlib.Path) -> Sandbox:
@@ -117,27 +87,15 @@ def sandbox_of(config: Config, run_dir: pathlib.Path) -> Sandbox:
 def main(config_path: pathlib.Path) -> int:
     logging.basicConfig(level=logging.INFO)
     config = load_config(config_path)
-    goal = goal_of(config.run)
     run_dir = run_dir_of(config.run, config.write_root)
     task_dir = run_dir / "tasks" / "root"
     task_dir.mkdir(parents=True, exist_ok=True)
-    answers_in = install_contracts(config.run, task_dir)
-    clock = SystemClock()
-    root_tools = tuple(
-        t.name for t in available_tools(config, run_dir, HUMAN, resolve_class(answers_in), clock)
-    )
-    root_role = Role(
-        behaviour=ROOT_BEHAVIOUR, answer=answers_in, tools=root_tools, budget=config.budget
-    )
-    (task_dir / "spec.json").write_text(
-        AgentSpec[FreeText](
-            task_id="root", role=root_role, goal=goal, input=FreeText(text=goal)
-        ).model_dump_json()
-    )
+    (task_dir / "spec.json").write_text(root_spec(config).model_dump_json())
 
     outcome = task_dir / "outcome.json"
     outcome.unlink(missing_ok=True)
 
+    clock = SystemClock()
     db = run_dir / "bus.db"
     ancalagon.migrations.migrate_file(db, ancalagon.migrations.latest_version())
     bus = Bus.open(db, clock)

@@ -38,7 +38,7 @@ strategy = "fence"
 {block}
 """
 
-REQUIRED_RUN = '[run]\nrun_dir = ""\ngoal_file = ""\ncontract_module = ""\ncontract_class = ""\n'
+REQUIRED_RUN = '[run]\nrun_dir = ""\ngoal_file = ""\ninput_file = ""\nrole = "scout"\n'
 
 
 def _config_file(tmp_path: pathlib.Path, name: str, run: str) -> pathlib.Path:
@@ -58,28 +58,28 @@ def test_run_settings_resolve_against_the_config_file(tmp_path: pathlib.Path):
         tmp_path,
         "populated.toml",
         '[run]\nrun_dir = "./ws/runs/item"\ngoal_file = "./goal.md"\n'
-        'contract_module = "./shape.py"\ncontract_class = "Answer"\n',
+        'input_file = "./input.json"\nrole = "analyst"\n',
     )
 
     settings = load_config(path).run
 
     assert settings.run_dir == str(tmp_path / "ws" / "runs" / "item")
     assert settings.goal_file == str(tmp_path / "goal.md")
-    assert settings.contract_module == str(tmp_path / "shape.py")
-    assert settings.contract_class == "Answer"
+    assert settings.input_file == str(tmp_path / "input.json")
+    assert settings.role == "analyst"
 
 
-def test_the_run_section_is_required_and_a_contract_must_name_a_class(
+def test_the_run_section_is_required_and_names_its_fields(
     tmp_path: pathlib.Path,
 ):
     blank = _config_file(
         tmp_path,
         "blank.toml",
-        '[run]\nrun_dir = ""\ngoal_file = ""\ncontract_module = ""\ncontract_class = ""\n',
+        '[run]\nrun_dir = ""\ngoal_file = ""\ninput_file = ""\nrole = ""\n',
     )
     settings = load_config(blank).run
-    assert (settings.run_dir, settings.goal_file, settings.contract_module) == ("", "", "")
-    assert settings.contract_class == ""
+    assert (settings.run_dir, settings.goal_file, settings.input_file) == ("", "", "")
+    assert settings.role == ""
 
     with pytest.raises(KeyError):
         load_config(_config_file(tmp_path, "absent.toml", ""))
@@ -89,16 +89,7 @@ def test_the_run_section_is_required_and_a_contract_must_name_a_class(
             _config_file(
                 tmp_path,
                 "partial.toml",
-                '[run]\nrun_dir = ""\ngoal_file = ""\ncontract_module = ""\n',
-            )
-        )
-
-    with pytest.raises(ValueError):
-        load_config(
-            _config_file(
-                tmp_path,
-                "classless.toml",
-                '[run]\nrun_dir = ""\ngoal_file = ""\ncontract_module = "./shape.py"\ncontract_class = ""\n',
+                '[run]\nrun_dir = ""\ngoal_file = ""\ninput_file = ""\n',
             )
         )
 
@@ -107,7 +98,7 @@ def test_the_sandbox_strategy_and_its_domains_come_from_the_config(tmp_path: pat
     path = _config_file(
         tmp_path,
         "sandboxed.toml",
-        '[run]\nrun_dir = ""\ngoal_file = ""\ncontract_module = ""\ncontract_class = ""\n',
+        '[run]\nrun_dir = ""\ngoal_file = ""\ninput_file = ""\nrole = "scout"\n',
     )
     config = load_config(path)
 

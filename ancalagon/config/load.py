@@ -27,8 +27,8 @@ def _run_settings(base: pathlib.Path, run: dict[str, str]) -> RunSettings:
     return RunSettings(
         run_dir=_optional_root(base, run["run_dir"]),
         goal_file=_optional_root(base, run["goal_file"]),
-        contract_module=_optional_root(base, run["contract_module"]),
-        contract_class=run["contract_class"],
+        input_file=_optional_root(base, run["input_file"]),
+        role=run["role"],
     )
 
 

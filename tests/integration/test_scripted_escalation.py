@@ -61,6 +61,14 @@ summary_chars = 400
 [sandbox]
 strategy = "none"
 
+[roles.root]
+behaviour = "You investigate, delegating a focused subtask to escalate a question."
+tools = ["delegate_investigate", "need_input", "answer_task"]
+
+[roles.root.budget]
+turns = 6
+tool_calls = 20
+
 [roles.investigate]
 behaviour = "You investigate."
 tools = ["need_input"]
@@ -72,8 +80,8 @@ tool_calls = 8
 [run]
 run_dir = "{run_dir}"
 goal_file = "{goal_file}"
-contract_module = ""
-contract_class = ""
+input_file = ""
+role = "root"
 """)
     return config
 
