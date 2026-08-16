@@ -241,7 +241,6 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         max_tokens=100,
         num_retries=0,
         request_timeout_s=10,
-        budget=Budget(turns=1, tool_calls=1),
         max_concurrent_agents=1,
         agent_timeout_s=1,
         max_depth=1,

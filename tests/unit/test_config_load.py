@@ -20,10 +20,6 @@ request_timeout_s = 120
 max_tokens = 4000
 allowed_domains = ["bedrock-runtime.us-east-1.amazonaws.com"]
 
-[budget]
-turns = 4
-tool_calls = 8
-
 [limits]
 max_concurrent_agents = 1
 agent_timeout_s = 300
