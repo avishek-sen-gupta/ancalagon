@@ -23,6 +23,7 @@ from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.outcome import SUMMARY_CHARS
 from ancalagon.contracts.resolve import resolve_class
+from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient
 from ancalagon.session import Session
@@ -60,7 +61,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def available_tools(
-    config: Config,
+    roles: collections.abc.Mapping[str, Role],
     run_dir: pathlib.Path,
     parent: int,
     output_class: type[pydantic.BaseModel],
@@ -83,7 +84,7 @@ def available_tools(
         bind_tool(QueryJson()),
         bind_tool(GitHistory()),
         bind_tool(TreeSitter()),
-        *delegate_tools(config.roles, run_dir=run_dir, parent=parent, clock=clock),
+        *delegate_tools(roles, run_dir=run_dir, parent=parent, clock=clock),
         bind_tool(CheckTask(run_dir=run_dir, clock=clock)),
         bind_tool(CollectTask(run_dir=run_dir, clock=clock)),
         bind_tool(AnswerTask(run_dir=run_dir, parent=parent, clock=clock)),
@@ -101,7 +102,10 @@ def build_registry(
     output_class: type[pydantic.BaseModel],
     clock: Clock,
 ) -> Registry:
-    available = available_tools(config, run_dir, parent, output_class, clock)
+    spawnable = {
+        name: role for name, role in config.roles.items() if f"delegate_{name}" in spec.role.tools
+    }
+    available = available_tools(spawnable, run_dir, parent, output_class, clock)
     wanted = set(spec.role.tools) | {SubmitAnswer.name}
     unknown = wanted - {t.name for t in available}
     if unknown:
