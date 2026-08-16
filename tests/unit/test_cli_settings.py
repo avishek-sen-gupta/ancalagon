@@ -15,7 +15,6 @@ from ancalagon.cli import (
 from ancalagon.config.config import Config
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
-from ancalagon.contracts.free_text_ref import FREE_TEXT_REF
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.sandbox.fence import Fence
@@ -94,17 +93,27 @@ def test_the_root_task_dir_carries_both_contracts_the_worker_resolves(tmp_path: 
 
     default_dir = tmp_path / "default"
     default_dir.mkdir()
-    assert install_contracts(RunSettings(), default_dir) == FREE_TEXT_REF
+    assert install_contracts(RunSettings(), default_dir) == ClassRef(
+        module=str(default_dir / "free_text.py"), name="FreeText"
+    )
     assert sorted(p.name for p in default_dir.iterdir()) == ["free_text.py"]
 
     named_dir = tmp_path / "named"
     named_dir.mkdir()
     named = RunSettings(contract_module=str(module), contract_class="Answer")
 
-    assert install_contracts(named, named_dir) == ClassRef(module="shape.py", name="Answer")
+    assert install_contracts(named, named_dir) == ClassRef(
+        module=str(named_dir / "shape.py"), name="Answer"
+    )
     assert sorted(p.name for p in named_dir.iterdir()) == ["free_text.py", "shape.py"]
-    assert resolve_class(FREE_TEXT_REF, named_dir).__name__ == "FreeText"
-    assert resolve_class(ClassRef(module="shape.py", name="Answer"), named_dir).__name__ == "Answer"
+    assert (
+        resolve_class(ClassRef(module=str(named_dir / "free_text.py"), name="FreeText")).__name__
+        == "FreeText"
+    )
+    assert (
+        resolve_class(ClassRef(module=str(named_dir / "shape.py"), name="Answer")).__name__
+        == "Answer"
+    )
 
 
 def test_sandbox_of_resolves_each_strategy_and_fence_is_the_unstated_default(

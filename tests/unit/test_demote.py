@@ -2,7 +2,7 @@ import json
 import pathlib
 
 from ancalagon.contracts.message import Message
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
@@ -17,7 +17,7 @@ def _body(message: Message) -> str:
 
 def _result(seq: int, size: int, is_error: bool = False, path: str = "/w/tools/0.txt") -> Message:
     return Message(
-        role=Role.USER,
+        role=MessageRole.USER,
         blocks=[
             ToolResultBlock(
                 tool_use_id=f"tu_{seq}",
@@ -35,9 +35,9 @@ def _result(seq: int, size: int, is_error: bool = False, path: str = "/w/tools/0
 
 def test_demotion_shrinks_old_results_without_touching_structure_or_recent_turns():
     history = [
-        Message(role=Role.USER, blocks=[Text(text="go")], agent=1, seq=0, ts="t"),
+        Message(role=MessageRole.USER, blocks=[Text(text="go")], agent=1, seq=0, ts="t"),
         Message(
-            role=Role.ASSISTANT,
+            role=MessageRole.ASSISTANT,
             blocks=[ToolUse(id="tu_1", name="read_file", arguments="{}")],
             agent=1,
             seq=1,

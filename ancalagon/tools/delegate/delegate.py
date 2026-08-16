@@ -10,7 +10,6 @@ from ancalagon.contracts.within_parent import WithinParent
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.contract_source import ContractSource
 from ancalagon.contracts.free_text_module import FREE_TEXT_FILE, FREE_TEXT_MODULE
-from ancalagon.contracts.free_text_ref import FREE_TEXT_REF
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.contracts.tool_result import ToolResult
@@ -48,12 +47,12 @@ class Delegate(Tool[DelegateArgs]):
     ) -> ClassRef:
         if not source.path:
             (task_dir / FREE_TEXT_FILE).write_text(FREE_TEXT_MODULE)
-            return FREE_TEXT_REF
+            return ClassRef(module=str(task_dir / FREE_TEXT_FILE), name="FreeText")
         written = ctx.workspace.resolve_read(pathlib.Path(source.path))
         if not written.exists():
             raise ScopeError(f"no contract module at {written}")
         (task_dir / written.name).write_text(written.read_text())
-        return ClassRef(module=written.name, name=source.name)
+        return ClassRef(module=str(task_dir / written.name), name=source.name)
 
     def run(self, args: DelegateArgs, ctx: ToolContext) -> ToolResult:
         task_dir = self.run_dir / "tasks" / args.task_id
@@ -77,7 +76,7 @@ class Delegate(Tool[DelegateArgs]):
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
         try:
-            input_class = resolve_class(given_in, task_dir)
+            input_class = resolve_class(given_in)
             given = input_class.model_validate_json(args.input_json)
         except (AttributeError, ImportError, TypeError, ValueError) as exc:
             return ctx.failure(self.name, f"input_json does not match {given_in.name}: {exc}")

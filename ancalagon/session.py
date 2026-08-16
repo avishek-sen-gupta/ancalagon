@@ -14,10 +14,10 @@ from ancalagon.contracts.exhausted import Exhausted
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.json_payload import json_payload
 from ancalagon.contracts.message import Message
+from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.outcome import SUMMARY_CHARS, Outcome
 from ancalagon.contracts.reply import Reply
-from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result import ToolResult
@@ -79,7 +79,9 @@ class Session:
         self.remaining = spec.budget
         self.seq = len(messages)
         if not self.messages:
-            self._record(Role.USER, [Text(text=f"{spec.goal}\n\nInput: {input.model_dump_json()}")])
+            self._record(
+                MessageRole.USER, [Text(text=f"{spec.goal}\n\nInput: {input.model_dump_json()}")]
+            )
 
     def _wire(self) -> collections.abc.Sequence[Message]:
         return for_wire(self.messages, self.compact_above_tokens, self.keep_recent_messages)
@@ -120,7 +122,7 @@ class Session:
         )
         return reply
 
-    def _record(self, role: Role, blocks: collections.abc.Sequence[Block]) -> None:
+    def _record(self, role: MessageRole, blocks: collections.abc.Sequence[Block]) -> None:
         message = Message(
             role=role,
             blocks=list(blocks),
@@ -179,15 +181,15 @@ class Session:
                     byte_count=result.byte_count,
                 )
             )
-        self._record(Role.USER, blocks)
+        self._record(MessageRole.USER, blocks)
         return results
 
     def _final_turn(self) -> Outcome:
-        if self.messages and self.messages[-1].role is Role.USER:
-            self._record(Role.ASSISTANT, [Text(text="Understood.")])
-        self._record(Role.USER, [Text(text=FINAL_INSTRUCTION)])
+        if self.messages and self.messages[-1].role is MessageRole.USER:
+            self._record(MessageRole.ASSISTANT, [Text(text="Understood.")])
+        self._record(MessageRole.USER, [Text(text=FINAL_INSTRUCTION)])
         reply = self._complete([self.registry.get(SUBMIT).declaration], force_tool=SUBMIT)
-        self._record(Role.ASSISTANT, reply.blocks)
+        self._record(MessageRole.ASSISTANT, reply.blocks)
         uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
         offered = ""
         if uses:
@@ -217,7 +219,7 @@ class Session:
                 return self._final_turn()
             self.remaining = self.remaining.spend_turn()
             reply = self._complete(schemas)
-            self._record(Role.ASSISTANT, reply.blocks)
+            self._record(MessageRole.ASSISTANT, reply.blocks)
             uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
             if uses:
                 for result in self._run_tools(uses):
@@ -240,7 +242,7 @@ class Session:
             except pydantic.ValidationError as exc:
                 LOGGER.info("output did not validate, asking again: %s", exc)
                 self._record(
-                    Role.USER,
+                    MessageRole.USER,
                     [Text(text=f"That did not match the schema: {exc}. Reply with JSON only.")],
                 )
                 continue
