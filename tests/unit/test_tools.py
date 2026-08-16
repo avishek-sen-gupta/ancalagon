@@ -237,7 +237,15 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         write_root=tmp_path,
         read_roots=(tmp_path,),
         model="claude-opus-5",
-        roles={"scout": Role(behaviour="Look.", tools=(), budget=Budget(turns=4, tool_calls=8))},
+        roles={
+            "scout": Role(behaviour="Look.", tools=(), budget=Budget(turns=4, tool_calls=8)),
+            "unreachable": Role(
+                behaviour="Never spawned.",
+                input=ClassRef(module=str(tmp_path / "no-such-shapes.py"), name="Query"),
+                tools=(),
+                budget=Budget(turns=4, tool_calls=8),
+            ),
+        },
         max_tokens=100,
         num_retries=0,
         request_timeout_s=10,
@@ -273,6 +281,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     )
 
     assert "delegate_scout" in at_root.names()
+    assert "delegate_unreachable" not in at_root.names()
     assert "need_input" in at_root.names()
     assert "delegate_scout" not in at_limit.names()
     assert "need_input" in at_limit.names()
@@ -296,7 +305,9 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     ]
 
     unknown_role = Role(
-        behaviour="Search.", tools=("read_file", "rigrep", "grep"), budget=full_role.budget
+        behaviour="Search.",
+        tools=("read_file", "rigrep", "grep", "delegate_ghost"),
+        budget=full_role.budget,
     )
     with pytest.raises(ValueError) as refused:
         build_registry(
@@ -308,7 +319,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
             output_class=FreeText,
             clock=SystemClock(),
         )
-    assert "'grep', 'rigrep'" in str(refused.value)
+    assert "'delegate_ghost', 'grep', 'rigrep'" in str(refused.value)
     assert "ripgrep" in str(refused.value)
 
 

@@ -45,9 +45,10 @@ budget = { turns = 12, tool_calls = 30 }
 
 Omitting `input` or `answer` means `FreeText` — that is how a role opts into prose instead of
 naming a path. A role that names no contract gets none; there is no default global budget or
-tool list, only what each role states. Each declared role gets its own `delegate_<role>` tool,
-built at worker startup from the role's own input contract, so a parent sees the child's real
-input schema rather than a string it has to guess the shape of.
+tool list, only what each role states. A role a worker may spawn gets a `delegate_<role>` tool,
+built at worker startup from that role's own input contract, so a parent sees the child's real
+input schema rather than a string it has to guess the shape of. A worker builds those tools for
+the roles its own `tools` list names, so it never loads the contracts of roles it cannot spawn.
 
 The root is a role like any other. `[run] role` names which one it runs as, and its goal and
 input come from files rather than from a `delegate` call, since it has no parent to call one:
