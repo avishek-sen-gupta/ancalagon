@@ -63,7 +63,7 @@ strategy = "none"
 
 [roles.investigate]
 behaviour = "You investigate."
-tools = []
+tools = ["need_input"]
 
 [roles.investigate.budget]
 turns = 4

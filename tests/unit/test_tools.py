@@ -249,8 +249,14 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         compact_above_tokens=0,
         keep_recent_messages=8,
     )
+    full_role = Role(
+        behaviour="Coordinate.",
+        tools=("delegate_scout", "need_input"),
+        budget=Budget(turns=1, tool_calls=1),
+    )
     at_root = build_registry(
         config,
+        TaskSpec(task_id="root", role=full_role, goal="g"),
         tmp_path,
         parent=0,
         depth=0,
@@ -259,6 +265,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     )
     at_limit = build_registry(
         config,
+        TaskSpec(task_id="root", role=full_role, goal="g"),
         tmp_path,
         parent=1,
         depth=1,
@@ -274,28 +281,33 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     answer_shape = at_root.get("submit_answer").declaration.parameters.model_json_schema()
     assert set(answer_shape["properties"]) == {"text"}
 
+    narrow_role = Role(behaviour="Search.", tools=("read_file", "ripgrep"), budget=full_role.budget)
     assert build_registry(
         config,
+        TaskSpec(task_id="root", role=narrow_role, goal="g"),
         tmp_path,
         parent=0,
         depth=0,
         output_class=FreeText,
         clock=SystemClock(),
-        tools=["read_file", "ripgrep"],
     ).names() == [
         "read_file",
         "ripgrep",
+        "submit_answer",
     ]
 
+    unknown_role = Role(
+        behaviour="Search.", tools=("read_file", "rigrep", "grep"), budget=full_role.budget
+    )
     with pytest.raises(ValueError) as refused:
         build_registry(
             config,
+            TaskSpec(task_id="root", role=unknown_role, goal="g"),
             tmp_path,
             parent=0,
             depth=0,
             output_class=FreeText,
             clock=SystemClock(),
-            tools=["read_file", "rigrep", "grep"],
         )
     assert "'grep', 'rigrep'" in str(refused.value)
     assert "ripgrep" in str(refused.value)
@@ -336,8 +348,8 @@ def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pa
     assert bus.state(2).dir == str(task_dir)
 
     written = TaskSpec.model_validate_json((task_dir / "spec.json").read_text())
-    assert written.behaviour == "b"
-    assert written.budget == Budget(turns=3, tool_calls=5)
+    assert written.role.behaviour == "b"
+    assert written.role.budget == Budget(turns=3, tool_calls=5)
     assert json.loads((task_dir / "spec.json").read_text())["input"] == {"text": "look at this"}
 
     with pytest.raises(pydantic.ValidationError):
@@ -589,7 +601,7 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     spec = json.loads((run_dir / "tasks" / "t1" / "spec.json").read_text())
     assert spec["goal"] == "map the bus"
     assert spec["input"] == {"area": "bus", "depth": 2}
-    assert spec["budget"] == {"turns": 12, "tool_calls": 30}
+    assert spec["role"]["budget"] == {"turns": 12, "tool_calls": 30}
 
     with pytest.raises(pydantic.ValidationError, match="depth"):
         tools[0].invoke('{"task_id": "t2", "goal": "g", "input": {"area": "bus"}}', ctx)

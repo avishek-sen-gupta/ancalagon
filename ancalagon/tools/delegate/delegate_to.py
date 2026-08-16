@@ -23,7 +23,9 @@ class DelegateTo(Tool[DelegateArgs]):
         self.name = f"delegate_{role_name}"
         self.description = (
             f"Queue a {role_name} task. Returns its task id immediately without waiting. "
-            f"That agent is told: {role.behaviour}"
+            f"That agent is told: {role.behaviour} "
+            "Reusing a task_id after that task has finished retries it, and the new agent "
+            "inherits the previous one's transcript. Use a new task_id for a clean start."
         )
         self.role = role
         self.run_dir = run_dir
@@ -46,13 +48,7 @@ class DelegateTo(Tool[DelegateArgs]):
             )
         task_dir.mkdir(parents=True, exist_ok=True)
         spec = AgentSpec[type(args.input)](
-            task_id=args.task_id,
-            behaviour=self.role.behaviour,
-            goal=args.goal,
-            input=args.input,
-            input_schema=self.role.input,
-            answer_schema=self.role.answer,
-            budget=self.role.budget,
+            task_id=args.task_id, role=self.role, goal=args.goal, input=args.input
         )
         (task_dir / "spec.json").write_text(spec.model_dump_json())
         task = bus.enqueue(task_dir, parent_agent=self.parent)

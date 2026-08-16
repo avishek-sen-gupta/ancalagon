@@ -59,16 +59,14 @@ from ancalagon.workspace.workspace import Workspace
 LOGGER = logging.getLogger(__name__)
 
 
-def build_registry(
+def available_tools(
     config: Config,
     run_dir: pathlib.Path,
     parent: int,
-    depth: int,
     output_class: type[pydantic.BaseModel],
     clock: Clock,
-    tools: collections.abc.Sequence[str] = (),
-) -> Registry:
-    available: list[BoundTool] = [
+) -> list[BoundTool]:
+    return [
         bind_tool(ReadFile()),
         bind_tool(WriteFile()),
         bind_tool(EditFile()),
@@ -92,19 +90,30 @@ def build_registry(
         bind_tool(NeedInput()),
         bind_tool(SubmitAnswer(output_class)),
     ]
-    enabled = set(tools)
-    unknown = enabled - {t.name for t in available}
+
+
+def build_registry(
+    config: Config,
+    spec: TaskSpec,
+    run_dir: pathlib.Path,
+    parent: int,
+    depth: int,
+    output_class: type[pydantic.BaseModel],
+    clock: Clock,
+) -> Registry:
+    available = available_tools(config, run_dir, parent, output_class, clock)
+    wanted = set(spec.role.tools) | {SubmitAnswer.name}
+    unknown = wanted - {t.name for t in available}
     if unknown:
         raise ValueError(
-            f"unknown role tool names: {sorted(unknown)}; "
+            f"role names unknown tools: {sorted(unknown)}; "
             f"available: {sorted(t.name for t in available)}"
         )
     depth_capped = depth >= config.max_depth
     permitted = [
         t
         for t in available
-        if (not enabled or t.name in enabled)
-        and not (depth_capped and t.name.startswith("delegate_"))
+        if t.name in wanted and not (depth_capped and t.name.startswith("delegate_"))
     ]
     return Registry(permitted)
 
@@ -121,8 +130,8 @@ def main(
     try:
         spec_text = (task_dir / "spec.json").read_text()
         spec = TaskSpec.model_validate_json(spec_text)
-        output_class = resolve_class(spec.answer_schema)
-        input_class = resolve_class(spec.input_schema)
+        output_class = resolve_class(spec.role.answer)
+        input_class = resolve_class(spec.role.input)
         given = AgentSpec[input_class].model_validate_json(spec_text).input
         history: collections.abc.Sequence[Message] = (
             repair(load(transcript_path)) if transcript_path.exists() else []
@@ -147,6 +156,7 @@ def main(
             ),
             registry=build_registry(
                 config,
+                spec,
                 run_dir,
                 parent=agent_id,
                 depth=depth_of(bus, agent_id),

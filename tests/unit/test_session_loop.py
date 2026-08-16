@@ -11,9 +11,11 @@ from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.exhausted import Exhausted
 from ancalagon.contracts.failed import Failed
+from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.reply import Reply
+from ancalagon.contracts.role import Role
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.clock.fake_clock import FakeClock
@@ -50,10 +52,13 @@ def _session(
     )
     spec = TaskSpec(
         task_id="t1",
-        behaviour="You answer questions.",
+        role=Role(
+            behaviour="You answer questions.",
+            answer=ClassRef(module="verdict.py", name="Verdict"),
+            tools=(),
+            budget=budget,
+        ),
         goal=goal,
-        answer_schema=ClassRef(module="verdict.py", name="Verdict"),
-        budget=budget,
     )
     return Session(
         spec=spec,
@@ -335,3 +340,50 @@ def test_the_static_system_half_is_shared_across_items_and_the_per_item_half_is_
     assert str(tmp_path / "item-0001" / "ws") in per_item
 
     assert "cache created 2048 read 1024" in caplog.text
+
+
+def test_a_session_takes_its_behaviour_and_budget_from_its_role(tmp_path: pathlib.Path):
+    role = Role(
+        behaviour="You investigate.", tools=("read_file",), budget=Budget(turns=2, tool_calls=4)
+    )
+    spec = TaskSpec(task_id="t", role=role, goal="find it")
+    write_root = tmp_path / "ws"
+    write_root.mkdir(parents=True, exist_ok=True)
+    ctx = ToolContext(
+        workspace=Workspace(write_root=write_root, read_roots=(write_root,)),
+        output_dir=write_root / "outputs",
+        summary_chars=200,
+        agent_id=17,
+    )
+    llm = FakeLLM(
+        [
+            Reply(
+                blocks=[ToolUse(id="tu_1", name="unknown_tool", arguments="{}")],
+                stop_reason="tool_calls",
+            ),
+            Reply(
+                blocks=[ToolUse(id="tu_2", name="unknown_tool", arguments="{}")],
+                stop_reason="tool_calls",
+            ),
+            Reply(
+                blocks=[ToolUse(id="tu_3", name="submit_answer", arguments='{"text": "found it"}')],
+                stop_reason="tool_calls",
+            ),
+        ]
+    )
+    session = Session(
+        spec=spec,
+        input=FreeText(text="go"),
+        messages=[],
+        transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=17),
+        agent_id=17,
+        llm=llm,
+        registry=Registry([bind_tool(SubmitAnswer(FreeText))]),
+        ctx=ctx,
+        output_class=FreeText,
+        clock=FakeClock(),
+    )
+    outcome = session.run()
+
+    assert llm.systems[0].static.startswith("You investigate.")
+    assert outcome.spent == Budget(turns=2, tool_calls=0)
