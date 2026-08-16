@@ -5,7 +5,7 @@ from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.clock.clock import Clock
 from ancalagon.bus.bus import Bus
 from ancalagon.contracts.message import Message
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.text import Text
 from ancalagon.transcript.transcript import Transcript
 
@@ -32,7 +32,7 @@ def answer_task(
     log = Transcript(path=path, agent_id=answered_by)
     log.append(
         Message(
-            role=Role.USER,
+            role=MessageRole.USER,
             blocks=[Text(text=answer)],
             agent=answered_by,
             seq=len(path.read_text(encoding="utf-8").splitlines()),

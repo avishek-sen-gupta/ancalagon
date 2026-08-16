@@ -356,12 +356,14 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
     prose = TaskSpec.model_validate_json(
         (run_dir / "tasks" / "defaulted" / "spec.json").read_text()
     )
-    assert prose.answer_schema == ClassRef(module="free_text.py", name="FreeText")
-    assert (run_dir / "tasks" / "defaulted" / "free_text.py").exists()
+    defaulted_dir = run_dir / "tasks" / "defaulted"
+    assert prose.answer_schema == ClassRef(
+        module=str(defaulted_dir / "free_text.py"), name="FreeText"
+    )
+    assert (defaulted_dir / "free_text.py").exists()
 
-    for bad in ({"module": "../escape.py", "name": "X"}, {"module": "no_suffix", "name": "X"}):
-        with pytest.raises(pydantic.ValidationError):
-            ClassRef.model_validate(bad)
+    with pytest.raises(pydantic.ValidationError):
+        ClassRef.model_validate({"module": "shape.py", "name": "not a class"})
 
     node_input = ctx.workspace.write_root / "node_input.py"
     node_input.write_text(
@@ -384,8 +386,8 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
     assert json.loads((child / "spec.json").read_text())["input"] == {"node_id": 5}
     assert sorted(p.name for p in child.glob("*.py")) == ["node_input.py", "verdict.py"]
     written = TaskSpec.model_validate_json((child / "spec.json").read_text())
-    assert written.input_schema == ClassRef(module="node_input.py", name="NodeInput")
-    assert written.answer_schema == ClassRef(module="verdict.py", name="Verdict")
+    assert written.input_schema == ClassRef(module=str(child / "node_input.py"), name="NodeInput")
+    assert written.answer_schema == ClassRef(module=str(child / "verdict.py"), name="Verdict")
 
     mismatched = typed.model_copy(
         update={"task_id": "mismatched", "input_json": '{"node_id": "five"}'}

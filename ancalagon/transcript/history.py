@@ -3,7 +3,7 @@ import collections.abc
 import pathlib
 
 from ancalagon.contracts.message import Message
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
 
@@ -19,13 +19,13 @@ def repair(messages: collections.abc.Sequence[Message]) -> collections.abc.Seque
     if not messages:
         return messages
     last = messages[-1]
-    if last.role is not Role.ASSISTANT:
+    if last.role is not MessageRole.ASSISTANT:
         return messages
     pending = [b for b in last.blocks if isinstance(b, ToolUse)]
     if not pending:
         return messages
     synthetic = Message(
-        role=Role.USER,
+        role=MessageRole.USER,
         blocks=[
             ToolResultBlock(tool_use_id=b.id, content=INTERRUPTED, is_error=True) for b in pending
         ],

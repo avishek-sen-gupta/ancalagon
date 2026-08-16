@@ -117,8 +117,8 @@ def main(
     try:
         spec_text = (task_dir / "spec.json").read_text()
         spec = TaskSpec.model_validate_json(spec_text)
-        output_class = resolve_class(spec.answer_schema, task_dir)
-        input_class = resolve_class(spec.input_schema, task_dir)
+        output_class = resolve_class(spec.answer_schema)
+        input_class = resolve_class(spec.input_schema)
         given = AgentSpec[input_class].model_validate_json(spec_text).input
         history: collections.abc.Sequence[Message] = (
             repair(load(transcript_path)) if transcript_path.exists() else []

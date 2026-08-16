@@ -5,7 +5,7 @@ import types
 import pytest
 
 from ancalagon.contracts.message import Message
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
@@ -21,14 +21,14 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
     monkeypatch: pytest.MonkeyPatch,
 ):
     assistant = Message(
-        role=Role.ASSISTANT,
+        role=MessageRole.ASSISTANT,
         blocks=[Text(text="thinking"), ToolUse(id="t1", name="rg", arguments='{"p":1}')],
         agent=1,
         seq=0,
         ts="",
     )
     results = Message(
-        role=Role.USER,
+        role=MessageRole.USER,
         blocks=[ToolResultBlock(tool_use_id="t1", content="hit")],
         agent=1,
         seq=1,
@@ -97,9 +97,9 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
 
 
 def test_a_message_with_nothing_to_say_never_reaches_the_wire():
-    blank = Message(role=Role.ASSISTANT, blocks=[], agent=1, seq=0, ts="")
+    blank = Message(role=MessageRole.ASSISTANT, blocks=[], agent=1, seq=0, ts="")
     calls_only = Message(
-        role=Role.ASSISTANT,
+        role=MessageRole.ASSISTANT,
         blocks=[ToolUse(id="t1", name="rg", arguments="{}")],
         agent=1,
         seq=1,
@@ -155,7 +155,7 @@ def test_only_the_static_system_half_is_cache_marked_and_usage_counters_reach_th
     setattr(fake, "ModelResponse", FakeResponse)
     monkeypatch.setitem(sys.modules, "litellm", fake)
 
-    user = Message(role=Role.USER, blocks=[Text(text="the item")], agent=1, seq=0, ts="")
+    user = Message(role=MessageRole.USER, blocks=[Text(text="the item")], agent=1, seq=0, ts="")
     client = LiteLLMClient(model="m", max_tokens=10, num_retries=1, request_timeout_s=9)
     reply = client.complete(
         SystemPrompt(static="behave", per_item="Goal: this one"),

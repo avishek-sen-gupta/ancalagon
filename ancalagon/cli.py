@@ -13,8 +13,7 @@ from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.free_text import FreeText
-from ancalagon.contracts.free_text_ref import FREE_TEXT_REF
-from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
+from ancalagon.contracts.free_text_module import FREE_TEXT_FILE, FREE_TEXT_MODULE
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.answer_command import answer_command
 from ancalagon.migrate_command import migrate_command
@@ -62,7 +61,7 @@ def goal_of(settings: RunSettings) -> str:
 
 def answer_schema_of(settings: RunSettings) -> ClassRef:
     if not settings.contract_class:
-        return FREE_TEXT_REF
+        return ClassRef(module=FREE_TEXT_FILE, name="FreeText")
     return ClassRef(
         module=pathlib.Path(settings.contract_module).name, name=settings.contract_class
     )
@@ -90,9 +89,9 @@ def contract_source(settings: RunSettings) -> str:
 
 def install_contracts(settings: RunSettings, task_dir: pathlib.Path) -> ClassRef:
     answers_in = answer_schema_of(settings)
-    (task_dir / FREE_TEXT_REF.module).write_text(FREE_TEXT_MODULE)
+    (task_dir / FREE_TEXT_FILE).write_text(FREE_TEXT_MODULE)
     (task_dir / answers_in.module).write_text(contract_source(settings))
-    return answers_in
+    return ClassRef(module=str(task_dir / answers_in.module), name=answers_in.name)
 
 
 def sandbox_of(config: Config, run_dir: pathlib.Path) -> Sandbox:

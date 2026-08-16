@@ -10,6 +10,7 @@ from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.message import Message
+from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.outcome import outcome_adapter
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
@@ -59,7 +60,7 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
         AgentSpec[NodeSummary].model_validate_json(prose)
 
     message = Message(
-        role=Role.ASSISTANT,
+        role=MessageRole.ASSISTANT,
         blocks=[Text(text="hi"), ToolUse(id="tu_1", name="ripgrep", arguments='{"pattern":"x"}')],
         agent=17,
         seq=0,
@@ -82,9 +83,9 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
 
     module = tmp_path / "verdict.py"
     module.write_text("import pydantic\n\n\nclass Verdict(pydantic.BaseModel):\n    ok: bool\n")
-    resolved = resolve_class(ClassRef(module="verdict.py", name="Verdict"), tmp_path)
+    resolved = resolve_class(ClassRef(module=str(module), name="Verdict"))
     with pytest.raises(pydantic.ValidationError):
-        ClassRef(module="../escape.py", name="Verdict")
+        ClassRef(module=str(module), name="not a class")
     assert resolved.__name__ == "Verdict"
     assert resolved.model_validate_json('{"ok": true}').model_dump() == {"ok": True}
 
@@ -100,3 +101,26 @@ def test_run_settings_require_a_contract_module_and_its_class_together():
         RunSettings(contract_module="shape.py")
     with pytest.raises(pydantic.ValidationError):
         RunSettings(contract_class="Answer")
+
+
+def test_a_role_defaults_to_prose_and_resolves_the_contracts_it_names(tmp_path: pathlib.Path):
+    module = tmp_path / "shapes.py"
+    module.write_text("import pydantic\n\n\nclass Component(pydantic.BaseModel):\n    name: str\n")
+
+    prose = Role(
+        behaviour="Investigate.", tools=("read_file",), budget=Budget(turns=4, tool_calls=8)
+    )
+    assert resolve_class(prose.input) is FreeText
+    assert resolve_class(prose.answer) is FreeText
+
+    named = Role(
+        behaviour="Analyse.",
+        answer=ClassRef(module=str(module), name="Component"),
+        tools=("read_file",),
+        budget=Budget(turns=4, tool_calls=8),
+    )
+    assert resolve_class(named.answer).model_fields.keys() == {"name"}
+    assert resolve_class(named.input) is FreeText
+
+    with pytest.raises(AttributeError):
+        resolve_class(ClassRef(module=str(module), name="Absent"))
