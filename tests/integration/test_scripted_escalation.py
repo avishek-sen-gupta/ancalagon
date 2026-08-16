@@ -50,6 +50,7 @@ name = "openai/scripted"
 num_retries = 0
 request_timeout_s = 30
 max_tokens = 512
+allowed_domains = []
 
 [budget]
 turns = 6
@@ -65,6 +66,9 @@ summary_chars = 400
 
 [tools]
 enabled = []
+
+[sandbox]
+strategy = "none"
 
 [run]
 run_dir = "{run_dir}"

@@ -8,6 +8,7 @@ import sys
 import ancalagon.migrations
 from ancalagon.bus.bus import HUMAN, Bus
 from ancalagon.clock.system_clock import SystemClock
+from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.class_ref import ClassRef
@@ -17,6 +18,10 @@ from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.answer_command import answer_command
 from ancalagon.migrate_command import migrate_command
+from ancalagon.sandbox.fence import Fence
+from ancalagon.sandbox.sandbox import Sandbox
+from ancalagon.sandbox.strategy import Strategy
+from ancalagon.sandbox.unsandboxed import Unsandboxed
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
 
@@ -87,6 +92,16 @@ def contract_source(settings: RunSettings) -> str:
     return source
 
 
+def sandbox_of(config: Config, run_dir: pathlib.Path) -> Sandbox:
+    if config.sandbox is Strategy.NONE:
+        return Unsandboxed()
+    return Fence(
+        write_root=config.write_root,
+        allowed_domains=config.allowed_domains,
+        run_dir=run_dir,
+    )
+
+
 def main(config_path: pathlib.Path, goal_argument: str) -> int:
     logging.basicConfig(level=logging.INFO)
     config = load_config(config_path)
@@ -117,7 +132,11 @@ def main(config_path: pathlib.Path, goal_argument: str) -> int:
     bus.enqueue(task_dir, parent_agent=HUMAN)
     supervisor = Supervisor(
         bus=Bus.open(db, clock),
-        spawner=SubprocessSpawner(run_dir=run_dir, config_path=config_path.resolve()),
+        spawner=SubprocessSpawner(
+            run_dir=run_dir,
+            config_path=config_path.resolve(),
+            sandbox=sandbox_of(config, run_dir),
+        ),
         max_concurrent=config.max_concurrent_agents,
         timeout_s=config.agent_timeout_s,
         clock=clock,

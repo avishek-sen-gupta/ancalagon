@@ -34,6 +34,7 @@ name = "{MODEL}"
 num_retries = 1
 request_timeout_s = 300
 max_tokens = 1024
+allowed_domains = []
 
 [budget]
 turns = 4
@@ -49,6 +50,9 @@ summary_chars = 400
 
 [tools]
 enabled = ["need_input", "submit_answer"]
+
+[sandbox]
+strategy = "none"
 
 [run]
 run_dir = "{run_dir}"

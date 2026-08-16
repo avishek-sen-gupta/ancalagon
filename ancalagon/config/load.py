@@ -5,6 +5,7 @@ import tomllib
 from ancalagon.config.config import Config
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.run_settings import RunSettings
+from ancalagon.sandbox.strategy import Strategy
 
 
 # Every key is read by bracket, never .get(), so a config file must be complete:
@@ -52,4 +53,6 @@ def load_config(path: pathlib.Path) -> Config:
         compact_above_tokens=limits["compact_above_tokens"],
         keep_recent_messages=limits["keep_recent_messages"],
         run=_run_settings(base, raw["run"]),
+        allowed_domains=tuple(model["allowed_domains"]),
+        sandbox=Strategy(raw["sandbox"]["strategy"]),
     )
