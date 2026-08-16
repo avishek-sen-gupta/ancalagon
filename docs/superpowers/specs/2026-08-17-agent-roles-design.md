@@ -127,6 +127,27 @@ tool, so the role name is no longer a field at all.
 models the standing instruction and the per-call one separately, `behaviour` is the first,
 and a parent still needs to say which of two calls to the same role is the awkward one.
 
+## `spec.json` carries the role, not its name
+
+`AgentSpec` becomes `task_id`, `role: Role`, `goal`, `input` — the whole role embedded, not a
+name pointing into the config. `behaviour`, `input_schema`, `answer_schema`, `budget` and the
+long-dead `tools` all leave it, because the role holds them.
+
+`Role` therefore lives in `ancalagon/contracts/role.py` as a frozen model, and `Config` holds
+`roles: Mapping[str, Role]` only so a worker can build the `delegate_*` tools for the roles it
+may spawn. Everything about the agent's *own* shape it reads off its spec.
+
+Embedding rather than referencing freezes a task's terms at the moment it was queued. A role
+name would leave `spec.json` a pointer into a file that may have changed since, so editing the
+config would silently redefine tasks already sitting in the bus. With the role embedded, an
+edit affects only tasks queued afterwards. That recovers most of the immutability given up by
+not copying contract modules — what it does not freeze is the contract *source*, since
+`{module = "./shapes.py", name = "Component"}` is still a path and editing that file still
+changes the shape.
+
+The cost is a few hundred duplicated bytes per task, in a directory that already holds a
+transcript.
+
 ## The root is a role
 
 `[run] role` names it. `[agent] root_behaviour`, `[run] contract_module` and
