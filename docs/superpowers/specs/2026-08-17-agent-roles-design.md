@@ -48,8 +48,19 @@ tools  = ["read_file", "ripgrep", "find_symbol"]
 budget = { turns = 12, tool_calls = 30 }
 ```
 
-`prose` is built in: `FreeText` on both sides, every tool, the run's default budget. It is
-the freestyling agent, and it is still under contract.
+Nothing is built in. A run that wants a freestyling agent declares one, and a run that does
+not want prose anywhere simply never declares it:
+
+```toml
+[roles.scout]
+behaviour = "Investigate and report what you found."
+tools  = ["read_file", "ripgrep", "list_dir"]
+budget = { turns = 10, tool_calls = 25 }
+```
+
+An omitted `input` or `answer` means `FreeText`, which is how a role opts into prose without
+naming a path inside the installed package. So prose is still a contract, and declaring a
+role is still the only way to get an agent.
 
 `tools` is per-role, replacing the global `[tools] enabled`. A role whose `tools` omits
 `delegate` cannot spawn anything — which is how a program pins a subtree to depth 1 without
@@ -69,8 +80,11 @@ model is generated then: one variant per declared role, discriminated on `role`,
 
 ```
 delegate(role: "component_analyst", task_id: str, input: ComponentQuery)
-delegate(role: "prose",             task_id: str, input: FreeText)
+delegate(role: "scout",             task_id: str, input: FreeText)
 ```
+
+A run declaring one role gets a `delegate` with one legal value, and a run whose roles all
+omit `delegate` from their `tools` gets no `delegate` tool at all.
 
 The model sees each role's real input schema. `input_json: str` is gone, and with it the
 last use of the one-hop-as-text exception `CLAUDE.md` grants: the class is no longer unknown
