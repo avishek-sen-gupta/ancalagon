@@ -6,14 +6,14 @@ import pytest
 
 import ancalagon.config.config
 from ancalagon.bus.bus import Bus
+from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.event_source import EventSource
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
-from ancalagon.contracts.contract_pair import ContractPair
-from ancalagon.contracts.contract_source import ContractSource
+from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.tool_result import ToolResult
@@ -21,7 +21,8 @@ from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.tools.delegate.collect_task import CollectTask
-from ancalagon.tools.delegate.delegate import Delegate
+from ancalagon.tools.delegate.delegate_to import DelegateTo
+from ancalagon.tools.delegate.delegate_tools import delegate_tools
 from ancalagon.tools.files.delete_file import DeleteFile
 from ancalagon.tools.files.edit_file import EditFile
 from ancalagon.tools.files.list_dir import ListDir
@@ -38,7 +39,6 @@ from ancalagon.tools.artifacts.document_format import DocumentFormat
 from ancalagon.tools.artifacts.path_arg import PathArg
 from ancalagon.tools.artifacts.query_args import QueryArgs
 from ancalagon.tools.artifacts.strings_args import StringsArgs
-from ancalagon.tools.delegate.delegate_args import DelegateArgs
 from ancalagon.tools.delegate.task_args import TaskArgs
 from ancalagon.tools.history.git_operation import GitOperation
 from ancalagon.tools.history.history_args import HistoryArgs
@@ -237,6 +237,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         write_root=tmp_path,
         read_roots=(tmp_path,),
         model="claude-opus-5",
+        roles={"scout": Role(behaviour="Look.", tools=(), budget=Budget(turns=4, tool_calls=8))},
         max_tokens=100,
         num_retries=0,
         request_timeout_s=10,
@@ -254,7 +255,6 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         parent=0,
         depth=0,
         output_class=FreeText,
-        budget=config.budget,
         clock=SystemClock(),
     )
     at_limit = build_registry(
@@ -263,13 +263,12 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         parent=1,
         depth=1,
         output_class=FreeText,
-        budget=config.budget,
         clock=SystemClock(),
     )
 
-    assert "delegate" in at_root.names()
+    assert "delegate_scout" in at_root.names()
     assert "need_input" in at_root.names()
-    assert "delegate" not in at_limit.names()
+    assert "delegate_scout" not in at_limit.names()
     assert "need_input" in at_limit.names()
     assert "submit_answer" in at_root.names()
     answer_shape = at_root.get("submit_answer").declaration.parameters.model_json_schema()
@@ -281,7 +280,6 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         parent=0,
         depth=0,
         output_class=FreeText,
-        budget=config.budget,
         clock=SystemClock(),
         tools=["read_file", "ripgrep"],
     ).names() == [
@@ -296,7 +294,6 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
             parent=0,
             depth=0,
             output_class=FreeText,
-            budget=config.budget,
             clock=SystemClock(),
             tools=["read_file", "rigrep", "grep"],
         )
@@ -304,24 +301,13 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     assert "ripgrep" in str(refused.value)
 
 
-def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathlib.Path):
+def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
     run_dir = tmp_path / "run"
     run_dir.mkdir()
-    delegate = Delegate(
-        run_dir=run_dir,
-        parent=1,
-        budget=Budget(turns=20, tool_calls=60),
-        clock=SystemClock(),
-    )
-    args = DelegateArgs(
-        task_id="analyse",
-        behaviour="b",
-        goal="g",
-        input_json='{"text": "look at this"}',
-        turns=3,
-        tool_calls=5,
-    )
+    role = Role(behaviour="b", tools=(), budget=Budget(turns=3, tool_calls=5))
+    delegate = DelegateTo("analyst", role, run_dir, parent=1, clock=SystemClock())
+    args = delegate.args_model(task_id="analyse", goal="g", input=FreeText(text="look at this"))
     migrate_file(run_dir / "bus.db", latest_version())
     bus = Bus.open(run_dir / "bus.db", SystemClock())
 
@@ -349,51 +335,13 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
     assert bus.state(1).status is AgentStatus.CRASHED
     assert bus.state(2).dir == str(task_dir)
 
-    assert args.contracts == ContractPair()
-    assert delegate.run(args.model_copy(update={"task_id": "defaulted"}), ctx).ok is True
-    prose = TaskSpec.model_validate_json(
-        (run_dir / "tasks" / "defaulted" / "spec.json").read_text()
-    )
-    defaulted_dir = run_dir / "tasks" / "defaulted"
-    assert prose.answer_schema == ClassRef(
-        module=str(defaulted_dir / "free_text.py"), name="FreeText"
-    )
-    assert (defaulted_dir / "free_text.py").exists()
+    written = TaskSpec.model_validate_json((task_dir / "spec.json").read_text())
+    assert written.behaviour == "b"
+    assert written.budget == Budget(turns=3, tool_calls=5)
+    assert json.loads((task_dir / "spec.json").read_text())["input"] == {"text": "look at this"}
 
     with pytest.raises(pydantic.ValidationError):
         ClassRef.model_validate({"module": "shape.py", "name": "not a class"})
-
-    node_input = ctx.workspace.write_root / "node_input.py"
-    node_input.write_text(
-        "import pydantic\n\n\nclass NodeInput(pydantic.BaseModel):\n    node_id: int\n"
-    )
-    verdict = ctx.workspace.write_root / "verdict.py"
-    verdict.write_text("import pydantic\n\n\nclass Verdict(pydantic.BaseModel):\n    ok: bool\n")
-    typed = args.model_copy(
-        update={
-            "task_id": "typed",
-            "contracts": ContractPair(
-                input=ContractSource(path=str(node_input), name="NodeInput"),
-                answer=ContractSource(path=str(verdict), name="Verdict"),
-            ),
-            "input_json": '{"node_id": 5}',
-        }
-    )
-    assert delegate.run(typed, ctx).ok is True
-    child = run_dir / "tasks" / "typed"
-    assert json.loads((child / "spec.json").read_text())["input"] == {"node_id": 5}
-    assert sorted(p.name for p in child.glob("*.py")) == ["node_input.py", "verdict.py"]
-    written = TaskSpec.model_validate_json((child / "spec.json").read_text())
-    assert written.input_schema == ClassRef(module=str(child / "node_input.py"), name="NodeInput")
-    assert written.answer_schema == ClassRef(module=str(child / "verdict.py"), name="Verdict")
-
-    mismatched = typed.model_copy(
-        update={"task_id": "mismatched", "input_json": '{"node_id": "five"}'}
-    )
-    refused = delegate.run(mismatched, ctx)
-    assert refused.ok is False
-    assert "node_id" in refused.error
-    assert not (run_dir / "tasks" / "mismatched" / "spec.json").exists()
 
 
 def test_survey_and_symbol_tools_report_structure_not_mentions(tmp_path: pathlib.Path):
@@ -545,23 +493,12 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     migrate_file(run_dir / "bus.db", latest_version())
-    delegate = Delegate(
-        run_dir=run_dir,
-        parent=1,
-        budget=Budget(turns=20, tool_calls=60),
-        clock=SystemClock(),
-    )
+    role = Role(behaviour="b", tools=(), budget=Budget(turns=20, tool_calls=60))
+    delegate = DelegateTo("worker", role, run_dir, parent=1, clock=SystemClock())
     collect = CollectTask(run_dir=run_dir, clock=SystemClock())
 
     def queue(task_id: str) -> int:
-        args = DelegateArgs(
-            task_id=task_id,
-            behaviour="b",
-            goal="g",
-            input_json='{"text": "go"}',
-            turns=3,
-            tool_calls=5,
-        )
+        args = delegate.args_model(task_id=task_id, goal="g", input=FreeText(text="go"))
         assert delegate.run(args, ctx).ok is True
         return int(
             Bus.open(run_dir / "bus.db", SystemClock())
@@ -613,3 +550,46 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     stuck = collect.run(TaskArgs(task=asked), ctx)
     assert stuck.ok is False
     assert "which caption?" in stuck.error
+
+
+def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
+    tmp_path: pathlib.Path,
+):
+    shapes = tmp_path / "shapes.py"
+    shapes.write_text(
+        "import pydantic\n\n\nclass Query(pydantic.BaseModel):\n    area: str\n    depth: int\n"
+    )
+    roles = {
+        "analyst": Role(
+            behaviour="Analyse.",
+            input=ClassRef(module=str(shapes), name="Query"),
+            tools=("read_file",),
+            budget=Budget(turns=12, tool_calls=30),
+        ),
+        "scout": Role(
+            behaviour="Look.", tools=("read_file",), budget=Budget(turns=4, tool_calls=8)
+        ),
+    }
+    run_dir = tmp_path / "run"
+    (run_dir / "tasks").mkdir(parents=True)
+    migrate_file(run_dir / "bus.db", latest_version())
+
+    tools = delegate_tools(roles, run_dir=run_dir, parent=1, clock=FakeClock())
+
+    assert [t.name for t in tools] == ["delegate_analyst", "delegate_scout"]
+    shown = tools[0].declaration.parameters.model_json_schema()
+    assert sorted(shown["properties"]) == ["goal", "input", "task_id"]
+    assert sorted(shown["$defs"]["Query"]["properties"]) == ["area", "depth"]
+
+    ctx = _ctx(tmp_path)
+    ok = tools[0].invoke(
+        '{"task_id": "t1", "goal": "map the bus", "input": {"area": "bus", "depth": 2}}', ctx
+    )
+    assert ok.ok is True
+    spec = json.loads((run_dir / "tasks" / "t1" / "spec.json").read_text())
+    assert spec["goal"] == "map the bus"
+    assert spec["input"] == {"area": "bus", "depth": 2}
+    assert spec["budget"] == {"turns": 12, "tool_calls": 30}
+
+    with pytest.raises(pydantic.ValidationError, match="depth"):
+        tools[0].invoke('{"task_id": "t2", "goal": "g", "input": {"area": "bus"}}', ctx)
