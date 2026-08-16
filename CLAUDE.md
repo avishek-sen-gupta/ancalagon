@@ -16,6 +16,8 @@ These override defaults and are not negotiable.
 
 **No gold plating.** Build what was asked for and nothing more. No abstraction layers, extension points, configuration knobs, or generality that no current caller needs. Simple enough that a human reading it understands it without explanation.
 
+**No unilateral decisions.** Do not invent a switch, a configuration option, a flag, or a default policy to avoid asking. If something genuinely has to be decided, the user decides it. Adding an option so that both answers are available is the same mistake twice.
+
 **No comments.** The only permitted comment is a one-line header on a class or module stating its purpose. A comment anywhere else means the code failed to explain itself — rewrite the code instead of annotating it. No docstrings on functions, no inline explanations, no section dividers, no TODOs.
 
 **Fully typed, no `Any`.** Pyright runs in strict mode and must pass with zero errors. `Any` is banned outright — no `from typing import Any`, no `: Any`, no `dict[str, Any]`. If a type is hard to express, use a `Protocol`, a `TypeVar`, or a union; if it is genuinely unknown at a boundary, parse it into a Pydantic model at that boundary. `Any` in a signature means the contract was never worked out.
