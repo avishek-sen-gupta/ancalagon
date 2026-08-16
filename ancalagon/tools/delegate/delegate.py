@@ -2,6 +2,7 @@
 import pathlib
 
 from ancalagon.bus.bus import Bus
+from ancalagon.clock.clock import Clock
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.allowance import Allowance
 from ancalagon.contracts.budget import Budget
@@ -33,11 +34,13 @@ class Delegate(Tool[DelegateArgs]):
         run_dir: pathlib.Path,
         parent: int,
         budget: Budget,
+        clock: Clock,
         allowance: Allowance = WithinParent(),
     ):
         self.run_dir = run_dir
         self.parent = parent
         self.budget = budget
+        self.clock = clock
         self.allowance = allowance
 
     def _install(
@@ -54,7 +57,7 @@ class Delegate(Tool[DelegateArgs]):
 
     def run(self, args: DelegateArgs, ctx: ToolContext) -> ToolResult:
         task_dir = self.run_dir / "tasks" / args.task_id
-        bus = Bus.open(self.run_dir / "bus.db")
+        bus = Bus.open(self.run_dir / "bus.db", self.clock)
         active = bus.active_for(task_dir)
         if active:
             return ctx.failure(

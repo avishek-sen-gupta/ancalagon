@@ -7,6 +7,7 @@ import sys
 import pytest
 
 from ancalagon.bus.bus import Bus
+from ancalagon.clock.system_clock import SystemClock
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.cli import main
 from ancalagon.supervisor.process import Process
@@ -108,7 +109,7 @@ def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
     assert outcome["kind"] == "failed"
     assert outcome["error"] != ""
 
-    bus = Bus.open(run_dir / "bus.db")
+    bus = Bus.open(run_dir / "bus.db", SystemClock())
     row = bus.state(1)
     assert row.status is AgentStatus.CRASHED
     assert row.exit_code == 1
@@ -160,7 +161,7 @@ def test_a_named_run_dir_is_reused_by_a_second_invocation(tmp_path: pathlib.Path
 
     assert [p.name for p in (tmp_path / "ws" / "runs").iterdir()] == ["item-0001"]
 
-    bus = Bus.open(named / "bus.db")
+    bus = Bus.open(named / "bus.db", SystemClock())
     task = bus.task(named / "tasks" / "root")
     assert bus.state(1).task == task.id
     assert bus.state(2).task == task.id

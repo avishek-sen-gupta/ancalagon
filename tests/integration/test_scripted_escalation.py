@@ -6,6 +6,7 @@ import pytest
 from ancalagon.answer_command import answer_command
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
+from ancalagon.clock.system_clock import SystemClock
 from ancalagon.cli import main
 from ancalagon.contracts.tool_use import ToolUse
 from tests.integration.scripted_model import ScriptedModel
@@ -104,7 +105,7 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
 
     try:
         assert main(config, ROOT) == 0
-        bus = Bus.open(run_dir / "bus.db")
+        bus = Bus.open(run_dir / "bus.db", SystemClock())
 
         def asked(agent: int) -> bool:
             return any(e.status is AgentStatus.NEEDS_INPUT for e in bus.history(agent))

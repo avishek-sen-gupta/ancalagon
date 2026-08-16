@@ -5,7 +5,6 @@ import logging
 import pydantic
 
 from ancalagon.clock.clock import Clock
-from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.asked import Asked
 from ancalagon.contracts.submitted import Submitted
 from ancalagon.contracts.block import Block
@@ -59,7 +58,7 @@ class Session:
         registry: Registry,
         ctx: ToolContext,
         output_class: type[pydantic.BaseModel],
-        clock: Clock = SystemClock(),
+        clock: Clock,
         compact_above_tokens: int = 0,
         keep_recent_messages: int = 8,
         meter: Meter = Unmetered(),

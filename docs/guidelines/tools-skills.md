@@ -36,8 +36,13 @@ ANCALAGON_LOCAL_MODEL=ollama_chat/qwen2.5:14b uv run pytest tests/integration
 
 ### Talisman
 
-If Talisman flags a false positive, **append** a new entry to `.talismanrc` — never edit or
-remove an existing one, even for the same file. Duplicate filenames with different checksums are
-expected. Prefer rewording the flagged line when the wording is incidental; suppress when it is
-not. Use the checksum Talisman reports, not one computed with `shasum` — it does not compute
-them the same way.
+If Talisman flags a false positive, prefer rewording the flagged line when the wording is
+incidental; suppress when it is not.
+
+**Only the first `.talismanrc` entry per filename is honoured.** A second entry for a file
+already listed is ignored, and the stale first one keeps failing the commit. So **append** an
+entry for a newly flagged file, but **replace the checksum in place** for a file already listed
+whose content has changed. Never remove an entry for a file that still needs suppressing.
+
+Use the checksum Talisman reports, not one computed with `shasum` — it does not compute them the
+same way.

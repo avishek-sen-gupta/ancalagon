@@ -3,6 +3,7 @@ import pathlib
 
 import pytest
 
+from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.allowance import Allowance
 from ancalagon.contracts.as_asked import AsAsked
 from ancalagon.contracts.budget import Budget
@@ -60,7 +61,7 @@ def test_a_child_is_granted_no_more_than_its_parent_unless_the_allowance_says_ot
         tool_calls=99,
     )
 
-    capped = Delegate(run_dir=run_dir, parent=1, budget=parent)
+    capped = Delegate(run_dir=run_dir, parent=1, budget=parent, clock=SystemClock())
     refused = capped.run(asked, ctx)
     assert refused.ok is False
     assert "cannot slice 40/99 from 10/30" in refused.error
@@ -71,12 +72,16 @@ def test_a_child_is_granted_no_more_than_its_parent_unless_the_allowance_says_ot
     granted = TaskSpec.model_validate_json((run_dir / "tasks" / "child" / "spec.json").read_text())
     assert granted.budget == Budget(turns=6, tool_calls=20)
 
-    clamped = Delegate(run_dir=run_dir, parent=1, budget=parent, allowance=Clamped())
+    clamped = Delegate(
+        run_dir=run_dir, parent=1, budget=parent, allowance=Clamped(), clock=SystemClock()
+    )
     assert clamped.run(asked.model_copy(update={"task_id": "clamped"}), ctx).ok is True
     cut = TaskSpec.model_validate_json((run_dir / "tasks" / "clamped" / "spec.json").read_text())
     assert cut.budget == Budget(turns=10, tool_calls=30)
 
-    free = Delegate(run_dir=run_dir, parent=1, budget=parent, allowance=AsAsked())
+    free = Delegate(
+        run_dir=run_dir, parent=1, budget=parent, allowance=AsAsked(), clock=SystemClock()
+    )
     assert free.run(asked.model_copy(update={"task_id": "free"}), ctx).ok is True
     unbounded = json.loads((run_dir / "tasks" / "free" / "spec.json").read_text())
     assert unbounded["budget"] == {"turns": 40, "tool_calls": 99}

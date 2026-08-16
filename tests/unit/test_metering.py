@@ -1,6 +1,7 @@
 import pathlib
 
 from ancalagon.bus.bus import Bus
+from ancalagon.clock.system_clock import SystemClock
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.bus.bus_meter import BusMeter
 from ancalagon.contracts.call_usage import CallUsage
@@ -10,7 +11,7 @@ from ancalagon.llm.unmetered import Unmetered
 
 def test_calls_accumulate_per_agent_and_survive_across_agents(tmp_path: pathlib.Path):
     migrate_file(tmp_path / "bus.db", latest_version())
-    bus = Bus.open(tmp_path / "bus.db")
+    bus = Bus.open(tmp_path / "bus.db", SystemClock())
     first = bus.enqueue(tmp_path / "tasks" / "alpha", parent_agent=0)
     second = bus.enqueue(tmp_path / "tasks" / "beta", parent_agent=first)
     meter: Meter = BusMeter(bus)
@@ -46,7 +47,7 @@ def test_the_no_op_meter_records_nothing_and_satisfies_the_protocol(tmp_path: pa
 
     migrate_file(tmp_path / "bus.db", latest_version())
 
-    bus = Bus.open(tmp_path / "bus.db")
+    bus = Bus.open(tmp_path / "bus.db", SystemClock())
     agent = bus.enqueue(tmp_path / "tasks" / "a", parent_agent=0)
     assert bus.calls(agent) == []
     assert bus.tokens_by_agent() == {}
