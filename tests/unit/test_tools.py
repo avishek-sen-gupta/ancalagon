@@ -249,8 +249,12 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         compact_above_tokens=0,
         keep_recent_messages=8,
     )
-    at_root = build_registry(config, tmp_path, parent=0, depth=0, output_class=FreeText)
-    at_limit = build_registry(config, tmp_path, parent=1, depth=1, output_class=FreeText)
+    at_root = build_registry(
+        config, tmp_path, parent=0, depth=0, output_class=FreeText, budget=config.budget
+    )
+    at_limit = build_registry(
+        config, tmp_path, parent=1, depth=1, output_class=FreeText, budget=config.budget
+    )
 
     assert "delegate" in at_root.names()
     assert "need_input" in at_root.names()
@@ -261,14 +265,18 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     assert set(answer_shape["properties"]) == {"text"}
 
     chosen = config.model_copy(update={"tools": ["read_file", "ripgrep"]})
-    assert build_registry(chosen, tmp_path, parent=0, depth=0, output_class=FreeText).names() == [
+    assert build_registry(
+        chosen, tmp_path, parent=0, depth=0, output_class=FreeText, budget=config.budget
+    ).names() == [
         "read_file",
         "ripgrep",
     ]
 
     typo = config.model_copy(update={"tools": ["read_file", "rigrep", "grep"]})
     with pytest.raises(ValueError) as refused:
-        build_registry(typo, tmp_path, parent=0, depth=0, output_class=FreeText)
+        build_registry(
+            typo, tmp_path, parent=0, depth=0, output_class=FreeText, budget=config.budget
+        )
     assert "'grep', 'rigrep'" in str(refused.value)
     assert "ripgrep" in str(refused.value)
 
@@ -277,7 +285,7 @@ def test_delegate_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathl
     ctx = _ctx(tmp_path)
     run_dir = tmp_path / "run"
     run_dir.mkdir()
-    delegate = Delegate(run_dir=run_dir, parent=1)
+    delegate = Delegate(run_dir=run_dir, parent=1, budget=Budget(turns=20, tool_calls=60))
     args = DelegateArgs(
         task_id="analyse",
         behaviour="b",
@@ -507,7 +515,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     migrate_file(run_dir / "bus.db", latest_version())
-    delegate = Delegate(run_dir=run_dir, parent=1)
+    delegate = Delegate(run_dir=run_dir, parent=1, budget=Budget(turns=20, tool_calls=60))
     collect = CollectTask(run_dir=run_dir)
 
     def queue(task_id: str) -> int:

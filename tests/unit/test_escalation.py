@@ -67,7 +67,7 @@ def _run(
         llm=FakeLLM(replies),
         registry=Registry(
             [
-                bind_tool(Delegate(run_dir=run_dir, parent=agent)),
+                bind_tool(Delegate(run_dir=run_dir, parent=agent, budget=spec.budget)),
                 bind_tool(CheckTask(run_dir=run_dir)),
                 bind_tool(CollectTask(run_dir=run_dir)),
                 bind_tool(AnswerTask(run_dir=run_dir, parent=agent)),

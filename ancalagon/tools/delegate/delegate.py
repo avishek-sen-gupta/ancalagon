@@ -3,7 +3,9 @@ import pathlib
 
 from ancalagon.bus.bus import Bus
 from ancalagon.contracts.agent_spec import AgentSpec
+from ancalagon.contracts.allowance import Allowance
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.within_parent import WithinParent
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.contract_source import ContractSource
 from ancalagon.contracts.free_text_module import FREE_TEXT_FILE, FREE_TEXT_MODULE
@@ -26,9 +28,17 @@ class Delegate(Tool[DelegateArgs]):
     cost = 1
     args_model = DelegateArgs
 
-    def __init__(self, run_dir: pathlib.Path, parent: int):
+    def __init__(
+        self,
+        run_dir: pathlib.Path,
+        parent: int,
+        budget: Budget,
+        allowance: Allowance = WithinParent(),
+    ):
         self.run_dir = run_dir
         self.parent = parent
+        self.budget = budget
+        self.allowance = allowance
 
     def _install(
         self, source: ContractSource, task_dir: pathlib.Path, ctx: ToolContext
@@ -51,6 +61,12 @@ class Delegate(Tool[DelegateArgs]):
                 self.name,
                 f"task {args.task_id} is already {active[0].status.value} as agent {active[0].agent}",
             )
+        try:
+            granted = self.allowance.grant(
+                self.budget, Budget(turns=args.turns, tool_calls=args.tool_calls)
+            )
+        except ValueError as exc:
+            return ctx.failure(self.name, str(exc))
         task_dir.mkdir(parents=True, exist_ok=True)
         try:
             given_in = self._install(args.contracts.input, task_dir, ctx)
@@ -69,7 +85,7 @@ class Delegate(Tool[DelegateArgs]):
             input=given,
             input_schema=given_in,
             answer_schema=answers_in,
-            budget=Budget(turns=args.turns, tool_calls=args.tool_calls),
+            budget=granted,
         )
         (task_dir / "spec.json").write_text(spec.model_dump_json())
         task = bus.enqueue(task_dir, parent_agent=self.parent)
