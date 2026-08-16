@@ -1,6 +1,11 @@
 repos:
   - repo: local
     hooks:
+      - id: talisman
+        name: Talisman
+        entry: bash -c '"$HOME"/.talisman/bin/talisman_darwin_arm64 --githook pre-commit'
+        language: system
+        pass_filenames: false
       - id: terminology-guard
         name: Terminology Guard
         entry: precommit-scripts/check-terminology
