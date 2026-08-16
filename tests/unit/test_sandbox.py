@@ -41,7 +41,12 @@ def test_fence_writes_its_policy_and_wraps_the_command(tmp_path: pathlib.Path):
         "-m",
         "ancalagon.worker",
     ]
-    assert dict(sandbox.environment()) == {"no_proxy": "", "NO_PROXY": ""}
+    assert dict(sandbox.environment()) == {
+        "no_proxy": "",
+        "NO_PROXY": "",
+        "ALL_PROXY": "",
+        "all_proxy": "",
+    }
 
 
 class RecordingSandbox(Sandbox):
