@@ -1,3 +1,4 @@
+# Runs a worker under fence, which confines its writes and filters its network.
 import collections.abc
 import pathlib
 
