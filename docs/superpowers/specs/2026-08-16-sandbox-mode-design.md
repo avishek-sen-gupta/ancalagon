@@ -67,7 +67,7 @@ Two new fields, both derived into fence's config rather than duplicating it:
 allowed_domains = ["bedrock-runtime.us-east-1.amazonaws.com"]
 
 [sandbox]
-enabled = true   # default; set false to spawn as before
+strategy = "fence"   # or "none"
 ```
 
 `allowed_domains` becomes fence's `allowedDomains` unchanged. Nothing is derived from
@@ -77,19 +77,36 @@ current, and a wrong entry fails the first model call loudly rather than silentl
 `write_root` becomes fence's `allowWrite`. The generated config is written into the run
 directory beside `bus.db`, so a run records the policy it ran under.
 
-Sandboxing is on by default because the safe path should be the one taken without thinking.
-The escape hatch exists because fence may be absent, and because a run that needs it can say
-so. There is no CI to accommodate; nothing runs in GitHub Actions today.
+`strategy` names a `Sandbox`, resolved in `cli.py` into an object and injected into the
+spawner, the same way `Allowance` and `Meter` are resolved and injected. `"none"` gives
+`Unsandboxed`, which returns the command unchanged — the null object, like `Unmetered`.
+`"fence"` gives `Fence`.
+
+A strategy rather than a boolean because a second implementation is foreseeable — `srt` and
+`nono` both exist and both fit the same seam — and because a name says which sandbox a run
+used where a boolean says only that there was one. It defaults to `"fence"`, so the safe path
+is the one taken without thinking. There is no CI to accommodate; nothing runs in GitHub
+Actions today.
 
 ## Where it goes
 
 `supervisor/subprocess_spawner.py`, which is already the only module that constructs a
-process. `spawn()` prepends `fence -s <run_dir>/fence.json --` to the command it builds
-today. The CLI, the supervisor and the bus stay outside: they are ours, and no agent runs in
-them.
+process. It gains an injected `Sandbox` and asks it to wrap the command it builds today. The
+CLI, the supervisor and the bus stay outside: they are ours, and no agent runs in them.
 
-The spawner also clears `no_proxy` in the child's environment. Without that, loopback
-bypasses fence's proxy and is then denied by Seatbelt — see below.
+```python
+class Sandbox(typing.Protocol):
+    def wrap(self, command: collections.abc.Sequence[str]) -> collections.abc.Sequence[str]: ...
+    def environment(self) -> collections.abc.Mapping[str, str]: ...
+```
+
+Two methods because a sandbox is not only a prefix. `Fence` is constructed with the write
+root, the allowed domains and the run directory; it writes `fence.json` at construction,
+prepends `fence -s <run_dir>/fence.json --`, and returns `no_proxy` cleared. Without that
+last part loopback bypasses fence's own proxy and is then denied by Seatbelt — see below.
+
+`Unsandboxed` returns the command unchanged and an empty mapping, so the unsandboxed path is
+a strategy rather than a branch.
 
 ## Three findings from the spike, with evidence
 
