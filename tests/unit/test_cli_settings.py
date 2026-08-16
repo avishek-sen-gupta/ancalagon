@@ -1,12 +1,23 @@
+import json
 import pathlib
 
 import pytest
 
 from ancalagon import cli
-from ancalagon.cli import contract_source, goal_of, answer_schema_of, run_dir_of
-from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
+from ancalagon.cli import (
+    answer_schema_of,
+    contract_source,
+    goal_of,
+    run_dir_of,
+    sandbox_of,
+)
+from ancalagon.config.config import Config
 from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
 from ancalagon.contracts.run_settings import RunSettings
+from ancalagon.sandbox.fence import Fence
+from ancalagon.sandbox.strategy import Strategy
+from ancalagon.sandbox.unsandboxed import Unsandboxed
 
 
 def test_a_named_run_dir_is_used_verbatim_and_an_unnamed_one_is_allocated(
@@ -69,3 +80,38 @@ def test_a_named_contract_replaces_free_text(tmp_path: pathlib.Path):
     named = RunSettings(contract_module=str(module), contract_class="Answer")
     assert answer_schema_of(named) == ClassRef(module="shape.py", name="Answer")
     assert "class Answer" in contract_source(named)
+
+
+def test_sandbox_of_builds_fence_by_default_and_unsandboxed_for_none(tmp_path: pathlib.Path):
+    write_root = tmp_path / "ws"
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+
+    def config(sandbox: Strategy) -> Config:
+        return Config(
+            write_root=write_root,
+            read_roots=(),
+            model="anthropic/claude",
+            allowed_domains=("bedrock-runtime.us-east-1.amazonaws.com",),
+            sandbox=sandbox,
+        )
+
+    fenced = sandbox_of(config(Strategy.FENCE), run_dir)
+
+    assert isinstance(fenced, Fence)
+    policy = json.loads((run_dir / "fence.json").read_text())
+    assert policy == {
+        "network": {"allowedDomains": ["bedrock-runtime.us-east-1.amazonaws.com"]},
+        "filesystem": {"allowWrite": [str(write_root), str(run_dir)]},
+    }
+    assert list(fenced.wrap(["python", "-m", "ancalagon.worker"])) == [
+        "fence",
+        "-s",
+        str(run_dir / "fence.json"),
+        "--",
+        "python",
+        "-m",
+        "ancalagon.worker",
+    ]
+
+    assert isinstance(sandbox_of(config(Strategy.NONE), run_dir), Unsandboxed)
