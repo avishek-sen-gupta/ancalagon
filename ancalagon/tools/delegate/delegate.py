@@ -4,7 +4,10 @@ import pathlib
 from ancalagon.bus.bus import Bus
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.budget import Budget
-from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
+from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.contract_source import ContractSource
+from ancalagon.contracts.free_text_module import FREE_TEXT_FILE, FREE_TEXT_MODULE
+from ancalagon.contracts.free_text_ref import FREE_TEXT_REF
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.contracts.tool_result import ToolResult
@@ -27,6 +30,18 @@ class Delegate(Tool[DelegateArgs]):
         self.run_dir = run_dir
         self.parent = parent
 
+    def _install(
+        self, source: ContractSource, task_dir: pathlib.Path, ctx: ToolContext
+    ) -> ClassRef:
+        if not source.path:
+            (task_dir / FREE_TEXT_FILE).write_text(FREE_TEXT_MODULE)
+            return FREE_TEXT_REF
+        written = ctx.workspace.resolve_read(pathlib.Path(source.path))
+        if not written.exists():
+            raise ScopeError(f"no contract module at {written}")
+        (task_dir / written.name).write_text(written.read_text())
+        return ClassRef(module=written.name, name=source.name)
+
     def run(self, args: DelegateArgs, ctx: ToolContext) -> ToolResult:
         task_dir = self.run_dir / "tasks" / args.task_id
         bus = Bus.open(self.run_dir / "bus.db")
@@ -36,30 +51,24 @@ class Delegate(Tool[DelegateArgs]):
                 self.name,
                 f"task {args.task_id} is already {active[0].status.value} as agent {active[0].agent}",
             )
-        if args.contracts_path:
-            try:
-                source = ctx.workspace.resolve_read(pathlib.Path(args.contracts_path))
-            except ScopeError as exc:
-                return ctx.failure(self.name, str(exc))
-            if not source.exists():
-                return ctx.failure(self.name, f"no contracts file at {source}")
-            contracts = source.read_text()
-        else:
-            contracts = FREE_TEXT_MODULE
         task_dir.mkdir(parents=True, exist_ok=True)
-        (task_dir / "contracts.py").write_text(contracts)
         try:
-            input_class = resolve_class(args.input_schema, task_dir)
+            given_in = self._install(args.contracts.input, task_dir, ctx)
+            answers_in = self._install(args.contracts.answer, task_dir, ctx)
+        except ScopeError as exc:
+            return ctx.failure(self.name, str(exc))
+        try:
+            input_class = resolve_class(given_in, task_dir)
             given = input_class.model_validate_json(args.input_json)
         except (AttributeError, ImportError, TypeError, ValueError) as exc:
-            return ctx.failure(self.name, f"input_json does not match {args.input_schema}: {exc}")
+            return ctx.failure(self.name, f"input_json does not match {given_in.name}: {exc}")
         spec = AgentSpec[input_class](
             task_id=args.task_id,
             behaviour=args.behaviour,
             goal=args.goal,
             input=given,
-            input_schema=args.input_schema,
-            answer_schema=args.answer_schema,
+            input_schema=given_in,
+            answer_schema=answers_in,
             budget=Budget(turns=args.turns, tool_calls=args.tool_calls),
         )
         (task_dir / "spec.json").write_text(spec.model_dump_json())

@@ -52,7 +52,8 @@ enabled = ["need_input", "submit_answer"]
 [run]
 run_dir = "{run_dir}"
 goal_file = ""
-contract = ""
+contract_module = ""
+contract_class = ""
 """)
     return config
 

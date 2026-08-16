@@ -7,6 +7,7 @@ import pytest
 
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.exhausted import Exhausted
 from ancalagon.contracts.failed import Failed
@@ -51,7 +52,7 @@ def _session(
         task_id="t1",
         behaviour="You answer questions.",
         goal=goal,
-        answer_schema="contracts.py:Verdict",
+        answer_schema=ClassRef(module="verdict.py", name="Verdict"),
         budget=budget,
     )
     return Session(

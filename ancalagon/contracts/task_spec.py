@@ -2,13 +2,15 @@
 import pydantic
 
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.free_text_ref import FREE_TEXT_REF
 
 
 class TaskSpec(pydantic.BaseModel, frozen=True):
     task_id: str
     behaviour: str
     goal: str
-    input_schema: str = "contracts.py:FreeText"
-    answer_schema: str
+    input_schema: ClassRef = FREE_TEXT_REF
+    answer_schema: ClassRef
     budget: Budget
     tools: list[str] = []

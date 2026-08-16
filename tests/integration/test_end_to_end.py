@@ -20,7 +20,8 @@ def _config(
     model: str = "",
     run_dir: str = "",
     goal_file: str = "",
-    contract: str = "",
+    contract_module: str = "",
+    contract_class: str = "",
 ) -> pathlib.Path:
     model = model or os.environ.get("ANCALAGON_MODEL", "claude-opus-5")
     write_root = tmp_path / "ws"
@@ -70,7 +71,8 @@ enabled = []
 [run]
 run_dir = "{run_dir}"
 goal_file = "{goal_file}"
-contract = "{contract}"
+contract_module = "{contract_module}"
+contract_class = "{contract_class}"
 """)
     return config
 
@@ -100,7 +102,7 @@ def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
 
     assert (run_dir / "bus.db").exists()
     assert (task_dir / "spec.json").exists()
-    assert (task_dir / "contracts.py").exists()
+    assert (task_dir / "free_text.py").exists()
 
     outcome = json.loads((task_dir / "outcome.json").read_text())
     assert outcome["kind"] == "failed"
@@ -181,10 +183,16 @@ def test_a_missing_or_unusable_input_exits_two_with_a_message_and_no_traceback(
     tmp_path: pathlib.Path,
 ):
     def failed(
-        case: pathlib.Path, goal_file: str, contract: str
+        case: pathlib.Path, goal_file: str, contract_module: str, contract_class: str
     ) -> subprocess.CompletedProcess[str]:
         config = _config(
-            case, turns=1, tool_calls=1, model="m", goal_file=goal_file, contract=contract
+            case,
+            turns=1,
+            tool_calls=1,
+            model="m",
+            goal_file=goal_file,
+            contract_module=contract_module,
+            contract_class=contract_class,
         )
         completed = _run_cli(config, "", dict(os.environ))
         assert completed.returncode == 2, completed.stdout
@@ -192,23 +200,23 @@ def test_a_missing_or_unusable_input_exits_two_with_a_message_and_no_traceback(
         return completed
 
     absent = _case(tmp_path, "absent-goal")
-    assert "no-such-goal.md" in failed(absent, str(absent / "no-such-goal.md"), "").stderr
+    assert "no-such-goal.md" in failed(absent, str(absent / "no-such-goal.md"), "", "").stderr
 
     blank = _case(tmp_path, "blank-goal")
     (blank / "goal.md").write_text("   \n")
-    assert "empty" in failed(blank, str(blank / "goal.md"), "").stderr
+    assert "empty" in failed(blank, str(blank / "goal.md"), "", "").stderr
 
     gone = _case(tmp_path, "absent-contract")
-    contract = f"{gone / 'no-such-shape.py'}:Answer"
-    assert "no-such-shape.py" in failed(gone, str(gone / "goal.md"), contract).stderr
+    missing = failed(gone, str(gone / "goal.md"), str(gone / "no-such-shape.py"), "Answer")
+    assert "no-such-shape.py" in missing.stderr
 
     typo = _case(tmp_path, "misspelt-class")
     (typo / "shape.py").write_text(ANSWER_MODULE)
-    assert "Answr" in failed(typo, str(typo / "goal.md"), f"{typo / 'shape.py'}:Answr").stderr
+    assert "Answr" in failed(typo, str(typo / "goal.md"), str(typo / "shape.py"), "Answr").stderr
 
     broken = _case(tmp_path, "unparsable-contract")
     (broken / "shape.py").write_text("class Answer(:\n")
-    stderr = failed(broken, str(broken / "goal.md"), f"{broken / 'shape.py'}:Answer").stderr
+    stderr = failed(broken, str(broken / "goal.md"), str(broken / "shape.py"), "Answer").stderr
     assert "does not parse" in stderr
 
 

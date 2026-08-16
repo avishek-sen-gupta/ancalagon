@@ -9,7 +9,9 @@ import ancalagon.migrations
 from ancalagon.bus.bus import HUMAN, Bus
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
+from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.free_text import FreeText
+from ancalagon.contracts.free_text_ref import FREE_TEXT_REF
 from ancalagon.contracts.free_text_module import FREE_TEXT_MODULE
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.answer_command import answer_command
@@ -18,8 +20,6 @@ from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
 
 LOGGER = logging.getLogger(__name__)
-
-FREE_TEXT_OUTPUT = "contracts.py:FreeText"
 
 
 def _allocated_run_dir(write_root: pathlib.Path) -> pathlib.Path:
@@ -58,10 +58,12 @@ def goal_of(settings: RunSettings, given: str) -> str:
     raise ValueError("no goal: pass --goal or set [run] goal_file")
 
 
-def answer_schema_of(settings: RunSettings) -> str:
+def answer_schema_of(settings: RunSettings) -> ClassRef:
     if not settings.contract_class:
-        return FREE_TEXT_OUTPUT
-    return f"contracts.py:{settings.contract_class}"
+        return FREE_TEXT_REF
+    return ClassRef(
+        module=pathlib.Path(settings.contract_module).name, name=settings.contract_class
+    )
 
 
 def _class_names(source: str, path: str) -> frozenset[str]:
@@ -91,14 +93,15 @@ def main(config_path: pathlib.Path, goal_argument: str) -> int:
     run_dir = run_dir_of(config.run, config.write_root)
     task_dir = run_dir / "tasks" / "root"
     task_dir.mkdir(parents=True, exist_ok=True)
-    (task_dir / "contracts.py").write_text(contract_source(config.run))
+    answers_in = answer_schema_of(config.run)
+    (task_dir / answers_in.module).write_text(contract_source(config.run))
     (task_dir / "spec.json").write_text(
         AgentSpec[FreeText](
             task_id="root",
             behaviour=config.root_behaviour,
             goal=goal,
             input=FreeText(text=goal),
-            answer_schema=answer_schema_of(config.run),
+            answer_schema=answers_in,
             budget=config.budget,
         ).model_dump_json()
     )
