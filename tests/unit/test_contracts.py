@@ -31,10 +31,7 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
     assert budget.spend_tool_calls() == Budget(turns=3, tool_calls=9)
     assert budget.spend_tool_calls(4) == Budget(turns=3, tool_calls=6)
     assert budget.spend_tool_calls(0) == budget
-    assert budget.slice(turns=1, tool_calls=4) == Budget(turns=1, tool_calls=4)
     assert Budget(turns=0, tool_calls=5).turns_exhausted is True
-    with pytest.raises(ValueError):
-        budget.slice(turns=99, tool_calls=1)
 
     spec = AgentSpec[NodeSummary](
         task_id="node_7",

@@ -21,15 +21,10 @@ def _call(id: str, name: str, **arguments: str | int) -> ToolUse:
 
 
 def _delegate(id: str, task_id: str, goal: str) -> ToolUse:
-    return _call(
-        id,
-        "delegate",
-        task_id=task_id,
-        behaviour="You investigate.",
-        goal=goal,
-        input_json='{"text": "go"}',
-        turns=4,
-        tool_calls=8,
+    return ToolUse(
+        id=id,
+        name="delegate_investigate",
+        arguments=json.dumps({"task_id": task_id, "goal": goal, "input": {"text": "go"}}),
     )
 
 
@@ -65,6 +60,14 @@ summary_chars = 400
 
 [sandbox]
 strategy = "none"
+
+[roles.investigate]
+behaviour = "You investigate."
+tools = []
+
+[roles.investigate.budget]
+turns = 4
+tool_calls = 8
 
 [run]
 run_dir = "{run_dir}"

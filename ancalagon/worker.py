@@ -33,7 +33,7 @@ from ancalagon.tools.artifacts.query_json import QueryJson
 from ancalagon.tools.delegate.answer_task import AnswerTask
 from ancalagon.tools.delegate.check_task import CheckTask
 from ancalagon.tools.delegate.collect_task import CollectTask
-from ancalagon.tools.delegate.delegate import Delegate
+from ancalagon.tools.delegate.delegate_tools import delegate_tools
 from ancalagon.tools.files.delete_file import DeleteFile
 from ancalagon.tools.files.edit_file import EditFile
 from ancalagon.tools.files.list_dir import ListDir
@@ -65,7 +65,6 @@ def build_registry(
     parent: int,
     depth: int,
     output_class: type[pydantic.BaseModel],
-    budget: Budget,
     clock: Clock,
     tools: collections.abc.Sequence[str] = (),
 ) -> Registry:
@@ -86,7 +85,7 @@ def build_registry(
         bind_tool(QueryJson()),
         bind_tool(GitHistory()),
         bind_tool(TreeSitter()),
-        bind_tool(Delegate(run_dir=run_dir, parent=parent, budget=budget, clock=clock)),
+        *delegate_tools(config.roles, run_dir=run_dir, parent=parent, clock=clock),
         bind_tool(CheckTask(run_dir=run_dir, clock=clock)),
         bind_tool(CollectTask(run_dir=run_dir, clock=clock)),
         bind_tool(AnswerTask(run_dir=run_dir, parent=parent, clock=clock)),
@@ -100,9 +99,13 @@ def build_registry(
             f"unknown role tool names: {sorted(unknown)}; "
             f"available: {sorted(t.name for t in available)}"
         )
-    permitted = [t for t in available if not enabled or t.name in enabled]
-    if depth >= config.max_depth:
-        permitted = [t for t in permitted if t.name != "delegate"]
+    depth_capped = depth >= config.max_depth
+    permitted = [
+        t
+        for t in available
+        if (not enabled or t.name in enabled)
+        and not (depth_capped and t.name.startswith("delegate_"))
+    ]
     return Registry(permitted)
 
 
@@ -148,7 +151,6 @@ def main(
                 parent=agent_id,
                 depth=depth_of(bus, agent_id),
                 output_class=output_class,
-                budget=spec.budget,
                 clock=clock,
             ),
             ctx=ctx,

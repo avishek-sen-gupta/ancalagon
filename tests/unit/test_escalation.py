@@ -9,12 +9,14 @@ from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.bus.event_source import EventSource
+from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.reply import Reply
+from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
@@ -24,7 +26,7 @@ from ancalagon.session import Session
 from ancalagon.tools.delegate.answer_task import AnswerTask
 from ancalagon.tools.delegate.check_task import CheckTask
 from ancalagon.tools.delegate.collect_task import CollectTask
-from ancalagon.tools.delegate.delegate import Delegate
+from ancalagon.tools.delegate.delegate_tools import delegate_tools
 from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.registry.bind_tool import bind_tool
 from ancalagon.tools.registry.registry import Registry
@@ -37,6 +39,9 @@ from ancalagon.workspace.workspace import Workspace
 
 def _call(id: str, name: str, **arguments: str | int) -> ToolUse:
     return ToolUse(id=id, name=name, arguments=json.dumps(arguments))
+
+
+INVESTIGATE = Role(behaviour="You investigate.", tools=(), budget=Budget(turns=5, tool_calls=5))
 
 
 def _run(
@@ -68,8 +73,8 @@ def _run(
         llm=FakeLLM(replies),
         registry=Registry(
             [
-                bind_tool(
-                    Delegate(run_dir=run_dir, parent=agent, budget=spec.budget, clock=SystemClock())
+                *delegate_tools(
+                    {"investigate": INVESTIGATE}, run_dir=run_dir, parent=agent, clock=SystemClock()
                 ),
                 bind_tool(CheckTask(run_dir=run_dir, clock=SystemClock())),
                 bind_tool(CollectTask(run_dir=run_dir, clock=SystemClock())),
@@ -89,15 +94,12 @@ def _run(
     return outcome
 
 
-def _delegation(task_id: str, goal: str) -> dict[str, str | int]:
-    return {
-        "task_id": task_id,
-        "behaviour": "You investigate.",
-        "goal": goal,
-        "input_json": '{"text": "go"}',
-        "turns": 5,
-        "tool_calls": 5,
-    }
+def _delegate(id: str, task_id: str, goal: str) -> ToolUse:
+    return ToolUse(
+        id=id,
+        name="delegate_investigate",
+        arguments=json.dumps({"task_id": task_id, "goal": goal, "input": {"text": "go"}}),
+    )
 
 
 def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
@@ -132,8 +134,8 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
         [
             Reply(
                 blocks=[
-                    _call("d1", "delegate", **_delegation("child-a", "The ambiguous half.")),
-                    _call("d2", "delegate", **_delegation("child-b", "The clear half.")),
+                    _delegate("d1", "child-a", "The ambiguous half."),
+                    _delegate("d2", "child-b", "The clear half."),
                 ],
                 stop_reason="tool_calls",
             ),
