@@ -31,7 +31,9 @@ tools = ["read_file", "ripgrep", "ast_grep", "list_dir", "delegate_component_ana
 budget = { turns = 20, tool_calls = 60 }
 
 # A role naming a contract gets a typed delegate tool: `delegate_component_analyst`
-# shows its caller ComponentQuery's real schema, not a string to guess at.
+# shows its caller ComponentQuery's real schema, not a string to guess at. The module
+# is shapes.py beside this file; every declared role's contracts are resolved before
+# a run starts, so a path that does not load exits 2 rather than failing mid-run.
 [roles.component_analyst]
 behaviour = "Read before concluding. Cite the files you read."
 input = { module = "./shapes.py", name = "ComponentQuery" }
