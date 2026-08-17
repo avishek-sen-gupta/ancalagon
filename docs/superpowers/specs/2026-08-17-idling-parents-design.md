@@ -1,4 +1,4 @@
-# Waiting parents — design
+# Idling parents — design
 
 ## Why
 
@@ -22,7 +22,7 @@ that grows, is never cached, so every poll re-sent the whole transcript at full 
 it would cut the tokens and leave the turns. A parent that is not running has no transcript to
 re-send, which is why this design stops the parent rather than making its polling cheaper.
 
-## What a waiting parent is
+## What an idling parent is
 
 A parent that stops is **not blocked**. Its process exits; its state is on disk; the supervisor
 re-spawns it when something happens. That is already how `NeedsInput` works: a worker writes
@@ -33,12 +33,12 @@ accepts that resumed transcript.
 
 Staying alive and watching the bus in-process was rejected. It resumes without re-sending the
 transcript, but the parent holds a concurrency slot and an OS process for the whole wait, so
-with `max_concurrent_agents = 4` three waiting parents leave one slot for every child in the
+with `max_concurrent_agents = 4` three idling parents leave one slot for every child in the
 tree — a deadlock that appears exactly when the harness does what it is for, and surfaces as a
 timeout rather than as an error that explains itself. It also loses its state to a supervisor
 crash, where disk would have kept it.
 
-Because a waiting parent is suspended rather than blocked, anything that appends to the bus can
+Because an idling parent is suspended rather than blocked, anything that appends to the bus can
 wake it. A human-in-the-loop hook needs no new pathway.
 
 ## The invariant
@@ -71,7 +71,7 @@ stopping. A run must not be able to sleep with everything idle.
 
 ## Waking
 
-**A parked parent wakes on every child completion**, not when the last one lands. A parent
+**An idling parent wakes on every child completion**, not when the last one lands. A parent
 reacting to results one at a time is the ordinary case, and the granular rule is the one that
 supports it: the parent collects each child as it arrives, acts, and idles again.
 
@@ -103,18 +103,18 @@ child is live, `submit_answer` is offered again, and the ordinary exhaustion pat
 
 ## What changes
 
-**A new outcome kind and status.** A parked parent asked no question, so `NeedsInput` is the
-wrong shape. `Waiting` joins `OutcomeKind`, `AgentStatus`, `TERMINAL`, and the `status` CHECK
+**A new outcome kind and status.** An idling parent asked no question, so `NeedsInput` is the
+wrong shape. `Idling` joins `OutcomeKind`, `AgentStatus`, `TERMINAL`, and the `status` CHECK
 constraint in the schema — which means a numbered migration, since a shipped migration is never
-edited. `check_task` on a parked parent then reports what is true.
+edited. `check_task` on an idling parent then reports what is true.
 
 **`build_registry`** filters `submit_answer` out when the agent has live children, and gains
 `idle` when it has them.
 
-**`Session.run`** returns `Waiting` when `idle` is called, and when turns are exhausted with
+**`Session.run`** returns `Idling` when `idle` is called, and when turns are exhausted with
 live children.
 
-**The supervisor** re-enqueues a `Waiting` agent's task when a child of that agent reaches a
+**The supervisor** re-enqueues an `Idling` agent's task when a child of that agent reaches a
 terminal status. The edge is `tasks.parent_agent`; the resume path is `enqueue`, which already
 reuses a task row and adds an agent.
 
