@@ -1,5 +1,6 @@
 # Replaces an old tool result's body with a pointer to the file it was already written to.
 import collections.abc
+
 from ancalagon.contracts.block import Block
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.tool_result_block import ToolResultBlock

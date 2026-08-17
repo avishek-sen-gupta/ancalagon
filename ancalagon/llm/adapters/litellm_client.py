@@ -14,9 +14,9 @@ from ancalagon.llm.adapters.wire_message import WireMessage
 from ancalagon.llm.adapters.wire_text_block import WireTextBlock
 from ancalagon.llm.adapters.wire_tool_call import WireToolCall
 from ancalagon.llm.adapters.wire_usage import WireUsage
+from ancalagon.llm.llm import LLM
 from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.tool_schema import ToolSchema
-from ancalagon.llm.llm import LLM
 
 
 def _system_blocks(system: SystemPrompt) -> tuple[WireTextBlock, ...]:
@@ -67,9 +67,10 @@ class LiteLLMClient(LLM):
     ) -> Reply:
         import litellm
 
-        wire = [WireMessage(role="system", content=_system_blocks(system))]
-        for message in messages:
-            wire.extend(to_wire(message))
+        wire = [
+            WireMessage(role="system", content=_system_blocks(system)),
+            *(part for message in messages for part in to_wire(message)),
+        ]
         payload = [m.model_dump(mode="json", exclude_defaults=True) for m in wire]
         schemas = [
             {
@@ -97,22 +98,20 @@ class LiteLLMClient(LLM):
         if not isinstance(response, litellm.ModelResponse):
             raise TypeError("litellm.completion returned a streaming response")
         first = response.choices[0]
-        blocks: list[Block] = []
-        if first.message.content:
-            blocks.append(Text(text=first.message.content))
-        for call in first.message.tool_calls or []:
-            blocks.append(
-                ToolUse.model_validate(
-                    {
-                        "id": call.id,
-                        "name": call.function.name,
-                        "arguments": _to_arguments(call.function.arguments),
-                    }
-                )
+        spoken: list[Block] = [Text(text=first.message.content)] if first.message.content else []
+        called: list[Block] = [
+            ToolUse.model_validate(
+                {
+                    "id": call.id,
+                    "name": call.function.name,
+                    "arguments": _to_arguments(call.function.arguments),
+                }
             )
+            for call in first.message.tool_calls or []
+        ]
         usage = WireUsage.model_validate(getattr(response, "usage", WireUsage()))
         return Reply(
-            blocks=blocks,
+            blocks=[*spoken, *called],
             stop_reason=first.finish_reason,
             usage=CallUsage(
                 model=self.model,

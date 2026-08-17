@@ -1,5 +1,6 @@
 # The files ripgrep would search: the one definition of scope every search tool shares.
 import collections.abc
+
 from ancalagon.tools.search.run_command import run_command
 
 # A file list is passed to some tools as arguments, and the OS caps their total size.

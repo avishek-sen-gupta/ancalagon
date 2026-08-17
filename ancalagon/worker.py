@@ -1,26 +1,26 @@
 # Entry point for one agent process: runs a single attempt at one task directory.
-import collections.abc
 import argparse
+import collections.abc
 import logging
 import pathlib
 import sys
+import traceback
 
 import pydantic
-import traceback
 
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
 from ancalagon.bus.bus_meter import BusMeter
-from ancalagon.bus.event_source import EventSource
 from ancalagon.bus.depth_of import depth_of
+from ancalagon.bus.event_source import EventSource
 from ancalagon.clock.clock import Clock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
-from ancalagon.contracts.message import Message
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.failed import Failed
+from ancalagon.contracts.message import Message
 from ancalagon.contracts.outcome import SUMMARY_CHARS
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
@@ -43,15 +43,15 @@ from ancalagon.tools.files.write_file import WriteFile
 from ancalagon.tools.history.git_history import GitHistory
 from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
-from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.bind_tool import bind_tool
 from ancalagon.tools.registry.bound_tool import BoundTool
+from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
-from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.search.ast_grep import AstGrep
 from ancalagon.tools.search.find_symbol import FindSymbol
 from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.search.sed import Sed
+from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.transcript.history import load, repair
 from ancalagon.transcript.transcript import Transcript

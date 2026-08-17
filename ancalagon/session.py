@@ -6,7 +6,6 @@ import pydantic
 
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.asked import Asked
-from ancalagon.contracts.submitted import Submitted
 from ancalagon.contracts.block import Block
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.completed import Completed
@@ -18,6 +17,7 @@ from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.outcome import SUMMARY_CHARS, Outcome
 from ancalagon.contracts.reply import Reply
+from ancalagon.contracts.submitted import Submitted
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result import ToolResult
@@ -25,9 +25,9 @@ from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.llm.llm import LLM
 from ancalagon.llm.meter import Meter
-from ancalagon.llm.unmetered import Unmetered
 from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.tool_schema import ToolSchema
+from ancalagon.llm.unmetered import UNMETERED
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.transcript.demote import for_wire
@@ -61,7 +61,7 @@ class Session:
         clock: Clock,
         compact_above_tokens: int = 0,
         keep_recent_messages: int = 8,
-        meter: Meter = Unmetered(),
+        meter: Meter = UNMETERED,
     ):
         self.spec = spec
         self.input = input
@@ -146,7 +146,7 @@ class Session:
     def _answer_of(self, reply: Reply) -> str:
         return json_payload(self._text_of(reply))
 
-    def _run_tools(self, uses: list[ToolUse]) -> list[ToolResult]:
+    def _run_tools(self, uses: collections.abc.Sequence[ToolUse]) -> list[ToolResult]:
         blocks: list[Block] = []
         results: list[ToolResult] = []
         for use in uses:
