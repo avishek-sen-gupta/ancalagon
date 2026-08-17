@@ -45,12 +45,15 @@ class FindSymbol(Tool[SymbolArgs]):
             return ctx.failure(self.name, err)
         if not files:
             return ctx.result(self.name, "")
-        code, out, err = run_command(["ctags", "-x", "-L", "-"], stdin="\n".join(files))
+        code, tagged, failure = run_command(["ctags", "-x", "-L", "-"], stdin="\n".join(files))
         if code != 0:
-            return ctx.failure(self.name, err)
-        if args.name:
-            wanted = args.name.lower()
-            out = "\n".join(
-                line for line in out.splitlines() if line.split(" ", 1)[0].lower() == wanted
+            return ctx.failure(self.name, failure)
+        wanted = args.name.lower()
+        matching = (
+            "\n".join(
+                line for line in tagged.splitlines() if line.split(" ", 1)[0].lower() == wanted
             )
-        return ctx.result(self.name, out)
+            if args.name
+            else tagged
+        )
+        return ctx.result(self.name, matching)

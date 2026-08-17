@@ -25,7 +25,7 @@ class AstGrep(Tool[GrepArgs]):
         if not files:
             return ctx.result(self.name, "")
         targets = files if fits_in_arguments(files) else roots
-        code, out, err = run_command(["ast-grep", "run", "--pattern", args.pattern, *targets])
+        code, found, failure = run_command(["ast-grep", "run", "--pattern", args.pattern, *targets])
         if code not in (0, 1):
-            return ctx.failure(self.name, err)
-        return ctx.result(self.name, out)
+            return ctx.failure(self.name, failure)
+        return ctx.result(self.name, found)

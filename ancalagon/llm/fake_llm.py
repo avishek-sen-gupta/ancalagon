@@ -3,9 +3,9 @@ import collections.abc
 
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.reply import Reply
+from ancalagon.llm.llm import LLM
 from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.tool_schema import ToolSchema
-from ancalagon.llm.llm import LLM
 
 
 class FakeLLM(LLM):

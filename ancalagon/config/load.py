@@ -1,4 +1,5 @@
 # Loads a Config from a TOML file on disk.
+import collections.abc
 import pathlib
 import re
 import tomllib
@@ -26,7 +27,7 @@ def _optional_root(base: pathlib.Path, value: str) -> str:
     return str(_root(base, value)) if value else ""
 
 
-def _run_settings(base: pathlib.Path, run: dict[str, str]) -> RunSettings:
+def _run_settings(base: pathlib.Path, run: collections.abc.Mapping[str, str]) -> RunSettings:
     return RunSettings(
         run_dir=_optional_root(base, run["run_dir"]),
         goal_file=_optional_root(base, run["goal_file"]),

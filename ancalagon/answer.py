@@ -2,8 +2,8 @@
 import pathlib
 
 from ancalagon.bus.agent_status import AgentStatus
-from ancalagon.clock.clock import Clock
 from ancalagon.bus.bus import Bus
+from ancalagon.clock.clock import Clock
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.text import Text

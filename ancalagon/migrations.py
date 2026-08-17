@@ -30,12 +30,11 @@ def migrate_file(path: pathlib.Path, target: int) -> tuple[int, int]:
 
 def migrate(conn: sqlite3.Connection, target: int) -> None:
     current = user_version(conn)
-    if target > current:
-        versions = range(current + 1, target + 1)
-        direction = "up"
-    else:
-        versions = range(current, target, -1)
-        direction = "down"
+    versions, direction = (
+        (range(current + 1, target + 1), "up")
+        if target > current
+        else (range(current, target, -1), "down")
+    )
     for version in versions:
         conn.executescript(_script(version, direction).read_text())
     conn.commit()
