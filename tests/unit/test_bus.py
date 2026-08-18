@@ -1,12 +1,18 @@
 import pathlib
 
 from ancalagon.bus.agent_status import AgentStatus
-from ancalagon.bus.bus import Bus
-from ancalagon.clock.system_clock import SystemClock
-from ancalagon.migrations import latest_version, migrate_file
+from ancalagon.bus.bus import HUMAN, Bus
 from ancalagon.bus.depth_of import depth_of
 from ancalagon.bus.event_source import EventSource
 from ancalagon.clock.fake_clock import FakeClock
+from ancalagon.clock.system_clock import SystemClock
+from ancalagon.migrations import latest_version, migrate_file
+
+
+def _open(tmp_path: pathlib.Path) -> Bus:
+    db = tmp_path / "bus.db"
+    migrate_file(db, latest_version())
+    return Bus.open(db, FakeClock())
 
 
 def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.Path):
@@ -64,3 +70,28 @@ def test_depth_counts_ancestors_with_the_root_at_zero(tmp_path: pathlib.Path):
     assert depth_of(bus, root) == 0
     assert depth_of(bus, child) == 1
     assert depth_of(bus, grandchild) == 2
+
+
+def test_the_bus_knows_which_children_are_live_and_which_parents_may_resume(
+    tmp_path: pathlib.Path,
+):
+    bus = _open(tmp_path)
+    parent = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
+    first = bus.enqueue(tmp_path / "a", parent_agent=parent)
+    second = bus.enqueue(tmp_path / "b", parent_agent=parent)
+
+    assert [s.agent for s in bus.live_children(parent)] == [first, second]
+    assert bus.resumable_idle(parent) is False
+
+    bus.record(parent, AgentStatus.IDLING, EventSource.WORKER)
+    bus.record(parent, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    assert bus.resumable_idle(parent) is True
+
+    bus.record(first, AgentStatus.COMPLETED, EventSource.WORKER)
+    bus.record(first, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    assert [s.agent for s in bus.live_children(parent)] == [second]
+
+    resumed = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
+    assert resumed != parent
+    assert bus.resumable_idle(resumed) is False
+    assert bus.resumable_idle(parent) is False
