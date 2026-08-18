@@ -135,6 +135,22 @@ class Bus:
             (str(dir), *TERMINAL_VALUES),
         )
 
+    def live_children(self, agent: int) -> list[AgentState]:
+        return self._states(
+            f"WHERE t.parent_agent = ? AND e.status NOT IN ({TERMINAL_MARKS}) ORDER BY a.id",
+            (agent, *TERMINAL_VALUES),
+        )
+
+    def latest_agent(self, dir: pathlib.Path) -> AgentState:
+        found = self._states("WHERE t.dir = ? ORDER BY a.id DESC LIMIT 1", (str(dir),))
+        if not found:
+            raise KeyError(f"no agent for {dir}")
+        return found[0]
+
+    def resumable_idle(self, agent: int) -> bool:
+        newest = self.latest_agent(pathlib.Path(self.state(agent).dir))
+        return AgentStatus.IDLING in [e.status for e in self.history(newest.agent)]
+
     def queued_count(self) -> int:
         return len(self._states("WHERE e.status = ?", (AgentStatus.QUEUED.value,)))
 
