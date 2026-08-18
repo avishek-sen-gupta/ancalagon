@@ -249,6 +249,57 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
     assert outcome.spent == Budget(turns=1, tool_calls=0)
 
 
+def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer(
+    tmp_path: pathlib.Path,
+):
+    run_dir = tmp_path / "run"
+    (run_dir / "tasks").mkdir(parents=True)
+    migrate_file(run_dir / "bus.db", latest_version())
+    bus = Bus.open(run_dir / "bus.db", FakeClock())
+    parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN)
+    bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent)
+
+    write_root = tmp_path / "ws"
+    write_root.mkdir(parents=True, exist_ok=True)
+    ctx = ToolContext(
+        workspace=Workspace(write_root=write_root, read_roots=(write_root,)),
+        output_dir=write_root / "outputs",
+        summary_chars=200,
+        agent_id=parent,
+    )
+    spec = TaskSpec(
+        task_id="t1",
+        role=Role(
+            behaviour="You answer questions.",
+            answer=ClassRef(module="verdict.py", name="Verdict"),
+            tools=(),
+            budget=Budget(turns=1, tool_calls=5),
+        ),
+        goal="Answer it.",
+    )
+    session = Session(
+        spec=spec,
+        input=Verdict(answer="seed"),
+        messages=[],
+        transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=parent),
+        agent_id=parent,
+        llm=FakeLLM([Reply(blocks=[Text(text="not json at all")], stop_reason="stop")]),
+        registry=Registry(
+            [
+                bind_tool(ReadFile()),
+                bind_tool(Idle(run_dir=run_dir, agent=parent, clock=FakeClock())),
+            ]
+        ),
+        ctx=ctx,
+        output_class=Verdict,
+        clock=FakeClock(),
+    )
+    outcome = session.run()
+
+    assert outcome.kind is OutcomeKind.IDLING
+    assert outcome.spent == Budget(turns=1, tool_calls=0)
+
+
 def test_submit_answer_description_states_the_answer_shape():
     described = SubmitAnswer(Verdict).description
     assert "answer" in described
