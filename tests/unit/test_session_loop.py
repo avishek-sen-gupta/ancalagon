@@ -5,6 +5,7 @@ import pathlib
 import pydantic
 import pytest
 
+from ancalagon.bus.bus import HUMAN, Bus
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
@@ -12,16 +13,20 @@ from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.exhausted import Exhausted
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.free_text import FreeText
+from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.call_usage import CallUsage
+from ancalagon.contracts.outcome_kind import OutcomeKind
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.llm.fake_llm import FakeLLM
+from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.session import Session
 from ancalagon.tools.files.read_file import ReadFile
+from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.registry.bind_tool import bind_tool
@@ -189,6 +194,59 @@ def test_session_stops_and_returns_the_question_when_an_agent_needs_input(
     assert outcome.question == "keep both captions or pick one?"
     assert outcome.spent.turns == 1
     assert outcome.spent.tool_calls == 0
+
+
+def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib.Path):
+    run_dir = tmp_path / "run"
+    (run_dir / "tasks").mkdir(parents=True)
+    migrate_file(run_dir / "bus.db", latest_version())
+    bus = Bus.open(run_dir / "bus.db", FakeClock())
+    parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN)
+    child = bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent)
+
+    write_root = tmp_path / "ws"
+    write_root.mkdir(parents=True, exist_ok=True)
+    ctx = ToolContext(
+        workspace=Workspace(write_root=write_root, read_roots=(write_root,)),
+        output_dir=write_root / "outputs",
+        summary_chars=200,
+        agent_id=parent,
+    )
+    spec = TaskSpec(
+        task_id="t1",
+        role=Role(
+            behaviour="You answer questions.",
+            answer=ClassRef(module="verdict.py", name="Verdict"),
+            tools=(),
+            budget=Budget(turns=5, tool_calls=5),
+        ),
+        goal="Answer it.",
+    )
+    session = Session(
+        spec=spec,
+        input=Verdict(answer="seed"),
+        messages=[],
+        transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=parent),
+        agent_id=parent,
+        llm=FakeLLM(
+            [
+                Reply(
+                    blocks=[ToolUse(id="tu_1", name="idle", arguments="{}")],
+                    stop_reason="tool_calls",
+                )
+            ]
+        ),
+        registry=Registry([bind_tool(Idle(run_dir=run_dir, agent=parent, clock=FakeClock()))]),
+        ctx=ctx,
+        output_class=Verdict,
+        clock=FakeClock(),
+    )
+    outcome = session.run()
+
+    assert isinstance(outcome, Idling)
+    assert outcome.kind is OutcomeKind.IDLING
+    assert outcome.summary == f"idling until one of agents [{child}] finishes"
+    assert outcome.spent == Budget(turns=1, tool_calls=0)
 
 
 def test_submit_answer_description_states_the_answer_shape():
