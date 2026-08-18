@@ -13,7 +13,7 @@ def test_migrations_round_trip_and_checks_reject_bad_rows(tmp_path: pathlib.Path
     conn = sqlite3.connect(tmp_path / "bus.db")
 
     assert user_version(conn) == 0
-    assert latest_version() == 3
+    assert latest_version() == 4
 
     migrate(conn, latest_version())
     assert user_version(conn) == latest_version()
@@ -41,6 +41,21 @@ def test_migrations_round_trip_and_checks_reject_bad_rows(tmp_path: pathlib.Path
             "INSERT INTO agent_events (agent, ts, status, source, summary) "
             "VALUES (1, 't', 'queued', 'supervisor', ?)",
             ("x" * 1001,),
+        )
+
+    conn.execute(
+        "INSERT INTO agent_events (agent, ts, status, source) VALUES (1, 't', 'idling', 'worker')"
+    )
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO agent_events (agent, ts, status, source) VALUES (1, 't', 'bogus', 'worker')"
+        )
+
+    migrate(conn, 3)
+    assert user_version(conn) == 3
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO agent_events (agent, ts, status, source) VALUES (1, 't', 'idling', 'worker')"
         )
 
     migrate(conn, 1)
@@ -73,16 +88,16 @@ def test_a_bus_never_migrates_itself_and_the_command_does_it_offline(
 
     stale = tmp_path / "stale.db"
     migrate(sqlite3.connect(stale), 1)
-    with pytest.raises(ValueError, match="schema version 1, not 3"):
+    with pytest.raises(ValueError, match="schema version 1, not 4"):
         Bus.open(stale, SystemClock())
 
     with pytest.raises(ValueError, match="does not exist"):
         migrate_command(tmp_path / "absent.db", -1)
 
     assert migrate_command(stale, -1) == 0
-    assert capsys.readouterr().out.strip().endswith("1 -> 3")
+    assert capsys.readouterr().out.strip().endswith("1 -> 4")
     Bus.open(stale, SystemClock())
 
     assert migrate_command(stale, 1) == 0
-    with pytest.raises(ValueError, match="schema version 1, not 3"):
+    with pytest.raises(ValueError, match="schema version 1, not 4"):
         Bus.open(stale, SystemClock())

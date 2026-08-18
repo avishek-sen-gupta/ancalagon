@@ -71,4 +71,8 @@ fileignoreconfig:
   checksum: 8eecaf74c4fe71d0e874b18b62c0fd7d38f8219537d97e618f167f9d0d1f11ab
 - filename: docs/superpowers/plans/2026-08-17-idling-parents.md
   checksum: 85a11c563aca373246861f5cabe6fd89fd2be6ab2f6ee1389dcce3650b114101
+- filename: ancalagon/migrations/004_idling_status.down.sql
+  checksum: 2c73c8dff87f50d670273fe8b76a52b48b85be7d4aa21a4d20e8dc6e9103271c
+- filename: ancalagon/migrations/004_idling_status.up.sql
+  checksum: 201ee20b9f6c08afa520fe4f8ad04801d02e25c8f3d5ae064463d5e630613b91
 version: "1.0"

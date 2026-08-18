@@ -7,3 +7,4 @@ class OutcomeKind(enum.StrEnum):
     NEEDS_INPUT = "needs_input"
     FAILED = "failed"
     TIMED_OUT = "timed_out"
+    IDLING = "idling"
