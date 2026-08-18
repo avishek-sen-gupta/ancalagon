@@ -217,6 +217,8 @@ class Session:
     def run(self) -> Outcome:
         schemas = self.registry.schemas()
         while True:
+            if self.remaining.turns_exhausted and SUBMIT not in self.registry.names():
+                return Idling(summary="turns exhausted while children ran", spent=self._spent())
             if self.remaining.turns_exhausted:
                 return self._final_turn()
             self.remaining = self.remaining.spend_turn()
