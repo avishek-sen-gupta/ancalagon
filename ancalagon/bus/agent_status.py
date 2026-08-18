@@ -14,6 +14,7 @@ class AgentStatus(enum.StrEnum):
     TIMED_OUT = "timed_out"
     ABANDONED = "abandoned"
     EXITED = "exited"
+    IDLING = "idling"
 
 
 TERMINAL = frozenset(
@@ -26,5 +27,6 @@ TERMINAL = frozenset(
         AgentStatus.TIMED_OUT,
         AgentStatus.ABANDONED,
         AgentStatus.EXITED,
+        AgentStatus.IDLING,
     }
 )
