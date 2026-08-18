@@ -5,7 +5,7 @@ import pydantic
 import pytest
 
 import ancalagon.config.config
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.bus import HUMAN, Bus
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.migrations import latest_version, migrate_file
@@ -13,6 +13,7 @@ from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.event_source import EventSource
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.idled import Idled
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.free_text import FreeText
@@ -256,6 +257,8 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         compact_above_tokens=0,
         keep_recent_messages=8,
     )
+    migrate_file(tmp_path / "bus.db", latest_version())
+    bus = Bus.open(tmp_path / "bus.db", SystemClock())
     full_role = Role(
         behaviour="Coordinate.",
         tools=("delegate_scout", "need_input"),
@@ -269,6 +272,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         depth=0,
         output_class=FreeText,
         clock=SystemClock(),
+        bus=bus,
     )
     at_limit = build_registry(
         config,
@@ -278,6 +282,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         depth=1,
         output_class=FreeText,
         clock=SystemClock(),
+        bus=bus,
     )
 
     assert "delegate_scout" in at_root.names()
@@ -298,6 +303,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         depth=0,
         output_class=FreeText,
         clock=SystemClock(),
+        bus=bus,
     ).names() == [
         "read_file",
         "ripgrep",
@@ -318,9 +324,75 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
             depth=0,
             output_class=FreeText,
             clock=SystemClock(),
+            bus=bus,
         )
     assert "'delegate_ghost', 'grep', 'rigrep'" in str(refused.value)
     assert "ripgrep" in str(refused.value)
+
+
+def test_a_parent_with_live_children_is_offered_idle_instead_of_submit_answer(
+    tmp_path: pathlib.Path,
+):
+    run_dir = tmp_path / "run"
+    (run_dir / "tasks").mkdir(parents=True)
+    migrate_file(run_dir / "bus.db", latest_version())
+    bus = Bus.open(run_dir / "bus.db", FakeClock())
+    parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN)
+    child = bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent)
+
+    config = ancalagon.config.config.Config(
+        write_root=run_dir,
+        read_roots=(run_dir,),
+        model="claude-opus-5",
+        roles={},
+        max_tokens=100,
+        num_retries=0,
+        request_timeout_s=10,
+        max_concurrent_agents=1,
+        agent_timeout_s=1,
+        max_depth=1,
+        summary_chars=100,
+        compact_above_tokens=0,
+        keep_recent_messages=8,
+    )
+    role = Role(behaviour="Coordinate.", tools=(), budget=Budget(turns=1, tool_calls=1))
+    spec = TaskSpec(task_id="root", role=role, goal="g")
+
+    waiting = build_registry(
+        config,
+        spec,
+        run_dir,
+        parent=parent,
+        depth=0,
+        output_class=FreeText,
+        clock=FakeClock(),
+        bus=bus,
+    )
+    assert "idle" in waiting.names()
+    assert "submit_answer" not in waiting.names()
+
+    result = waiting.get("idle").invoke("{}", _ctx(tmp_path))
+    assert result.ok is True
+    assert result.summary == Idled(waiting_for=(child,))
+
+    bus.record(child, AgentStatus.COMPLETED, EventSource.WORKER)
+    bus.record(child, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    settled = build_registry(
+        config,
+        spec,
+        run_dir,
+        parent=parent,
+        depth=0,
+        output_class=FreeText,
+        clock=FakeClock(),
+        bus=bus,
+    )
+    assert "submit_answer" in settled.names()
+    assert "idle" not in settled.names()
+
+    refused = waiting.get("idle").invoke("{}", _ctx(tmp_path))
+    assert refused.ok is False
+    assert "nothing to wait for" in refused.error
 
 
 def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathlib.Path):

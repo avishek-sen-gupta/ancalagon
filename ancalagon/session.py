@@ -11,6 +11,8 @@ from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.exhausted import Exhausted
 from ancalagon.contracts.failed import Failed
+from ancalagon.contracts.idled import Idled
+from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.json_payload import json_payload
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
@@ -227,6 +229,11 @@ class Session:
                         return NeedsInput(
                             question=result.summary.question,
                             summary=result.summary.question[:SUMMARY_CHARS],
+                            spent=self._spent(),
+                        )
+                    if isinstance(result.summary, Idled):
+                        return Idling(
+                            summary=result.summary.text_for_model()[:SUMMARY_CHARS],
                             spent=self._spent(),
                         )
                     if isinstance(result.summary, Submitted):
