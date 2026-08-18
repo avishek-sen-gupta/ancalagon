@@ -70,5 +70,5 @@ fileignoreconfig:
 - filename: tests/unit/test_contracts.py
   checksum: 8eecaf74c4fe71d0e874b18b62c0fd7d38f8219537d97e618f167f9d0d1f11ab
 - filename: docs/superpowers/plans/2026-08-17-idling-parents.md
-  checksum: 2be1f7b7d2b4f262590a8a0ac0ed95a1082259e51989acd48989eb6d67834934
+  checksum: 85a11c563aca373246861f5cabe6fd89fd2be6ab2f6ee1389dcce3650b114101
 version: "1.0"
