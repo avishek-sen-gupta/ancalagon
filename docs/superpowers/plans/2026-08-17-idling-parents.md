@@ -40,7 +40,7 @@
 **Modified**
 - `ancalagon/contracts/outcome_kind.py`, `outcome.py` — the new kind and the union.
 - `ancalagon/bus/agent_status.py` — `IDLING`, and its place in `TERMINAL`.
-- `ancalagon/bus/bus.py` — `live_children`, and `resumable_idle`.
+- `ancalagon/bus/bus.py` — `live_children`, `latest_agent`, and `resumable_idle`.
 - `ancalagon/worker.py` — `build_registry` chooses between `submit_answer` and `idle`.
 - `ancalagon/session.py` — `idle` ends the attempt; exhaustion with live children idles.
 - `ancalagon/supervisor/supervisor.py` — re-enqueue an idling parent when a child finishes.
@@ -162,11 +162,17 @@ Remove `'idling'` from the up-migration's CHECK list and confirm the insert asse
 
 **Interfaces:**
 - Consumes: `AgentStatus.IDLING`, `TERMINAL` from Task 1.
-- Produces: `Bus.live_children(agent: int) -> list[AgentState]`, `Bus.resumable_idle(agent: int) -> bool`.
+- Produces: `Bus.live_children(agent: int) -> list[AgentState]`, `Bus.latest_agent(dir: pathlib.Path) -> AgentState`, `Bus.resumable_idle(agent: int) -> bool`.
 
 `tasks.parent_agent` already records which agent spawned each task, written by `enqueue` and used by `depth_of`. Both queries read it; neither adds state.
 
-`resumable_idle` is where the appended-status trap lives. A worker records `idling` and the supervisor then records `exited`, so the parent's **latest** status is `exited` and a latest-status check would never fire. Ask whether the history since the parent's most recent `queued` event *contains* `idling`.
+`resumable_idle` carries two traps at once.
+
+The first is the appended-status one: a worker records `idling` and the supervisor then records `exited`, so the parent's **latest** status is `exited` and a latest-status check never fires. Ask whether the history *contains* `idling`.
+
+The second is scope, and it is why this takes an agent but answers about a task. `enqueue` writes `tasks.parent_agent` **only when the task row is new** (`bus.py:91-95`), so a task retried under a later attempt of its parent still names the parent agent it was first created under. Agent ids are never reused and history is immutable, so "did agent 1 ever idle" stays true forever — long after agent 1 is a closed attempt. A wake decided that way fires against a dead agent, and fires again every time a stale child finishes.
+
+So resolve the given agent to its task, take that task's **newest** agent, and ask about that one alone. Never look at an older attempt. An agent idles at most once, because idling ends the attempt, so within the newest agent there is no ambiguity about which idling is meant.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -195,9 +201,10 @@ def test_the_bus_knows_which_children_are_live_and_which_parents_may_resume(
     resumed = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
     assert resumed != parent
     assert bus.resumable_idle(resumed) is False
+    assert bus.resumable_idle(parent) is False
 ```
 
-The `EXITED` records after each terminal status are the point — that is what production writes, and a latest-status implementation passes every line except `resumable_idle(parent) is True`.
+Two lines carry the weight. The `EXITED` records after each terminal status are what production writes, so a latest-status implementation fails on `resumable_idle(parent) is True`. And the final line is the stale-parent case: agent `parent` did idle and its history says so forever, but it has been superseded, so asking about it must answer for the newest attempt — an agent-scoped implementation returns `True` here and would wake a closed attempt.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -213,13 +220,17 @@ Expected: FAIL with `AttributeError: 'Bus' object has no attribute 'live_childre
             (agent, *TERMINAL_VALUES),
         )
 
-    def resumable_idle(self, agent: int) -> bool:
-        events = self.history(agent)
-        since = [e.status for e in events]
-        return AgentStatus.IDLING in since
-```
+    def latest_agent(self, dir: pathlib.Path) -> AgentState:
+        found = self._states("WHERE t.dir = ? ORDER BY a.id DESC LIMIT 1", (str(dir),))
+        if not found:
+            raise KeyError(f"no agent for {dir}")
+        return found[0]
 
-`history` returns this agent's events only, and an agent id is never reused — `enqueue` inserts a new agent row per attempt — so "contains `idling`" is already scoped to one attempt and needs no `queued` boundary. Confirm that by reading `enqueue` before relying on it; if an agent id *can* be reused, scope to the events after the last `queued` instead.
+    def resumable_idle(self, agent: int) -> bool:
+        newest = self.latest_agent(pathlib.Path(self.state(agent).dir))
+        return AgentStatus.IDLING in [e.status for e in self.history(newest.agent)]
+
+The indirection through `latest_agent` is the whole point: the caller holds a `parent_agent` that may name a closed attempt, and only the task is stable across attempts. `history` is then scoped to one agent, and an agent idles at most once, so there is no window to bound.
 
 - [ ] **Step 4: Run, verify, commit**
 
@@ -231,7 +242,7 @@ git add -A && git commit -m "The bus can say which children are live, and which 
 
 - [ ] **Step 5: Mutation-check**
 
-Reimplement `resumable_idle` as `self.state(agent).status is AgentStatus.IDLING` and confirm the test fails on the `is True` assertion — that is the defect this test exists to catch.
+Two mutations, one per trap. Reimplement `resumable_idle` as `self.state(agent).status is AgentStatus.IDLING` and confirm it fails on the `is True` assertion. Then reimplement it agent-scoped — `AgentStatus.IDLING in [e.status for e in self.history(agent)]` — and confirm it fails on the final `resumable_idle(parent) is False`. Restore after each.
 
 ---
 
@@ -480,9 +491,8 @@ git add -A && git commit -m "Document idling, and the budget it costs"
 
 **Two things left for the implementer to settle, flagged rather than guessed:**
 
-1. Whether `resumable_idle` needs to scope to events after the last `queued` (Task 2, Step 3). It depends on whether an agent id can be reused across attempts. `enqueue` appears to insert a new agent row per attempt, which makes scoping unnecessary — but that must be read, not assumed.
-2. How `build_registry` gets a bus (Task 3, Step 3). It has neither today, and the worker already holds one; passing it is preferable to opening a second connection, but the signature change touches every caller.
+1. How `build_registry` gets a bus (Task 3, Step 3). It has neither today, and the worker already holds one; passing it is preferable to opening a second connection, but the signature change touches every caller.
 
 **Known and accepted:** a registry built once per attempt means children finishing mid-attempt cost one extra wake. Fixing it means rebuilding the tool list per turn, which is a larger change than this plan carries.
 
-**Type consistency.** `Idling(kind, summary, spent)`, `Idled(waiting_for: tuple[int, ...])`, `Bus.live_children(agent) -> list[AgentState]`, `Bus.resumable_idle(agent) -> bool`, and the `idle` tool name are used identically in every task that mentions them.
+**Type consistency.** `Idling(kind, summary, spent)`, `Idled(waiting_for: tuple[int, ...])`, `Bus.live_children(agent) -> list[AgentState]`, `Bus.latest_agent(dir) -> AgentState`, `Bus.resumable_idle(agent) -> bool`, and the `idle` tool name are used identically in every task that mentions them.
