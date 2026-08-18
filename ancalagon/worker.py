@@ -41,6 +41,7 @@ from ancalagon.tools.files.list_dir import ListDir
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.files.write_file import WriteFile
 from ancalagon.tools.history.git_history import GitHistory
+from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
 from ancalagon.tools.registry.bind_tool import bind_tool
@@ -89,6 +90,7 @@ def available_tools(
         bind_tool(CollectTask(run_dir=run_dir, clock=clock)),
         bind_tool(AnswerTask(run_dir=run_dir, parent=parent, clock=clock)),
         bind_tool(NeedInput()),
+        bind_tool(Idle(run_dir=run_dir, agent=parent, clock=clock)),
         bind_tool(SubmitAnswer(output_class)),
     ]
 
@@ -101,12 +103,16 @@ def build_registry(
     depth: int,
     output_class: type[pydantic.BaseModel],
     clock: Clock,
+    bus: Bus,
 ) -> Registry:
     spawnable = {
         name: role for name, role in config.roles.items() if f"delegate_{name}" in spec.role.tools
     }
     available = available_tools(spawnable, run_dir, parent, output_class, clock)
-    wanted = set(spec.role.tools) | {SubmitAnswer.name}
+    live_children = bus.live_children(parent)
+    exempt = Idle.name if live_children else SubmitAnswer.name
+    excluded = SubmitAnswer.name if live_children else Idle.name
+    wanted = set(spec.role.tools) | {exempt}
     unknown = wanted - {t.name for t in available}
     if unknown:
         raise ValueError(
@@ -117,7 +123,9 @@ def build_registry(
     permitted = [
         t
         for t in available
-        if t.name in wanted and not (depth_capped and t.name.startswith("delegate_"))
+        if t.name in wanted
+        and t.name != excluded
+        and not (depth_capped and t.name.startswith("delegate_"))
     ]
     return Registry(permitted)
 
@@ -166,6 +174,7 @@ def main(
                 depth=depth_of(bus, agent_id),
                 output_class=output_class,
                 clock=clock,
+                bus=bus,
             ),
             ctx=ctx,
             output_class=output_class,
