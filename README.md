@@ -124,7 +124,7 @@ one requires it to be current already. To upgrade a database without starting a 
 
 ```bash
 ancalagon migrate --db ws/runs/r_0001/bus.db          # to the latest version
-ancalagon migrate --db ws/runs/r_0001/bus.db --to 1   # or back down to a given one
+ancalagon migrate --db ws/runs/r_0001/bus.db --to 0   # or back down to a given one
 ```
 
 ## How it works

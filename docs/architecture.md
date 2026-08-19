@@ -64,7 +64,7 @@ a run:
 
 ```bash
 ancalagon migrate --db ws/runs/r_0001/bus.db          # to the latest version
-ancalagon migrate --db ws/runs/r_0001/bus.db --to 1   # or back down to a given one
+ancalagon migrate --db ws/runs/r_0001/bus.db --to 0   # or back down to a given one
 ```
 
 The split matters because the two acts have different blast radii. Starting a run is a
@@ -73,9 +73,12 @@ for. Reading a run is not: every tool, watcher and delegate tool that merely ope
 would otherwise rewrite it, and there would be no way to look at an old run without changing
 it. `Bus.open` is the one everything else uses, and it only ever reads.
 
-A migration that has shipped is never edited: databases already at that version skip it, so
-the edit reaches new runs only and leaves older ones missing the change. Add a numbered
-migration instead.
+There is a single migration, `001_init`, describing the schema as it stands today. The
+project's answer to a schema change is to edit it in place, not to add a numbered migration
+on top: run directories are disposable and no compatibility with an older schema is promised,
+so there is nothing gained by preserving the steps that got here. Editing `001_init` breaks
+existing run databases outright — they are not upgraded, they stop opening — and that is a
+deliberate stance, not an oversight.
 
 ### 2. Supervising — `ancalagon/supervisor/supervisor.py`
 
