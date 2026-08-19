@@ -331,6 +331,8 @@ def test_idle_refuses_once_its_children_have_settled(tmp_path: pathlib.Path):
     bus = Bus.open(run_dir / "bus.db", FakeClock())
     parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN)
     child = bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent)
+    bus.record(child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
     bus.record(child, AgentStatus.COMPLETED, EventSource.WORKER)
     bus.record(child, AgentStatus.EXITED, EventSource.SUPERVISOR)
 
@@ -607,12 +609,16 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     child = queue_child("child")
     still_running = queue_child("still_running")
 
+    bus.record(child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
     bus.record(child, AgentStatus.COMPLETED, EventSource.WORKER)
     bus.record(child, AgentStatus.EXITED, EventSource.SUPERVISOR)
     (run_dir / "tasks" / "child" / "outcome.json").write_text(
         Completed[FreeText](value=FreeText(text="c"), summary="done", spent=spent).model_dump_json()
     )
 
+    bus.record(still_running, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(still_running, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=2)
     bus.record(still_running, AgentStatus.IDLING, EventSource.WORKER)
     (run_dir / "tasks" / "still_running" / "outcome.json").write_text(
         Completed[FreeText](

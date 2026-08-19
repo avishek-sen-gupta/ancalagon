@@ -2,6 +2,10 @@ import json
 import pathlib
 import typing
 
+from ancalagon.attempt.closed import Closed
+from ancalagon.attempt.lost import Lost
+from ancalagon.attempt.queued import Queued
+from ancalagon.attempt.running import Running
 from ancalagon.bus.bus import HUMAN, Bus
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
@@ -124,7 +128,9 @@ def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: p
     assert [e.pid for e in bus.history(wedged) if e.pid][0] == 1000 + wedged
     timed_out = json.loads((tmp_path / "tasks" / "wedged" / "outcome.json").read_text())
     assert timed_out["kind"] == "timed_out"
-    assert bus.live() == []
+    assert bus.attempt(good) == Lost(close=AgentStatus.EXITED)
+    assert bus.attempt(bad) == Lost(close=AgentStatus.CRASHED)
+    assert bus.attempt(wedged) == Lost(close=AgentStatus.TIMED_OUT)
 
 
 def test_supervisor_respects_concurrency_cap_and_leaves_live_tasks_running_on_shutdown(
@@ -204,31 +210,31 @@ def test_a_tick_wakes_an_idling_parent_once_a_supervisor_has_reaped_its_child(
     parent = bus.enqueue(parent_dir, parent_agent=0)
     child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=parent)
 
-    spawner = FakeSpawner([(0, 0), (2, 0), (10, 0)])
+    spawner = FakeSpawner([(1, 0), (2, 0), (10, 0)])
     clock = FakeClock()
     supervisor = Supervisor(
         bus=bus, spawner=spawner, max_concurrent=2, timeout_s=5, poll_s=1.0, clock=clock
     )
 
     supervisor.tick()
-    assert bus.state(parent).status is AgentStatus.EXITED
-    assert list(supervisor.live) == [child]
+    assert bus.attempt(parent) == Running(pid=1000 + parent)
+    assert list(supervisor.live) == [parent, child]
 
     bus.record(parent, AgentStatus.IDLING, EventSource.WORKER)
     bus.record(child, AgentStatus.COMPLETED, EventSource.WORKER)
 
     supervisor.tick()
-    assert [s for s in bus.live() if s.dir == str(parent_dir)] == []
+    assert bus.attempt(parent) == Closed(verdict=AgentStatus.IDLING)
 
     supervisor.tick()
     assert bus.state(child).status is AgentStatus.EXITED
 
-    resumed = [s for s in bus.live() if s.dir == str(parent_dir)]
-    assert len(resumed) == 1
-    assert resumed[0].agent != parent
+    resumed = bus.newest_agent(bus.task(parent_dir).id)
+    assert resumed != parent
+    assert bus.attempt(resumed) == Queued()
 
     supervisor.tick()
-    assert len([s for s in bus.live() if s.dir == str(parent_dir)]) == 1
+    assert bus.attempt(resumed) == Running(pid=1000 + resumed)
 
 
 def test_a_wake_is_skipped_while_the_idling_agents_process_is_still_live(
@@ -256,6 +262,8 @@ def test_a_wake_is_skipped_while_the_idling_agents_process_is_still_live(
     supervisor.started[parent] = clock.time()
     bus.record(parent, AgentStatus.IDLING, EventSource.WORKER)
 
+    bus.record(child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
     bus.record(child, AgentStatus.COMPLETED, EventSource.WORKER)
     bus.record(child, AgentStatus.EXITED, EventSource.SUPERVISOR)
 
