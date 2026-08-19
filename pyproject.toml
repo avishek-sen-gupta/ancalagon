@@ -50,7 +50,21 @@ layers = [
     "ancalagon.supervisor : ancalagon.session",
     "ancalagon.tools",
     "ancalagon.children",
+    "ancalagon.answer",
     "ancalagon.bus",
     "ancalagon.llm : ancalagon.transcript",
-    "ancalagon.contracts : ancalagon.clock : ancalagon.liveness : ancalagon.sandbox : ancalagon.workspace",
+    "ancalagon.workspace",
+    "ancalagon.config",
+    "ancalagon.contracts : ancalagon.clock : ancalagon.liveness : ancalagon.sandbox",
+    "ancalagon.migrations",
+]
+
+[[tool.importlinter.contracts]]
+name = "Sibling leaves are independent"
+type = "independence"
+modules = [
+    "ancalagon.contracts",
+    "ancalagon.clock",
+    "ancalagon.liveness",
+    "ancalagon.sandbox",
 ]

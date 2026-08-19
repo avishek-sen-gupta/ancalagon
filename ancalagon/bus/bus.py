@@ -1,4 +1,5 @@
 # The task queue and append-only agent log. Claiming is atomic so two supervisors never overlap.
+import datetime
 import pathlib
 import sqlite3
 
@@ -148,11 +149,11 @@ class Bus:
             ),
         )
 
-    def resolve_stale(self, liveness: Liveness) -> None:
+    def resolve_stale(self, liveness: Liveness, timeout_s: int) -> None:
         for state in self.unreaped():
-            self._resolve_one(state.agent, liveness)
+            self._resolve_one(state.agent, liveness, timeout_s)
 
-    def _resolve_one(self, agent: int, liveness: Liveness) -> None:
+    def _resolve_one(self, agent: int, liveness: Liveness, timeout_s: int) -> None:
         events = self.history(agent)
         statuses = {e.status for e in events if e.source is EventSource.WORKER}
         if statuses & REPORTED:
@@ -165,6 +166,7 @@ class Bus:
             return
         running = [e for e in events if e.status is AgentStatus.RUNNING]
         if running and liveness.is_running(running[-1].pid):
+            self._resolve_running(agent, running[-1], liveness, timeout_s)
             return
         self.record(
             agent,
@@ -172,6 +174,21 @@ class Bus:
             EventSource.SUPERVISOR,
             exit_code=-1,
             summary="no live process at startup",
+        )
+
+    def _resolve_running(
+        self, agent: int, running: AgentEvent, liveness: Liveness, timeout_s: int
+    ) -> None:
+        elapsed = (self.clock.now() - datetime.datetime.fromisoformat(running.ts)).total_seconds()
+        if elapsed <= timeout_s:
+            return
+        liveness.kill(running.pid)
+        self.record(
+            agent,
+            AgentStatus.TIMED_OUT,
+            EventSource.SUPERVISOR,
+            exit_code=-9,
+            summary=f"killed after {timeout_s}s at startup",
         )
 
     def _reaped(self, agent: int) -> bool:

@@ -1,5 +1,6 @@
 import json
 import pathlib
+import typing
 
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import HUMAN, Bus
@@ -122,14 +123,16 @@ def test_supervisor_respects_concurrency_cap_and_leaves_live_tasks_running_on_sh
     assert spawner.spawned == ids[:2]
     assert len(supervisor.live) == 2
     assert [s.agent for s in bus.unreaped()] == ids[:2]
+    processes = typing.cast(dict[int, FakeProcess], dict(supervisor.live))
 
     supervisor.shutdown()
     assert supervisor.live == {}
+    assert all(not process.killed for process in processes.values())
     assert bus.state(ids[0]).status is AgentStatus.RUNNING
     assert bus.state(ids[1]).status is AgentStatus.RUNNING
     assert bus.state(ids[2]).status is AgentStatus.QUEUED
 
-    bus.resolve_stale(FakeLiveness(frozenset()))
+    bus.resolve_stale(FakeLiveness(frozenset()), timeout_s=1_000_000)
     assert bus.state(ids[0]).status is AgentStatus.CRASHED
     assert bus.state(ids[1]).status is AgentStatus.CRASHED
 
@@ -248,9 +251,31 @@ def test_startup_resolves_stale_rows_by_checking_the_pid(tmp_path: pathlib.Path)
     bus.record(spoke, AgentStatus.COMPLETED, EventSource.WORKER)
     bus.record(never, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
 
-    bus.resolve_stale(FakeLiveness(frozenset({102})))
+    bus.resolve_stale(FakeLiveness(frozenset({102})), timeout_s=1_000_000)
 
     assert bus.state(spoke).status is AgentStatus.EXITED
     assert bus.state(alive).status is AgentStatus.RUNNING
     assert bus.state(dead).status is AgentStatus.CRASHED
     assert bus.state(never).status is AgentStatus.CRASHED
+
+
+def test_startup_kills_a_wedged_agent_past_the_timeout_and_leaves_a_fresh_one_running(
+    tmp_path: pathlib.Path,
+):
+    bus = _open(tmp_path)
+    wedged = bus.enqueue(tmp_path / "wedged", parent_agent=HUMAN)
+    fresh = bus.enqueue(tmp_path / "fresh", parent_agent=HUMAN)
+
+    bus.record(wedged, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(wedged, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=301)
+    bus.clock.sleep(10)
+    bus.record(fresh, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(fresh, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=302)
+    bus.clock.sleep(1)
+
+    liveness = FakeLiveness(frozenset({301, 302}))
+    bus.resolve_stale(liveness, timeout_s=5)
+
+    assert bus.state(wedged).status is AgentStatus.TIMED_OUT
+    assert bus.state(fresh).status is AgentStatus.RUNNING
+    assert liveness.killed == [301]
