@@ -14,6 +14,7 @@ from ancalagon.attempt.attempt import (
     Running,
 )
 from ancalagon.attempt.attempt_of import attempt_of
+from ancalagon.attempt.next_state import next_state
 from ancalagon.bus.agent_state import AgentState
 from ancalagon.bus.task_row import TaskRow
 from ancalagon.clock.clock import Clock
@@ -79,19 +80,41 @@ class Bus:
         exit_code: int = 0,
         summary: str = "",
     ) -> None:
-        self.conn.execute(
-            "INSERT INTO agent_events (agent, ts, status, source, pid, exit_code, summary) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (
-                agent,
-                self._now(),
-                status.value,
-                source.value,
-                pid,
-                exit_code,
-                summary[:SUMMARY_LIMIT],
-            ),
-        )
+        owns_transaction = not self.conn.in_transaction
+        if owns_transaction:
+            self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            current = self.attempt(agent)
+            event = AgentEvent(
+                id=0,
+                agent=agent,
+                ts=self._now(),
+                status=status,
+                source=source,
+                pid=pid,
+                exit_code=exit_code,
+                summary=summary[:SUMMARY_LIMIT],
+            )
+            next_state(current, event)
+            self.conn.execute(
+                "INSERT INTO agent_events (agent, ts, status, source, pid, exit_code, summary) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    event.agent,
+                    event.ts,
+                    event.status.value,
+                    event.source.value,
+                    event.pid,
+                    event.exit_code,
+                    event.summary,
+                ),
+            )
+        except Exception:
+            if owns_transaction:
+                self.conn.execute("ROLLBACK")
+            raise
+        if owns_transaction:
+            self.conn.execute("COMMIT")
 
     def enqueue(self, dir: pathlib.Path, parent_agent: int) -> int:
         self.conn.execute("BEGIN IMMEDIATE")
