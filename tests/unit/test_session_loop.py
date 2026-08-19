@@ -8,6 +8,7 @@ import pytest
 
 from ancalagon.bus.bus import HUMAN, Bus
 from ancalagon.children.bus_children import BusChildren
+from ancalagon.children.children import Children
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.call_usage import CallUsage
@@ -502,7 +503,7 @@ def test_a_session_takes_its_behaviour_and_budget_from_its_role(tmp_path: pathli
     assert outcome.spent == Budget(turns=2, tool_calls=0)
 
 
-class ScriptedChildren:
+class ScriptedChildren(Children):
     def __init__(
         self,
         outstanding: collections.abc.Sequence[tuple[int, ...]],
