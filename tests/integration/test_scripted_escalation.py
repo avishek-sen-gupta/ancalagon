@@ -203,5 +203,18 @@ def test_a_supervisor_wakes_an_idling_root_once_its_child_settles(
         ]
         assert len(idled) == 1
         assert len(resumed) == 1
+
+        idle_child_task = bus.task(run_dir / "tasks" / "idle-child")
+        idle_child_agent = bus.newest_agent(idle_child_task.id)
+        last_request = json.loads(model.requests[-1])
+        idle_results = [
+            m
+            for m in last_request["messages"]
+            if m.get("role") == "tool" and m.get("tool_call_id") == "i1"
+        ]
+        assert len(idle_results) == 1
+        assert idle_results[0]["content"].startswith(
+            f"idling until one of agents [{idle_child_agent}] finishes"
+        )
     finally:
         model.close()

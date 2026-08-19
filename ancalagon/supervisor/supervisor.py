@@ -88,8 +88,9 @@ class Supervisor:
 
     def _wake_idling(self) -> None:
         for task in self.bus.wakeable():
-            dir = pathlib.Path(task.dir)
-            self.bus.enqueue(dir, parent_agent=self.bus.task(dir).parent_agent)
+            if self.bus.newest_agent(task.id) in self.live:
+                continue
+            self.bus.enqueue(pathlib.Path(task.dir), parent_agent=task.parent_agent)
 
     def tick(self) -> None:
         self._start_queued()
