@@ -100,11 +100,14 @@ going down a version when there is only one.
   worker died before it could write one — is given a `Failed` one, so every agent that ends
   has an outcome its parent can collect. An outcome already on disk is never overwritten.
 - `_wake_idling` re-enqueues a task whose newest agent idled and has since had a child settle
-  — `Bus.wakeable(running)` evaluates that as a predicate over the whole database each tick,
+  — `Bus.wakeable()` evaluates that as a predicate over the whole database each tick,
   not as an event fired when a child finishes, and skips a task whose newest agent is still
-  one of this supervisor's own live processes. `running` is that same live set: a worker
-  records its terminal status before it writes `outcome.json`, so a child whose process is
-  still running is not news yet — waking the parent then would have it collect nothing. Re-enqueuing runs the parent again as a **new**
+  one of this supervisor's own live processes. A child is news only once its newest agent
+  carries a terminal event whose `source` is `supervisor`: a worker records its terminal
+  status before it writes `outcome.json`, and only the supervisor's mark is written after
+  the process is gone, so waking on the worker's own word would have the parent collect
+  nothing. The predicate therefore reads the database alone — a watcher, or a second
+  supervisor, gets the same answer. Re-enqueuing runs the parent again as a **new**
   agent against the same task, with a fresh copy of its role's `budget`: nothing carries
   over from the idled attempt but the transcript. A parent that idles waiting on three
   children may therefore spend four budgets across the run, not one.

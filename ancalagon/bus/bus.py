@@ -1,5 +1,4 @@
 # The task queue and append-only agent log. Claiming is atomic so two supervisors never overlap.
-import collections.abc
 import pathlib
 import sqlite3
 
@@ -188,12 +187,12 @@ class Bus:
         ).fetchone()
         return int(row["id"] or 0)
 
-    def _has_news(self, task: int, running: collections.abc.Collection[int]) -> bool:
+    def _has_news(self, task: int) -> bool:
         idled_at = self._last_idled_event_id(task)
         if idled_at == 0:
             return False
         return any(
-            self.newest_agent(child.id) not in running
+            self._reaped(self.newest_agent(child.id))
             and not self.outstanding(child.id)
             and self._newest_event_id(self.newest_agent(child.id)) > idled_at
             for child in self.child_tasks(task)
@@ -206,8 +205,8 @@ class Bus:
             ).fetchone()["id"]
         )
 
-    def wakeable(self, running: collections.abc.Collection[int]) -> list[TaskRow]:
-        return [t for t in self._all_tasks() if self._has_news(t.id, running)]
+    def wakeable(self) -> list[TaskRow]:
+        return [t for t in self._all_tasks() if self._has_news(t.id)]
 
     def live_children(self, agent: int) -> list[AgentState]:
         task = self.state(agent).task
