@@ -86,9 +86,15 @@ class Supervisor:
             LOGGER.info("agent %s %s", agent, status.value)
             self._finish(agent, status, code, f"exited {code}")
 
+    def _wake_idling(self) -> None:
+        for task in self.bus.wakeable():
+            dir = pathlib.Path(task.dir)
+            self.bus.enqueue(dir, parent_agent=self.bus.task(dir).parent_agent)
+
     def tick(self) -> None:
         self._start_queued()
         self._reap()
+        self._wake_idling()
 
     def run_until_idle(self) -> None:
         while True:

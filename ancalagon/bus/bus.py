@@ -135,7 +135,7 @@ class Bus:
             (str(dir), *TERMINAL_VALUES),
         )
 
-    def _newest_agent(self, task: int) -> int:
+    def newest_agent(self, task: int) -> int:
         return int(
             self.conn.execute(
                 "SELECT MAX(id) AS agent FROM agents WHERE task = ?", (task,)
@@ -151,22 +151,53 @@ class Bus:
         return [TaskRow.model_validate({k: r[k] for k in r.keys()}) for r in rows]
 
     def outstanding(self, task: int) -> bool:
-        statuses = {e.status for e in self.history(self._newest_agent(task))}
+        statuses = {e.status for e in self.history(self.newest_agent(task))}
         return AgentStatus.IDLING in statuses or not (statuses & TERMINAL)
 
     def uncollected(self, task: int) -> list[int]:
         return [
-            self._newest_agent(t.id)
+            self.newest_agent(t.id)
             for t in self.child_tasks(task)
             if not self.outstanding(t.id)
             and AgentStatus.COLLECTED
-            not in {e.status for e in self.history(self._newest_agent(t.id))}
+            not in {e.status for e in self.history(self.newest_agent(t.id))}
         ]
+
+    def _all_tasks(self) -> list[TaskRow]:
+        rows = self.conn.execute("SELECT * FROM tasks ORDER BY id").fetchall()
+        return [TaskRow.model_validate(dict(r)) for r in rows]
+
+    def _last_idled_event_id(self, task: int) -> int:
+        row = self.conn.execute(
+            "SELECT MAX(id) AS id FROM agent_events WHERE agent = ? AND status = ?",
+            (self.newest_agent(task), AgentStatus.IDLING.value),
+        ).fetchone()
+        return int(row["id"] or 0)
+
+    def _has_news(self, task: int) -> bool:
+        idled_at = self._last_idled_event_id(task)
+        if idled_at == 0:
+            return False
+        return any(
+            not self.outstanding(child.id)
+            and self._newest_event_id(self.newest_agent(child.id)) > idled_at
+            for child in self.child_tasks(task)
+        )
+
+    def _newest_event_id(self, agent: int) -> int:
+        return int(
+            self.conn.execute(
+                "SELECT MAX(id) AS id FROM agent_events WHERE agent = ?", (agent,)
+            ).fetchone()["id"]
+        )
+
+    def wakeable(self) -> list[TaskRow]:
+        return [t for t in self._all_tasks() if self._has_news(t.id)]
 
     def live_children(self, agent: int) -> list[AgentState]:
         task = self.state(agent).task
         return [
-            self.state(self._newest_agent(t.id))
+            self.state(self.newest_agent(t.id))
             for t in self.child_tasks(task)
             if self.outstanding(t.id)
         ]

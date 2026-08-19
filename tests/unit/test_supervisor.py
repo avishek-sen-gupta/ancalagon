@@ -5,6 +5,7 @@ from ancalagon.bus.bus import Bus
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.bus.agent_status import AgentStatus
+from ancalagon.bus.event_source import EventSource
 from ancalagon.supervisor.supervisor import Supervisor
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
@@ -90,3 +91,35 @@ def test_supervisor_respects_concurrency_cap_and_abandons_live_tasks_on_shutdown
     assert bus.state(ids[0]).status is AgentStatus.ABANDONED
     assert bus.state(ids[1]).status is AgentStatus.ABANDONED
     assert bus.state(ids[2]).status is AgentStatus.QUEUED
+
+
+def test_a_tick_wakes_an_idling_parent_once_its_child_settles(tmp_path: pathlib.Path):
+    migrate_file(tmp_path / "bus.db", latest_version())
+    bus = Bus.open(tmp_path / "bus.db", SystemClock())
+    parent_dir = tmp_path / "tasks" / "parent"
+    parent = bus.enqueue(parent_dir, parent_agent=0)
+    child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=parent)
+
+    spawner = FakeSpawner([(0, 0), (0, 0), (10, 0)])
+    clock = FakeClock()
+    supervisor = Supervisor(
+        bus=bus, spawner=spawner, max_concurrent=2, timeout_s=5, poll_s=1.0, clock=clock
+    )
+
+    supervisor.tick()
+    assert bus.state(parent).status is AgentStatus.EXITED
+    assert bus.state(child).status is AgentStatus.EXITED
+
+    bus.record(parent, AgentStatus.IDLING, EventSource.WORKER)
+
+    bus.record(child, AgentStatus.COMPLETED, EventSource.WORKER)
+    bus.record(child, AgentStatus.EXITED, EventSource.SUPERVISOR)
+
+    supervisor.tick()
+
+    resumed = [s for s in bus.live() if s.dir == str(parent_dir)]
+    assert len(resumed) == 1
+    assert resumed[0].agent != parent
+
+    supervisor.tick()
+    assert len([s for s in bus.live() if s.dir == str(parent_dir)]) == 1

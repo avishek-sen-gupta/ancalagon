@@ -46,7 +46,7 @@ fileignoreconfig:
 - filename: ancalagon/tools/delegate/answer_task.py
   checksum: f7661c815195b300de37ab1734ef161c9ec23de9d90b69b05a6105c3bb69bc88
 - filename: tests/integration/test_scripted_escalation.py
-  checksum: 4ecfbd9e1d55a47775073c2f209e5d9f4cec3aa60ecc83139890ef2cdb98ced5
+  checksum: 8536de326942b09961ed8f3deb9e70de51292899cf3171285e4fd328f8f615f1
 - filename: README.md
   checksum: 9847348c66319b18c1a81fc76feefe6645e86cfe69288f3030ef4299286280de
 - filename: docs/guidelines/code-review.md
