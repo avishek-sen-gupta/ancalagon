@@ -93,7 +93,7 @@ def test_supervisor_respects_concurrency_cap_and_abandons_live_tasks_on_shutdown
     assert bus.state(ids[2]).status is AgentStatus.QUEUED
 
 
-def test_a_tick_wakes_an_idling_parent_once_its_child_settles(tmp_path: pathlib.Path):
+def test_a_tick_wakes_an_idling_parent_once_its_childs_process_is_gone(tmp_path: pathlib.Path):
     migrate_file(tmp_path / "bus.db", latest_version())
     bus = Bus.open(tmp_path / "bus.db", SystemClock())
     parent_dir = tmp_path / "tasks" / "parent"
@@ -113,6 +113,13 @@ def test_a_tick_wakes_an_idling_parent_once_its_child_settles(tmp_path: pathlib.
     bus.record(parent, AgentStatus.IDLING, EventSource.WORKER)
 
     bus.record(child, AgentStatus.COMPLETED, EventSource.WORKER)
+    supervisor.live[child] = FakeProcess(pid=1000 + child, exit_after=100, code=0)
+    supervisor.started[child] = clock.time()
+    supervisor.tick()
+    assert [s for s in bus.live() if s.dir == str(parent_dir)] == []
+
+    del supervisor.live[child]
+    del supervisor.started[child]
     bus.record(child, AgentStatus.EXITED, EventSource.SUPERVISOR)
 
     supervisor.tick()
