@@ -27,10 +27,9 @@ class Idle(Tool[IdleArgs]):
 
     def run(self, args: IdleArgs, ctx: ToolContext) -> ToolResult:
         bus = Bus.open(self.run_dir / "bus.db", self.clock)
-        task = bus.state(self.agent).task
-        live = [bus.newest_agent(t.id) for t in bus.child_tasks(task) if bus.outstanding(t.id)]
+        live = bus.live_children(self.agent)
         if not live:
             return ctx.failure(self.name, "nothing to wait for: no live children")
-        payload = Idled(waiting_for=tuple(live))
+        payload = Idled(waiting_for=tuple(s.agent for s in live))
         path = ctx.write_output(self.name, payload.text_for_model(), ".txt")
         return ToolResult(ok=True, summary=payload, path=path)

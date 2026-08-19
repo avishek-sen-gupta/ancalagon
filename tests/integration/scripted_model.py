@@ -49,6 +49,7 @@ class ScriptedModel:
         self.decide = decide
         self.goals: list[str] = []
         self.turns: dict[str, int] = {}
+        self.requests: list[str] = []
         server = http.server.HTTPServer(("127.0.0.1", 0), self._handler())
         self.base_url = f"http://127.0.0.1:{server.server_address[1]}"
         self.server = server
@@ -66,7 +67,9 @@ class ScriptedModel:
 
         class Handler(http.server.BaseHTTPRequestHandler):
             def do_POST(self) -> None:
-                asked = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                body_text = self.rfile.read(int(self.headers["Content-Length"])).decode()
+                outer.requests.append(body_text)
+                asked = json.loads(body_text)
                 goal = outer._goal_of(json.dumps(asked["messages"][0]["content"]))
                 turn = outer.turns.get(goal, 0)
                 outer.turns[goal] = turn + 1

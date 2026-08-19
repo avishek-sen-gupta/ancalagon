@@ -123,3 +123,39 @@ def test_a_tick_wakes_an_idling_parent_once_its_child_settles(tmp_path: pathlib.
 
     supervisor.tick()
     assert len([s for s in bus.live() if s.dir == str(parent_dir)]) == 1
+
+
+def test_a_wake_is_skipped_while_the_idling_agents_process_is_still_live(
+    tmp_path: pathlib.Path,
+):
+    migrate_file(tmp_path / "bus.db", latest_version())
+    bus = Bus.open(tmp_path / "bus.db", SystemClock())
+    parent_dir = tmp_path / "tasks" / "parent"
+    parent = bus.enqueue(parent_dir, parent_agent=0)
+    child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=parent)
+    parent_task = bus.state(parent).task
+
+    def agents_for(task_id: int) -> list[int]:
+        rows = bus.conn.execute("SELECT id FROM agents WHERE task = ?", (task_id,)).fetchall()
+        return [int(r["id"]) for r in rows]
+
+    clock = FakeClock()
+    supervisor = Supervisor(
+        bus=bus, spawner=FakeSpawner([]), max_concurrent=2, timeout_s=5, poll_s=1.0, clock=clock
+    )
+
+    bus.record(parent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(parent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=4242)
+    supervisor.live[parent] = FakeProcess(pid=4242, exit_after=100, code=0)
+    supervisor.started[parent] = clock.time()
+    bus.record(parent, AgentStatus.IDLING, EventSource.WORKER)
+
+    bus.record(child, AgentStatus.COMPLETED, EventSource.WORKER)
+    bus.record(child, AgentStatus.EXITED, EventSource.SUPERVISOR)
+
+    supervisor.tick()
+    assert agents_for(parent_task) == [parent]
+
+    del supervisor.live[parent]
+    supervisor.tick()
+    assert len(agents_for(parent_task)) == 2
