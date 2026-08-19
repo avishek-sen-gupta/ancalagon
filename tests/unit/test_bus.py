@@ -215,3 +215,17 @@ def test_record_refuses_a_transition_the_lifecycle_does_not_allow(tmp_path: path
         bus.record(agent, AgentStatus.COLLECTED, EventSource.WORKER)
     with pytest.raises(IllegalTransition, match="running"):
         bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=2)
+
+
+def test_a_rejected_record_leaves_no_open_transaction_and_no_partial_write(
+    tmp_path: pathlib.Path,
+):
+    bus = _open(tmp_path)
+    agent = bus.enqueue(tmp_path / "a", parent_agent=HUMAN)
+    before = bus.history(agent)
+
+    with pytest.raises(IllegalTransition):
+        bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
+
+    assert bus.conn.in_transaction is False
+    assert bus.history(agent) == before

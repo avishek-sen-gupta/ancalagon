@@ -1,4 +1,4 @@
-# The single transition table: the one legal next state for an event, or a rejection.
+# The single transition table: the one legal next state for a status from a source, or a rejection.
 from ancalagon.attempt.attempt import (
     Attempt,
     Claimed,
@@ -11,7 +11,6 @@ from ancalagon.attempt.attempt import (
 )
 from ancalagon.attempt.illegal_transition import IllegalTransition
 from ancalagon.attempt.nascent import Nascent
-from ancalagon.contracts.agent_event import AgentEvent
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
 
@@ -27,14 +26,14 @@ VERDICTS = frozenset(
 CLOSES = frozenset({AgentStatus.EXITED, AgentStatus.CRASHED, AgentStatus.TIMED_OUT})
 
 
-def next_state(state: Attempt, event: AgentEvent) -> Attempt:
-    match (state, event.status, event.source):
+def next_state(current: Attempt, status: AgentStatus, source: EventSource, pid: int) -> Attempt:
+    match (current, status, source):
         case (Nascent(), AgentStatus.QUEUED, EventSource.SUPERVISOR):
             return Queued()
         case (_, AgentStatus.CLAIMED, EventSource.SUPERVISOR):
             return Claimed()
         case (Claimed(), AgentStatus.RUNNING, EventSource.SUPERVISOR):
-            return Running(pid=event.pid)
+            return Running(pid=pid)
         case (Running(), worker_status, EventSource.WORKER) if worker_status in VERDICTS:
             return Reported(verdict=worker_status)
         case (Reported(verdict=reported_verdict), close_status, EventSource.SUPERVISOR) if (
@@ -49,5 +48,5 @@ def next_state(state: Attempt, event: AgentEvent) -> Attempt:
             return Collected(verdict=lost_close, spoke=False)
         case _:
             raise IllegalTransition(
-                f"cannot record {event.status.value!r} from {event.source.value!r} " f"on {state!r}"
+                f"cannot record {status.value!r} from {source.value!r} on {current!r}"
             )

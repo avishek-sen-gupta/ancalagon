@@ -71,6 +71,31 @@ class Bus:
         rows = self.conn.execute(LATEST + where, params).fetchall()
         return [AgentState.model_validate({k: r[k] for k in r.keys()}) for r in rows]
 
+    def _record(
+        self,
+        agent: int,
+        status: AgentStatus,
+        source: EventSource,
+        pid: int = 0,
+        exit_code: int = 0,
+        summary: str = "",
+    ) -> None:
+        current = self.attempt(agent)
+        next_state(current, status, source, pid)
+        self.conn.execute(
+            "INSERT INTO agent_events (agent, ts, status, source, pid, exit_code, summary) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                agent,
+                self._now(),
+                status.value,
+                source.value,
+                pid,
+                exit_code,
+                summary[:SUMMARY_LIMIT],
+            ),
+        )
+
     def record(
         self,
         agent: int,
@@ -80,41 +105,13 @@ class Bus:
         exit_code: int = 0,
         summary: str = "",
     ) -> None:
-        owns_transaction = not self.conn.in_transaction
-        if owns_transaction:
-            self.conn.execute("BEGIN IMMEDIATE")
+        self.conn.execute("BEGIN IMMEDIATE")
         try:
-            current = self.attempt(agent)
-            event = AgentEvent(
-                id=0,
-                agent=agent,
-                ts=self._now(),
-                status=status,
-                source=source,
-                pid=pid,
-                exit_code=exit_code,
-                summary=summary[:SUMMARY_LIMIT],
-            )
-            next_state(current, event)
-            self.conn.execute(
-                "INSERT INTO agent_events (agent, ts, status, source, pid, exit_code, summary) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (
-                    event.agent,
-                    event.ts,
-                    event.status.value,
-                    event.source.value,
-                    event.pid,
-                    event.exit_code,
-                    event.summary,
-                ),
-            )
+            self._record(agent, status, source, pid, exit_code, summary)
         except Exception:
-            if owns_transaction:
-                self.conn.execute("ROLLBACK")
+            self.conn.execute("ROLLBACK")
             raise
-        if owns_transaction:
-            self.conn.execute("COMMIT")
+        self.conn.execute("COMMIT")
 
     def enqueue(self, dir: pathlib.Path, parent_agent: int) -> int:
         self.conn.execute("BEGIN IMMEDIATE")
@@ -129,7 +126,7 @@ class Bus:
             (int(task["id"]), self._now()),
         ).fetchone()
         agent_id = int(agent["id"])
-        self.record(agent_id, AgentStatus.QUEUED, EventSource.SUPERVISOR)
+        self._record(agent_id, AgentStatus.QUEUED, EventSource.SUPERVISOR)
         self.conn.execute("COMMIT")
         return agent_id
 
@@ -139,7 +136,7 @@ class Bus:
             "WHERE e.status = ? ORDER BY a.id LIMIT ?", (AgentStatus.QUEUED.value, limit)
         )
         for state in waiting:
-            self.record(state.agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+            self._record(state.agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
         self.conn.execute("COMMIT")
         return waiting
 
