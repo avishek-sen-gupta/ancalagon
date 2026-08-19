@@ -42,6 +42,10 @@ def test_migrations_round_trip_and_checks_reject_bad_rows(tmp_path: pathlib.Path
             "VALUES (1, 't', 'queued', 'supervisor', ?)",
             ("x" * 1001,),
         )
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO agent_events (agent, ts, status, source) VALUES (1, 't', 'abandoned', 'supervisor')"
+        )
 
     conn.execute(
         "INSERT INTO agent_events (agent, ts, status, source) VALUES (1, 't', 'idling', 'worker')"

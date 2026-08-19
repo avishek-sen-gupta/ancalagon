@@ -21,7 +21,7 @@ CREATE TABLE agent_events (
     ts        TEXT    NOT NULL,
     status    TEXT    NOT NULL CHECK (status IN
                   ('queued', 'claimed', 'running', 'completed', 'needs_input',
-                   'exhausted', 'failed', 'crashed', 'timed_out', 'abandoned', 'exited',
+                   'exhausted', 'failed', 'crashed', 'timed_out', 'exited',
                    'idling', 'collected')),
     source    TEXT    NOT NULL CHECK (source IN ('supervisor', 'worker')),
     pid       INTEGER NOT NULL DEFAULT 0,

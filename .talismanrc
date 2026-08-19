@@ -6,7 +6,7 @@ fileignoreconfig:
 - filename: CLAUDE.md
   checksum: a37e2b682c9f59a07b9b06410163a1157a442e4d853dd322a8d4c51d8eb015f1
 - filename: ancalagon/migrations/001_init.up.sql
-  checksum: 29ed640389c6c0db038d5d51027643321154897fff2a37f7247245bef89ea3d0
+  checksum: 9342bb725b20d9e06733e1525696d4cd6294abc547dce69fa8dd11e2118eaf34
 - filename: ancalagon/migrations/001_init.down.sql
   checksum: 80a8929ef2eb57378b6f6117dc27f1ea6dc1cb44cdbe95be11353d5a3654e19b
 - filename: docs/superpowers/plans/2026-08-03-ancalagon-substrate.md
@@ -40,7 +40,7 @@ fileignoreconfig:
 - filename: ancalagon/bus/bus.py
   checksum: facce559e5bc923708d6a1371d04be24fcfbedbb4053d0eeaa8ebd426bde49bf
 - filename: docs/architecture.md
-  checksum: 124910e4d36cab43a5be1e55f0c0bf4c0e1a61c00b50d0b7b2df7af40cb5b489
+  checksum: 4683c22819b038e939d2c811962d75c82192ec78b38e841e807ab837bf4d20c2
 - filename: ancalagon/tools/delegate/delegate_args.py
   checksum: 374eb9fc49fe06f498fb9d1c713c03c99a5ff7555c4a7bb00d4e1628f506792f
 - filename: ancalagon/tools/delegate/answer_task.py

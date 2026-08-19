@@ -12,7 +12,6 @@ class AgentStatus(enum.StrEnum):
     FAILED = "failed"
     CRASHED = "crashed"
     TIMED_OUT = "timed_out"
-    ABANDONED = "abandoned"
     EXITED = "exited"
     IDLING = "idling"
     COLLECTED = "collected"
@@ -26,7 +25,6 @@ TERMINAL = frozenset(
         AgentStatus.FAILED,
         AgentStatus.CRASHED,
         AgentStatus.TIMED_OUT,
-        AgentStatus.ABANDONED,
         AgentStatus.EXITED,
         AgentStatus.IDLING,
         AgentStatus.COLLECTED,
