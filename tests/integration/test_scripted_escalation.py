@@ -144,3 +144,64 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
         assert resumed_child["value"]["text"] == "ambiguous half: kept both"
     finally:
         model.close()
+
+
+ROOT_IDLE = "Delegate a subtask, then idle until it settles."
+CHILD_WORK = "Do the delegated work."
+
+
+def test_a_supervisor_wakes_an_idling_root_once_its_child_settles(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+):
+    run_dir = tmp_path / "ws" / "runs" / "idle-wake"
+
+    def decide(goal: str, turn: int) -> list[ToolUse]:
+        if goal == CHILD_WORK:
+            return [_call("c1", "submit_answer", text="child settled")]
+        if turn == 0:
+            return [_delegate("d1", "idle-child", CHILD_WORK)]
+        if turn == 1:
+            return [_call("i1", "idle")]
+        return [_call("s1", "submit_answer", text="resumed after idle")]
+
+    model = ScriptedModel(decide)
+    monkeypatch.setenv("OPENAI_BASE_URL", model.base_url)
+    monkeypatch.setenv("OPENAI_API_KEY", "scripted")
+    config = _config(tmp_path, run_dir, ROOT_IDLE)
+
+    try:
+        assert main(config) == 0
+        bus = Bus.open(run_dir / "bus.db", SystemClock())
+
+        root_task = bus.task(run_dir / "tasks" / "root")
+        agents = [
+            int(r["id"])
+            for r in bus.conn.execute(
+                "SELECT id FROM agents WHERE task = ? ORDER BY id", (root_task.id,)
+            ).fetchall()
+        ]
+        assert len(agents) == 2
+        first_root, second_root = agents
+
+        assert any(e.status is AgentStatus.IDLING for e in bus.history(first_root))
+        assert any(e.status is AgentStatus.COMPLETED for e in bus.history(second_root))
+
+        outcome = json.loads((run_dir / "tasks" / "root" / "outcome.json").read_text())
+        assert outcome["kind"] == "completed"
+        assert outcome["value"]["text"] == "resumed after idle"
+
+        lines = [
+            json.loads(line)
+            for line in (run_dir / "tasks" / "root" / "transcript.jsonl").read_text().splitlines()
+        ]
+        idled = [b for line in lines for b in line["blocks"] if b.get("name") == "idle"]
+        resumed = [
+            b
+            for line in lines
+            for b in line["blocks"]
+            if b.get("name") == "submit_answer" and "resumed after idle" in b.get("arguments", "")
+        ]
+        assert len(idled) == 1
+        assert len(resumed) == 1
+    finally:
+        model.close()
