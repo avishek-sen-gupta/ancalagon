@@ -77,4 +77,6 @@ fileignoreconfig:
   checksum: 201ee20b9f6c08afa520fe4f8ad04801d02e25c8f3d5ae064463d5e630613b91
 - filename: docs/superpowers/specs/2026-08-19-idling-parents-revised-design.md
   checksum: b1fc3300fc44f33dbbc0589e5cdfa5dd53196ff48a19d1788662959614196a00
+- filename: docs/superpowers/plans/2026-08-19-idling-parents-revised.md
+  checksum: faabc99e94b42078d6877e1db202c16ab021e7d87467638ddc72584e8bcf0a79
 version: "1.0"
