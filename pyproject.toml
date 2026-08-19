@@ -55,7 +55,7 @@ layers = [
     "ancalagon.llm : ancalagon.transcript",
     "ancalagon.workspace",
     "ancalagon.config",
-    "ancalagon.contracts : ancalagon.clock : ancalagon.liveness : ancalagon.sandbox",
+    "ancalagon.contracts : ancalagon.clock : ancalagon.sandbox",
     "ancalagon.migrations",
 ]
 
@@ -65,6 +65,5 @@ type = "independence"
 modules = [
     "ancalagon.contracts",
     "ancalagon.clock",
-    "ancalagon.liveness",
     "ancalagon.sandbox",
 ]

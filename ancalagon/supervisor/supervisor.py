@@ -1,7 +1,9 @@
 # Spawns, reaps and kills workers. Never retries -- a crash is reported and the parent decides.
+import datetime
 import logging
 import pathlib
 
+from ancalagon.bus.agent_event import AgentEvent
 from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
 from ancalagon.bus.event_source import EventSource
@@ -10,12 +12,22 @@ from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.timed_out import TimedOut
-from ancalagon.liveness.liveness import Liveness
-from ancalagon.liveness.os_liveness import OS_LIVENESS
+from ancalagon.supervisor.liveness import Liveness
+from ancalagon.supervisor.os_liveness import OS_LIVENESS
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
 
 LOGGER = logging.getLogger(__name__)
+
+REPORTED = frozenset(
+    {
+        AgentStatus.COMPLETED,
+        AgentStatus.EXHAUSTED,
+        AgentStatus.FAILED,
+        AgentStatus.NEEDS_INPUT,
+        AgentStatus.IDLING,
+    }
+)
 
 
 def _crashed(reason: str) -> Failed:
@@ -110,8 +122,55 @@ class Supervisor:
         self._reap()
         self._wake_idling()
 
+    def resolve_stale(self) -> None:
+        for state in self.bus.unreaped():
+            self._resolve_one(state.agent)
+
+    def _resolve_one(self, agent: int) -> None:
+        events = self.bus.history(agent)
+        statuses = {e.status for e in events if e.source is EventSource.WORKER}
+        if statuses & REPORTED:
+            self.bus.record(
+                agent,
+                AgentStatus.EXITED,
+                EventSource.SUPERVISOR,
+                summary="closed at startup; worker had reported",
+            )
+            return
+        running = [e for e in events if e.status is AgentStatus.RUNNING]
+        if running and self.liveness.is_running(running[-1].pid):
+            self._resolve_running(agent, running[-1])
+            return
+        self.bus.record(
+            agent,
+            AgentStatus.CRASHED,
+            EventSource.SUPERVISOR,
+            exit_code=-1,
+            summary="no live process at startup",
+        )
+
+    def _resolve_running(self, agent: int, running: AgentEvent) -> None:
+        elapsed = (self.clock.now() - datetime.datetime.fromisoformat(running.ts)).total_seconds()
+        if elapsed <= self.timeout_s:
+            return
+        self.liveness.kill(running.pid)
+        self._write_outcome(
+            agent,
+            TimedOut(
+                summary=f"killed after {self.timeout_s}s at startup",
+                spent=Budget(turns=0, tool_calls=0),
+            ),
+        )
+        self.bus.record(
+            agent,
+            AgentStatus.TIMED_OUT,
+            EventSource.SUPERVISOR,
+            exit_code=-9,
+            summary=f"killed after {self.timeout_s}s at startup",
+        )
+
     def run_until_idle(self) -> None:
-        self.bus.resolve_stale(self.liveness, self.timeout_s)
+        self.resolve_stale()
         while True:
             self.tick()
             if self.live:
