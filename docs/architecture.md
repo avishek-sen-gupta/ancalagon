@@ -111,12 +111,18 @@ going down a version when there is only one.
   agent against the same task, with a fresh copy of its role's `budget`: nothing carries
   over from the idled attempt but the transcript. A parent that idles waiting on three
   children may therefore spend four budgets across the run, not one.
-- The loop exits when nothing is live and nothing is queued. Agents whose history holds a
-  `claimed` or `running` event and no supervisor-written terminal one — `Bus.unreaped()` —
-  but which this supervisor does not own are orphans from a previous supervisor. Asking that
-  of the history rather than of the latest row is what catches a worker that recorded
-  `completed` or `idling` and was never reaped: its last row is its own, so nobody else will
-  ever close it.
+- The loop exits when nothing is live and nothing is queued.
+- Before the loop starts, `resolve_stale` settles what a previous supervisor left behind.
+  `Bus.unreaped()` finds agents whose history holds a `claimed` or `running` event and no
+  supervisor-written terminal one. Asking that of the history rather than of the latest row
+  is what catches a worker that recorded `completed` or `idling` and was never reaped: its
+  last row is its own, so nobody else will ever close it. Each is then settled by what the
+  record says rather than by assumption. A worker that had already reported is closed with
+  `exited`. Otherwise the recorded pid decides: a process still alive and inside its timeout
+  is left alone to finish, one alive past its timeout is killed and recorded `timed_out`
+  with a synthesised outcome its parent can collect, and one that is gone is recorded
+  `crashed`. `shutdown` writes nothing at all — a supervisor that stops leaves its rows for
+  the next one to settle.
 
 Nothing is ever updated: every status is a new row, so an agent's whole history survives.
 The worker appends its own account too — `completed`, `needs_input`, `exhausted` or
