@@ -10,6 +10,8 @@ from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.timed_out import TimedOut
+from ancalagon.supervisor.liveness import Liveness
+from ancalagon.supervisor.os_liveness import OS_LIVENESS
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
 
@@ -29,6 +31,7 @@ class Supervisor:
         timeout_s: int,
         clock: Clock,
         poll_s: float = 0.05,
+        liveness: Liveness = OS_LIVENESS,
     ):
         self.bus = bus
         self.spawner = spawner
@@ -36,6 +39,7 @@ class Supervisor:
         self.timeout_s = timeout_s
         self.poll_s = poll_s
         self.clock = clock
+        self.liveness = liveness
         self.live: dict[int, Process] = {}
         self.started: dict[int, float] = {}
 
@@ -107,28 +111,16 @@ class Supervisor:
         self._wake_idling()
 
     def run_until_idle(self) -> None:
+        self.bus.resolve_stale(self.liveness)
         while True:
             self.tick()
             if self.live:
                 self.clock.sleep(self.poll_s)
                 continue
-            orphans = [s.agent for s in self.bus.unreaped() if s.agent not in self.live]
-            if orphans:
-                LOGGER.warning("agents in flight with no live process: %s", orphans)
-                for agent in orphans:
-                    self.bus.record(
-                        agent,
-                        AgentStatus.ABANDONED,
-                        EventSource.SUPERVISOR,
-                        exit_code=-1,
-                        summary="orphaned; no live process",
-                    )
-                return
             if self.bus.queued_count() == 0:
                 return
             self.clock.sleep(self.poll_s)
 
     def shutdown(self) -> None:
-        for agent, process in list(self.live.items()):
-            process.kill()
-            self._finish(agent, AgentStatus.ABANDONED, -9, "abandoned at shutdown")
+        self.live.clear()
+        self.started.clear()
