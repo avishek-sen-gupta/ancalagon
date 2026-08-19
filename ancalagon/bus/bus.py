@@ -3,6 +3,16 @@ import pathlib
 import sqlite3
 
 import ancalagon.migrations
+from ancalagon.attempt.attempt import (
+    Attempt,
+    Claimed,
+    Closed,
+    Collected,
+    Lost,
+    Reported,
+    Running,
+)
+from ancalagon.attempt.attempt_of import attempt_of
 from ancalagon.bus.agent_state import AgentState
 from ancalagon.bus.task_row import TaskRow
 from ancalagon.clock.clock import Clock
@@ -118,29 +128,18 @@ class Bus:
             raise KeyError(f"no agent {agent}")
         return found[0]
 
-    def live(self) -> list[AgentState]:
-        return self._states(
-            f"WHERE e.status NOT IN ({TERMINAL_MARKS}) ORDER BY a.id", TERMINAL_VALUES
-        )
+    def attempt(self, agent: int) -> Attempt:
+        return attempt_of(self.history(agent))
 
     def unreaped(self) -> list[AgentState]:
-        return self._states(
-            "WHERE EXISTS (SELECT 1 FROM agent_events s WHERE s.agent = a.id "
-            "AND s.status IN (?, ?)) "
-            "AND NOT EXISTS (SELECT 1 FROM agent_events r WHERE r.agent = a.id "
-            f"AND r.source = ? AND r.status IN ({TERMINAL_MARKS})) ORDER BY a.id",
-            (
-                AgentStatus.CLAIMED.value,
-                AgentStatus.RUNNING.value,
-                EventSource.SUPERVISOR.value,
-                *TERMINAL_VALUES,
-            ),
-        )
+        return [
+            state
+            for state in self._states("ORDER BY a.id", ())
+            if isinstance(self.attempt(state.agent), (Claimed, Running, Reported))
+        ]
 
     def _reaped(self, agent: int) -> bool:
-        return any(
-            e.source is EventSource.SUPERVISOR and e.status in TERMINAL for e in self.history(agent)
-        )
+        return isinstance(self.attempt(agent), (Closed, Lost, Collected))
 
     def active_for(self, dir: pathlib.Path) -> list[AgentState]:
         return self._states(
@@ -164,16 +163,21 @@ class Bus:
         return [TaskRow.model_validate({k: r[k] for k in r.keys()}) for r in rows]
 
     def outstanding(self, task: int) -> bool:
-        statuses = {e.status for e in self.history(self.newest_agent(task))}
-        return AgentStatus.IDLING in statuses or not (statuses & TERMINAL)
+        match self.attempt(self.newest_agent(task)):
+            case Closed(verdict=closed_verdict):
+                return closed_verdict is AgentStatus.IDLING
+            case Collected(verdict=collected_verdict):
+                return collected_verdict is AgentStatus.IDLING
+            case Lost():
+                return False
+            case _:
+                return True
 
     def uncollected(self, task: int) -> list[int]:
         return [
             self.newest_agent(t.id)
             for t in self.child_tasks(task)
-            if not self.outstanding(t.id)
-            and AgentStatus.COLLECTED
-            not in {e.status for e in self.history(self.newest_agent(t.id))}
+            if isinstance(self.attempt(self.newest_agent(t.id)), (Closed, Lost))
         ]
 
     def _all_tasks(self) -> list[TaskRow]:
@@ -187,13 +191,21 @@ class Bus:
         ).fetchone()
         return int(row["id"] or 0)
 
+    def _is_news(self, agent: int) -> bool:
+        match self.attempt(agent):
+            case Closed(verdict=verdict):
+                return verdict is not AgentStatus.IDLING
+            case Lost():
+                return True
+            case _:
+                return False
+
     def _has_news(self, task: int) -> bool:
         idled_at = self._last_idled_event_id(task)
         if idled_at == 0:
             return False
         return any(
-            self._reaped(self.newest_agent(child.id))
-            and not self.outstanding(child.id)
+            self._is_news(self.newest_agent(child.id))
             and self._newest_event_id(self.newest_agent(child.id)) > idled_at
             for child in self.child_tasks(task)
         )

@@ -6,6 +6,7 @@ import sys
 
 import pytest
 
+from ancalagon.attempt.lost import Lost
 from ancalagon.bus.bus import Bus
 from ancalagon.cli import main
 from ancalagon.clock.system_clock import SystemClock
@@ -133,7 +134,7 @@ def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
     row = bus.state(1)
     assert row.status is AgentStatus.CRASHED
     assert row.exit_code == 1
-    assert bus.live() == []
+    assert bus.attempt(1) == Lost(close=AgentStatus.CRASHED)
 
     stderr_logs = list(task_dir.glob("stderr-*.log"))
     assert len(stderr_logs) == 1
