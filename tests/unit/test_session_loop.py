@@ -1,3 +1,4 @@
+import collections.abc
 import json
 import logging
 import pathlib
@@ -6,8 +7,10 @@ import pydantic
 import pytest
 
 from ancalagon.bus.bus import HUMAN, Bus
-from ancalagon.contracts.task_spec import TaskSpec
+from ancalagon.children.bus_children import BusChildren
+from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.exhausted import Exhausted
@@ -15,23 +18,23 @@ from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.needs_input import NeedsInput
-from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.outcome_kind import OutcomeKind
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
-from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.llm.fake_llm import FakeLLM
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.session import Session
+from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.need_input.need_input import NeedInput
-from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.registry.bind_tool import bind_tool
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
+from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.workspace.workspace import Workspace
 
@@ -293,6 +296,7 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
         ctx=ctx,
         output_class=Verdict,
         clock=FakeClock(),
+        children=BusChildren(bus, parent),
     )
     outcome = session.run()
 
@@ -496,3 +500,110 @@ def test_a_session_takes_its_behaviour_and_budget_from_its_role(tmp_path: pathli
 
     assert llm.systems[0].static.startswith("You investigate.")
     assert outcome.spent == Budget(turns=2, tool_calls=0)
+
+
+class ScriptedChildren:
+    def __init__(
+        self,
+        outstanding: collections.abc.Sequence[tuple[int, ...]],
+        uncollected: collections.abc.Sequence[tuple[int, ...]],
+    ):
+        self._outstanding = list(outstanding)
+        self._uncollected = list(uncollected)
+        self._last_outstanding: tuple[int, ...] = ()
+        self._last_uncollected: tuple[int, ...] = ()
+
+    def outstanding(self) -> tuple[int, ...]:
+        if self._outstanding:
+            self._last_outstanding = self._outstanding[0]
+            self._outstanding = self._outstanding[1:]
+        return self._last_outstanding
+
+    def uncollected(self) -> tuple[int, ...]:
+        if self._uncollected:
+            self._last_uncollected = self._uncollected[0]
+            self._uncollected = self._uncollected[1:]
+        return self._last_uncollected
+
+
+def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
+    tmp_path: pathlib.Path,
+):
+    write_root = tmp_path / "ws"
+    write_root.mkdir(parents=True, exist_ok=True)
+    (write_root / "data.txt").write_text("payload")
+
+    children = ScriptedChildren([(2,), ()], [(), (2,)])
+    ctx = ToolContext(
+        workspace=Workspace(write_root=write_root, read_roots=(write_root,)),
+        output_dir=write_root / "outputs",
+        summary_chars=200,
+        agent_id=17,
+    )
+    spec = TaskSpec(
+        task_id="t1",
+        role=Role(
+            behaviour="You answer questions.",
+            answer=ClassRef(module="verdict.py", name="Verdict"),
+            tools=(),
+            budget=Budget(turns=2, tool_calls=5),
+        ),
+        goal="Answer it.",
+    )
+    llm = FakeLLM(
+        [
+            Reply(
+                blocks=[
+                    ToolUse(
+                        id="tu_1",
+                        name="read_file",
+                        arguments=f'{{"path": "{write_root / "data.txt"}"}}',
+                    )
+                ],
+                stop_reason="tool_calls",
+            ),
+            Reply(
+                blocks=[
+                    ToolUse(
+                        id="tu_2",
+                        name="read_file",
+                        arguments=f'{{"path": "{write_root / "data.txt"}"}}',
+                    )
+                ],
+                stop_reason="tool_calls",
+            ),
+            Reply(
+                blocks=[ToolUse(id="tu_3", name="submit_answer", arguments='{"answer": "done"}')],
+                stop_reason="tool_calls",
+            ),
+        ]
+    )
+    session = Session(
+        spec=spec,
+        input=Verdict(answer="seed"),
+        messages=[],
+        transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=17),
+        agent_id=17,
+        llm=llm,
+        registry=Registry(
+            [
+                bind_tool(ReadFile()),
+                bind_tool(Idle(run_dir=tmp_path, agent=17, clock=FakeClock())),
+                bind_tool(SubmitAnswer(Verdict)),
+                bind_tool(CollectTask(run_dir=tmp_path, clock=FakeClock())),
+            ]
+        ),
+        ctx=ctx,
+        output_class=Verdict,
+        clock=FakeClock(),
+        children=children,
+    )
+
+    outcome = session.run()
+
+    assert [sorted(s.name for s in seen) for seen in llm.offered] == [
+        ["collect_task", "idle", "read_file"],
+        ["collect_task", "read_file"],
+        ["submit_answer"],
+    ]
+    assert outcome.kind is OutcomeKind.EXHAUSTED
