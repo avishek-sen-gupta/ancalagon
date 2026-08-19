@@ -18,6 +18,7 @@ dev = [
     "black>=24.0",
     "pyright>=1.1.409",
     "boto3>=1.43.62",
+    "import-linter>=2.13",
 ]
 
 [project.scripts]
@@ -36,3 +37,20 @@ target-version = ["py313"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.importlinter]
+root_package = "ancalagon"
+
+[[tool.importlinter.contracts]]
+name = "Layers point downward"
+type = "layers"
+layers = [
+    "ancalagon.cli",
+    "ancalagon.worker",
+    "ancalagon.supervisor : ancalagon.session",
+    "ancalagon.tools",
+    "ancalagon.children",
+    "ancalagon.bus",
+    "ancalagon.llm : ancalagon.transcript",
+    "ancalagon.contracts : ancalagon.clock : ancalagon.liveness : ancalagon.sandbox : ancalagon.workspace",
+]
