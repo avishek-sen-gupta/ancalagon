@@ -122,9 +122,12 @@ def test_a_task_sees_children_from_every_attempt_and_knows_when_it_is_outstandin
 
 def test_children_reports_outstanding_and_uncollected_for_one_agent(tmp_path: pathlib.Path):
     bus = _open(tmp_path)
+    bus.enqueue(tmp_path / "warmup", parent_agent=HUMAN)
+    bus.enqueue(tmp_path / "warmup", parent_agent=HUMAN)
     parent = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
     done = bus.enqueue(tmp_path / "done", parent_agent=parent)
     busy = bus.enqueue(tmp_path / "busy", parent_agent=parent)
+    assert bus.state(parent).task != parent
 
     children = BusChildren(bus, parent)
     assert children.outstanding() == (done, busy)
