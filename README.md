@@ -70,14 +70,30 @@ rather than crashing a worker later.
 
 `tools` is per role, and it is a change of default from the version before roles existed: an
 empty list now means *no tools*, not all of them. Every tool a role may use must be named,
-except `submit_answer`, which every role gets regardless of its `tools` list — the session
-forces the final turn to offer it, so an author who forgot to list it would only produce a
-harness crash, not a deliberately toolless agent.
+except `submit_answer` and `idle`, which every role gets regardless of its `tools` list — the
+session decides per turn which of the two to offer, and forces `submit_answer` on the turn its
+budget runs out, so an author who forgot to list either would only produce a harness crash, or
+a delegating agent that can never wait for its own children, not a deliberately toolless agent.
 
 The harness does not check that a role graph makes sense. A role holding `delegate_x` but not
-`collect_task` can spawn children whose answers it can never read; a role whose children call
-`need_input`, but which itself lacks `answer_task`, leaves them waiting until they time out.
-Getting the pairing right is the config author's job.
+`collect_task` can spawn children whose answers it can never read — and because `submit_answer`
+is withheld until every child is collected, such a role can never answer while turns remain
+either; it always runs its whole budget out and finishes `Exhausted`, never `Completed`. A role
+whose children call `need_input`, but which itself lacks `answer_task`, leaves them waiting
+until they time out. Getting the pairing right is the config author's job.
+
+A parent with children still working is not left polling to learn when they finish. Each turn
+it is offered `idle` in place of `submit_answer` while any child is outstanding; calling it
+ends the attempt with an `Idling` outcome and the process exits, its transcript and event log
+left on disk. The supervisor re-enqueues the task once a child settles after the parent idled,
+and the run resumes as a **new** agent against the same task — with a fresh copy of its role's
+`budget`, since a resumed agent starts fresh like any other. A parent that idles waiting on
+three children may spend four budgets across the run, not one; that cost lands on whichever
+role the parent is, so it belongs in the same place as any other budget decision. `check_task`
+still reports a child's status without waiting or spending a turn; `collect_task` reads its
+answer and records that the answer was read. `submit_answer` stays withheld until every child
+is both settled and read, except on the turn the parent's own budget runs out, when it is
+offered regardless — being cut off is not a choice to skip reading what was commissioned.
 
 A `spec.json` embeds the whole role as it was when the task was queued, not a name pointing
 into the config, so an edit to `[roles.*]` affects only tasks queued afterwards — a config
@@ -126,6 +142,11 @@ one requires it to be current already. To upgrade a database without starting a 
 ancalagon migrate --db ws/runs/r_0001/bus.db          # to the latest version
 ancalagon migrate --db ws/runs/r_0001/bus.db --to 0   # or back down to a given one
 ```
+
+`--to 0` drops every table the schema creates, not just what a later migration would have
+added — there is only the one migration. A parent's `idling` row and a child's `collected`
+row go with the rest of `agent_events`, so a downgraded database loses the record of why a
+parent stopped, along with everything else.
 
 ## How it works
 
