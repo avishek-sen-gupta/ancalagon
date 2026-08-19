@@ -154,6 +154,15 @@ class Bus:
         statuses = {e.status for e in self.history(self._newest_agent(task))}
         return AgentStatus.IDLING in statuses or not (statuses & TERMINAL)
 
+    def uncollected(self, task: int) -> list[int]:
+        return [
+            self._newest_agent(t.id)
+            for t in self.child_tasks(task)
+            if not self.outstanding(t.id)
+            and AgentStatus.COLLECTED
+            not in {e.status for e in self.history(self._newest_agent(t.id))}
+        ]
+
     def live_children(self, agent: int) -> list[AgentState]:
         task = self.state(agent).task
         return [

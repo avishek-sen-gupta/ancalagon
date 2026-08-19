@@ -15,6 +15,7 @@ class AgentStatus(enum.StrEnum):
     ABANDONED = "abandoned"
     EXITED = "exited"
     IDLING = "idling"
+    COLLECTED = "collected"
 
 
 TERMINAL = frozenset(
