@@ -59,6 +59,7 @@ from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.tools.survey.stats_args import StatsArgs
 from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
+from tests.unit.conftest import settle
 
 
 def _ctx(tmp_path: pathlib.Path) -> ToolContext:
@@ -538,15 +539,12 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     role = Role(behaviour="b", tools=(), budget=Budget(turns=20, tool_calls=60))
     delegate = DelegateTo("worker", role, run_dir, parent=1, clock=SystemClock())
     collect = CollectTask(run_dir=run_dir, clock=SystemClock())
+    bus = Bus.open(run_dir / "bus.db", SystemClock())
 
     def queue(task_id: str) -> int:
         args = delegate.args_model(task_id=task_id, goal="g", input=FreeText(text="go"))
         assert delegate.run(args, ctx).ok is True
-        return int(
-            Bus.open(run_dir / "bus.db", SystemClock())
-            .active_for(run_dir / "tasks" / task_id)[0]
-            .agent
-        )
+        return int(bus.active_for(run_dir / "tasks" / task_id)[0].agent)
 
     spent = Budget(turns=1, tool_calls=1)
     answered = queue("answered")
@@ -556,10 +554,11 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
 
     pending = collect.run(TaskArgs(task=unfinished), ctx)
     assert pending.ok is False
-    assert "no outcome yet" in pending.error
+    assert "has not been closed yet" in pending.error
 
     long_finding = "the finding " * 20
     assert len(long_finding) > ctx.summary_chars
+    settle(bus, answered, AgentStatus.COMPLETED)
     (run_dir / "tasks" / "answered" / "outcome.json").write_text(
         Completed[FreeText](
             value=FreeText(text=long_finding), summary="done", spent=spent
@@ -578,6 +577,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert still_truncates.truncated is True
     assert len(still_truncates.summary.text_for_model()) == ctx.summary_chars
 
+    settle(bus, broken, AgentStatus.FAILED)
     (run_dir / "tasks" / "broken" / "outcome.json").write_text(
         Failed(error="ImportError: no module", summary="died", spent=spent).model_dump_json()
     )
@@ -586,6 +586,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert "failed" in died.error
     assert "ImportError: no module" in died.error
 
+    settle(bus, asked, AgentStatus.NEEDS_INPUT)
     (run_dir / "tasks" / "asked" / "outcome.json").write_text(
         NeedsInput(question="which caption?", summary="stuck", spent=spent).model_dump_json()
     )
@@ -593,44 +594,34 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert stuck.ok is False
     assert "which caption?" in stuck.error
 
-    bus = Bus.open(run_dir / "bus.db", SystemClock())
     parent_task = bus.state(answered).task
     child_delegate = DelegateTo("worker", role, run_dir, parent=answered, clock=SystemClock())
 
     def queue_child(task_id: str) -> int:
         args = child_delegate.args_model(task_id=task_id, goal="g", input=FreeText(text="go"))
         assert child_delegate.run(args, ctx).ok is True
-        return int(
-            Bus.open(run_dir / "bus.db", SystemClock())
-            .active_for(run_dir / "tasks" / task_id)[0]
-            .agent
-        )
+        return int(bus.active_for(run_dir / "tasks" / task_id)[0].agent)
 
     child = queue_child("child")
     still_running = queue_child("still_running")
 
-    bus.record(child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
-    bus.record(child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
-    bus.record(child, AgentStatus.COMPLETED, EventSource.WORKER)
-    bus.record(child, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    settle(bus, child, AgentStatus.COMPLETED)
     (run_dir / "tasks" / "child" / "outcome.json").write_text(
         Completed[FreeText](value=FreeText(text="c"), summary="done", spent=spent).model_dump_json()
     )
 
-    bus.record(still_running, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
-    bus.record(still_running, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=2)
-    bus.record(still_running, AgentStatus.IDLING, EventSource.WORKER)
+    settle(bus, still_running, AgentStatus.IDLING, pid=2)
     (run_dir / "tasks" / "still_running" / "outcome.json").write_text(
         Completed[FreeText](
             value=FreeText(text="s"), summary="also done", spent=spent
         ).model_dump_json()
     )
 
-    assert bus.uncollected(parent_task) == [child]
+    assert bus.uncollected(parent_task) == [child, still_running]
     child_got = collect.run(TaskArgs(task=child), ctx)
     assert child_got.ok is True
     assert AgentStatus.COLLECTED in [e.status for e in bus.history(child)]
-    assert bus.uncollected(parent_task) == []
+    assert bus.uncollected(parent_task) == [still_running]
     assert bus.active_for(run_dir / "tasks" / "child") == []
 
     resumed = collect.run(TaskArgs(task=still_running), ctx)

@@ -1,6 +1,8 @@
 # Reads a finished task's answer, or says why there is not one.
 import pathlib
 
+from ancalagon.attempt.closed import Closed
+from ancalagon.attempt.lost import Lost
 from ancalagon.bus.bus import Bus
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.agent_status import AgentStatus
@@ -45,6 +47,8 @@ class CollectTask(Tool[TaskArgs]):
             state = bus.state(args.task)
         except KeyError as exc:
             return ctx.failure(self.name, str(exc))
+        if not isinstance(bus.attempt(bus.newest_agent(state.task)), (Closed, Lost)):
+            return ctx.failure(self.name, f"agent {state.agent} has not been closed yet")
         task_dir = pathlib.Path(state.dir)
         written = task_dir / "outcome.json"
         if not written.exists():

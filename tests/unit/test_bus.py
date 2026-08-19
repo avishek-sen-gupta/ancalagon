@@ -1,7 +1,10 @@
 import pathlib
 
+import pytest
+
 from ancalagon.attempt.claimed import Claimed
 from ancalagon.attempt.closed import Closed
+from ancalagon.attempt.illegal_transition import IllegalTransition
 from ancalagon.attempt.running import Running
 from ancalagon.bus.bus import HUMAN, Bus
 from ancalagon.bus.depth_of import depth_of
@@ -12,6 +15,7 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.migrations import latest_version, migrate_file
+from tests.unit.conftest import settle
 
 
 def _open(tmp_path: pathlib.Path) -> Bus:
@@ -90,13 +94,9 @@ def test_the_bus_knows_which_children_are_live(
 
     assert [s.agent for s in bus.live_children(parent)] == [first, second]
 
-    bus.record(parent, AgentStatus.IDLING, EventSource.WORKER)
-    bus.record(parent, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    settle(bus, parent, AgentStatus.IDLING)
 
-    bus.record(first, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
-    bus.record(first, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
-    bus.record(first, AgentStatus.COMPLETED, EventSource.WORKER)
-    bus.record(first, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    settle(bus, first, AgentStatus.COMPLETED)
     assert [s.agent for s in bus.live_children(parent)] == [second]
 
 
@@ -110,24 +110,17 @@ def test_a_task_sees_children_from_every_attempt_and_knows_when_it_is_outstandin
     assert [s.agent for s in bus.live_children(first)] == [early]
     assert bus.outstanding(bus.state(early).task) is True
 
-    bus.record(first, AgentStatus.IDLING, EventSource.WORKER)
-    bus.record(first, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    settle(bus, first, AgentStatus.IDLING)
     woken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
     late = bus.enqueue(tmp_path / "late", parent_agent=woken)
 
     assert sorted(s.agent for s in bus.live_children(woken)) == [early, late]
 
-    bus.record(early, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
-    bus.record(early, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
-    bus.record(early, AgentStatus.COMPLETED, EventSource.WORKER)
-    bus.record(early, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    settle(bus, early, AgentStatus.COMPLETED)
     assert [s.agent for s in bus.live_children(woken)] == [late]
     assert bus.outstanding(bus.state(early).task) is False
 
-    bus.record(late, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
-    bus.record(late, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=2)
-    bus.record(late, AgentStatus.IDLING, EventSource.WORKER)
-    bus.record(late, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    settle(bus, late, AgentStatus.IDLING, pid=2)
     assert bus.outstanding(bus.state(late).task) is True
     assert [s.agent for s in bus.live_children(woken)] == [late]
 
@@ -142,8 +135,7 @@ def test_a_task_is_wakeable_only_for_news_a_supervisor_has_marked(
 
     assert bus.wakeable() == []
 
-    bus.record(parent, AgentStatus.IDLING, EventSource.WORKER)
-    bus.record(parent, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    settle(bus, parent, AgentStatus.IDLING)
     assert bus.wakeable() == []
 
     bus.record(first, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
@@ -156,8 +148,7 @@ def test_a_task_is_wakeable_only_for_news_a_supervisor_has_marked(
     woken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
     assert bus.wakeable() == []
 
-    bus.record(woken, AgentStatus.IDLING, EventSource.WORKER)
-    bus.record(woken, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    settle(bus, woken, AgentStatus.IDLING)
     assert bus.wakeable() == []
 
     bus.record(second, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
@@ -172,20 +163,13 @@ def test_a_task_is_wakeable_only_for_news_a_supervisor_has_marked(
     reporting_child = bus.enqueue(tmp_path / "d", parent_agent=rewoken)
     assert bus.wakeable() == []
 
-    bus.record(rewoken, AgentStatus.IDLING, EventSource.WORKER)
-    bus.record(rewoken, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    settle(bus, rewoken, AgentStatus.IDLING)
     assert bus.wakeable() == []
 
-    bus.record(idled_child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
-    bus.record(idled_child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=3)
-    bus.record(idled_child, AgentStatus.IDLING, EventSource.WORKER)
-    bus.record(idled_child, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    settle(bus, idled_child, AgentStatus.IDLING, pid=3)
     assert bus.wakeable() == []
 
-    bus.record(reporting_child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
-    bus.record(reporting_child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=4)
-    bus.record(reporting_child, AgentStatus.COMPLETED, EventSource.WORKER)
-    bus.record(reporting_child, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    settle(bus, reporting_child, AgentStatus.COMPLETED, pid=4)
     assert [t.dir for t in bus.wakeable()] == [str(tmp_path / "root")]
 
 
@@ -202,10 +186,7 @@ def test_children_reports_outstanding_and_uncollected_for_one_agent(tmp_path: pa
     assert children.outstanding() == (done, busy)
     assert children.uncollected() == ()
 
-    bus.record(done, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
-    bus.record(done, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
-    bus.record(done, AgentStatus.COMPLETED, EventSource.WORKER)
-    bus.record(done, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    settle(bus, done, AgentStatus.COMPLETED)
     assert children.outstanding() == (busy,)
     assert children.uncollected() == (done,)
 
@@ -214,3 +195,23 @@ def test_children_reports_outstanding_and_uncollected_for_one_agent(tmp_path: pa
 
     assert NO_CHILDREN.outstanding() == ()
     assert NO_CHILDREN.uncollected() == ()
+
+
+def test_record_refuses_a_transition_the_lifecycle_does_not_allow(tmp_path: pathlib.Path):
+    bus = _open(tmp_path)
+    agent = bus.enqueue(tmp_path / "a", parent_agent=HUMAN)
+
+    with pytest.raises(IllegalTransition, match="collected"):
+        bus.record(agent, AgentStatus.COLLECTED, EventSource.WORKER)
+    with pytest.raises(IllegalTransition, match="running"):
+        bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
+    with pytest.raises(IllegalTransition, match="queued"):
+        bus.record(agent, AgentStatus.QUEUED, EventSource.SUPERVISOR)
+
+    settle(bus, agent, AgentStatus.COMPLETED)
+    bus.record(agent, AgentStatus.COLLECTED, EventSource.WORKER)
+
+    with pytest.raises(IllegalTransition, match="collected"):
+        bus.record(agent, AgentStatus.COLLECTED, EventSource.WORKER)
+    with pytest.raises(IllegalTransition, match="running"):
+        bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=2)
