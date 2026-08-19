@@ -36,9 +36,10 @@
 - `ancalagon/supervisor/liveness.py` — `Liveness` protocol, one method: `is_running(pid: int) -> bool`.
 - `ancalagon/supervisor/os_liveness.py` — `OsLiveness`, using `os.kill(pid, 0)`.
 - `ancalagon/supervisor/fake_liveness.py` — `FakeLiveness(alive: frozenset[int])` for tests, since `no mocking` forbids patching `os.kill`.
-- `ancalagon/bus/attempt.py` — the seven lifecycle states as one union.
-- `ancalagon/bus/attempt_of.py` — `attempt_of(events) -> Attempt`, the pure fold.
-- `ancalagon/bus/illegal_transition.py` — the error `Bus.record` raises.
+- `ancalagon/attempt/` — a module of its own for the lifecycle: `queued.py`, `claimed.py`,
+  `running.py`, `reported.py`, `closed.py`, `lost.py`, `collected.py`, one class each;
+  `attempt.py` for the union alias; `attempt_of.py` for the fold; `next_state.py` for the
+  transition function; `illegal_transition.py` for the error.
 
 **Modified**
 - `ancalagon/supervisor/supervisor.py` — `shutdown` stops recording; startup resolution replaces the orphan branch.
@@ -235,7 +236,7 @@ git commit -m "A status nothing writes is not a status"
 ### Task 3: The lifecycle as one fold
 
 **Files:**
-- Create: `ancalagon/bus/attempt.py`, `ancalagon/bus/attempt_of.py`
+- Create: `ancalagon/attempt/` (eleven files, see below)
 - Test: `tests/unit/test_attempt.py`
 
 **Interfaces:**
@@ -243,30 +244,33 @@ git commit -m "A status nothing writes is not a status"
 
 This task adds no behaviour and changes no caller. It is the derivation everything else is rebuilt on, tested alone.
 
-**One class per file is a guardrail**, but seven single-field models in seven files for one closed union is the letter against the spirit. Put the union's members in `attempt.py` together, with the module header naming it as one type — the codebase already does this for `ContractPair`-style groupings. If the reviewer disagrees, splitting later is mechanical.
+**One class per file, in a module of their own.** The lifecycle is not the bus — the bus stores
+events, the lifecycle interprets them — so it gets `ancalagon/attempt/` rather than living inside
+`ancalagon/bus/`. Seven files, one state each, each with its one-line header:
 
 ```python
-# The seven states an attempt can be in, folded from its events.
-import typing
-
+# ancalagon/attempt/running.py
+# An attempt whose process the supervisor spawned and has not yet reaped.
 import pydantic
 
-from ancalagon.bus.agent_status import AgentStatus
 
-
-class Queued(pydantic.BaseModel, frozen=True): ...
-class Claimed(pydantic.BaseModel, frozen=True): ...
 class Running(pydantic.BaseModel, frozen=True):
     pid: int
-class Reported(pydantic.BaseModel, frozen=True):
-    verdict: AgentStatus
-class Closed(pydantic.BaseModel, frozen=True):
-    verdict: AgentStatus
-class Lost(pydantic.BaseModel, frozen=True):
-    close: AgentStatus
-class Collected(pydantic.BaseModel, frozen=True):
-    verdict: AgentStatus
-    spoke: bool
+```
+
+The others follow the same shape: `Queued` and `Claimed` carry no fields; `Reported`, `Closed`
+and `Collected` carry `verdict: AgentStatus`; `Lost` carries `close: AgentStatus`; `Collected`
+also carries `spoke: bool`. Then `ancalagon/attempt/attempt.py` holds only the alias:
+
+```python
+# Every state an attempt can be in; the fold in attempt_of.py produces one of these.
+from ancalagon.attempt.claimed import Claimed
+from ancalagon.attempt.closed import Closed
+from ancalagon.attempt.collected import Collected
+from ancalagon.attempt.lost import Lost
+from ancalagon.attempt.queued import Queued
+from ancalagon.attempt.reported import Reported
+from ancalagon.attempt.running import Running
 
 Attempt = Queued | Claimed | Running | Reported | Closed | Lost | Collected
 ```
@@ -406,7 +410,7 @@ git commit -m "One derivation, and the predicates read from it"
 ### Task 5: Illegal transitions are rejected at the write
 
 **Files:**
-- Create: `ancalagon/bus/illegal_transition.py`
+- Create: `ancalagon/attempt/next_state.py`, `ancalagon/attempt/illegal_transition.py`
 - Modify: `ancalagon/bus/bus.py`, `ancalagon/tools/delegate/collect_task.py`
 - Test: `tests/unit/conftest.py`, `tests/unit/test_bus.py`
 
@@ -460,7 +464,7 @@ Expected: FAIL with `ImportError: cannot import name 'IllegalTransition'`.
 
 - [ ] **Step 4: Implement**
 
-Add a pure `next_state(current: Attempt, status: AgentStatus, source: EventSource) -> Attempt` beside the fold, raising `IllegalTransition` naming the current state, the rejected status and the source. `Bus.record` calls it inside its transaction before the `INSERT`.
+Write `next_state(current: Attempt, status: AgentStatus, source: EventSource) -> Attempt` in `ancalagon/attempt/next_state.py`, raising `IllegalTransition` naming the current state, the rejected status and the source. `Bus.record` calls it inside its transaction before the `INSERT`.
 
 - [ ] **Step 5: Convert the suite**
 
@@ -517,11 +521,10 @@ git commit -m "Document the lifecycle, and what the supervisor no longer assumes
 
 **Spec coverage.** Shutdown records nothing → Task 1. Startup resolves by pid → Task 1. The loop no longer returns → Task 1. No automatic retry → Task 1, by omission, asserted by the unchanged architecture.md line in Task 6. `ABANDONED` deleted → Task 2. The seven states and the spoke/silent axis → Task 3. Predicates over one derivation, and the `_has_news` conjunction named → Task 4. Enforcement at `record`, `Reported → Collected` illegal, the `settle` helper → Task 5. Docs → Task 6.
 
-**Three things left for the implementer to settle, flagged rather than guessed:**
+**Two things left for the implementer to settle, flagged rather than guessed:**
 
-1. Whether the seven state classes live in one file or seven (Task 3). One closed union in one file is the spirit of the guardrail; a reviewer may disagree, and splitting is mechanical.
-2. What `resolve_stale` does with an attempt that is `Running` with a *live* pid but whose task the supervisor does not intend to adopt (Task 1). Leaving it untouched is specified; whether the supervisor should also start watching it is out of scope and would need a design.
-3. Whether `unreaped()` survives Task 4 with a caller (Task 4). After Task 1 its only production caller is `resolve_stale`; if that inlines the filter, `unreaped` is dead and should go.
+1. What `resolve_stale` does with an attempt that is `Running` with a *live* pid but whose task the supervisor does not intend to adopt (Task 1). Leaving it untouched is specified; whether the supervisor should also start watching it is out of scope and would need a design.
+2. Whether `unreaped()` survives Task 4 with a caller (Task 4). After Task 1 its only production caller is `resolve_stale`; if that inlines the filter, `unreaped` is dead and should go.
 
 **Known and accepted, from the spec:** the pid check cannot distinguish a reused pid from the original process; two supervisors sharing one `bus.db` each see only their own; the N+1 reads in `_has_news` and `uncollected` are unchanged; states are not moved out to call sites.
 
