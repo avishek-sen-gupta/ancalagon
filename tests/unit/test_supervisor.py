@@ -152,14 +152,16 @@ def test_an_agent_whose_own_status_nobody_reaped_is_swept_as_orphaned(tmp_path: 
     assert bus.state(reaped).status is AgentStatus.EXITED
 
 
-def test_a_tick_wakes_an_idling_parent_once_its_childs_process_is_gone(tmp_path: pathlib.Path):
+def test_a_tick_wakes_an_idling_parent_once_a_supervisor_has_reaped_its_child(
+    tmp_path: pathlib.Path,
+):
     migrate_file(tmp_path / "bus.db", latest_version())
     bus = Bus.open(tmp_path / "bus.db", SystemClock())
     parent_dir = tmp_path / "tasks" / "parent"
     parent = bus.enqueue(parent_dir, parent_agent=0)
     child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=parent)
 
-    spawner = FakeSpawner([(0, 0), (0, 0), (10, 0)])
+    spawner = FakeSpawner([(0, 0), (2, 0), (10, 0)])
     clock = FakeClock()
     supervisor = Supervisor(
         bus=bus, spawner=spawner, max_concurrent=2, timeout_s=5, poll_s=1.0, clock=clock
@@ -167,21 +169,16 @@ def test_a_tick_wakes_an_idling_parent_once_its_childs_process_is_gone(tmp_path:
 
     supervisor.tick()
     assert bus.state(parent).status is AgentStatus.EXITED
-    assert bus.state(child).status is AgentStatus.EXITED
+    assert list(supervisor.live) == [child]
 
     bus.record(parent, AgentStatus.IDLING, EventSource.WORKER)
-
     bus.record(child, AgentStatus.COMPLETED, EventSource.WORKER)
-    supervisor.live[child] = FakeProcess(pid=1000 + child, exit_after=100, code=0)
-    supervisor.started[child] = clock.time()
+
     supervisor.tick()
     assert [s for s in bus.live() if s.dir == str(parent_dir)] == []
 
-    del supervisor.live[child]
-    del supervisor.started[child]
-    bus.record(child, AgentStatus.EXITED, EventSource.SUPERVISOR)
-
     supervisor.tick()
+    assert bus.state(child).status is AgentStatus.EXITED
 
     resumed = [s for s in bus.live() if s.dir == str(parent_dir)]
     assert len(resumed) == 1

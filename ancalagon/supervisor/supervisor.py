@@ -96,7 +96,7 @@ class Supervisor:
             self._finish(agent, status, code, f"exited {code}")
 
     def _wake_idling(self) -> None:
-        for task in self.bus.wakeable(self.live):
+        for task in self.bus.wakeable():
             if self.bus.newest_agent(task.id) in self.live:
                 continue
             self.bus.enqueue(pathlib.Path(task.dir), parent_agent=task.parent_agent)
