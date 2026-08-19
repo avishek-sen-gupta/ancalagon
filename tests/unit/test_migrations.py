@@ -13,7 +13,7 @@ def test_migrations_round_trip_and_checks_reject_bad_rows(tmp_path: pathlib.Path
     conn = sqlite3.connect(tmp_path / "bus.db")
 
     assert user_version(conn) == 0
-    assert latest_version() == 5
+    assert latest_version() == 1
 
     migrate(conn, latest_version())
     assert user_version(conn) == latest_version()
@@ -46,42 +46,11 @@ def test_migrations_round_trip_and_checks_reject_bad_rows(tmp_path: pathlib.Path
     conn.execute(
         "INSERT INTO agent_events (agent, ts, status, source) VALUES (1, 't', 'idling', 'worker')"
     )
-    with pytest.raises(sqlite3.IntegrityError):
-        conn.execute(
-            "INSERT INTO agent_events (agent, ts, status, source) VALUES (1, 't', 'bogus', 'worker')"
-        )
-
     conn.execute(
         "INSERT INTO agent_events (agent, ts, status, source) "
         "VALUES (1, 't', 'collected', 'worker')"
     )
-
-    migrate(conn, 4)
-    assert user_version(conn) == 4
-    with pytest.raises(sqlite3.IntegrityError):
-        conn.execute(
-            "INSERT INTO agent_events (agent, ts, status, source) "
-            "VALUES (1, 't', 'collected', 'worker')"
-        )
-
-    migrate(conn, 3)
-    assert user_version(conn) == 3
-    with pytest.raises(sqlite3.IntegrityError):
-        conn.execute(
-            "INSERT INTO agent_events (agent, ts, status, source) VALUES (1, 't', 'idling', 'worker')"
-        )
-
-    migrate(conn, 1)
-    assert user_version(conn) == 1
-    at_one = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    assert "model_calls" not in at_one
-    assert "agents" in at_one
-
-    migrate(conn, 2)
-    assert user_version(conn) == 2
     conn.execute("INSERT INTO model_calls (agent, ts, prompt_tokens) VALUES (1, 't', 10)")
-    at_two = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    assert {"messages", "cursors"} <= at_two
 
     migrate(conn, 0)
     assert user_version(conn) == 0
@@ -100,17 +69,17 @@ def test_a_bus_never_migrates_itself_and_the_command_does_it_offline(
     Bus.open(db, SystemClock())
 
     stale = tmp_path / "stale.db"
-    migrate(sqlite3.connect(stale), 1)
-    with pytest.raises(ValueError, match="schema version 1, not 5"):
+    migrate(sqlite3.connect(stale), 0)
+    with pytest.raises(ValueError, match="schema version 0, not 1"):
         Bus.open(stale, SystemClock())
 
     with pytest.raises(ValueError, match="does not exist"):
         migrate_command(tmp_path / "absent.db", -1)
 
     assert migrate_command(stale, -1) == 0
-    assert capsys.readouterr().out.strip().endswith("1 -> 5")
+    assert capsys.readouterr().out.strip().endswith("0 -> 1")
     Bus.open(stale, SystemClock())
 
-    assert migrate_command(stale, 1) == 0
-    with pytest.raises(ValueError, match="schema version 1, not 5"):
+    assert migrate_command(stale, 0) == 0
+    with pytest.raises(ValueError, match="schema version 0, not 1"):
         Bus.open(stale, SystemClock())

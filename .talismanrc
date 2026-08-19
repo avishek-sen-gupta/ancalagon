@@ -6,9 +6,9 @@ fileignoreconfig:
 - filename: CLAUDE.md
   checksum: a37e2b682c9f59a07b9b06410163a1157a442e4d853dd322a8d4c51d8eb015f1
 - filename: ancalagon/migrations/001_init.up.sql
-  checksum: 4436f8ed29bfc5bfe7e044e734cdd561b4f39e9f66a7cd73d02a18b64edbc1b9
+  checksum: 29ed640389c6c0db038d5d51027643321154897fff2a37f7247245bef89ea3d0
 - filename: ancalagon/migrations/001_init.down.sql
-  checksum: 669d34aa47bcd28cc3f5730953bd9ab7a42c345d4d0c2d6b91cecf4d6e043075
+  checksum: 80a8929ef2eb57378b6f6117dc27f1ea6dc1cb44cdbe95be11353d5a3654e19b
 - filename: docs/superpowers/plans/2026-08-03-ancalagon-substrate.md
   checksum: dad56bb88ded3533244d7f16f43bd9ce526cacfaba1b511558af92bae52a611a
 - filename: uv.lock
@@ -39,18 +39,10 @@ fileignoreconfig:
   checksum: 9a51583ed27d5418a8263732e22f7ab0b5ce86fba6efaba18ed1d6120d9a37c1
 - filename: ancalagon/bus/bus.py
   checksum: facce559e5bc923708d6a1371d04be24fcfbedbb4053d0eeaa8ebd426bde49bf
-- filename: ancalagon/migrations/002_model_calls.up.sql
-  checksum: ea8bdadf8b5e775ec56cc1faf11e4a902a5b0982f760364a0a6e594eb18302e5
-- filename: ancalagon/migrations/002_model_calls.down.sql
-  checksum: 10fb807d4a0703bfe9989143ec08789bea084624da3b5330d2b3ecd28ed471f4
 - filename: docs/architecture.md
   checksum: 124910e4d36cab43a5be1e55f0c0bf4c0e1a61c00b50d0b7b2df7af40cb5b489
 - filename: ancalagon/tools/delegate/delegate_args.py
   checksum: 374eb9fc49fe06f498fb9d1c713c03c99a5ff7555c4a7bb00d4e1628f506792f
-- filename: ancalagon/migrations/003_drop_messages.up.sql
-  checksum: 2424354c33a9bfb891d595abfba07be3e5ec6148b5ca1ba66d0efdd9f58d9251
-- filename: ancalagon/migrations/003_drop_messages.down.sql
-  checksum: f7e567fb3a51a4839da13049442c689d2a3e2874cd4f6e99aa62e5560650d3d9
 - filename: ancalagon/tools/delegate/answer_task.py
   checksum: f7661c815195b300de37ab1734ef161c9ec23de9d90b69b05a6105c3bb69bc88
 - filename: tests/integration/test_scripted_escalation.py
@@ -71,16 +63,8 @@ fileignoreconfig:
   checksum: 8eecaf74c4fe71d0e874b18b62c0fd7d38f8219537d97e618f167f9d0d1f11ab
 - filename: docs/superpowers/plans/2026-08-17-idling-parents.md
   checksum: 85a11c563aca373246861f5cabe6fd89fd2be6ab2f6ee1389dcce3650b114101
-- filename: ancalagon/migrations/004_idling_status.down.sql
-  checksum: 2c73c8dff87f50d670273fe8b76a52b48b85be7d4aa21a4d20e8dc6e9103271c
-- filename: ancalagon/migrations/004_idling_status.up.sql
-  checksum: 201ee20b9f6c08afa520fe4f8ad04801d02e25c8f3d5ae064463d5e630613b91
 - filename: docs/superpowers/specs/2026-08-19-idling-parents-revised-design.md
   checksum: b1fc3300fc44f33dbbc0589e5cdfa5dd53196ff48a19d1788662959614196a00
 - filename: docs/superpowers/plans/2026-08-19-idling-parents-revised.md
   checksum: faabc99e94b42078d6877e1db202c16ab021e7d87467638ddc72584e8bcf0a79
-- filename: ancalagon/migrations/005_collected_status.down.sql
-  checksum: 41db81bbeeffa5ec0bb15557a48efe32a4c3cf3e307a75eb5b34abf8602c8ba6
-- filename: ancalagon/migrations/005_collected_status.up.sql
-  checksum: ee6efef57b68be4355c680db967878c3352b8d43a25d83def98d15a272ee06a8
 version: "1.0"
