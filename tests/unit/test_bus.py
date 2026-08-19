@@ -44,6 +44,7 @@ def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.
     assert bus.attempt(second) == Claimed()
 
     bus.record(first, AgentStatus.NEEDS_INPUT, EventSource.WORKER, summary="which caption?")
+    assert [s.agent for s in bus.active_for(alpha)] == [first]
     bus.record(first, AgentStatus.EXITED, EventSource.SUPERVISOR, exit_code=0)
 
     assert [e.ts for e in bus.history(first)] == ["2026-01-01T00:00:00+00:00"] * 5

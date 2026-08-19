@@ -15,18 +15,3 @@ class AgentStatus(enum.StrEnum):
     EXITED = "exited"
     IDLING = "idling"
     COLLECTED = "collected"
-
-
-TERMINAL = frozenset(
-    {
-        AgentStatus.COMPLETED,
-        AgentStatus.NEEDS_INPUT,
-        AgentStatus.EXHAUSTED,
-        AgentStatus.FAILED,
-        AgentStatus.CRASHED,
-        AgentStatus.TIMED_OUT,
-        AgentStatus.EXITED,
-        AgentStatus.IDLING,
-        AgentStatus.COLLECTED,
-    }
-)
