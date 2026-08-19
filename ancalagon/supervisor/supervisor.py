@@ -7,11 +7,17 @@ from ancalagon.bus.bus import Bus
 from ancalagon.bus.event_source import EventSource
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.failed import Failed
+from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.timed_out import TimedOut
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _crashed(reason: str) -> Failed:
+    return Failed(error=reason, summary=reason, spent=Budget(turns=0, tool_calls=0))
 
 
 class Supervisor:
@@ -60,17 +66,12 @@ class Supervisor:
         self.live.pop(agent, None)
         self.started.pop(agent, None)
 
-    def _write_timeout_outcome(self, agent: int) -> None:
-        outcome = pathlib.Path(self.bus.state(agent).dir) / "outcome.json"
-        if outcome.exists():
+    def _write_outcome(self, agent: int, outcome: Outcome) -> None:
+        written = pathlib.Path(self.bus.state(agent).dir) / "outcome.json"
+        if written.exists():
             return
-        outcome.parent.mkdir(parents=True, exist_ok=True)
-        outcome.write_text(
-            TimedOut(
-                summary=f"killed after {self.timeout_s}s",
-                spent=Budget(turns=0, tool_calls=0),
-            ).model_dump_json()
-        )
+        written.parent.mkdir(parents=True, exist_ok=True)
+        written.write_text(outcome.model_dump_json())
 
     def _reap(self) -> None:
         for agent, process in list(self.live.items()):
@@ -79,10 +80,18 @@ class Supervisor:
                 if self.clock.time() - self.started[agent] >= self.timeout_s:
                     LOGGER.warning("killing agent %s after %ss", agent, self.timeout_s)
                     process.kill()
-                    self._write_timeout_outcome(agent)
+                    self._write_outcome(
+                        agent,
+                        TimedOut(
+                            summary=f"killed after {self.timeout_s}s",
+                            spent=Budget(turns=0, tool_calls=0),
+                        ),
+                    )
                     self._finish(agent, AgentStatus.TIMED_OUT, -9, "killed after timeout")
                 continue
             status = AgentStatus.EXITED if code == 0 else AgentStatus.CRASHED
+            if status is AgentStatus.CRASHED:
+                self._write_outcome(agent, _crashed(f"worker exited {code}"))
             LOGGER.info("agent %s %s", agent, status.value)
             self._finish(agent, status, code, f"exited {code}")
 

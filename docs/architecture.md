@@ -96,7 +96,9 @@ going down a version when there is only one.
   spawn appends `crashed` and reports to the parent.
 - `_reap` polls each live process and appends what it sees: `exited` on a zero exit,
   `crashed` otherwise. A process past `agent_timeout_s` is killed, given a `TimedOut`
-  outcome file, and recorded `timed_out`.
+  outcome file, and recorded `timed_out`. A crash that left no `outcome.json` behind — the
+  worker died before it could write one — is given a `Failed` one, so every agent that ends
+  has an outcome its parent can collect. An outcome already on disk is never overwritten.
 - `_wake_idling` re-enqueues a task whose newest agent idled and has since had a child settle
   — `Bus.wakeable(running)` evaluates that as a predicate over the whole database each tick,
   not as an event fired when a child finishes, and skips a task whose newest agent is still

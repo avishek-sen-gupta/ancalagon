@@ -41,6 +41,36 @@ class FakeSpawner(Spawner):
         return FakeProcess(pid=1000 + agent_id, exit_after=exit_after, code=code)
 
 
+def test_a_crash_leaves_the_outcome_a_parent_needs_to_collect(tmp_path: pathlib.Path):
+    migrate_file(tmp_path / "bus.db", latest_version())
+    bus = Bus.open(tmp_path / "bus.db", SystemClock())
+    died = bus.enqueue(tmp_path / "tasks" / "died", parent_agent=0)
+    spoke = bus.enqueue(tmp_path / "tasks" / "spoke", parent_agent=0)
+    (tmp_path / "tasks" / "spoke").mkdir(parents=True)
+    (tmp_path / "tasks" / "spoke" / "outcome.json").write_text('{"kind": "its own"}')
+
+    Supervisor(
+        bus=bus,
+        spawner=FakeSpawner([(0, 3), (0, 3)]),
+        max_concurrent=2,
+        timeout_s=5,
+        poll_s=1.0,
+        clock=FakeClock(),
+    ).tick()
+
+    assert bus.state(died).status is AgentStatus.CRASHED
+    assert bus.state(spoke).status is AgentStatus.CRASHED
+    assert json.loads((tmp_path / "tasks" / "died" / "outcome.json").read_text()) == {
+        "kind": "failed",
+        "error": "worker exited 3",
+        "summary": "worker exited 3",
+        "spent": {"turns": 0, "tool_calls": 0},
+    }
+    assert json.loads((tmp_path / "tasks" / "spoke" / "outcome.json").read_text()) == {
+        "kind": "its own"
+    }
+
+
 def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: pathlib.Path):
     migrate_file(tmp_path / "bus.db", latest_version())
     bus = Bus.open(tmp_path / "bus.db", SystemClock())
