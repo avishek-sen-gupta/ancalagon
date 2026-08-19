@@ -135,21 +135,32 @@ class Bus:
             (str(dir), *TERMINAL_VALUES),
         )
 
-    def live_children(self, agent: int) -> list[AgentState]:
-        return self._states(
-            f"WHERE t.parent_agent = ? AND e.status NOT IN ({TERMINAL_MARKS}) ORDER BY a.id",
-            (agent, *TERMINAL_VALUES),
+    def _newest_agent(self, task: int) -> int:
+        return int(
+            self.conn.execute(
+                "SELECT MAX(id) AS agent FROM agents WHERE task = ?", (task,)
+            ).fetchone()["agent"]
         )
 
-    def latest_agent(self, dir: pathlib.Path) -> AgentState:
-        found = self._states("WHERE t.dir = ? ORDER BY a.id DESC LIMIT 1", (str(dir),))
-        if not found:
-            raise KeyError(f"no agent for {dir}")
-        return found[0]
+    def child_tasks(self, task: int) -> list[TaskRow]:
+        rows = self.conn.execute(
+            "SELECT * FROM tasks WHERE parent_agent IN "
+            "(SELECT id FROM agents WHERE task = ?) ORDER BY id",
+            (task,),
+        ).fetchall()
+        return [TaskRow.model_validate({k: r[k] for k in r.keys()}) for r in rows]
 
-    def resumable_idle(self, agent: int) -> bool:
-        newest = self.latest_agent(pathlib.Path(self.state(agent).dir))
-        return AgentStatus.IDLING in [e.status for e in self.history(newest.agent)]
+    def outstanding(self, task: int) -> bool:
+        statuses = {e.status for e in self.history(self._newest_agent(task))}
+        return AgentStatus.IDLING in statuses or not (statuses & TERMINAL)
+
+    def live_children(self, agent: int) -> list[AgentState]:
+        task = self.state(agent).task
+        return [
+            self.state(self._newest_agent(t.id))
+            for t in self.child_tasks(task)
+            if self.outstanding(t.id)
+        ]
 
     def queued_count(self) -> int:
         return len(self._states("WHERE e.status = ?", (AgentStatus.QUEUED.value,)))
