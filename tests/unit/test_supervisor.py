@@ -7,17 +7,38 @@ from ancalagon.bus.bus import HUMAN, Bus
 from ancalagon.bus.event_source import EventSource
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
-from ancalagon.liveness.fake_liveness import FakeLiveness
+from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.free_text import FreeText
+from ancalagon.contracts.role import Role
 from ancalagon.migrations import latest_version, migrate_file
+from ancalagon.supervisor.fake_liveness import FakeLiveness
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
 from ancalagon.supervisor.supervisor import Supervisor
+from ancalagon.tools.delegate.collect_task import CollectTask
+from ancalagon.tools.delegate.delegate_to import DelegateTo
+from ancalagon.tools.delegate.task_args import TaskArgs
+from ancalagon.tools.registry.tool_context import ToolContext
+from ancalagon.workspace.workspace import Workspace
 
 
 def _open(tmp_path: pathlib.Path) -> Bus:
     db = tmp_path / "bus.db"
     migrate_file(db, latest_version())
     return Bus.open(db, FakeClock())
+
+
+def _ctx(tmp_path: pathlib.Path) -> ToolContext:
+    write_root = tmp_path / "ws"
+    write_root.mkdir(exist_ok=True)
+    outputs = write_root / "outputs"
+    outputs.mkdir(exist_ok=True)
+    return ToolContext(
+        workspace=Workspace(write_root=write_root, read_roots=(write_root,)),
+        output_dir=outputs,
+        summary_chars=50,
+        agent_id=17,
+    )
 
 
 class FakeProcess(Process):
@@ -132,7 +153,15 @@ def test_supervisor_respects_concurrency_cap_and_leaves_live_tasks_running_on_sh
     assert bus.state(ids[1]).status is AgentStatus.RUNNING
     assert bus.state(ids[2]).status is AgentStatus.QUEUED
 
-    bus.resolve_stale(FakeLiveness(frozenset()), timeout_s=1_000_000)
+    Supervisor(
+        bus=bus,
+        spawner=FakeSpawner([]),
+        max_concurrent=2,
+        timeout_s=1_000_000,
+        poll_s=1.0,
+        clock=clock,
+        liveness=FakeLiveness(frozenset()),
+    ).resolve_stale()
     assert bus.state(ids[0]).status is AgentStatus.CRASHED
     assert bus.state(ids[1]).status is AgentStatus.CRASHED
 
@@ -251,7 +280,15 @@ def test_startup_resolves_stale_rows_by_checking_the_pid(tmp_path: pathlib.Path)
     bus.record(spoke, AgentStatus.COMPLETED, EventSource.WORKER)
     bus.record(never, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
 
-    bus.resolve_stale(FakeLiveness(frozenset({102})), timeout_s=1_000_000)
+    Supervisor(
+        bus=bus,
+        spawner=FakeSpawner([]),
+        max_concurrent=2,
+        timeout_s=1_000_000,
+        poll_s=1.0,
+        clock=bus.clock,
+        liveness=FakeLiveness(frozenset({102})),
+    ).resolve_stale()
 
     assert bus.state(spoke).status is AgentStatus.EXITED
     assert bus.state(alive).status is AgentStatus.RUNNING
@@ -274,8 +311,53 @@ def test_startup_kills_a_wedged_agent_past_the_timeout_and_leaves_a_fresh_one_ru
     bus.clock.sleep(1)
 
     liveness = FakeLiveness(frozenset({301, 302}))
-    bus.resolve_stale(liveness, timeout_s=5)
+    Supervisor(
+        bus=bus,
+        spawner=FakeSpawner([]),
+        max_concurrent=2,
+        timeout_s=5,
+        poll_s=1.0,
+        clock=bus.clock,
+        liveness=liveness,
+    ).resolve_stale()
 
     assert bus.state(wedged).status is AgentStatus.TIMED_OUT
     assert bus.state(fresh).status is AgentStatus.RUNNING
     assert liveness.killed == [301]
+
+
+def test_a_startup_kill_writes_an_outcome_that_collect_task_can_close(tmp_path: pathlib.Path):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    migrate_file(run_dir / "bus.db", latest_version())
+    clock = FakeClock()
+    bus = Bus.open(run_dir / "bus.db", clock)
+    ctx = _ctx(tmp_path)
+    role = Role(behaviour="b", tools=(), budget=Budget(turns=20, tool_calls=60))
+    delegate = DelegateTo("worker", role, run_dir, parent=HUMAN, clock=clock)
+    args = delegate.args_model(task_id="wedged", goal="g", input=FreeText(text="go"))
+    assert delegate.run(args, ctx).ok is True
+    child = bus.active_for(run_dir / "tasks" / "wedged")[0].agent
+
+    bus.record(child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=401)
+    clock.sleep(10)
+
+    Supervisor(
+        bus=bus,
+        spawner=FakeSpawner([]),
+        max_concurrent=2,
+        timeout_s=5,
+        poll_s=1.0,
+        clock=clock,
+        liveness=FakeLiveness(frozenset({401})),
+    ).resolve_stale()
+
+    assert bus.state(child).status is AgentStatus.TIMED_OUT
+    assert (run_dir / "tasks" / "wedged" / "outcome.json").exists()
+
+    collected = CollectTask(run_dir=run_dir, clock=clock).run(TaskArgs(task=child), ctx)
+
+    assert collected.ok is False
+    assert collected.error == f"agent {child} ended as timed_out: killed after 5s at startup"
+    assert AgentStatus.COLLECTED in [e.status for e in bus.history(child)]

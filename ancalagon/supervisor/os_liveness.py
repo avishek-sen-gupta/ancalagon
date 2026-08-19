@@ -2,7 +2,7 @@
 import os
 import signal
 
-from ancalagon.liveness.liveness import Liveness
+from ancalagon.supervisor.liveness import Liveness
 
 
 class OsLiveness(Liveness):

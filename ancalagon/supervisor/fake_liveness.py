@@ -1,5 +1,5 @@
 # A Liveness that answers from a fixed set and records kills, so a test can watch without mocking.
-from ancalagon.liveness.liveness import Liveness
+from ancalagon.supervisor.liveness import Liveness
 
 
 class FakeLiveness(Liveness):
