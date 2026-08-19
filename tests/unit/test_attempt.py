@@ -8,6 +8,7 @@ from ancalagon.attempt.attempt import (
     Running,
 )
 from ancalagon.attempt.attempt_of import attempt_of
+from ancalagon.attempt.nascent import Nascent
 from ancalagon.contracts.agent_event import AgentEvent
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
@@ -22,6 +23,8 @@ def _events(*pairs: tuple[AgentStatus, EventSource]) -> list[AgentEvent]:
 
 def test_every_lifecycle_path_folds_to_the_state_it_describes():
     W, S = EventSource.WORKER, EventSource.SUPERVISOR
+
+    assert attempt_of([]) == Nascent()
 
     assert attempt_of(_events((AgentStatus.QUEUED, S))) == Queued()
     assert attempt_of(_events((AgentStatus.QUEUED, S), (AgentStatus.CLAIMED, S))) == Claimed()
