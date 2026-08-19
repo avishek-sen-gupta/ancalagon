@@ -9,6 +9,7 @@ from ancalagon.attempt.attempt import (
     Closed,
     Collected,
     Lost,
+    Queued,
     Reported,
     Running,
 )
@@ -17,7 +18,7 @@ from ancalagon.bus.agent_state import AgentState
 from ancalagon.bus.task_row import TaskRow
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.agent_event import AgentEvent
-from ancalagon.contracts.agent_status import TERMINAL, AgentStatus
+from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.event_source import EventSource
 
@@ -34,9 +35,6 @@ HUMAN = 0
 
 # The schema's CHECK constraint on agent_events.summary; longer text is truncated.
 SUMMARY_LIMIT = 1000
-
-TERMINAL_MARKS = ", ".join("?" for _ in TERMINAL)
-TERMINAL_VALUES = tuple(s.value for s in TERMINAL)
 
 
 class Bus:
@@ -142,10 +140,11 @@ class Bus:
         return isinstance(self.attempt(agent), (Closed, Lost, Collected))
 
     def active_for(self, dir: pathlib.Path) -> list[AgentState]:
-        return self._states(
-            f"WHERE t.dir = ? AND e.status NOT IN ({TERMINAL_MARKS}) ORDER BY a.id",
-            (str(dir), *TERMINAL_VALUES),
-        )
+        return [
+            state
+            for state in self._states("WHERE t.dir = ? ORDER BY a.id", (str(dir),))
+            if isinstance(self.attempt(state.agent), (Queued, Claimed, Running, Reported))
+        ]
 
     def newest_agent(self, task: int) -> int:
         return int(

@@ -229,11 +229,15 @@ def test_a_tick_wakes_an_idling_parent_once_a_supervisor_has_reaped_its_child(
     supervisor.tick()
     assert bus.state(child).status is AgentStatus.EXITED
 
-    resumed = bus.newest_agent(bus.task(parent_dir).id)
+    active = bus.active_for(parent_dir)
+    assert len(active) == 1
+    resumed = active[0].agent
     assert resumed != parent
     assert bus.attempt(resumed) == Queued()
 
     supervisor.tick()
+    active_after = bus.active_for(parent_dir)
+    assert len(active_after) == 1
     assert bus.attempt(resumed) == Running(pid=1000 + resumed)
 
 
