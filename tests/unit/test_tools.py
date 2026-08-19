@@ -647,6 +647,45 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert stuck.ok is False
     assert "which caption?" in stuck.error
 
+    bus = Bus.open(run_dir / "bus.db", SystemClock())
+    parent_task = bus.state(answered).task
+    child_delegate = DelegateTo("worker", role, run_dir, parent=answered, clock=SystemClock())
+
+    def queue_child(task_id: str) -> int:
+        args = child_delegate.args_model(task_id=task_id, goal="g", input=FreeText(text="go"))
+        assert child_delegate.run(args, ctx).ok is True
+        return int(
+            Bus.open(run_dir / "bus.db", SystemClock())
+            .active_for(run_dir / "tasks" / task_id)[0]
+            .agent
+        )
+
+    child = queue_child("child")
+    still_running = queue_child("still_running")
+
+    bus.record(child, AgentStatus.COMPLETED, EventSource.WORKER)
+    bus.record(child, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    (run_dir / "tasks" / "child" / "outcome.json").write_text(
+        Completed[FreeText](value=FreeText(text="c"), summary="done", spent=spent).model_dump_json()
+    )
+
+    bus.record(still_running, AgentStatus.IDLING, EventSource.WORKER)
+    (run_dir / "tasks" / "still_running" / "outcome.json").write_text(
+        Completed[FreeText](
+            value=FreeText(text="s"), summary="also done", spent=spent
+        ).model_dump_json()
+    )
+
+    assert bus.uncollected(parent_task) == [child]
+    child_got = collect.run(TaskArgs(task=child), ctx)
+    assert child_got.ok is True
+    assert AgentStatus.COLLECTED in [e.status for e in bus.history(child)]
+    assert bus.uncollected(parent_task) == []
+
+    resumed = collect.run(TaskArgs(task=still_running), ctx)
+    assert resumed.ok is True
+    assert AgentStatus.COLLECTED not in [e.status for e in bus.history(still_running)]
+
 
 def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     tmp_path: pathlib.Path,

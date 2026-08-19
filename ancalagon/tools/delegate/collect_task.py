@@ -1,7 +1,9 @@
 # Reads a finished task's answer, or says why there is not one.
 import pathlib
 
+from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
+from ancalagon.bus.event_source import EventSource
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.exhausted import Exhausted
@@ -38,8 +40,9 @@ class CollectTask(Tool[TaskArgs]):
         self.clock = clock
 
     def run(self, args: TaskArgs, ctx: ToolContext) -> ToolResult:
+        bus = Bus.open(self.run_dir / "bus.db", self.clock)
         try:
-            state = Bus.open(self.run_dir / "bus.db", self.clock).state(args.task)
+            state = bus.state(args.task)
         except KeyError as exc:
             return ctx.failure(self.name, str(exc))
         task_dir = pathlib.Path(state.dir)
@@ -51,6 +54,8 @@ class CollectTask(Tool[TaskArgs]):
         spec = TaskSpec.model_validate_json((task_dir / "spec.json").read_text())
         answer_class = resolve_class(spec.role.answer)
         outcome = outcome_adapter(answer_class).validate_json(written.read_text())
+        if not bus.outstanding(state.task):
+            bus.record(args.task, AgentStatus.COLLECTED, EventSource.WORKER)
         if isinstance(outcome, (Completed, Exhausted)):
             return ctx.full_result(self.name, outcome.value.model_dump_json(), ".json")
         return ctx.failure(
