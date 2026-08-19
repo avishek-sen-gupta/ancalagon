@@ -4,6 +4,8 @@ from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import HUMAN, Bus
 from ancalagon.bus.depth_of import depth_of
 from ancalagon.bus.event_source import EventSource
+from ancalagon.children.bus_children import BusChildren
+from ancalagon.children.no_children import NO_CHILDREN
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.migrations import latest_version, migrate_file
@@ -116,3 +118,25 @@ def test_a_task_sees_children_from_every_attempt_and_knows_when_it_is_outstandin
     bus.record(late, AgentStatus.EXITED, EventSource.SUPERVISOR)
     assert bus.outstanding(bus.state(late).task) is True
     assert [s.agent for s in bus.live_children(woken)] == [late]
+
+
+def test_children_reports_outstanding_and_uncollected_for_one_agent(tmp_path: pathlib.Path):
+    bus = _open(tmp_path)
+    parent = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
+    done = bus.enqueue(tmp_path / "done", parent_agent=parent)
+    busy = bus.enqueue(tmp_path / "busy", parent_agent=parent)
+
+    children = BusChildren(bus, parent)
+    assert children.outstanding() == (done, busy)
+    assert children.uncollected() == ()
+
+    bus.record(done, AgentStatus.COMPLETED, EventSource.WORKER)
+    bus.record(done, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    assert children.outstanding() == (busy,)
+    assert children.uncollected() == (done,)
+
+    bus.record(done, AgentStatus.COLLECTED, EventSource.WORKER)
+    assert children.uncollected() == ()
+
+    assert NO_CHILDREN.outstanding() == ()
+    assert NO_CHILDREN.uncollected() == ()
