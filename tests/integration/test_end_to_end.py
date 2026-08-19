@@ -7,9 +7,9 @@ import sys
 import pytest
 
 from ancalagon.bus.bus import Bus
-from ancalagon.clock.system_clock import SystemClock
-from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.cli import main
+from ancalagon.clock.system_clock import SystemClock
+from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 

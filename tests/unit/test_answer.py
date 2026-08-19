@@ -5,10 +5,10 @@ import pytest
 
 from ancalagon.answer import answer_task
 from ancalagon.answer_command import answer_command
-from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
 from ancalagon.clock.system_clock import SystemClock
-from ancalagon.bus.event_source import EventSource
+from ancalagon.contracts.agent_status import AgentStatus
+from ancalagon.contracts.event_source import EventSource
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.tools.delegate.answer_args import AnswerArgs
 from ancalagon.tools.delegate.answer_task import AnswerTask

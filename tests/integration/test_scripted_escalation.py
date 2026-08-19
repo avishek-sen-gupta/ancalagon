@@ -4,10 +4,10 @@ import pathlib
 import pytest
 
 from ancalagon.answer_command import answer_command
-from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
-from ancalagon.clock.system_clock import SystemClock
 from ancalagon.cli import main
+from ancalagon.clock.system_clock import SystemClock
+from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.tool_use import ToolUse
 from tests.integration.scripted_model import ScriptedModel
 

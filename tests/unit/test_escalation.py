@@ -5,14 +5,14 @@ import pathlib
 import pytest
 
 from ancalagon.answer_command import answer_command
-from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
 from ancalagon.clock.system_clock import SystemClock
-from ancalagon.bus.event_source import EventSource
+from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.budget import Budget
-from ancalagon.contracts.message import Message
 from ancalagon.contracts.completed import Completed
+from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.free_text import FreeText
+from ancalagon.contracts.message import Message
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.reply import Reply

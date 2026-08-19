@@ -5,14 +5,14 @@ import pydantic
 import pytest
 
 import ancalagon.config.config
-from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import HUMAN, Bus
-from ancalagon.bus.event_source import EventSource
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
+from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
+from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.needs_input import NeedsInput
