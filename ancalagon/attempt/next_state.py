@@ -30,7 +30,7 @@ def next_state(current: Attempt, status: AgentStatus, source: EventSource, pid: 
     match (current, status, source):
         case (Nascent(), AgentStatus.QUEUED, EventSource.SUPERVISOR):
             return Queued()
-        case (_, AgentStatus.CLAIMED, EventSource.SUPERVISOR):
+        case (Queued(), AgentStatus.CLAIMED, EventSource.SUPERVISOR):
             return Claimed()
         case (Claimed(), AgentStatus.RUNNING, EventSource.SUPERVISOR):
             return Running(pid=pid)

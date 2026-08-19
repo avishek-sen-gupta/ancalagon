@@ -132,9 +132,13 @@ class Bus:
 
     def claim(self, limit: int) -> list[AgentState]:
         self.conn.execute("BEGIN IMMEDIATE")
-        waiting = self._states(
-            "WHERE e.status = ? ORDER BY a.id LIMIT ?", (AgentStatus.QUEUED.value, limit)
-        )
+        waiting = [
+            state
+            for state in self._states(
+                "WHERE e.status = ? ORDER BY a.id", (AgentStatus.QUEUED.value,)
+            )
+            if self.attempt(state.agent) == Queued()
+        ][:limit]
         for state in waiting:
             self._record(state.agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
         self.conn.execute("COMMIT")
