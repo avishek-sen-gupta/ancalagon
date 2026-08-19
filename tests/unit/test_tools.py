@@ -259,6 +259,8 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     )
     migrate_file(tmp_path / "bus.db", latest_version())
     bus = Bus.open(tmp_path / "bus.db", SystemClock())
+    root_agent = bus.enqueue(tmp_path / "root-agent", parent_agent=HUMAN)
+    nested_agent = bus.enqueue(tmp_path / "nested-agent", parent_agent=HUMAN)
     full_role = Role(
         behaviour="Coordinate.",
         tools=("delegate_scout", "need_input"),
@@ -268,7 +270,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         config,
         TaskSpec(task_id="root", role=full_role, goal="g"),
         tmp_path,
-        parent=0,
+        parent=root_agent,
         depth=0,
         output_class=FreeText,
         clock=SystemClock(),
@@ -278,7 +280,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         config,
         TaskSpec(task_id="root", role=full_role, goal="g"),
         tmp_path,
-        parent=1,
+        parent=nested_agent,
         depth=1,
         output_class=FreeText,
         clock=SystemClock(),
@@ -299,7 +301,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         config,
         TaskSpec(task_id="root", role=narrow_role, goal="g"),
         tmp_path,
-        parent=0,
+        parent=root_agent,
         depth=0,
         output_class=FreeText,
         clock=SystemClock(),
@@ -320,7 +322,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
             config,
             TaskSpec(task_id="root", role=unknown_role, goal="g"),
             tmp_path,
-            parent=0,
+            parent=root_agent,
             depth=0,
             output_class=FreeText,
             clock=SystemClock(),
