@@ -6,8 +6,8 @@ from ancalagon.bus.bus import HUMAN, Bus
 from ancalagon.bus.event_source import EventSource
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
+from ancalagon.liveness.fake_liveness import FakeLiveness
 from ancalagon.migrations import latest_version, migrate_file
-from ancalagon.supervisor.fake_liveness import FakeLiveness
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
 from ancalagon.supervisor.supervisor import Supervisor

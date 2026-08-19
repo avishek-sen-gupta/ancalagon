@@ -10,7 +10,7 @@ from ancalagon.bus.event_source import EventSource
 from ancalagon.bus.task_row import TaskRow
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.call_usage import CallUsage
-from ancalagon.supervisor.liveness import Liveness
+from ancalagon.liveness.liveness import Liveness
 
 REPORTED = frozenset(
     {

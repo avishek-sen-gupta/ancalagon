@@ -10,8 +10,8 @@ from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.timed_out import TimedOut
-from ancalagon.supervisor.liveness import Liveness
-from ancalagon.supervisor.os_liveness import OS_LIVENESS
+from ancalagon.liveness.liveness import Liveness
+from ancalagon.liveness.os_liveness import OS_LIVENESS
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
 
