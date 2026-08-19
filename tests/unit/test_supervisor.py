@@ -1,15 +1,22 @@
 import json
 import pathlib
 
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.agent_status import AgentStatus
+from ancalagon.bus.bus import HUMAN, Bus
+from ancalagon.bus.event_source import EventSource
+from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.migrations import latest_version, migrate_file
-from ancalagon.bus.agent_status import AgentStatus
-from ancalagon.bus.event_source import EventSource
-from ancalagon.supervisor.supervisor import Supervisor
+from ancalagon.supervisor.fake_liveness import FakeLiveness
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
-from ancalagon.clock.fake_clock import FakeClock
+from ancalagon.supervisor.supervisor import Supervisor
+
+
+def _open(tmp_path: pathlib.Path) -> Bus:
+    db = tmp_path / "bus.db"
+    migrate_file(db, latest_version())
+    return Bus.open(db, FakeClock())
 
 
 class FakeProcess(Process):
@@ -98,7 +105,7 @@ def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: p
     assert bus.live() == []
 
 
-def test_supervisor_respects_concurrency_cap_and_abandons_live_tasks_on_shutdown(
+def test_supervisor_respects_concurrency_cap_and_leaves_live_tasks_running_on_shutdown(
     tmp_path: pathlib.Path,
 ):
     migrate_file(tmp_path / "bus.db", latest_version())
@@ -118,12 +125,16 @@ def test_supervisor_respects_concurrency_cap_and_abandons_live_tasks_on_shutdown
 
     supervisor.shutdown()
     assert supervisor.live == {}
-    assert bus.state(ids[0]).status is AgentStatus.ABANDONED
-    assert bus.state(ids[1]).status is AgentStatus.ABANDONED
+    assert bus.state(ids[0]).status is AgentStatus.RUNNING
+    assert bus.state(ids[1]).status is AgentStatus.RUNNING
     assert bus.state(ids[2]).status is AgentStatus.QUEUED
 
+    bus.resolve_stale(FakeLiveness(frozenset()))
+    assert bus.state(ids[0]).status is AgentStatus.CRASHED
+    assert bus.state(ids[1]).status is AgentStatus.CRASHED
 
-def test_an_agent_whose_own_status_nobody_reaped_is_swept_as_orphaned(tmp_path: pathlib.Path):
+
+def test_startup_resolves_agents_whose_worker_already_reported(tmp_path: pathlib.Path):
     migrate_file(tmp_path / "bus.db", latest_version())
     bus = Bus.open(tmp_path / "bus.db", SystemClock())
     done = bus.enqueue(tmp_path / "tasks" / "done", parent_agent=0)
@@ -147,8 +158,8 @@ def test_an_agent_whose_own_status_nobody_reaped_is_swept_as_orphaned(tmp_path: 
     ).run_until_idle()
 
     assert [s.agent for s in bus.unreaped()] == []
-    assert bus.state(done).status is AgentStatus.ABANDONED
-    assert bus.state(idled).status is AgentStatus.ABANDONED
+    assert bus.state(done).status is AgentStatus.EXITED
+    assert bus.state(idled).status is AgentStatus.EXITED
     assert bus.state(reaped).status is AgentStatus.EXITED
 
 
@@ -222,3 +233,24 @@ def test_a_wake_is_skipped_while_the_idling_agents_process_is_still_live(
     del supervisor.live[parent]
     supervisor.tick()
     assert len(agents_for(parent_task)) == 2
+
+
+def test_startup_resolves_stale_rows_by_checking_the_pid(tmp_path: pathlib.Path):
+    bus = _open(tmp_path)
+    spoke = bus.enqueue(tmp_path / "spoke", parent_agent=HUMAN)
+    alive = bus.enqueue(tmp_path / "alive", parent_agent=HUMAN)
+    dead = bus.enqueue(tmp_path / "dead", parent_agent=HUMAN)
+    never = bus.enqueue(tmp_path / "never", parent_agent=HUMAN)
+
+    for agent, pid in ((spoke, 101), (alive, 102), (dead, 103)):
+        bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+        bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=pid)
+    bus.record(spoke, AgentStatus.COMPLETED, EventSource.WORKER)
+    bus.record(never, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+
+    bus.resolve_stale(FakeLiveness(frozenset({102})))
+
+    assert bus.state(spoke).status is AgentStatus.EXITED
+    assert bus.state(alive).status is AgentStatus.RUNNING
+    assert bus.state(dead).status is AgentStatus.CRASHED
+    assert bus.state(never).status is AgentStatus.CRASHED

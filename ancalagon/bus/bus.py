@@ -10,6 +10,17 @@ from ancalagon.bus.event_source import EventSource
 from ancalagon.bus.task_row import TaskRow
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.call_usage import CallUsage
+from ancalagon.supervisor.liveness import Liveness
+
+REPORTED = frozenset(
+    {
+        AgentStatus.COMPLETED,
+        AgentStatus.EXHAUSTED,
+        AgentStatus.FAILED,
+        AgentStatus.NEEDS_INPUT,
+        AgentStatus.IDLING,
+    }
+)
 
 LATEST = """
 SELECT a.id AS agent, a.task AS task, t.dir AS dir, t.parent_agent AS parent_agent,
@@ -135,6 +146,32 @@ class Bus:
                 EventSource.SUPERVISOR.value,
                 *TERMINAL_VALUES,
             ),
+        )
+
+    def resolve_stale(self, liveness: Liveness) -> None:
+        for state in self.unreaped():
+            self._resolve_one(state.agent, liveness)
+
+    def _resolve_one(self, agent: int, liveness: Liveness) -> None:
+        events = self.history(agent)
+        statuses = {e.status for e in events if e.source is EventSource.WORKER}
+        if statuses & REPORTED:
+            self.record(
+                agent,
+                AgentStatus.EXITED,
+                EventSource.SUPERVISOR,
+                summary="closed at startup; worker had reported",
+            )
+            return
+        running = [e for e in events if e.status is AgentStatus.RUNNING]
+        if running and liveness.is_running(running[-1].pid):
+            return
+        self.record(
+            agent,
+            AgentStatus.CRASHED,
+            EventSource.SUPERVISOR,
+            exit_code=-1,
+            summary="no live process at startup",
         )
 
     def _reaped(self, agent: int) -> bool:
