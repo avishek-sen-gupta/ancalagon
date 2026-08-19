@@ -72,7 +72,7 @@ def test_depth_counts_ancestors_with_the_root_at_zero(tmp_path: pathlib.Path):
     assert depth_of(bus, grandchild) == 2
 
 
-def test_the_bus_knows_which_children_are_live_and_which_parents_may_resume(
+def test_the_bus_knows_which_children_are_live(
     tmp_path: pathlib.Path,
 ):
     bus = _open(tmp_path)
@@ -81,17 +81,38 @@ def test_the_bus_knows_which_children_are_live_and_which_parents_may_resume(
     second = bus.enqueue(tmp_path / "b", parent_agent=parent)
 
     assert [s.agent for s in bus.live_children(parent)] == [first, second]
-    assert bus.resumable_idle(parent) is False
 
     bus.record(parent, AgentStatus.IDLING, EventSource.WORKER)
     bus.record(parent, AgentStatus.EXITED, EventSource.SUPERVISOR)
-    assert bus.resumable_idle(parent) is True
 
     bus.record(first, AgentStatus.COMPLETED, EventSource.WORKER)
     bus.record(first, AgentStatus.EXITED, EventSource.SUPERVISOR)
     assert [s.agent for s in bus.live_children(parent)] == [second]
 
-    resumed = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
-    assert resumed != parent
-    assert bus.resumable_idle(resumed) is False
-    assert bus.resumable_idle(parent) is False
+
+def test_a_task_sees_children_from_every_attempt_and_knows_when_it_is_outstanding(
+    tmp_path: pathlib.Path,
+):
+    bus = _open(tmp_path)
+    first = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
+    early = bus.enqueue(tmp_path / "early", parent_agent=first)
+
+    assert [s.agent for s in bus.live_children(first)] == [early]
+    assert bus.outstanding(bus.state(early).task) is True
+
+    bus.record(first, AgentStatus.IDLING, EventSource.WORKER)
+    bus.record(first, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    woken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
+    late = bus.enqueue(tmp_path / "late", parent_agent=woken)
+
+    assert sorted(s.agent for s in bus.live_children(woken)) == [early, late]
+
+    bus.record(early, AgentStatus.COMPLETED, EventSource.WORKER)
+    bus.record(early, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    assert [s.agent for s in bus.live_children(woken)] == [late]
+    assert bus.outstanding(bus.state(early).task) is False
+
+    bus.record(late, AgentStatus.IDLING, EventSource.WORKER)
+    bus.record(late, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    assert bus.outstanding(bus.state(late).task) is True
+    assert [s.agent for s in bus.live_children(woken)] == [late]
