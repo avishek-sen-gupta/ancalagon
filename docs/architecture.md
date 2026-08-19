@@ -108,9 +108,12 @@ going down a version when there is only one.
   agent against the same task, with a fresh copy of its role's `budget`: nothing carries
   over from the idled attempt but the transcript. A parent that idles waiting on three
   children may therefore spend four budgets across the run, not one.
-- The loop exits when nothing is live and nothing is queued. Agents the database thinks are
-  `claimed` or `running` but which this supervisor does not own are orphans from a previous
-  supervisor, and are recorded `abandoned`.
+- The loop exits when nothing is live and nothing is queued. Agents whose history holds a
+  `claimed` or `running` event and no supervisor-written terminal one — `Bus.unreaped()` —
+  but which this supervisor does not own are orphans from a previous supervisor, and are
+  recorded `abandoned`. Asking that of the history rather than of the latest row is what
+  catches a worker that recorded `completed` or `idling` and was never reaped: its last row
+  is its own, so nobody else will ever close it.
 
 Nothing is ever updated: every status is a new row, so an agent's whole history survives.
 The worker appends its own account too — `completed`, `needs_input`, `exhausted` or

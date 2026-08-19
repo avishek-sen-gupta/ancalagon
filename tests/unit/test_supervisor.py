@@ -114,13 +114,42 @@ def test_supervisor_respects_concurrency_cap_and_abandons_live_tasks_on_shutdown
     supervisor.tick()
     assert spawner.spawned == ids[:2]
     assert len(supervisor.live) == 2
-    assert [s.agent for s in bus.in_flight()] == ids[:2]
+    assert [s.agent for s in bus.unreaped()] == ids[:2]
 
     supervisor.shutdown()
     assert supervisor.live == {}
     assert bus.state(ids[0]).status is AgentStatus.ABANDONED
     assert bus.state(ids[1]).status is AgentStatus.ABANDONED
     assert bus.state(ids[2]).status is AgentStatus.QUEUED
+
+
+def test_an_agent_whose_own_status_nobody_reaped_is_swept_as_orphaned(tmp_path: pathlib.Path):
+    migrate_file(tmp_path / "bus.db", latest_version())
+    bus = Bus.open(tmp_path / "bus.db", SystemClock())
+    done = bus.enqueue(tmp_path / "tasks" / "done", parent_agent=0)
+    idled = bus.enqueue(tmp_path / "tasks" / "idled", parent_agent=0)
+    reaped = bus.enqueue(tmp_path / "tasks" / "reaped", parent_agent=0)
+    for agent in (done, idled, reaped):
+        bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+        bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=4242)
+    bus.record(done, AgentStatus.COMPLETED, EventSource.WORKER)
+    bus.record(idled, AgentStatus.IDLING, EventSource.WORKER)
+    bus.record(reaped, AgentStatus.COMPLETED, EventSource.WORKER)
+    bus.record(reaped, AgentStatus.EXITED, EventSource.SUPERVISOR)
+
+    Supervisor(
+        bus=bus,
+        spawner=FakeSpawner([]),
+        max_concurrent=2,
+        timeout_s=5,
+        poll_s=1.0,
+        clock=FakeClock(),
+    ).run_until_idle()
+
+    assert [s.agent for s in bus.unreaped()] == []
+    assert bus.state(done).status is AgentStatus.ABANDONED
+    assert bus.state(idled).status is AgentStatus.ABANDONED
+    assert bus.state(reaped).status is AgentStatus.EXITED
 
 
 def test_a_tick_wakes_an_idling_parent_once_its_childs_process_is_gone(tmp_path: pathlib.Path):

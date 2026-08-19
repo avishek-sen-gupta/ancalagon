@@ -124,10 +124,23 @@ class Bus:
             f"WHERE e.status NOT IN ({TERMINAL_MARKS}) ORDER BY a.id", TERMINAL_VALUES
         )
 
-    def in_flight(self) -> list[AgentState]:
+    def unreaped(self) -> list[AgentState]:
         return self._states(
-            "WHERE e.status IN (?, ?) ORDER BY a.id",
-            (AgentStatus.CLAIMED.value, AgentStatus.RUNNING.value),
+            "WHERE EXISTS (SELECT 1 FROM agent_events s WHERE s.agent = a.id "
+            "AND s.status IN (?, ?)) "
+            "AND NOT EXISTS (SELECT 1 FROM agent_events r WHERE r.agent = a.id "
+            f"AND r.source = ? AND r.status IN ({TERMINAL_MARKS})) ORDER BY a.id",
+            (
+                AgentStatus.CLAIMED.value,
+                AgentStatus.RUNNING.value,
+                EventSource.SUPERVISOR.value,
+                *TERMINAL_VALUES,
+            ),
+        )
+
+    def _reaped(self, agent: int) -> bool:
+        return any(
+            e.source is EventSource.SUPERVISOR and e.status in TERMINAL for e in self.history(agent)
         )
 
     def active_for(self, dir: pathlib.Path) -> list[AgentState]:

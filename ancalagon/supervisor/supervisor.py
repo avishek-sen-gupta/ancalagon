@@ -112,7 +112,7 @@ class Supervisor:
             if self.live:
                 self.clock.sleep(self.poll_s)
                 continue
-            orphans = [s.agent for s in self.bus.in_flight() if s.agent not in self.live]
+            orphans = [s.agent for s in self.bus.unreaped() if s.agent not in self.live]
             if orphans:
                 LOGGER.warning("agents in flight with no live process: %s", orphans)
                 for agent in orphans:
