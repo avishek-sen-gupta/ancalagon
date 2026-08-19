@@ -98,9 +98,11 @@ going down a version when there is only one.
   `crashed` otherwise. A process past `agent_timeout_s` is killed, given a `TimedOut`
   outcome file, and recorded `timed_out`.
 - `_wake_idling` re-enqueues a task whose newest agent idled and has since had a child settle
-  — `Bus.wakeable()` evaluates that as a predicate over the whole database each tick, not as
-  an event fired when a child finishes, and skips a task whose newest agent is still one of
-  this supervisor's own live processes. Re-enqueuing runs the parent again as a **new**
+  — `Bus.wakeable(running)` evaluates that as a predicate over the whole database each tick,
+  not as an event fired when a child finishes, and skips a task whose newest agent is still
+  one of this supervisor's own live processes. `running` is that same live set: a worker
+  records its terminal status before it writes `outcome.json`, so a child whose process is
+  still running is not news yet — waking the parent then would have it collect nothing. Re-enqueuing runs the parent again as a **new**
   agent against the same task, with a fresh copy of its role's `budget`: nothing carries
   over from the idled attempt but the transcript. A parent that idles waiting on three
   children may therefore spend four budgets across the run, not one.

@@ -120,32 +120,36 @@ def test_a_task_sees_children_from_every_attempt_and_knows_when_it_is_outstandin
     assert [s.agent for s in bus.live_children(woken)] == [late]
 
 
-def test_a_task_is_wakeable_only_for_news_since_it_last_idled(tmp_path: pathlib.Path):
+def test_a_task_is_wakeable_only_for_news_from_a_child_whose_process_has_gone(
+    tmp_path: pathlib.Path,
+):
     bus = _open(tmp_path)
     parent = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
     first = bus.enqueue(tmp_path / "a", parent_agent=parent)
     second = bus.enqueue(tmp_path / "b", parent_agent=parent)
 
-    assert bus.wakeable() == []
+    assert bus.wakeable(()) == []
 
     bus.record(parent, AgentStatus.IDLING, EventSource.WORKER)
     bus.record(parent, AgentStatus.EXITED, EventSource.SUPERVISOR)
-    assert bus.wakeable() == []
+    assert bus.wakeable(()) == []
 
     bus.record(first, AgentStatus.COMPLETED, EventSource.WORKER)
+    assert bus.wakeable((first,)) == []
     bus.record(first, AgentStatus.EXITED, EventSource.SUPERVISOR)
-    assert [t.dir for t in bus.wakeable()] == [str(tmp_path / "root")]
+    assert bus.wakeable((first,)) == []
+    assert [t.dir for t in bus.wakeable(())] == [str(tmp_path / "root")]
 
     woken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
-    assert bus.wakeable() == []
+    assert bus.wakeable(()) == []
 
     bus.record(woken, AgentStatus.IDLING, EventSource.WORKER)
     bus.record(woken, AgentStatus.EXITED, EventSource.SUPERVISOR)
-    assert bus.wakeable() == []
+    assert bus.wakeable(()) == []
 
     bus.record(second, AgentStatus.COMPLETED, EventSource.WORKER)
     bus.record(second, AgentStatus.EXITED, EventSource.SUPERVISOR)
-    assert [t.dir for t in bus.wakeable()] == [str(tmp_path / "root")]
+    assert [t.dir for t in bus.wakeable(())] == [str(tmp_path / "root")]
 
 
 def test_children_reports_outstanding_and_uncollected_for_one_agent(tmp_path: pathlib.Path):
