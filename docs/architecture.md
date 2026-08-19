@@ -80,6 +80,12 @@ so there is nothing gained by preserving the steps that got here. Editing `001_i
 existing run databases outright — they are not upgraded, they stop opening — and that is a
 deliberate stance, not an oversight.
 
+The downgrade path is just as blunt. `--to 0` runs `001_init.down.sql`, which drops every
+table `001_init` created — `agent_events` among them — rather than removing only what a later
+migration would have added. A parent recorded `idling` mid-run, and any child recorded
+`collected`, lose those rows along with the rest of the log; there is nothing partial about
+going down a version when there is only one.
+
 ### 2. Supervising — `ancalagon/supervisor/supervisor.py`
 
 `run_until_idle()` loops on `tick()`:
@@ -91,6 +97,13 @@ deliberate stance, not an oversight.
 - `_reap` polls each live process and appends what it sees: `exited` on a zero exit,
   `crashed` otherwise. A process past `agent_timeout_s` is killed, given a `TimedOut`
   outcome file, and recorded `timed_out`.
+- `_wake_idling` re-enqueues a task whose newest agent idled and has since had a child settle
+  — `Bus.wakeable()` evaluates that as a predicate over the whole database each tick, not as
+  an event fired when a child finishes, and skips a task whose newest agent is still one of
+  this supervisor's own live processes. Re-enqueuing runs the parent again as a **new**
+  agent against the same task, with a fresh copy of its role's `budget`: nothing carries
+  over from the idled attempt but the transcript. A parent that idles waiting on three
+  children may therefore spend four budgets across the run, not one.
 - The loop exits when nothing is live and nothing is queued. Agents the database thinks are
   `claimed` or `running` but which this supervisor does not own are orphans from a previous
   supervisor, and are recorded `abandoned`.
@@ -104,7 +117,9 @@ that is written twice: current state is *derived* by taking the latest event per
 `claim` appends a `claimed` event rather than setting a flag. A parent learns what happened
 to a child the same way everything else does — by reading its events and its
 `outcome.json`, through `check_task` and `collect_task`. There is no notification to
-deliver and no cursor to advance.
+deliver and no cursor to advance. `collect_task` appends a `collected` event to a settled
+child's newest agent, so a parent reading its answer is itself a fact in the log, not
+something inferred from the parent's own behaviour afterwards.
 
 It never retries. A crash is reported; the parent decides.
 
@@ -167,14 +182,24 @@ never left uncollectable. This is the one catch-all in the codebase and it is de
 is the outermost frame of a process, and a worker that dies without an `outcome.json` is
 indistinguishable to `collect_task` from one still working, for ever.
 
-`build_registry` is the only place tool availability is decided: the role's own `tools` filters
-the list, and every `delegate_<name>` entry is withheld once `bus/depth_of.py` reports the task
-is at `max_depth`. `submit_answer` is added unconditionally, regardless of what `tools` names —
-the session's final turn forces it, and a role author who left it out never chose to crash the
-harness. A name in `tools` that no tool answers to raises, naming both the unknown entries and
-the available set. An empty `tools` list now means no tools at all, the inverse of the old
-global `[tools] enabled = []`, which meant every tool — a role written against the old default
-gets a much smaller toolset than its author expects, silently, unless `tools` is filled in.
+`build_registry` decides which tools an agent's registry can serve at all, not which of them
+it is offered on a given turn: the role's own `tools` filters the list, every `delegate_<name>`
+entry is withheld once `bus/depth_of.py` reports the task is at `max_depth`, and `submit_answer`
+and `idle` are both added unconditionally, regardless of what `tools` names — a role author who
+left either out never chose to crash the harness, or to spawn children it could never wait for.
+A name in `tools` that no tool answers to raises, naming both the unknown entries and the
+available set. An empty `tools` list now means no tools at all, the inverse of the old global
+`[tools] enabled = []`, which meant every tool — a role written against the old default gets a
+much smaller toolset than its author expects, silently, unless `tools` is filled in.
+
+Which of `idle` and `submit_answer` the model actually sees changes every turn. `Session`
+learns the facts it needs through an injected `Children` port (`ancalagon/children/`) —
+`outstanding()` and `uncollected()`, both tuples of agent ids — rather than deciding once at
+registry build time: `_declarations` offers `idle` while `outstanding()` is non-empty, and
+`submit_answer` once both `outstanding()` and `uncollected()` are empty, or unconditionally on
+the turn the budget runs out. `BusChildren` answers both from the bus; `NoChildren` /
+`NO_CHILDREN` is the null object for an agent with no `delegate_<role>` tool at all, so the
+check costs nothing where it can never apply.
 
 ### 4. The loop — `ancalagon/session.py`
 
@@ -182,26 +207,34 @@ gets a much smaller toolset than its author expects, silently, unless `tools` is
 
 ```
 while True:
-    budget empty? ─────────────────▶ _final_turn() ──▶ Exhausted | Failed
-    spend a turn
-    reply = llm.complete(_system(), messages, schemas)
+    final = out of turns
+    outstanding = children.outstanding()
+    final and outstanding? ─────────▶ Idling  (turns ran out while children were still working)
+    declare idle / submit_answer per outstanding() and uncollected(), or submit_answer only if final
+    final? record FINAL_INSTRUCTION
+    reply = llm.complete(_system(), messages, schemas, forcing submit_answer if final)
     record it
     did it call tools?
         yes ─▶ _run_tools()
-               need_input.question set? ──▶ NeedsInput
-               submit.answer_json set?   ──▶ Completed
+               idle called?              ──▶ Idling
+               need_input.question set?  ──▶ NeedsInput
+               submit.answer set?        ──▶ Completed, or Exhausted if final
                loop
         no  ─▶ parse the text as the output class
-               valid?   ──▶ Completed
-               invalid? ──▶ tell it so, loop
+               valid?   ──▶ Completed, or Exhausted if final
+               invalid? ──▶ tell it so and loop, or Failed if final
 ```
 
-Four things worth knowing:
+There is no separate final-turn code path any more — the last turn is this same loop with two
+flags set, `final` and `force_tool`. Five things worth knowing:
 
-- **The run ends in exactly three places**, all visible above. `submit_answer` and
-  `need_input` end it by *returning* it: their `ToolResult` is an `Answered` or an `Asked`,
-  and `_run_tools` hands its results back for `run` to read. No tool holds state, and the
-  session holds no second reference to one — the ending travels along the call it came from.
+- **The run ends in one of four places.** Before the model is even called, if the turn budget
+  is exhausted while a child is still outstanding (`Idling`, spending no turn at all). Through
+  a tool result — `idle`, `need_input` or `submit_answer` — whose `ToolResult` carries an
+  `Idled`, an `Asked` or a `Submitted` payload that `_run_tools` hands back for `run` to read.
+  No tool holds state, and the session holds no second reference to one — the ending travels
+  along the call it came from. Or by parsing the reply's raw text as the output class, when it
+  called no tool at all.
 - **`_run_tools` refuses calls past the budget** rather than letting it go negative, and
   returns the refusal to the model as an error result.
 - **A tool called with bad arguments is caught** and becomes an error result, so the model
@@ -210,8 +243,12 @@ Four things worth knowing:
   else a tool raises is a defect rather than a move the model made, and it propagates to the
   worker, where it becomes a `Failed` outcome carrying the traceback — visible, rather than
   handed back as a tool error the agent burns turns retrying against.
-- **`_final_turn` offers only `submit_answer`**, and injects a synthetic assistant turn
-  first if the last message was a user turn — providers reject two consecutive user turns.
+- **The final turn is forced, not merely offered.** `_prepare_final_turn` records
+  `FINAL_INSTRUCTION`, injecting a synthetic assistant turn first if the last message was a
+  user turn — providers reject two consecutive user turns — and `_complete` is called with
+  `force_tool="submit_answer"`. `_declarations` also collapses to `submit_answer` alone on
+  that turn, offered regardless of whether every child has been collected: being cut off by
+  the budget is not the same as choosing to skip reading a child's answer.
 - **`_system()` returns two halves**, `SystemPrompt(static, per_item)`: behaviour and answer
   instructions, identical for every item in a population, then this item's goal, input and
   scopes. Only the static half is cache-marked, so the cached prefix is shared across items.
