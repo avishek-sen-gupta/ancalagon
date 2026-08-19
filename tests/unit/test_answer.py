@@ -56,6 +56,7 @@ def test_answering_a_suspended_agent_appends_the_answer_and_queues_a_new_attempt
 
     bus.record(agent, AgentStatus.NEEDS_INPUT, EventSource.WORKER, summary="which one?")
     bus.record(agent, AgentStatus.EXITED, EventSource.SUPERVISOR, exit_code=0)
+    bus.record(agent, AgentStatus.COLLECTED, EventSource.WORKER)
 
     resumed = answer_task(run_dir, agent, "the second one", answered_by=0, clock=SystemClock())
     assert resumed != agent

@@ -625,6 +625,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert child_got.ok is True
     assert AgentStatus.COLLECTED in [e.status for e in bus.history(child)]
     assert bus.uncollected(parent_task) == []
+    assert bus.active_for(run_dir / "tasks" / "child") == []
 
     resumed = collect.run(TaskArgs(task=still_running), ctx)
     assert resumed.ok is True

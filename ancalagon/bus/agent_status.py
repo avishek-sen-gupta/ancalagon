@@ -29,5 +29,6 @@ TERMINAL = frozenset(
         AgentStatus.ABANDONED,
         AgentStatus.EXITED,
         AgentStatus.IDLING,
+        AgentStatus.COLLECTED,
     }
 )

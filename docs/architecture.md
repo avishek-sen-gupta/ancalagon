@@ -119,7 +119,9 @@ to a child the same way everything else does — by reading its events and its
 `outcome.json`, through `check_task` and `collect_task`. There is no notification to
 deliver and no cursor to advance. `collect_task` appends a `collected` event to a settled
 child's newest agent, so a parent reading its answer is itself a fact in the log, not
-something inferred from the parent's own behaviour afterwards.
+something inferred from the parent's own behaviour afterwards. `collected` is terminal: it
+is only ever appended to an agent that already ended, and a collected agent must not read as
+live to `active_for`, which is what lets the same task be answered or re-delegated afterwards.
 
 It never retries. A crash is reported; the parent decides.
 
