@@ -4,6 +4,8 @@ import logging
 
 import pydantic
 
+from ancalagon.children.children import Children
+from ancalagon.children.no_children import NO_CHILDREN
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.asked import Asked
 from ancalagon.contracts.block import Block
@@ -18,6 +20,7 @@ from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.outcome import SUMMARY_CHARS, Outcome
+from ancalagon.contracts.payload import Payload
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.submitted import Submitted
 from ancalagon.contracts.task_spec import TaskSpec
@@ -46,6 +49,15 @@ FINAL_INSTRUCTION = (
 )
 
 SUBMIT = "submit_answer"
+IDLE = "idle"
+
+
+# A turn that has not yet produced a terminal outcome, standing in for None.
+class Pending:
+    pass
+
+
+PENDING = Pending()
 
 
 class Session:
@@ -61,6 +73,7 @@ class Session:
         ctx: ToolContext,
         output_class: type[pydantic.BaseModel],
         clock: Clock,
+        children: Children = NO_CHILDREN,
         compact_above_tokens: int = 0,
         keep_recent_messages: int = 8,
         meter: Meter = UNMETERED,
@@ -76,6 +89,7 @@ class Session:
         self.output_class = output_class
         self.meter = meter
         self.clock = clock
+        self.children = children
         self.compact_above_tokens = compact_above_tokens
         self.keep_recent_messages = keep_recent_messages
         self.remaining = spec.role.budget
@@ -186,73 +200,101 @@ class Session:
         self._record(MessageRole.USER, blocks)
         return results
 
-    def _final_turn(self) -> Outcome:
+    def _declarations(
+        self, final: bool, outstanding: collections.abc.Sequence[int]
+    ) -> list[ToolSchema]:
+        if final:
+            return [self.registry.get(SUBMIT).declaration]
+        uncollected = self.children.uncollected()
+        excluded: set[str] = ({IDLE} if not outstanding else set[str]()) | (
+            {SUBMIT} if outstanding or uncollected else set[str]()
+        )
+        return [
+            self.registry.get(name).declaration
+            for name in self.registry.names()
+            if name not in excluded
+        ]
+
+    def _prepare_final_turn(self) -> None:
         if self.messages and self.messages[-1].role is MessageRole.USER:
             self._record(MessageRole.ASSISTANT, [Text(text="Understood.")])
         self._record(MessageRole.USER, [Text(text=FINAL_INSTRUCTION)])
-        reply = self._complete([self.registry.get(SUBMIT).declaration], force_tool=SUBMIT)
-        self._record(MessageRole.ASSISTANT, reply.blocks)
-        uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
-        offered = ""
-        if uses:
-            offered = uses[0].arguments
-            for result in self._run_tools(uses):
-                if isinstance(result.summary, Submitted):
-                    return Exhausted(
-                        value=result.summary.answer,
-                        summary=result.summary.answer.model_dump_json()[:SUMMARY_CHARS],
-                        spent=self._spent(),
-                    )
+
+    def _outcome_of_use(self, summary: Payload, final: bool) -> Outcome | Pending:
+        if isinstance(summary, Asked):
+            return NeedsInput(
+                question=summary.question,
+                summary=summary.question[:SUMMARY_CHARS],
+                spent=self._spent(),
+            )
+        if isinstance(summary, Idled):
+            return Idling(summary=summary.text_for_model()[:SUMMARY_CHARS], spent=self._spent())
+        if isinstance(summary, Submitted) and final:
+            return Exhausted(
+                value=summary.answer,
+                summary=summary.answer.model_dump_json()[:SUMMARY_CHARS],
+                spent=self._spent(),
+            )
+        if isinstance(summary, Submitted):
+            return Completed(
+                value=summary.answer,
+                summary=summary.answer.model_dump_json()[:SUMMARY_CHARS],
+                spent=self._spent(),
+            )
+        return PENDING
+
+    def _handle_uses(
+        self, uses: collections.abc.Sequence[ToolUse], final: bool
+    ) -> Outcome | Pending:
+        outcomes = (self._outcome_of_use(result.summary, final) for result in self._run_tools(uses))
+        settled = (outcome for outcome in outcomes if not isinstance(outcome, Pending))
+        return next(settled, PENDING)
+
+    def _finish_from_text(self, reply: Reply, final: bool, offered: str) -> Outcome | Pending:
         text = self._answer_of(reply)
         try:
             value = self.output_class.model_validate_json(text)
         except pydantic.ValidationError as exc:
-            return Failed(
-                error=f"final answer did not validate: {exc}",
-                summary=offered[:REJECTED_CHARS] or text[:REJECTED_CHARS],
-                spent=self._spent(),
+            if final:
+                return Failed(
+                    error=f"final answer did not validate: {exc}",
+                    summary=offered[:REJECTED_CHARS] or text[:REJECTED_CHARS],
+                    spent=self._spent(),
+                )
+            LOGGER.info("output did not validate, asking again: %s", exc)
+            self._record(
+                MessageRole.USER,
+                [Text(text=f"That did not match the schema: {exc}. Reply with JSON only.")],
             )
-        return Exhausted(value=value, summary=text[:SUMMARY_CHARS], spent=self._spent())
+            return PENDING
+        if final:
+            return Exhausted(value=value, summary=text[:SUMMARY_CHARS], spent=self._spent())
+        return Completed(value=value, summary=text[:SUMMARY_CHARS], spent=self._spent())
+
+    def _evaluate_turn(self, reply: Reply, final: bool) -> Outcome | Pending:
+        uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
+        if not uses:
+            return self._finish_from_text(reply, final, "")
+        from_uses = self._handle_uses(uses, final)
+        if not isinstance(from_uses, Pending):
+            return from_uses
+        if final:
+            return self._finish_from_text(reply, final, uses[0].arguments)
+        return PENDING
 
     def run(self) -> Outcome:
-        schemas = self.registry.schemas()
         while True:
-            if self.remaining.turns_exhausted and SUBMIT not in self.registry.names():
+            final = self.remaining.turns_exhausted
+            outstanding = self.children.outstanding()
+            if final and outstanding:
                 return Idling(summary="turns exhausted while children ran", spent=self._spent())
-            if self.remaining.turns_exhausted:
-                return self._final_turn()
-            self.remaining = self.remaining.spend_turn()
-            reply = self._complete(schemas)
+            declarations = self._declarations(final, outstanding)
+            if final:
+                self._prepare_final_turn()
+            else:
+                self.remaining = self.remaining.spend_turn()
+            reply = self._complete(declarations, force_tool=SUBMIT if final else "")
             self._record(MessageRole.ASSISTANT, reply.blocks)
-            uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
-            if uses:
-                for result in self._run_tools(uses):
-                    if isinstance(result.summary, Asked):
-                        return NeedsInput(
-                            question=result.summary.question,
-                            summary=result.summary.question[:SUMMARY_CHARS],
-                            spent=self._spent(),
-                        )
-                    if isinstance(result.summary, Idled):
-                        return Idling(
-                            summary=result.summary.text_for_model()[:SUMMARY_CHARS],
-                            spent=self._spent(),
-                        )
-                    if isinstance(result.summary, Submitted):
-                        return Completed(
-                            value=result.summary.answer,
-                            summary=result.summary.answer.model_dump_json()[:SUMMARY_CHARS],
-                            spent=self._spent(),
-                        )
-                continue
-            text = self._answer_of(reply)
-            try:
-                value = self.output_class.model_validate_json(text)
-            except pydantic.ValidationError as exc:
-                LOGGER.info("output did not validate, asking again: %s", exc)
-                self._record(
-                    MessageRole.USER,
-                    [Text(text=f"That did not match the schema: {exc}. Reply with JSON only.")],
-                )
-                continue
-            return Completed(value=value, summary=text[:SUMMARY_CHARS], spent=self._spent())
+            outcome = self._evaluate_turn(reply, final)
+            if not isinstance(outcome, Pending):
+                return outcome

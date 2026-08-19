@@ -14,6 +14,7 @@ class FakeLLM(LLM):
         self.systems: list[SystemPrompt] = []
         self.seen: list[list[Message]] = []
         self.forced: list[str] = []
+        self.offered: list[list[ToolSchema]] = []
 
     def complete(
         self,
@@ -25,6 +26,7 @@ class FakeLLM(LLM):
         self.systems.append(system)
         self.seen.append(list(messages))
         self.forced.append(force_tool)
+        self.offered = [*self.offered, list(tools)]
         if not self.replies:
             raise RuntimeError("FakeLLM exhausted")
         return self.replies.pop(0)

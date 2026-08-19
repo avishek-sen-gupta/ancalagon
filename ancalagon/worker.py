@@ -13,6 +13,7 @@ from ancalagon.bus.bus import Bus
 from ancalagon.bus.bus_meter import BusMeter
 from ancalagon.bus.depth_of import depth_of
 from ancalagon.bus.event_source import EventSource
+from ancalagon.children.bus_children import BusChildren
 from ancalagon.clock.clock import Clock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
@@ -103,16 +104,12 @@ def build_registry(
     depth: int,
     output_class: type[pydantic.BaseModel],
     clock: Clock,
-    bus: Bus,
 ) -> Registry:
     spawnable = {
         name: role for name, role in config.roles.items() if f"delegate_{name}" in spec.role.tools
     }
     available = available_tools(spawnable, run_dir, parent, output_class, clock)
-    live_children = bus.live_children(parent)
-    exempt = Idle.name if live_children else SubmitAnswer.name
-    excluded = SubmitAnswer.name if live_children else Idle.name
-    wanted = set(spec.role.tools) | {exempt}
+    wanted = set(spec.role.tools) | {Idle.name, SubmitAnswer.name}
     unknown = wanted - {t.name for t in available}
     if unknown:
         raise ValueError(
@@ -123,9 +120,7 @@ def build_registry(
     permitted = [
         t
         for t in available
-        if t.name in wanted
-        and t.name != excluded
-        and not (depth_capped and t.name.startswith("delegate_"))
+        if t.name in wanted and not (depth_capped and t.name.startswith("delegate_"))
     ]
     return Registry(permitted)
 
@@ -174,11 +169,11 @@ def main(
                 depth=depth_of(bus, agent_id),
                 output_class=output_class,
                 clock=clock,
-                bus=bus,
             ),
             ctx=ctx,
             output_class=output_class,
             clock=clock,
+            children=BusChildren(bus, agent_id),
             meter=BusMeter(bus),
             compact_above_tokens=config.compact_above_tokens,
             keep_recent_messages=config.keep_recent_messages,
