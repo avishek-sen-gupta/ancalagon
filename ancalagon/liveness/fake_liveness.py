@@ -1,5 +1,5 @@
 # A Liveness that answers from a fixed set, so a test can decide who is running.
-from ancalagon.supervisor.liveness import Liveness
+from ancalagon.liveness.liveness import Liveness
 
 
 class FakeLiveness(Liveness):

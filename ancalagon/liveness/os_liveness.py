@@ -1,7 +1,7 @@
 # Asks the operating system whether a pid exists, which is all it can tell us.
 import os
 
-from ancalagon.supervisor.liveness import Liveness
+from ancalagon.liveness.liveness import Liveness
 
 
 class OsLiveness(Liveness):
