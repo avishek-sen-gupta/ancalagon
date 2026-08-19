@@ -111,7 +111,7 @@ class Supervisor:
         self._wake_idling()
 
     def run_until_idle(self) -> None:
-        self.bus.resolve_stale(self.liveness)
+        self.bus.resolve_stale(self.liveness, self.timeout_s)
         while True:
             self.tick()
             if self.live:

@@ -1,5 +1,6 @@
-# Asks the operating system whether a pid exists, which is all it can tell us.
+# Asks the operating system whether a pid exists, or kills one, which is all it can tell or do.
 import os
+import signal
 
 from ancalagon.liveness.liveness import Liveness
 
@@ -13,6 +14,9 @@ class OsLiveness(Liveness):
         except PermissionError:
             return True
         return True
+
+    def kill(self, pid: int) -> None:
+        os.kill(pid, signal.SIGKILL)
 
 
 OS_LIVENESS = OsLiveness()
