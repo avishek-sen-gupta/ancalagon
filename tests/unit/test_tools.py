@@ -41,6 +41,7 @@ from ancalagon.tools.files.write_file import WriteFile
 from ancalagon.tools.history.git_history import GitHistory
 from ancalagon.tools.history.git_operation import GitOperation
 from ancalagon.tools.history.history_args import HistoryArgs
+from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.parse.parse_args import ParseArgs
 from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
 from ancalagon.tools.registry.bind_tool import bind_tool
@@ -302,10 +303,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         output_class=FreeText,
         clock=SystemClock(),
     )
-    assert "read_file" in narrowed.names()
-    assert "ripgrep" in narrowed.names()
-    assert "delegate_scout" not in narrowed.names()
-    assert "need_input" not in narrowed.names()
+    assert set(narrowed.names()) == {"read_file", "ripgrep", "idle", "submit_answer"}
 
     unknown_role = Role(
         behaviour="Search.",
@@ -324,6 +322,23 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         )
     assert "'delegate_ghost', 'grep', 'rigrep'" in str(refused.value)
     assert "ripgrep" in str(refused.value)
+
+
+def test_idle_refuses_once_its_children_have_settled(tmp_path: pathlib.Path):
+    run_dir = tmp_path / "run"
+    (run_dir / "tasks").mkdir(parents=True)
+    migrate_file(run_dir / "bus.db", latest_version())
+    bus = Bus.open(run_dir / "bus.db", FakeClock())
+    parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN)
+    child = bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent)
+    bus.record(child, AgentStatus.COMPLETED, EventSource.WORKER)
+    bus.record(child, AgentStatus.EXITED, EventSource.SUPERVISOR)
+
+    idle = bind_tool(Idle(run_dir=run_dir, agent=parent, clock=FakeClock()))
+    refused = idle.invoke("{}", _ctx(tmp_path))
+
+    assert refused.ok is False
+    assert refused.error == "nothing to wait for: no live children"
 
 
 def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathlib.Path):

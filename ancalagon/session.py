@@ -21,6 +21,7 @@ from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.outcome import SUMMARY_CHARS, Outcome
 from ancalagon.contracts.payload import Payload
+from ancalagon.contracts.pending import PENDING, Pending
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.submitted import Submitted
 from ancalagon.contracts.task_spec import TaskSpec
@@ -50,14 +51,6 @@ FINAL_INSTRUCTION = (
 
 SUBMIT = "submit_answer"
 IDLE = "idle"
-
-
-# A turn that has not yet produced a terminal outcome, standing in for None.
-class Pending:
-    pass
-
-
-PENDING = Pending()
 
 
 class Session:
