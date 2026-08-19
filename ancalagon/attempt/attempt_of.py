@@ -9,4 +9,8 @@ from ancalagon.contracts.agent_event import AgentEvent
 
 
 def attempt_of(events: Sequence[AgentEvent]) -> Attempt:
-    return functools.reduce(next_state, events, Nascent())
+    return functools.reduce(
+        lambda state, event: next_state(state, event.status, event.source, event.pid),
+        events,
+        Nascent(),
+    )
