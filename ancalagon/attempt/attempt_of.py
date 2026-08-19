@@ -12,9 +12,9 @@ from ancalagon.attempt.attempt import (
     Reported,
     Running,
 )
-from ancalagon.bus.agent_event import AgentEvent
-from ancalagon.bus.agent_status import AgentStatus
-from ancalagon.bus.event_source import EventSource
+from ancalagon.contracts.agent_event import AgentEvent
+from ancalagon.contracts.agent_status import AgentStatus
+from ancalagon.contracts.event_source import EventSource
 
 VERDICTS = frozenset(
     {

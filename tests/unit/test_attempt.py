@@ -8,9 +8,9 @@ from ancalagon.attempt.attempt import (
     Running,
 )
 from ancalagon.attempt.attempt_of import attempt_of
-from ancalagon.bus.agent_event import AgentEvent
-from ancalagon.bus.agent_status import AgentStatus
-from ancalagon.bus.event_source import EventSource
+from ancalagon.contracts.agent_event import AgentEvent
+from ancalagon.contracts.agent_status import AgentStatus
+from ancalagon.contracts.event_source import EventSource
 
 
 def _events(*pairs: tuple[AgentStatus, EventSource]) -> list[AgentEvent]:

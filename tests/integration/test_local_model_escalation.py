@@ -5,10 +5,10 @@ import pathlib
 import pytest
 
 from ancalagon.answer_command import answer_command
-from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
-from ancalagon.clock.system_clock import SystemClock
 from ancalagon.cli import main
+from ancalagon.clock.system_clock import SystemClock
+from ancalagon.contracts.agent_status import AgentStatus
 
 MODEL = os.environ.get("ANCALAGON_LOCAL_MODEL", "")
 

@@ -3,13 +3,13 @@ import pathlib
 import sqlite3
 
 import ancalagon.migrations
-from ancalagon.bus.agent_event import AgentEvent
 from ancalagon.bus.agent_state import AgentState
-from ancalagon.bus.agent_status import TERMINAL, AgentStatus
-from ancalagon.bus.event_source import EventSource
 from ancalagon.bus.task_row import TaskRow
 from ancalagon.clock.clock import Clock
+from ancalagon.contracts.agent_event import AgentEvent
+from ancalagon.contracts.agent_status import TERMINAL, AgentStatus
 from ancalagon.contracts.call_usage import CallUsage
+from ancalagon.contracts.event_source import EventSource
 
 LATEST = """
 SELECT a.id AS agent, a.task AS task, t.dir AS dir, t.parent_agent AS parent_agent,

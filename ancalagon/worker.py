@@ -8,18 +8,18 @@ import traceback
 
 import pydantic
 
-from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
 from ancalagon.bus.bus_meter import BusMeter
 from ancalagon.bus.depth_of import depth_of
-from ancalagon.bus.event_source import EventSource
 from ancalagon.children.bus_children import BusChildren
 from ancalagon.clock.clock import Clock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
+from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.outcome import SUMMARY_CHARS

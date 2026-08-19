@@ -1,11 +1,11 @@
 # Reads a finished task's answer, or says why there is not one.
 import pathlib
 
-from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
-from ancalagon.bus.event_source import EventSource
 from ancalagon.clock.clock import Clock
+from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.completed import Completed
+from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.exhausted import Exhausted
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.needs_input import NeedsInput

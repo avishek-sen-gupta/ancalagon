@@ -3,12 +3,12 @@ import datetime
 import logging
 import pathlib
 
-from ancalagon.bus.agent_event import AgentEvent
-from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import Bus
-from ancalagon.bus.event_source import EventSource
 from ancalagon.clock.clock import Clock
+from ancalagon.contracts.agent_event import AgentEvent
+from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.timed_out import TimedOut

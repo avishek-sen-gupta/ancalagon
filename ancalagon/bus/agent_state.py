@@ -1,7 +1,7 @@
 # An agent joined to its task and its latest event: what callers actually ask for.
 import pydantic
 
-from ancalagon.bus.agent_status import AgentStatus
+from ancalagon.contracts.agent_status import AgentStatus
 
 
 class AgentState(pydantic.BaseModel, frozen=True):

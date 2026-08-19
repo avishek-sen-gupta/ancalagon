@@ -2,12 +2,12 @@ import json
 import pathlib
 import typing
 
-from ancalagon.bus.agent_status import AgentStatus
 from ancalagon.bus.bus import HUMAN, Bus
-from ancalagon.bus.event_source import EventSource
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
+from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.role import Role
 from ancalagon.migrations import latest_version, migrate_file
