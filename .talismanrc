@@ -67,4 +67,6 @@ fileignoreconfig:
   checksum: b1fc3300fc44f33dbbc0589e5cdfa5dd53196ff48a19d1788662959614196a00
 - filename: docs/superpowers/plans/2026-08-19-idling-parents-revised.md
   checksum: faabc99e94b42078d6877e1db202c16ab021e7d87467638ddc72584e8bcf0a79
+- filename: docs/superpowers/plans/2026-08-19-agent-lifecycle.md
+  checksum: f60db2a964fe5fee9bf640d21a1b17d632a55b8553cf977ade12be1f13b14ec3
 version: "1.0"
