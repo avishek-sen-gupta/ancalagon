@@ -69,4 +69,6 @@ fileignoreconfig:
   checksum: faabc99e94b42078d6877e1db202c16ab021e7d87467638ddc72584e8bcf0a79
 - filename: docs/superpowers/plans/2026-08-19-agent-lifecycle.md
   checksum: f60db2a964fe5fee9bf640d21a1b17d632a55b8553cf977ade12be1f13b14ec3
+- filename: docs/superpowers/plans/2026-08-20-one-terminal-row.md
+  checksum: 6bc577a166b117db3d0e88b5fbbde0d353e0540eb525b348859d44d9b6d3d22d
 version: "1.0"
