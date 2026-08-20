@@ -5,31 +5,40 @@
 An agent's ending is recorded twice, by two processes, in two stores.
 
 The worker records its verdict to `agent_events` and writes `outcome.json`. The supervisor
-later observes the process is gone and records a close. Two writes by the worker, one by the
-supervisor, none of them atomic with each other.
+later observes the process is gone and records a close — and, when the worker left no outcome,
+fabricates one so the parent has something to read. Three writers, two stores, nothing atomic
+between them.
 
-Every defect in this area comes from the gaps between them.
+Every defect in this area comes from the gaps.
 
 - A worker killed between its two writes leaves a verdict with no answer on disk. Its parent
-  sees a settled child, collects, and finds nothing. The supervisor's synthesised `Failed`
-  then contradicts the `completed` already in the log.
+  sees a settled child, collects, and finds nothing. The supervisor's fabricated `Failed` then
+  contradicts the `completed` already in the log.
 - A worker that raises outside the session writes a `Failed` outcome and records nothing, so
   it can only ever be `Lost` — making `Closed(failed)`, the example the whole spoke/silent
   axis was designed around, unreachable in production.
-- A worker that exits 0 without writing anything is recorded `exited` and gets no synthesised
-  outcome, because synthesis is triggered by the *status* rather than by the file's absence.
+- A worker that exits 0 without writing anything is recorded `exited` and gets no fabricated
+  outcome, because fabrication is triggered by the *status* rather than by the file's absence.
   Its parent polls forever.
+- `collect_task` decides whether a child has finished by whether a file exists. That defect
+  has been fixed twice — once for crashed workers, once for agents killed at startup — each
+  time by teaching another death path to fabricate a file. A third death path reopens it.
 - An agent adopted at startup cannot be reaped like a spawned one, because the exit code of a
   process we did not fork is unavailable. Watching it means a second mechanism.
 
-These have been patched individually. They are one defect: **two writers describe one event.**
+These have been patched individually. They are one defect: **more than one writer describes
+one event.**
 
 ## What changes
 
-The worker stops recording its own verdict. It writes `outcome.json` and exits.
+Two rules, and everything else follows.
 
-The supervisor writes exactly one terminal row per agent, and that row carries both facts —
-that the process ended, and what the worker said before it did.
+1. **The worker never records to the bus about itself.** It writes `outcome.json` and exits.
+2. **The supervisor never writes `outcome.json`.** It writes one terminal row per agent.
+
+So each store has exactly one writer for an agent's ending. `outcome.json` is the worker's
+account and nothing else ever creates it. The terminal row is the supervisor's, and it carries
+both facts — that the process ended, and what the worker said before it did.
 
 ```
 agent_events for one agent:
@@ -37,8 +46,8 @@ agent_events for one agent:
 ```
 
 `source` becomes honest: every row about an agent's own lifecycle is written by the
-supervisor. The worker's remaining bus writes concern *other* agents — `collected` on a
-child, `queued` on a new one — which is a different claim and keeps `source = worker`.
+supervisor. The worker's remaining bus writes concern *other* agents — `collected` on a child,
+`queued` on a new one — which is a different claim and keeps `source = worker`.
 
 ## The terminal row
 
@@ -46,10 +55,16 @@ The supervisor reads `outcome.json` when it closes an agent.
 
 | what it finds | status recorded | state |
 |---|---|---|
-| an outcome the worker wrote | that outcome's `kind` | `Closed(verdict)` |
-| no outcome | `crashed`, or `timed_out` if we killed it | `Lost(close)` |
+| an outcome | that outcome's `kind` | `Closed(verdict)` |
+| nothing | `crashed`, or `timed_out` if we killed it | `Lost(close)` |
 
-The spoke-or-silent axis is unchanged. It is now carried by the status alone, because
+Because the supervisor no longer writes outcome files, "an outcome exists" and "the worker
+spoke" are the same statement. There is no marker to check, no ordering rule to obey, and no
+way for the supervisor to mistake its own writing for a worker's. The invariant is structural:
+
+> **`Closed` means there is an answer on disk. `Lost` means there is not.**
+
+The spoke-or-silent axis is unchanged, and is now carried by the status alone, because
 `source` no longer varies: a verdict status means the worker spoke, a close status means it
 did not. Verdicts and closes remain disjoint sets.
 
@@ -58,34 +73,22 @@ as whatever it said — `completed`, `idling`, `needs_input`. "The process exite
 information about the *attempt*; it is information about a process, and the exit code
 continues to be recorded in `exit_code` where we have it.
 
-## Which outcomes count as the worker speaking
+## Collecting from a child that never spoke
 
-The supervisor also *writes* outcome files — a `TimedOut` when it kills a worker, a `Failed`
-when one dies silently — so the file's presence alone does not prove the worker wrote it.
-`kind` cannot settle it either: `Failed` is written by both, and `TimedOut` is an
-`OutcomeKind` as well as a close status.
+`collect_task` stops asking the filesystem whether a child has finished, and asks the bus.
 
-Two ordering rules make the question unnecessary rather than answering it:
+- newest attempt is `Closed` → read `outcome.json`, which the invariant guarantees is there,
+  and return the typed answer
+- newest attempt is `Lost` → report how it ended from the row, without touching the disk
+- anything else → not finished yet
 
-1. **The supervisor records the terminal row before it synthesises an outcome.** So at the
-   moment it reads `outcome.json` to decide what to record, any file it finds is the
-   worker's. The supervisor has not written one yet and never will for an agent it is about
-   to close as `Lost`.
-2. **A closed agent with no outcome file is repaired at startup.** If rule 1's second write
-   is lost — the supervisor dies between recording and synthesising — the next supervisor
-   finds an attempt in `Closed` or `Lost` whose task directory has no `outcome.json`, and
-   writes one. This is the only case where the supervisor synthesises an outcome for an agent
-   it did not just close.
+This is what the fabricated outcomes existed to paper over. A killed child has no answer, and
+"no answer, killed after 600s" is a complete report — better than a `Failed` carrying an
+invented `Budget(0, 0)` and a summary assembled from an exit code.
 
-Together these give a single invariant worth stating plainly: **an `outcome.json` present
-when the supervisor closes an agent was written by that agent's worker.** No marker, no
-sniffing a summary, no second filename.
-
-Note that rule 1 inverts the worker's own ordering, and deliberately. The worker writes its
-file *before* it would have recorded anything, because losing the answer is worse than losing
-the label. The supervisor records *before* it writes, because for a `Lost` agent the row is
-the fact and the file is a courtesy to the parent. Each writes the thing it cannot reconstruct
-first.
+`TimedOut` and `OutcomeKind.TIMED_OUT` are deleted with them. The session never produces a
+`TimedOut`; only the supervisor did, and only to fabricate a file. `timed_out` survives as
+what it always was — a close status, one name doing one job.
 
 ## States
 
@@ -129,15 +132,18 @@ adopted worker is real load.
 - The kill-in-the-gap window is gone, not mitigated. There is one write where there were two.
 - A worker that raises outside the session is `Closed(failed)`, because its `Failed` outcome
   file is what the supervisor records from. The axis's own example becomes reachable.
-- A worker that exits 0 having written nothing is `Lost(crashed)` with a synthesised outcome
-  its parent can collect. Synthesis is driven by the file's absence, which is the fact, rather
-  than by the status, which was a proxy for it.
+- A worker that exits 0 having written nothing is `Lost(crashed)`, and its parent collects a
+  report of that from the bus rather than polling for a file that will never appear.
+- `collect_task` reads the bus, so no future death path can reopen the defect it has been
+  fixed for twice.
 - An adopted agent is reaped like any other, on any OS, with no `kqueue` and no `pidfd`.
+- **`ancalagon run` exits 1 again when the root produced no answer.** It currently exits 0 and
+  prints a fabricated outcome, because the supervisor manufactured one on the root's behalf.
 
 ## Costs, accepted
 
-**A parent sees a child's verdict one tick later**, because the verdict now reaches the bus
-when the supervisor reaps rather than when the worker records. `check_task` lags by a poll
+**A parent sees a child's verdict one tick later**, because the verdict reaches the bus when
+the supervisor reaps rather than when the worker records. `check_task` lags by a poll
 interval. Nothing waits on that edge.
 
 **The bus stops being a live record of worker progress.** Reading `agent_events` mid-run shows
@@ -149,6 +155,11 @@ token spend is still observable in real time.
 file into a one-field frozen model rather than resolving the role's answer class the way
 `collect_task` does. This is a typed read at a boundary, not a JSON blob.
 
+**A parent loses the structured shape of a killed child's ending.** It gets a status and a
+summary from the row instead of an `Outcome` model. The model it used to get was fabricated —
+a zeroed budget and a summary built from an exit code — so what is lost is the appearance of
+structure, not structure.
+
 **A worker whose supervisor dies has no verdict in the bus until a supervisor returns.** The
 answer is safe on disk throughout; only the log lags. Startup resolution reads the file and
 records the row, so the lag ends when the run resumes.
@@ -159,17 +170,18 @@ records the row, so the lag ends when the run resumes.
 is the only migration and run directories are disposable.
 
 Existing run databases carry `exited` rows and worker-written verdict rows. They are not
-migrated and will not fold: an agent with both a worker verdict and a supervisor `exited` is
-a sequence the new table rejects. This is accepted — a run directory is disposable, and the
+migrated and will not fold: an agent with both a worker verdict and a supervisor `exited` is a
+sequence the new table rejects. This is accepted — a run directory is disposable, and the
 alternative is carrying a compatibility branch through the transition table, which is the
 thing this design exists to keep single.
 
 ## Residuals
 
-- **`timed_out` is both a close status and an `OutcomeKind`.** It stays both. The ordering
-  rules mean the supervisor never reads its own `TimedOut` file as a worker verdict, so the
-  overlap is harmless, but it is a name doing two jobs.
 - **Two supervisors sharing one `bus.db`** remain out of scope, as in the previous design.
   Adoption assumes one supervisor at a time; two would each adopt the other's workers.
 - **`wakeable`/`_has_news` is still an N+1 per tick.** Unchanged by this work, and still the
   polling cost worth addressing separately.
+- **A worker that writes a partial `outcome.json` and is killed mid-write** leaves a file that
+  will not parse. The supervisor records `Closed` from a `kind` it cannot read, or the parent
+  fails to validate. Not introduced here — the same risk exists today — but the invariant
+  makes it easier to state: file presence is trusted, file integrity is not.
