@@ -259,12 +259,11 @@ def test_a_wake_is_skipped_while_the_idling_agents_process_is_still_live(
     bus.record(parent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=4242)
     supervisor.live[parent] = FakeProcess(pid=4242, exit_after=100, code=0)
     supervisor.started[parent] = clock.time()
-    bus.record(parent, AgentStatus.IDLING, EventSource.WORKER)
+    bus.record(parent, AgentStatus.IDLING, EventSource.SUPERVISOR)
 
     bus.record(child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
-    bus.record(child, AgentStatus.COMPLETED, EventSource.WORKER)
-    bus.record(child, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    bus.record(child, AgentStatus.COMPLETED, EventSource.SUPERVISOR)
 
     supervisor.tick()
     assert agents_for(parent_task) == [parent]

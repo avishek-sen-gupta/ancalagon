@@ -4,7 +4,6 @@ from ancalagon.attempt.attempt import (
     Collected,
     Lost,
     Queued,
-    Reported,
     Running,
 )
 from ancalagon.attempt.attempt_of import attempt_of
@@ -36,16 +35,7 @@ def test_every_lifecycle_path_folds_to_the_state_it_describes():
             (AgentStatus.QUEUED, S),
             (AgentStatus.CLAIMED, S),
             (AgentStatus.RUNNING, S),
-            (AgentStatus.IDLING, W),
-        )
-    ) == Reported(verdict=AgentStatus.IDLING)
-    assert attempt_of(
-        _events(
-            (AgentStatus.QUEUED, S),
-            (AgentStatus.CLAIMED, S),
-            (AgentStatus.RUNNING, S),
-            (AgentStatus.FAILED, W),
-            (AgentStatus.EXITED, S),
+            (AgentStatus.FAILED, S),
         )
     ) == Closed(verdict=AgentStatus.FAILED)
     assert attempt_of(
@@ -61,8 +51,7 @@ def test_every_lifecycle_path_folds_to_the_state_it_describes():
             (AgentStatus.QUEUED, S),
             (AgentStatus.CLAIMED, S),
             (AgentStatus.RUNNING, S),
-            (AgentStatus.COMPLETED, W),
-            (AgentStatus.EXITED, S),
+            (AgentStatus.COMPLETED, S),
             (AgentStatus.COLLECTED, W),
         )
     ) == Collected(verdict=AgentStatus.COMPLETED, spoke=True)
@@ -75,14 +64,6 @@ def test_every_lifecycle_path_folds_to_the_state_it_describes():
             (AgentStatus.COLLECTED, W),
         )
     ) == Collected(verdict=AgentStatus.CRASHED, spoke=False)
-    assert attempt_of(
-        _events(
-            (AgentStatus.QUEUED, S),
-            (AgentStatus.CLAIMED, S),
-            (AgentStatus.RUNNING, S),
-            (AgentStatus.EXITED, S),
-        )
-    ) == Lost(close=AgentStatus.EXITED)
     assert attempt_of(
         _events(
             (AgentStatus.QUEUED, S),

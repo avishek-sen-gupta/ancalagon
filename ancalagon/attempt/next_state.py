@@ -6,7 +6,6 @@ from ancalagon.attempt.attempt import (
     Collected,
     Lost,
     Queued,
-    Reported,
     Running,
 )
 from ancalagon.attempt.illegal_transition import IllegalTransition
@@ -23,7 +22,7 @@ VERDICTS = frozenset(
         AgentStatus.IDLING,
     }
 )
-CLOSES = frozenset({AgentStatus.EXITED, AgentStatus.CRASHED, AgentStatus.TIMED_OUT})
+CLOSES = frozenset({AgentStatus.CRASHED, AgentStatus.TIMED_OUT})
 
 
 def next_state(current: Attempt, status: AgentStatus, source: EventSource, pid: int) -> Attempt:
@@ -36,12 +35,6 @@ def next_state(current: Attempt, status: AgentStatus, source: EventSource, pid: 
             return Running(pid=pid)
         case (Running(), spoken_status, EventSource.SUPERVISOR) if spoken_status in VERDICTS:
             return Closed(verdict=spoken_status)
-        case (Running(), worker_status, EventSource.WORKER) if worker_status in VERDICTS:
-            return Reported(verdict=worker_status)
-        case (Reported(verdict=reported_verdict), close_status, EventSource.SUPERVISOR) if (
-            close_status in CLOSES
-        ):
-            return Closed(verdict=reported_verdict)
         case (Claimed() | Running(), unspoken_close, EventSource.SUPERVISOR) if (
             unspoken_close in CLOSES
         ):

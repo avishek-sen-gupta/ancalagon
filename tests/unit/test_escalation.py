@@ -88,9 +88,10 @@ def _run(
         clock=SystemClock(),
     )
     outcome = session.run()
-    bus.record(agent, AgentStatus(outcome.kind.value), EventSource.WORKER, summary=outcome.summary)
-    bus.record(agent, AgentStatus.EXITED, EventSource.SUPERVISOR, exit_code=0)
     (task_dir / "outcome.json").write_text(outcome.model_dump_json())
+    bus.record(
+        agent, AgentStatus(outcome.kind.value), EventSource.SUPERVISOR, summary=outcome.summary
+    )
     return outcome
 
 
@@ -241,6 +242,5 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
         "claimed",
         "running",
         "needs_input",
-        "exited",
     ]
     assert [e.status.value for e in bus.history(resumed_a)] == ["queued"]

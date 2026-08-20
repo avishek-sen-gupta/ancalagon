@@ -12,6 +12,5 @@ class AgentStatus(enum.StrEnum):
     FAILED = "failed"
     CRASHED = "crashed"
     TIMED_OUT = "timed_out"
-    EXITED = "exited"
     IDLING = "idling"
     COLLECTED = "collected"
