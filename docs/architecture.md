@@ -94,39 +94,51 @@ going down a version when there is only one.
   `claimed` — and spawns it before claiming the next. Claiming a batch first would strand
   siblings if one spawn failed. After spawning it appends `running` with the pid; a failed
   spawn appends `crashed` and reports to the parent.
-- `_reap` polls each live process and appends what it sees: `exited` on a zero exit,
-  `crashed` otherwise. A process past `agent_timeout_s` is killed, given a `TimedOut`
-  outcome file, and recorded `timed_out`. A crash that left no `outcome.json` behind — the
-  worker died before it could write one — is given a `Failed` one, so every agent that ends
-  has an outcome its parent can collect. An outcome already on disk is never overwritten.
+- `_reap` polls each live process. One still running but past `agent_timeout_s` is killed and
+  closed `timed_out`; one no longer running is closed `crashed`. Closing reads whatever the
+  worker left on disk: if `outcome.json` exists, the terminal row records that outcome's
+  `kind` — the worker spoke, so its account is what gets written, even for a process the
+  supervisor had to kill — and if it does not, the row records the close the supervisor
+  itself observed. The exit code decides nothing; no terminal row records one.
 - `_wake_idling` re-enqueues a task whose newest agent idled and has since had a child settle
   — `Bus.wakeable()` evaluates that as a predicate over the whole database each tick,
   not as an event fired when a child finishes, and skips a task whose newest agent is still
   one of this supervisor's own live processes. A child is news only once its newest agent
-  reaches `Closed` or `Lost`, which only the supervisor's own close produces: a worker
-  records its verdict before it writes `outcome.json`, and only the supervisor's mark is
-  written after the process is gone, so waking on the worker's own word would have the
-  parent collect nothing. The predicate therefore reads the database alone — a watcher, or a second
-  supervisor, gets the same answer. Re-enqueuing runs the parent again as a **new**
-  agent against the same task, with a fresh copy of its role's `budget`: nothing carries
-  over from the idled attempt but the transcript. A parent that idles waiting on three
-  children may therefore spend four budgets across the run, not one.
+  reaches `Closed` or `Lost`, and only the supervisor writes either: the worker records
+  nothing about its own lifecycle at all, only `outcome.json`, so waking on the worker's own
+  word is not an option — there is no word to wake on. The predicate therefore reads the
+  database alone — a watcher, or a second supervisor, gets the same answer. Re-enqueuing
+  runs the parent again as a **new** agent against the same task, with a fresh copy of its
+  role's `budget`: nothing carries over from the idled attempt but the transcript. A parent
+  that idles waiting on three children may therefore spend four budgets across the run, not
+  one.
 - The loop exits when nothing is live and nothing is queued.
 - Before the loop starts, `resolve_stale` settles what a previous supervisor left behind.
-  `Bus.unreaped()` finds agents whose attempt is `Claimed`, `Running` or `Reported` —
-  spawned, or spoken for, but never closed. Deriving that from the whole history rather than
-  from the latest row is what catches a worker that recorded `completed` or `idling` and was
-  never reaped: its last row is its own, so nobody else will ever close it. Each is then settled by what the
-  record says rather than by assumption. A worker that had already reported is closed with
-  `exited`. Otherwise the recorded pid decides: a process still alive and inside its timeout
-  is left alone to finish, one alive past its timeout is killed and recorded `timed_out`
-  with a synthesised outcome its parent can collect, and one that is gone is recorded
-  `crashed`. `shutdown` writes nothing at all — a supervisor that stops leaves its rows for
-  the next one to settle.
+  `Bus.unreaped()` finds agents whose attempt is `Claimed` or `Running` — spawned, or spoken
+  for, but never closed. Deriving that from the whole history rather than from the latest row
+  is what catches a worker that had already written `outcome.json` before the previous
+  supervisor stopped: its last row is still `running`, so nobody else has closed it yet. The
+  recorded pid then decides what happens to it. A process still alive and inside its timeout
+  is **adopted**, not abandoned: it is wrapped in an `AdoptedProcess` — a `Liveness` check
+  standing in for the pipe an actually-spawned `Popen` would have — and put into `self.live`
+  so it is reaped, closed and waited for like any other agent this supervisor started, with
+  its timeout measured from when it actually started rather than from when it was adopted.
+  One alive past its timeout is killed and closed `timed_out`, and one that is gone is closed
+  `crashed` — both through the same read of `outcome.json` that `_reap` uses, so a worker that
+  managed to write its answer before the previous supervisor died is still `Closed`, not
+  `Lost`. `shutdown` writes nothing at all — a supervisor that stops leaves its rows for the
+  next one to settle.
+
+  `max_concurrent` bounds what a supervisor **starts**, not what it holds: an adopted agent
+  does not occupy one of its spawn slots, and adoption is never refused because the cap is
+  already full. The cap exists to bound how much a supervisor sets in motion at once; a
+  process that is already running was set in motion by somebody else.
 
 Nothing is ever updated: every status is a new row, so an agent's whole history survives.
-The worker appends its own account too — `completed`, `needs_input`, `exhausted` or
-`failed` — which is why the log finally agrees with `outcome.json`.
+Only the supervisor ever writes a row about an agent's own lifecycle, and it writes exactly
+one terminal row per agent — carrying both that the process ended and what the worker said,
+when the worker said anything — which is why there is nothing left to reconcile against
+`outcome.json`: the terminal row was read from it.
 
 That holds for the whole schema, not just this table. There is no row anywhere in `bus.db`
 that is written twice: current state is *derived* by folding an agent's whole history, so
@@ -143,21 +155,29 @@ answered or re-delegated afterwards.
 
 An agent's events are not a log the code reads selectively. `ancalagon/attempt/` folds them
 into exactly one state: `Nascent` before anything is written, then `Queued`, `Claimed`,
-`Running`, and finally `Reported`, `Closed`, `Lost` or `Collected`.
+`Running`, and finally `Closed`, `Lost` or `Collected` — seven states, one fold, no others.
 
-The axis that matters is not whether an attempt succeeded but whether it **spoke**. A worker
-writes a *verdict* — its own account of how it ended, one of `completed`, `exhausted`,
-`failed`, `needs_input` or `idling`. The supervisor writes a *close* — the observation that
-the process is gone, one of `exited`, `crashed` or `timed_out`. It is `source` that separates
-the two, not the status. So a worker that caught an exception, wrote its outcome and reported
-`failed` spoke, and its attempt is `Closed(failed)`, never `Lost`; `Lost` is for an attempt
-that never got to say anything at all. `Collected` carries which of the two its parent read.
+Only the worker writes `outcome.json`, and only the supervisor writes an agent's terminal
+row, so the state that row lands in is decided by whether the worker got to write first.
+`Closed` means an answer exists on disk; `Lost` means it does not. That holds by
+construction, not by convention: `_close` in the supervisor checks for `outcome.json` before
+every terminal write, and there is nowhere else in the codebase that produces one. A worker
+that caught an exception and still managed to write its outcome is `Closed(failed)`, never
+`Lost` — `Lost` is for an attempt that never got to leave anything behind at all, killed on
+a timeout or gone before it could write, whichever the supervisor observed. `Collected`
+carries which of the two its parent read.
 
-That distinction is why asking an agent's *latest* status what happened to it is always
-wrong. A worker records its verdict and the supervisor appends `exited` over it, so an agent
-that idled and one that completed are the same row by latest status and differ only in the
-history behind them. Every predicate — `outstanding`, `uncollected`, `unreaped`, `active_for`
-— reads the fold instead, and there is no set of terminal statuses left anywhere to consult.
+The axis that separates a spoken verdict from a silent close is carried by the **status
+alone**. `source` no longer varies for an agent's own lifecycle — every row about what
+happened to an agent, from `queued` through to `closed`, is the supervisor's; the worker's
+only remaining bus writes concern *other* agents, appending `collected` when it reads a
+child's answer and `queued` when it spawns one. A `Closed` row's status is the worker's own
+word — `completed`, `exhausted`, `failed`, `needs_input` or `idling` — carried into the
+terminal row exactly as the worker left it; `exited` is not a status anything writes. A
+`Lost` row's status is `crashed` or `timed_out`, the supervisor's own observation. Every
+predicate — `outstanding`, `uncollected`, `unreaped`, `active_for` — reads the fold instead
+of the latest row, but for an agent's own lifecycle the fold and the latest row now agree,
+because nothing writes over what the terminal row already said.
 
 `next_state` is the single transition table and `attempt_of` is a fold over it, so the
 lifecycle has one definition rather than one per caller. `Bus.record` is where it is
@@ -169,11 +189,11 @@ variant that assumes the transaction they already hold, so exactly one place own
 transaction on every path.
 
 One consequence is worth stating plainly, because it changes what a parent can do:
-`Reported → Collected` is illegal, so `collect_task` requires a child to be `Closed` or
-`Lost` before it will read the answer, and fails with "has not been closed yet" otherwise. A
-parent can no longer collect from a child whose process is still exiting. `Lost` is accepted
-alongside `Closed` because a child the supervisor killed still gets a synthesised outcome its
-parent is entitled to read.
+`collect_task` requires a child to be `Closed` or `Lost` before it will read the answer, and
+fails with "has not been closed yet" otherwise. A parent can no longer collect from a child
+whose process is still exiting. It reads the bus, not the filesystem, to decide this — a
+`Lost` child never gets an `outcome.json` to read, so `collect_task` reports it straight from
+the summary on the event that closed it, and a `Closed` one is read from disk as before.
 
 It never retries. A crash is reported; the parent decides.
 
@@ -228,8 +248,12 @@ Invoked as `python -m ancalagon.worker --run-dir … --dir … --agent-id … --
    "resume mode".
 4. Builds the registry, which is the only thing the `Session` is given: it holds no reference
    to any tool.
-5. Runs the session, appends the agent's own outcome to the event log, writes
-   `outcome.json`, and returns 0.
+5. Runs the session and writes its outcome to `outcome.json`, then returns 0.
+
+A worker records nothing to the bus about its own lifecycle — `outcome.json` is the whole of
+what it leaves behind about how it ended. The supervisor is the only writer of an agent's
+terminal row, and it reads that file to decide what to write in it, which is what keeps the
+row and the file from ever disagreeing.
 
 Any exception writes a `Failed` outcome carrying the traceback and returns 1, so a task is
 never left uncollectable. This is the one catch-all in the codebase and it is deliberate: it
@@ -396,11 +420,8 @@ up, answers flow down, and the machinery is one append and one enqueue.
 
 Answering refuses unless the agent's history **contains** a `needs_input` event and its task
 has no live agent, so a question cannot be answered twice into two competing resumptions.
-Note *contains*, not *ends with*: the worker records `needs_input` and the supervisor then
-records `exited`, so an agent that asked a question has `exited` as its latest status. A
-guard reading the latest status refuses every real agent, and only a test running actual
-worker processes reveals it. `delegate_to.py` writes a child's `spec.json` and enqueues it — it does not spawn;
-the supervisor does.
+`delegate_to.py` writes a child's `spec.json` and enqueues it — it does not spawn; the
+supervisor does.
 
 ### 6. Talking to a provider — `ancalagon/llm/`
 
