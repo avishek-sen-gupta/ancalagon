@@ -18,6 +18,7 @@ from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.outcome_kind import OutcomeKind
 
 
 class NodeSummary(pydantic.BaseModel):
@@ -141,3 +142,17 @@ def test_a_role_defaults_to_prose_and_resolves_the_contracts_it_names(tmp_path: 
 
     with pytest.raises(AttributeError):
         resolve_class(ClassRef(module=str(module), name="Absent"))
+
+
+def test_an_outcome_header_reads_the_kind_from_any_outcome():
+    from ancalagon.contracts.outcome_header import OutcomeHeader
+
+    completed = Completed[FreeText](
+        value=FreeText(text="done"), summary="done", spent=Budget(turns=1, tool_calls=2)
+    )
+    assert (
+        OutcomeHeader.model_validate_json(completed.model_dump_json()).kind == OutcomeKind.COMPLETED
+    )
+
+    failed = Failed(error="boom", summary="boom", spent=Budget(turns=0, tool_calls=0))
+    assert OutcomeHeader.model_validate_json(failed.model_dump_json()).kind == OutcomeKind.FAILED
