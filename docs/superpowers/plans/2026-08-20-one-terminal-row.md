@@ -24,7 +24,8 @@
 - **No mocking.** `unittest.mock.patch` is banned. Use injected fakes — `FakeLLM`, `FakeClock`, `FakeProcess`, `FakeSpawner`, `FakeLiveness`.
 - `001_init` is the only migration and is edited in place. Run directories are disposable; no backward compatibility is promised, and existing databases are **not** migrated.
 - Verify with `uv run python -m black . && uv run pyright && uv run python -m pytest tests/unit && uv run python -m pytest tests/integration && uv run lint-imports`.
-- The `python-fp-lint` pre-commit hook lints **staged content of staged files**, so it reports pre-existing debt in `bus.py`, `supervisor.py` and `test_supervisor.py`. **`pre-commit run --all-files` is NOT a substitute — it passes this hook while the staged run fails it.** Check `git diff --cached -U0` hunk ranges; fix what you caused, `--no-verify` for the rest and name it in the commit message. **Never `git stash`.**
+- **There is no bypass.** `--no-verify` and `git commit -n` are blocked by a `PreToolUse` hook. Do not look for another way to write the commit. If a hook fails, fix the cause, or stop and raise it — a commit that appears to need a bypass needs a decision instead.
+- The `python-fp-lint` hook lints **staged content of staged files**, not merely your diff, so any file you touch is linted whole. `tests/` is excluded; production code is not. Task 0 clears `bus.py` and `supervisor.py`, so if you meet a violation in a file you touched, it is yours. **`pre-commit run --all-files` is NOT a substitute for checking — it passes this hook while the staged run fails it.** **Never `git stash`.**
 - Never reference an external codebase in a tracked artifact.
 
 ---
@@ -36,6 +37,7 @@
 - `ancalagon/supervisor/adopted_process.py` — `AdoptedProcess`, a `Process` for a pid we did not spawn, backed by `Liveness`.
 
 **Modified**
+- `ancalagon/bus/bus.py`, `ancalagon/supervisor/supervisor.py` — cleared of `python-fp-lint` violations in Task 0, before any behaviour changes.
 - `ancalagon/worker.py` — stops recording its own verdict; writes `outcome.json` on both paths.
 - `ancalagon/supervisor/supervisor.py` — `_reap` and `_resolve_one` record the terminal row from the outcome file; `_write_outcome` and `_crashed` deleted; `_resolve_running` adopts.
 - `ancalagon/attempt/next_state.py` — a supervisor-written verdict from `Running` yields `Closed`; the worker-verdict case goes.
@@ -49,6 +51,150 @@
 **Deleted**
 - `ancalagon/attempt/reported.py`
 - `ancalagon/contracts/timed_out.py`
+
+---
+
+### Task 0: Clear the lint debt in the two files every later task touches
+
+**Files:**
+- Modify: `ancalagon/bus/bus.py`, `ancalagon/supervisor/supervisor.py`
+
+**Interfaces:**
+- Produces: `Bus.enqueue` and `Supervisor._start_queued` with unchanged signatures and unchanged observable behaviour. This task changes nothing a test can see, except one query count noted below.
+
+`python-fp-lint` lints the whole staged content of any file you touch, and there is no bypass. `bus.py` and `supervisor.py` carry twenty violations between them, so without this task every later commit is blocked by debt it did not create. None of these are architectural: each has a fix that is an improvement.
+
+- [ ] **Step 1: Replace the row-to-dict comprehensions**
+
+Seven sites in `bus.py` write `{k: r[k] for k in r.keys()}`, which only converts a `sqlite3.Row` into a `dict` — no mapping, no transformation. `dict(r)` does the same thing and Pyright strict accepts it.
+
+Do **not** apply what `SIM118` literally suggests. `for k in r` iterates a `Row`'s **values**, not its keys, so that "fix" silently builds a dict keyed by values. Confirm it yourself before starting:
+
+```bash
+uv run python -c "
+import sqlite3
+c=sqlite3.connect(':memory:'); c.row_factory=sqlite3.Row
+r=c.execute('select 1 as a, 2 as b').fetchone()
+print(list(r), list(r.keys()), dict(r))
+"
+```
+
+Six of the seven become `dict(r)` or `dict(row)` directly — `bus.py:72,183,205,258,264,287`. The seventh, in `tokens_by_agent` at `bus.py:298`, filters a key:
+
+```python
+            int(r["agent"]): CallUsage.model_validate(
+                {k: v for k, v in dict(r).items() if k != "agent"}
+            )
+```
+
+- [ ] **Step 2: Make `enqueue` find-or-create in one statement**
+
+`bus.py:118-123` selects, tests `is None`, then inserts and reassigns `task` — reported as both `no-is-none` and `reassignment`. `tasks.dir` is `NOT NULL UNIQUE`, so one upsert returns the id whether or not the row existed:
+
+```python
+        task = self.conn.execute(
+            "INSERT INTO tasks (dir, parent_agent, created) VALUES (?, ?, ?) "
+            "ON CONFLICT(dir) DO UPDATE SET dir = dir RETURNING id",
+            (str(dir), parent_agent, self._now()),
+        ).fetchone()
+```
+
+`DO UPDATE SET dir = dir` is a no-op write that makes `RETURNING` fire on the conflict path; `DO NOTHING` returns no row at all.
+
+**Existing behaviour must hold: re-enqueuing an existing directory must not change its `parent_agent`.** A task keeps the parent it was created with across attempts, and there is already a test asserting it. Run that test and confirm it still passes — this is the one step in this task that could change behaviour.
+
+- [ ] **Step 3: Replace the remaining `is None` guards with `match`**
+
+`bus.py:262` and `supervisor.py:86`. The rule asks for structural pattern matching, which reads better here anyway:
+
+```python
+    def task(self, dir: pathlib.Path) -> TaskRow:
+        match self.conn.execute("SELECT * FROM tasks WHERE dir = ?", (str(dir),)).fetchone():
+            case None:
+                raise KeyError(f"no task at {dir}")
+            case row:
+                return TaskRow.model_validate(dict(row))
+```
+
+- [ ] **Step 4: Claim once instead of once per free slot**
+
+`supervisor.py:52-56` loops `for _ in range(free)` calling `self.bus.claim(limit=1)` each time — `free` queries where one suffices, and the source of the `no-loop-mutation` and `no-deep-nesting` reports. `claim` already takes a limit:
+
+```python
+    def _start_queued(self) -> None:
+        free = self.max_concurrent - len(self.live)
+        if free <= 0:
+            return
+        for state in self.bus.claim(limit=free):
+            self._spawn(state)
+```
+
+Move the old loop body — the `try`/`except OSError`, the `running` record, and the `self.live`/`self.started` writes — into `_spawn(self, state: AgentState) -> None`. That extraction is what clears the nesting reports.
+
+This changes how many times `claim` is called, which is an improvement rather than a regression: `claim` is atomic across its whole limit, so claiming `free` at once is also more correct when a second reader exists. If a test counts claims, update it to the true number.
+
+- [ ] **Step 5: Stop mutating the live and started dicts in place**
+
+`supervisor.py:68,69,173,174`. Assign rather than mutate:
+
+```python
+        self.live = {**self.live, state.agent: process}
+        self.started = {**self.started, state.agent: self.clock.time()}
+```
+
+and in `shutdown`:
+
+```python
+    def shutdown(self) -> None:
+        self.live = {}
+        self.started = {}
+```
+
+`_finish` pops from both; rewrite it the same way:
+
+```python
+        self.live = {a: p for a, p in self.live.items() if a != agent}
+        self.started = {a: s for a, s in self.started.items() if a != agent}
+```
+
+Both dicts hold at most `max_concurrent` entries, so copying costs nothing. `Supervisor` is still the imperative shell — it still carries mutable state across ticks; it just stops mutating containers in place.
+
+- [ ] **Step 6: Extract the remaining nested branches**
+
+`supervisor.py:84,106`. `_wake_idling`'s `for` with an `if ... continue` is a filter, so it becomes a comprehension:
+
+```python
+    def _wake_idling(self) -> None:
+        asleep = [
+            task
+            for task in self.bus.wakeable()
+            if self.bus.newest_agent(task.id) not in self.live
+        ]
+        for task in asleep:
+            self.bus.enqueue(pathlib.Path(task.dir), parent_agent=task.parent_agent)
+```
+
+For `_reap`, extract the timeout branch into a helper so the loop body is flat. Task 4 rewrites `_reap` entirely, so keep this minimal and do not redesign it here.
+
+- [ ] **Step 7: Verify the debt is gone**
+
+The hook reports only on staged content, so stage first:
+
+```bash
+git add -A
+pre-commit run python-fp-lint
+```
+
+Expected: Passed. If a violation remains in either file, fix it — do not leave it for a later task, and do not exclude the file.
+
+- [ ] **Step 8: Verify and commit**
+
+```bash
+uv run python -m black . && uv run pyright && uv run python -m pytest tests/unit && uv run python -m pytest tests/integration && uv run lint-imports
+git commit -m "Clear the lint debt in bus and supervisor"
+```
+
+This task must change no test expectation except a claim count, if one exists. If any other assertion needs changing, stop and report it — that means behaviour changed, and this task was meant to change none.
 
 ---
 
@@ -663,7 +809,7 @@ git commit -m "Document one writer per store"
 
 ## Self-Review
 
-**Spec coverage.** Worker stops recording → Task 4. Supervisor stops writing outcomes → Task 4. Terminal row from the outcome file → Task 4. `Closed`/`Lost` invariant → Tasks 3, 4. `collect_task` reads the bus → Task 2. `Reported` deleted → Task 5. `exited` deleted → Task 5. `TimedOut` and `OutcomeKind.TIMED_OUT` deleted → Task 5. `unreaped` narrowed → Task 5. Adoption → Task 6. CLI exit code → Task 4, Step 6. Migration edited in place → Task 5. Docs → Task 7.
+**Spec coverage.** Lint debt cleared so later tasks can commit → Task 0. Worker stops recording → Task 4. Supervisor stops writing outcomes → Task 4. Terminal row from the outcome file → Task 4. `Closed`/`Lost` invariant → Tasks 3, 4. `collect_task` reads the bus → Task 2. `Reported` deleted → Task 5. `exited` deleted → Task 5. `TimedOut` and `OutcomeKind.TIMED_OUT` deleted → Task 5. `unreaped` narrowed → Task 5. Adoption → Task 6. CLI exit code → Task 4, Step 6. Migration edited in place → Task 5. Docs → Task 7.
 
 **Ordering.** Task 2 must precede Task 4, or removing fabrication makes a `Lost` child uncollectable. Task 3 must precede Task 4, or the supervisor's first verdict write is an illegal transition. Task 5 must follow Task 4, or deleting the worker-verdict case breaks a worker that still records. Task 6 depends on `_close` from Task 4.
 
