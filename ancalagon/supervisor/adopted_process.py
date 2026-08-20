@@ -9,7 +9,7 @@ class AdoptedProcess:
         self.pid = pid
         self.liveness = liveness
 
-    def poll(self):
+    def poll(self) -> int | None:
         return None if self.liveness.is_running(self.pid) else ENDED
 
     def kill(self) -> None:
