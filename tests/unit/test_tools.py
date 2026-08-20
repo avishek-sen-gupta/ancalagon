@@ -334,8 +334,7 @@ def test_idle_refuses_once_its_children_have_settled(tmp_path: pathlib.Path):
     child = bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent)
     bus.record(child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
-    bus.record(child, AgentStatus.COMPLETED, EventSource.WORKER)
-    bus.record(child, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    bus.record(child, AgentStatus.COMPLETED, EventSource.SUPERVISOR)
 
     idle = bind_tool(Idle(run_dir=run_dir, agent=parent, clock=FakeClock()))
     refused = idle.invoke("{}", _ctx(tmp_path))

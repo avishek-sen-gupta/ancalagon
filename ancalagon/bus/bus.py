@@ -10,7 +10,6 @@ from ancalagon.attempt.attempt import (
     Collected,
     Lost,
     Queued,
-    Reported,
     Running,
 )
 from ancalagon.attempt.attempt_of import attempt_of
@@ -156,14 +155,14 @@ class Bus:
         return [
             state
             for state in self._states("ORDER BY a.id", ())
-            if isinstance(self.attempt(state.agent), (Claimed, Running, Reported))
+            if isinstance(self.attempt(state.agent), (Claimed, Running))
         ]
 
     def active_for(self, dir: pathlib.Path) -> list[AgentState]:
         return [
             state
             for state in self._states("WHERE t.dir = ? ORDER BY a.id", (str(dir),))
-            if isinstance(self.attempt(state.agent), (Queued, Claimed, Running, Reported))
+            if isinstance(self.attempt(state.agent), (Queued, Claimed, Running))
         ]
 
     def newest_agent(self, task: int) -> int:

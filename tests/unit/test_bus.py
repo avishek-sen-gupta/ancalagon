@@ -48,18 +48,15 @@ def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.
     assert bus.attempt(first) == Running(pid=4242)
     assert bus.attempt(second) == Claimed()
 
-    bus.record(first, AgentStatus.NEEDS_INPUT, EventSource.WORKER, summary="which caption?")
-    assert [s.agent for s in bus.active_for(alpha)] == [first]
-    bus.record(first, AgentStatus.EXITED, EventSource.SUPERVISOR, exit_code=0)
+    bus.record(first, AgentStatus.NEEDS_INPUT, EventSource.SUPERVISOR, summary="which caption?")
 
-    assert [e.ts for e in bus.history(first)] == ["2026-01-01T00:00:00+00:00"] * 5
+    assert [e.ts for e in bus.history(first)] == ["2026-01-01T00:00:00+00:00"] * 4
 
     assert [(e.status.value, e.source.value) for e in bus.history(first)] == [
         ("queued", "supervisor"),
         ("claimed", "supervisor"),
         ("running", "supervisor"),
-        ("needs_input", "worker"),
-        ("exited", "supervisor"),
+        ("needs_input", "supervisor"),
     ]
     assert bus.attempt(first) == Closed(verdict=AgentStatus.NEEDS_INPUT)
     assert bus.attempt(second) == Claimed()
@@ -141,9 +138,8 @@ def test_a_task_is_wakeable_only_for_news_a_supervisor_has_marked(
 
     bus.record(first, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(first, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
-    bus.record(first, AgentStatus.COMPLETED, EventSource.WORKER)
     assert bus.wakeable() == []
-    bus.record(first, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    bus.record(first, AgentStatus.COMPLETED, EventSource.SUPERVISOR)
     assert [t.dir for t in bus.wakeable()] == [str(tmp_path / "root")]
 
     woken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
@@ -154,7 +150,6 @@ def test_a_task_is_wakeable_only_for_news_a_supervisor_has_marked(
 
     bus.record(second, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(second, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=2)
-    bus.record(second, AgentStatus.COMPLETED, EventSource.WORKER)
     assert bus.wakeable() == []
     bus.record(second, AgentStatus.CRASHED, EventSource.SUPERVISOR)
     assert [t.dir for t in bus.wakeable()] == [str(tmp_path / "root")]
@@ -218,8 +213,8 @@ def test_record_refuses_a_transition_the_lifecycle_does_not_allow(tmp_path: path
         bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=2)
     with pytest.raises(IllegalTransition, match="claimed"):
         bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
-    with pytest.raises(IllegalTransition, match="exited"):
-        bus.record(agent, AgentStatus.EXITED, EventSource.SUPERVISOR)
+    with pytest.raises(IllegalTransition, match="timed_out"):
+        bus.record(agent, AgentStatus.TIMED_OUT, EventSource.SUPERVISOR)
 
     closed = bus.enqueue(tmp_path / "b", parent_agent=HUMAN)
     settle(bus, closed, AgentStatus.COMPLETED)

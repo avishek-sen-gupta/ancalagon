@@ -6,5 +6,4 @@ class OutcomeKind(enum.StrEnum):
     EXHAUSTED = "exhausted"
     NEEDS_INPUT = "needs_input"
     FAILED = "failed"
-    TIMED_OUT = "timed_out"
     IDLING = "idling"
