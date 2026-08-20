@@ -91,7 +91,9 @@ and the run resumes as a **new** agent against the same task — with a fresh co
 three children may spend four budgets across the run, not one; that cost lands on whichever
 role the parent is, so it belongs in the same place as any other budget decision. `check_task`
 still reports a child's status without waiting or spending a turn; `collect_task` reads its
-answer and records that the answer was read. `submit_answer` stays withheld until every child
+answer once the supervisor has closed the child, and records that the answer was read — a
+child that has reported but whose process is still exiting is not yet collectable, and says
+so. `submit_answer` stays withheld until every child
 is both settled and read, except on the turn the parent's own budget runs out, when it is
 offered regardless — being cut off is not a choice to skip reading what was commissioned.
 
@@ -147,6 +149,13 @@ ancalagon migrate --db ws/runs/r_0001/bus.db --to 0   # or back down to a given 
 added — there is only the one migration. A parent's `idling` row and a child's `collected`
 row go with the rest of `agent_events`, so a downgraded database loses the record of why a
 parent stopped, along with everything else.
+
+What an agent's rows mean is worked out by folding them, not by reading the last one: a
+worker writes its own verdict and the supervisor later writes the close, so the newest row
+tells you who spoke last rather than what happened. `Bus.record` enforces the order, refusing
+to write a transition the lifecycle does not allow, so a sequence that could not have
+happened is caught where it is written rather than later, by whichever predicate first
+disagrees with it. `docs/architecture.md` has the states and the reasoning.
 
 ## How it works
 

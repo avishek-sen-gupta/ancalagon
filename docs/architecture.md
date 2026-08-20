@@ -103,20 +103,20 @@ going down a version when there is only one.
   — `Bus.wakeable()` evaluates that as a predicate over the whole database each tick,
   not as an event fired when a child finishes, and skips a task whose newest agent is still
   one of this supervisor's own live processes. A child is news only once its newest agent
-  carries a terminal event whose `source` is `supervisor`: a worker records its terminal
-  status before it writes `outcome.json`, and only the supervisor's mark is written after
-  the process is gone, so waking on the worker's own word would have the parent collect
-  nothing. The predicate therefore reads the database alone — a watcher, or a second
+  reaches `Closed` or `Lost`, which only the supervisor's own close produces: a worker
+  records its verdict before it writes `outcome.json`, and only the supervisor's mark is
+  written after the process is gone, so waking on the worker's own word would have the
+  parent collect nothing. The predicate therefore reads the database alone — a watcher, or a second
   supervisor, gets the same answer. Re-enqueuing runs the parent again as a **new**
   agent against the same task, with a fresh copy of its role's `budget`: nothing carries
   over from the idled attempt but the transcript. A parent that idles waiting on three
   children may therefore spend four budgets across the run, not one.
 - The loop exits when nothing is live and nothing is queued.
 - Before the loop starts, `resolve_stale` settles what a previous supervisor left behind.
-  `Bus.unreaped()` finds agents whose history holds a `claimed` or `running` event and no
-  supervisor-written terminal one. Asking that of the history rather than of the latest row
-  is what catches a worker that recorded `completed` or `idling` and was never reaped: its
-  last row is its own, so nobody else will ever close it. Each is then settled by what the
+  `Bus.unreaped()` finds agents whose attempt is `Claimed`, `Running` or `Reported` —
+  spawned, or spoken for, but never closed. Deriving that from the whole history rather than
+  from the latest row is what catches a worker that recorded `completed` or `idling` and was
+  never reaped: its last row is its own, so nobody else will ever close it. Each is then settled by what the
   record says rather than by assumption. A worker that had already reported is closed with
   `exited`. Otherwise the recorded pid decides: a process still alive and inside its timeout
   is left alone to finish, one alive past its timeout is killed and recorded `timed_out`
@@ -129,15 +129,51 @@ The worker appends its own account too — `completed`, `needs_input`, `exhauste
 `failed` — which is why the log finally agrees with `outcome.json`.
 
 That holds for the whole schema, not just this table. There is no row anywhere in `bus.db`
-that is written twice: current state is *derived* by taking the latest event per agent, so
+that is written twice: current state is *derived* by folding an agent's whole history, so
 `claim` appends a `claimed` event rather than setting a flag. A parent learns what happened
 to a child the same way everything else does — by reading its events and its
 `outcome.json`, through `check_task` and `collect_task`. There is no notification to
-deliver and no cursor to advance. `collect_task` appends a `collected` event to a settled
+deliver and no cursor to advance. `collect_task` appends a `collected` event to a closed
 child's newest agent, so a parent reading its answer is itself a fact in the log, not
-something inferred from the parent's own behaviour afterwards. `collected` is terminal: it
-is only ever appended to an agent that already ended, and a collected agent must not read as
-live to `active_for`, which is what lets the same task be answered or re-delegated afterwards.
+something inferred from the parent's own behaviour afterwards. A `Collected` attempt is
+finished, so it does not read as active to `active_for`, which is what lets the same task be
+answered or re-delegated afterwards.
+
+## The lifecycle
+
+An agent's events are not a log the code reads selectively. `ancalagon/attempt/` folds them
+into exactly one state: `Nascent` before anything is written, then `Queued`, `Claimed`,
+`Running`, and finally `Reported`, `Closed`, `Lost` or `Collected`.
+
+The axis that matters is not whether an attempt succeeded but whether it **spoke**. A worker
+writes a *verdict* — its own account of how it ended, one of `completed`, `exhausted`,
+`failed`, `needs_input` or `idling`. The supervisor writes a *close* — the observation that
+the process is gone, one of `exited`, `crashed` or `timed_out`. It is `source` that separates
+the two, not the status. So a worker that caught an exception, wrote its outcome and reported
+`failed` spoke, and its attempt is `Closed(failed)`, never `Lost`; `Lost` is for an attempt
+that never got to say anything at all. `Collected` carries which of the two its parent read.
+
+That distinction is why asking an agent's *latest* status what happened to it is always
+wrong. A worker records its verdict and the supervisor appends `exited` over it, so an agent
+that idled and one that completed are the same row by latest status and differ only in the
+history behind them. Every predicate — `outstanding`, `uncollected`, `unreaped`, `active_for`
+— reads the fold instead, and there is no set of terminal statuses left anywhere to consult.
+
+`next_state` is the single transition table and `attempt_of` is a fold over it, so the
+lifecycle has one definition rather than one per caller. `Bus.record` is where it is
+enforced: it derives the current attempt, asks `next_state`, and refuses an illegal write
+with `IllegalTransition` naming the state, the status and the source. `queued` is legal only
+from `Nascent`, `claimed` only from `Queued`, `running` only from `Claimed` — a finished
+attempt cannot be claimed a second time. `enqueue` and `claim` write through a private
+variant that assumes the transaction they already hold, so exactly one place owns a
+transaction on every path.
+
+One consequence is worth stating plainly, because it changes what a parent can do:
+`Reported → Collected` is illegal, so `collect_task` requires a child to be `Closed` or
+`Lost` before it will read the answer, and fails with "has not been closed yet" otherwise. A
+parent can no longer collect from a child whose process is still exiting. `Lost` is accepted
+alongside `Closed` because a child the supervisor killed still gets a synthesised outcome its
+parent is entitled to read.
 
 It never retries. A crash is reported; the parent decides.
 
