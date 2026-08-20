@@ -1,7 +1,7 @@
 PRAGMA journal_mode = WAL;
 
 CREATE TABLE tasks (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    id           INTEGER PRIMARY KEY,
     dir          TEXT    NOT NULL UNIQUE,
     parent_agent INTEGER NOT NULL DEFAULT 0,
     created      TEXT    NOT NULL
