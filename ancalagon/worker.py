@@ -17,9 +17,7 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
-from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.budget import Budget
-from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.outcome import SUMMARY_CHARS
@@ -179,12 +177,6 @@ def main(
             keep_recent_messages=config.keep_recent_messages,
         )
         outcome = session.run()
-        bus.record(
-            agent_id,
-            AgentStatus(outcome.kind.value),
-            EventSource.WORKER,
-            summary=outcome.summary,
-        )
         outcome_path.write_text(outcome.model_dump_json())
         return 0
     except Exception as exc:
