@@ -69,7 +69,7 @@ class Bus:
 
     def _states(self, where: str, params: tuple[str | int, ...]) -> list[AgentState]:
         rows = self.conn.execute(LATEST + where, params).fetchall()
-        return [AgentState.model_validate({k: r[k] for k in r.keys()}) for r in rows]
+        return [AgentState.model_validate(dict(r)) for r in rows]
 
     def _record(
         self,
@@ -115,12 +115,11 @@ class Bus:
 
     def enqueue(self, dir: pathlib.Path, parent_agent: int) -> int:
         self.conn.execute("BEGIN IMMEDIATE")
-        task = self.conn.execute("SELECT id FROM tasks WHERE dir = ?", (str(dir),)).fetchone()
-        if task is None:
-            task = self.conn.execute(
-                "INSERT INTO tasks (dir, parent_agent, created) VALUES (?, ?, ?) RETURNING id",
-                (str(dir), parent_agent, self._now()),
-            ).fetchone()
+        task = self.conn.execute(
+            "INSERT INTO tasks (dir, parent_agent, created) VALUES (?, ?, ?) "
+            "ON CONFLICT(dir) DO UPDATE SET dir = dir RETURNING id",
+            (str(dir), parent_agent, self._now()),
+        ).fetchone()
         agent = self.conn.execute(
             "INSERT INTO agents (task, created) VALUES (?, ?) RETURNING id",
             (int(task["id"]), self._now()),
@@ -180,7 +179,7 @@ class Bus:
             "(SELECT id FROM agents WHERE task = ?) ORDER BY id",
             (task,),
         ).fetchall()
-        return [TaskRow.model_validate({k: r[k] for k in r.keys()}) for r in rows]
+        return [TaskRow.model_validate(dict(r)) for r in rows]
 
     def outstanding(self, task: int) -> bool:
         match self.attempt(self.newest_agent(task)):
@@ -202,7 +201,7 @@ class Bus:
 
     def _all_tasks(self) -> list[TaskRow]:
         rows = self.conn.execute("SELECT * FROM tasks ORDER BY id").fetchall()
-        return [TaskRow.model_validate({k: r[k] for k in r.keys()}) for r in rows]
+        return [TaskRow.model_validate(dict(r)) for r in rows]
 
     def _last_idled_event_id(self, task: int) -> int:
         row = self.conn.execute(
@@ -255,13 +254,14 @@ class Bus:
         rows = self.conn.execute(
             "SELECT * FROM agent_events WHERE agent = ? ORDER BY id", (agent,)
         ).fetchall()
-        return [AgentEvent.model_validate({k: r[k] for k in r.keys()}) for r in rows]
+        return [AgentEvent.model_validate(dict(r)) for r in rows]
 
     def task(self, dir: pathlib.Path) -> TaskRow:
-        row = self.conn.execute("SELECT * FROM tasks WHERE dir = ?", (str(dir),)).fetchone()
-        if row is None:
-            raise KeyError(f"no task at {dir}")
-        return TaskRow.model_validate({k: row[k] for k in row.keys()})
+        match self.conn.execute("SELECT * FROM tasks WHERE dir = ?", (str(dir),)).fetchone():
+            case None:
+                raise KeyError(f"no task at {dir}")
+            case row:
+                return TaskRow.model_validate(dict(row))
 
     def record_call(self, agent: int, usage: CallUsage) -> None:
         self.conn.execute(
@@ -284,7 +284,7 @@ class Bus:
             "cache_read_tokens FROM model_calls WHERE agent = ? ORDER BY id",
             (agent,),
         ).fetchall()
-        return [CallUsage.model_validate({k: r[k] for k in r.keys()}) for r in rows]
+        return [CallUsage.model_validate(dict(r)) for r in rows]
 
     def tokens_by_agent(self) -> dict[int, CallUsage]:
         rows = self.conn.execute(
@@ -295,6 +295,8 @@ class Bus:
             "FROM model_calls GROUP BY agent ORDER BY agent"
         ).fetchall()
         return {
-            int(r["agent"]): CallUsage.model_validate({k: r[k] for k in r.keys() if k != "agent"})
+            int(r["agent"]): CallUsage.model_validate(
+                {k: v for k, v in dict(r).items() if k != "agent"}
+            )
             for r in rows
         }
