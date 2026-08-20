@@ -218,6 +218,13 @@ def test_record_refuses_a_transition_the_lifecycle_does_not_allow(tmp_path: path
         bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=2)
     with pytest.raises(IllegalTransition, match="claimed"):
         bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    with pytest.raises(IllegalTransition, match="exited"):
+        bus.record(agent, AgentStatus.EXITED, EventSource.SUPERVISOR)
+
+    closed = bus.enqueue(tmp_path / "b", parent_agent=HUMAN)
+    settle(bus, closed, AgentStatus.COMPLETED)
+    with pytest.raises(IllegalTransition, match="crashed"):
+        bus.record(closed, AgentStatus.CRASHED, EventSource.SUPERVISOR)
 
 
 def test_a_rejected_record_leaves_no_open_transaction_and_no_partial_write(

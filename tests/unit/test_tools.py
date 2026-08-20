@@ -629,6 +629,44 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert AgentStatus.COLLECTED not in [e.status for e in bus.history(still_running)]
 
 
+def test_collect_task_named_by_a_stale_agent_id_records_collected_on_the_newest_agent(
+    tmp_path: pathlib.Path,
+):
+    ctx = _ctx(tmp_path)
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    migrate_file(run_dir / "bus.db", latest_version())
+    role = Role(behaviour="b", tools=(), budget=Budget(turns=20, tool_calls=60))
+    delegate = DelegateTo("worker", role, run_dir, parent=1, clock=SystemClock())
+    collect = CollectTask(run_dir=run_dir, clock=SystemClock())
+    bus = Bus.open(run_dir / "bus.db", SystemClock())
+
+    args = delegate.args_model(task_id="resumed", goal="g", input=FreeText(text="go"))
+    assert delegate.run(args, ctx).ok is True
+    task_dir = run_dir / "tasks" / "resumed"
+    first = bus.active_for(task_dir)[0].agent
+    settle(bus, first, AgentStatus.IDLING)
+
+    task = bus.state(first).task
+    second = bus.enqueue(task_dir, parent_agent=1)
+    settle(bus, second, AgentStatus.COMPLETED)
+    (task_dir / "outcome.json").write_text(
+        Completed[FreeText](
+            value=FreeText(text="resumed answer"),
+            summary="done",
+            spent=Budget(turns=1, tool_calls=1),
+        ).model_dump_json()
+    )
+
+    assert bus.newest_agent(task) == second
+
+    result = collect.run(TaskArgs(task=first), ctx)
+
+    assert result.ok is True
+    assert [e.status for e in bus.history(second)][-1] == AgentStatus.COLLECTED
+    assert AgentStatus.COLLECTED not in [e.status for e in bus.history(first)]
+
+
 def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     tmp_path: pathlib.Path,
 ):

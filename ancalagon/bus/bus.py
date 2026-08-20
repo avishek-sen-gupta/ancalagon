@@ -160,9 +160,6 @@ class Bus:
             if isinstance(self.attempt(state.agent), (Claimed, Running, Reported))
         ]
 
-    def _reaped(self, agent: int) -> bool:
-        return isinstance(self.attempt(agent), (Closed, Lost, Collected))
-
     def active_for(self, dir: pathlib.Path) -> list[AgentState]:
         return [
             state

@@ -40,7 +40,9 @@ def next_state(current: Attempt, status: AgentStatus, source: EventSource, pid: 
             close_status in CLOSES
         ):
             return Closed(verdict=reported_verdict)
-        case (_, unspoken_close, EventSource.SUPERVISOR) if unspoken_close in CLOSES:
+        case (Claimed() | Running(), unspoken_close, EventSource.SUPERVISOR) if (
+            unspoken_close in CLOSES
+        ):
             return Lost(close=unspoken_close)
         case (Closed(verdict=closed_verdict), AgentStatus.COLLECTED, EventSource.WORKER):
             return Collected(verdict=closed_verdict, spoke=True)
