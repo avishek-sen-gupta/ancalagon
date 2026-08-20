@@ -10,6 +10,7 @@ from ancalagon.contracts.agent_event import AgentEvent
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.outcome_header import OutcomeHeader
+from ancalagon.supervisor.adopted_process import AdoptedProcess
 from ancalagon.supervisor.liveness import Liveness
 from ancalagon.supervisor.os_liveness import OS_LIVENESS
 from ancalagon.supervisor.process import Process
@@ -115,6 +116,9 @@ class Supervisor:
     def _resolve_running(self, agent: int, running: AgentEvent) -> None:
         elapsed = (self.clock.now() - datetime.datetime.fromisoformat(running.ts)).total_seconds()
         if elapsed <= self.timeout_s:
+            LOGGER.info("adopting agent %s running as pid %s", agent, running.pid)
+            self.live = {**self.live, agent: AdoptedProcess(running.pid, self.liveness)}
+            self.started = {**self.started, agent: self.clock.time() - elapsed}
             return
         self.liveness.kill(running.pid)
         self._close(agent, AgentStatus.TIMED_OUT, f"killed after {self.timeout_s}s at startup")

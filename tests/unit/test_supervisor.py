@@ -367,3 +367,65 @@ def test_a_startup_kill_leaves_a_close_that_collect_task_can_report(tmp_path: pa
     assert collected.ok is False
     assert collected.error == f"agent {child} ended as timed_out: killed after 5s at startup"
     assert AgentStatus.COLLECTED in [e.status for e in bus.history(child)]
+
+
+def test_a_healthy_worker_left_by_a_previous_supervisor_is_adopted_and_reaped(
+    tmp_path: pathlib.Path,
+):
+    bus = _open(tmp_path)
+    task_dir = tmp_path / "adopted"
+    task_dir.mkdir()
+    agent = bus.enqueue(task_dir, parent_agent=HUMAN)
+    bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=4242)
+
+    first = Supervisor(
+        bus=bus,
+        spawner=FakeSpawner([]),
+        max_concurrent=2,
+        timeout_s=600,
+        clock=bus.clock,
+        liveness=FakeLiveness(alive=frozenset({4242})),
+    )
+    first.resolve_stale()
+    assert bus.attempt(agent) == Running(pid=4242)
+    assert agent in first.live
+
+    (task_dir / "outcome.json").write_text(
+        Completed[FreeText](
+            value=FreeText(text="done"), summary="done", spent=Budget(turns=1, tool_calls=1)
+        ).model_dump_json()
+    )
+
+    second = Supervisor(
+        bus=bus,
+        spawner=FakeSpawner([]),
+        max_concurrent=2,
+        timeout_s=600,
+        clock=bus.clock,
+        liveness=FakeLiveness(alive=frozenset()),
+    )
+    second.resolve_stale()
+    assert bus.attempt(agent) == Closed(verdict=AgentStatus.COMPLETED)
+
+    nearly_wedged_dir = tmp_path / "nearly-wedged"
+    nearly_wedged_dir.mkdir()
+    nearly_wedged = bus.enqueue(nearly_wedged_dir, parent_agent=HUMAN)
+    bus.record(nearly_wedged, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(nearly_wedged, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=5353)
+
+    bus.clock.sleep(590)
+    third = Supervisor(
+        bus=bus,
+        spawner=FakeSpawner([]),
+        max_concurrent=2,
+        timeout_s=600,
+        clock=bus.clock,
+        liveness=FakeLiveness(alive=frozenset({5353})),
+    )
+    third.resolve_stale()
+    assert nearly_wedged in third.live
+
+    bus.clock.sleep(11)
+    third.tick()
+    assert bus.attempt(nearly_wedged) == Lost(close=AgentStatus.TIMED_OUT)
