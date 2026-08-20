@@ -92,8 +92,10 @@ three children may spend four budgets across the run, not one; that cost lands o
 role the parent is, so it belongs in the same place as any other budget decision. `check_task`
 still reports a child's status without waiting or spending a turn; `collect_task` reads its
 answer once the supervisor has closed the child, and records that the answer was read — a
-child that has reported but whose process is still exiting is not yet collectable, and says
-so. `submit_answer` stays withheld until every child
+child whose process is still exiting is not yet collectable, and says so. A child the
+supervisor had to kill is collectable too: `collect_task` reads that outcome from the bus
+event that closed it rather than from a file that was never written. `submit_answer` stays
+withheld until every child
 is both settled and read, except on the turn the parent's own budget runs out, when it is
 offered regardless — being cut off is not a choice to skip reading what was commissioned.
 
@@ -150,12 +152,15 @@ added — there is only the one migration. A parent's `idling` row and a child's
 row go with the rest of `agent_events`, so a downgraded database loses the record of why a
 parent stopped, along with everything else.
 
-What an agent's rows mean is worked out by folding them, not by reading the last one: a
-worker writes its own verdict and the supervisor later writes the close, so the newest row
-tells you who spoke last rather than what happened. `Bus.record` enforces the order, refusing
-to write a transition the lifecycle does not allow, so a sequence that could not have
-happened is caught where it is written rather than later, by whichever predicate first
-disagrees with it. `docs/architecture.md` has the states and the reasoning.
+Only the worker writes `outcome.json`, and only the supervisor writes a row about what
+happened to an agent — one terminal row per agent, carrying the worker's own account when
+there is one on disk to read, or the supervisor's own observation when there is not. That
+single write is what an agent's rows mean: `Closed` if an answer exists, `Lost` if it does
+not, decided the same way every time rather than assumed from whichever row is newest.
+`Bus.record` enforces the order regardless, refusing to write a transition the lifecycle does
+not allow, so a sequence that could not have happened is caught where it is written rather
+than later, by whichever predicate first disagrees with it. `docs/architecture.md` has the
+states and the reasoning.
 
 ## How it works
 
