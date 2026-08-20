@@ -12,13 +12,14 @@ from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.outcome import outcome_adapter
+from ancalagon.contracts.outcome_header import OutcomeHeader
+from ancalagon.contracts.outcome_kind import OutcomeKind
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
-from ancalagon.contracts.outcome_kind import OutcomeKind
 
 
 class NodeSummary(pydantic.BaseModel):
@@ -145,8 +146,6 @@ def test_a_role_defaults_to_prose_and_resolves_the_contracts_it_names(tmp_path: 
 
 
 def test_an_outcome_header_reads_the_kind_from_any_outcome():
-    from ancalagon.contracts.outcome_header import OutcomeHeader
-
     completed = Completed[FreeText](
         value=FreeText(text="done"), summary="done", spent=Budget(turns=1, tool_calls=2)
     )
