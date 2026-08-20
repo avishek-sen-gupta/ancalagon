@@ -6,6 +6,7 @@ import sys
 
 import pytest
 
+from ancalagon.attempt.closed import Closed
 from ancalagon.attempt.lost import Lost
 from ancalagon.bus.bus import Bus
 from ancalagon.cli import main
@@ -132,9 +133,8 @@ def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
 
     bus = Bus.open(run_dir / "bus.db", SystemClock())
     row = bus.state(1)
-    assert row.status is AgentStatus.CRASHED
-    assert row.exit_code == 1
-    assert bus.attempt(1) == Lost(close=AgentStatus.CRASHED)
+    assert row.status is AgentStatus.FAILED
+    assert bus.attempt(1) == Closed(verdict=AgentStatus.FAILED)
 
     stderr_logs = list(task_dir.glob("stderr-*.log"))
     assert len(stderr_logs) == 1
@@ -188,8 +188,8 @@ def test_a_named_run_dir_is_reused_by_a_second_invocation(tmp_path: pathlib.Path
     task = bus.task(named / "tasks" / "root")
     assert bus.state(1).task == task.id
     assert bus.state(2).task == task.id
-    assert bus.state(1).status is AgentStatus.CRASHED
-    assert bus.state(2).status is AgentStatus.CRASHED
+    assert bus.state(1).status is AgentStatus.FAILED
+    assert bus.state(2).status is AgentStatus.FAILED
     assert len(list((named / "tasks" / "root").glob("stderr-*.log"))) == 2
 
 
@@ -298,3 +298,16 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
     assert main(config) == 1
     assert capsys.readouterr().out == ""
     assert outcome.exists() is False
+
+    def crash(self: SubprocessSpawner, task_dir: pathlib.Path, agent_id: int) -> Process:
+        return subprocess.Popen([sys.executable, "-c", "raise SystemExit(1)"])
+
+    monkeypatch.setattr(SubprocessSpawner, "spawn", crash)
+
+    assert main(config) == 1
+    assert capsys.readouterr().out == ""
+    assert outcome.exists() is False
+
+    bus = Bus.open(named / "bus.db", SystemClock())
+    task = bus.task(named / "tasks" / "root")
+    assert bus.attempt(bus.newest_agent(task.id)) == Lost(close=AgentStatus.CRASHED)

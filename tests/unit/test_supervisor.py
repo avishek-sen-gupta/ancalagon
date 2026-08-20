@@ -1,4 +1,3 @@
-import json
 import pathlib
 import typing
 
@@ -11,8 +10,10 @@ from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.free_text import FreeText
+from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.role import Role
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.supervisor.fake_liveness import FakeLiveness
@@ -42,6 +43,15 @@ def _ctx(tmp_path: pathlib.Path) -> ToolContext:
         output_dir=outputs,
         summary_chars=50,
         agent_id=17,
+    )
+
+
+def _write_completed(task_dir: pathlib.Path) -> None:
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "outcome.json").write_text(
+        Completed[FreeText](
+            value=FreeText(text="done"), summary="done", spent=Budget(turns=1, tool_calls=1)
+        ).model_dump_json()
     )
 
 
@@ -79,8 +89,7 @@ def test_a_crash_leaves_the_outcome_a_parent_needs_to_collect(tmp_path: pathlib.
     bus = Bus.open(tmp_path / "bus.db", SystemClock())
     died = bus.enqueue(tmp_path / "tasks" / "died", parent_agent=0)
     spoke = bus.enqueue(tmp_path / "tasks" / "spoke", parent_agent=0)
-    (tmp_path / "tasks" / "spoke").mkdir(parents=True)
-    (tmp_path / "tasks" / "spoke" / "outcome.json").write_text('{"kind": "its own"}')
+    _write_completed(tmp_path / "tasks" / "spoke")
 
     Supervisor(
         bus=bus,
@@ -91,17 +100,9 @@ def test_a_crash_leaves_the_outcome_a_parent_needs_to_collect(tmp_path: pathlib.
         clock=FakeClock(),
     ).tick()
 
-    assert bus.state(died).status is AgentStatus.CRASHED
-    assert bus.state(spoke).status is AgentStatus.CRASHED
-    assert json.loads((tmp_path / "tasks" / "died" / "outcome.json").read_text()) == {
-        "kind": "failed",
-        "error": "worker exited 3",
-        "summary": "worker exited 3",
-        "spent": {"turns": 0, "tool_calls": 0},
-    }
-    assert json.loads((tmp_path / "tasks" / "spoke" / "outcome.json").read_text()) == {
-        "kind": "its own"
-    }
+    assert bus.attempt(died) == Lost(close=AgentStatus.CRASHED)
+    assert bus.attempt(spoke) == Closed(verdict=AgentStatus.COMPLETED)
+    assert (tmp_path / "tasks" / "died" / "outcome.json").exists() is False
 
 
 def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: pathlib.Path):
@@ -110,6 +111,7 @@ def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: p
     good = bus.enqueue(tmp_path / "tasks" / "good", parent_agent=0)
     bad = bus.enqueue(tmp_path / "tasks" / "bad", parent_agent=0)
     wedged = bus.enqueue(tmp_path / "tasks" / "wedged", parent_agent=0)
+    _write_completed(tmp_path / "tasks" / "good")
 
     spawner = FakeSpawner([(0, 0), (0, 1), (10_000, 0)])
     clock = FakeClock()
@@ -120,17 +122,11 @@ def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: p
     supervisor.run_until_idle()
 
     assert spawner.spawned == [good, bad, wedged]
-    assert bus.state(good).status is AgentStatus.EXITED
-    assert bus.state(good).exit_code == 0
-    assert bus.state(bad).status is AgentStatus.CRASHED
-    assert bus.state(bad).exit_code == 1
-    assert bus.state(wedged).status is AgentStatus.TIMED_OUT
-    assert [e.pid for e in bus.history(wedged) if e.pid][0] == 1000 + wedged
-    timed_out = json.loads((tmp_path / "tasks" / "wedged" / "outcome.json").read_text())
-    assert timed_out["kind"] == "timed_out"
-    assert bus.attempt(good) == Lost(close=AgentStatus.EXITED)
+    assert bus.attempt(good) == Closed(verdict=AgentStatus.COMPLETED)
     assert bus.attempt(bad) == Lost(close=AgentStatus.CRASHED)
     assert bus.attempt(wedged) == Lost(close=AgentStatus.TIMED_OUT)
+    assert [e.pid for e in bus.history(wedged) if e.pid][0] == 1000 + wedged
+    assert (tmp_path / "tasks" / "wedged" / "outcome.json").exists() is False
 
 
 def test_supervisor_respects_concurrency_cap_and_leaves_live_tasks_running_on_shutdown(
@@ -172,19 +168,15 @@ def test_supervisor_respects_concurrency_cap_and_leaves_live_tasks_running_on_sh
     assert bus.state(ids[1]).status is AgentStatus.CRASHED
 
 
-def test_startup_resolves_agents_whose_worker_already_reported(tmp_path: pathlib.Path):
+def test_startup_resolves_agents_by_reading_the_outcome_a_worker_left(tmp_path: pathlib.Path):
     migrate_file(tmp_path / "bus.db", latest_version())
     bus = Bus.open(tmp_path / "bus.db", SystemClock())
     done = bus.enqueue(tmp_path / "tasks" / "done", parent_agent=0)
-    idled = bus.enqueue(tmp_path / "tasks" / "idled", parent_agent=0)
-    reaped = bus.enqueue(tmp_path / "tasks" / "reaped", parent_agent=0)
-    for agent in (done, idled, reaped):
+    silent = bus.enqueue(tmp_path / "tasks" / "silent", parent_agent=0)
+    _write_completed(tmp_path / "tasks" / "done")
+    for agent in (done, silent):
         bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
         bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=4242)
-    bus.record(done, AgentStatus.COMPLETED, EventSource.WORKER)
-    bus.record(idled, AgentStatus.IDLING, EventSource.WORKER)
-    bus.record(reaped, AgentStatus.COMPLETED, EventSource.WORKER)
-    bus.record(reaped, AgentStatus.EXITED, EventSource.SUPERVISOR)
 
     Supervisor(
         bus=bus,
@@ -193,12 +185,12 @@ def test_startup_resolves_agents_whose_worker_already_reported(tmp_path: pathlib
         timeout_s=5,
         poll_s=1.0,
         clock=FakeClock(),
+        liveness=FakeLiveness(frozenset()),
     ).run_until_idle()
 
     assert [s.agent for s in bus.unreaped()] == []
-    assert bus.state(done).status is AgentStatus.EXITED
-    assert bus.state(idled).status is AgentStatus.EXITED
-    assert bus.state(reaped).status is AgentStatus.EXITED
+    assert bus.attempt(done) == Closed(verdict=AgentStatus.COMPLETED)
+    assert bus.attempt(silent) == Lost(close=AgentStatus.CRASHED)
 
 
 def test_a_tick_wakes_an_idling_parent_once_a_supervisor_has_reaped_its_child(
@@ -220,14 +212,17 @@ def test_a_tick_wakes_an_idling_parent_once_a_supervisor_has_reaped_its_child(
     assert bus.attempt(parent) == Running(pid=1000 + parent)
     assert list(supervisor.live) == [parent, child]
 
-    bus.record(parent, AgentStatus.IDLING, EventSource.WORKER)
-    bus.record(child, AgentStatus.COMPLETED, EventSource.WORKER)
+    parent_dir.mkdir(parents=True, exist_ok=True)
+    (parent_dir / "outcome.json").write_text(
+        Idling(summary="waiting on children", spent=Budget(turns=1, tool_calls=1)).model_dump_json()
+    )
+    _write_completed(tmp_path / "tasks" / "child")
 
     supervisor.tick()
     assert bus.attempt(parent) == Closed(verdict=AgentStatus.IDLING)
 
     supervisor.tick()
-    assert bus.state(child).status is AgentStatus.EXITED
+    assert bus.attempt(child) == Closed(verdict=AgentStatus.COMPLETED)
 
     active = bus.active_for(parent_dir)
     assert len(active) == 1
@@ -286,10 +281,10 @@ def test_startup_resolves_stale_rows_by_checking_the_pid(tmp_path: pathlib.Path)
     dead = bus.enqueue(tmp_path / "dead", parent_agent=HUMAN)
     never = bus.enqueue(tmp_path / "never", parent_agent=HUMAN)
 
+    _write_completed(tmp_path / "spoke")
     for agent, pid in ((spoke, 101), (alive, 102), (dead, 103)):
         bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
         bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=pid)
-    bus.record(spoke, AgentStatus.COMPLETED, EventSource.WORKER)
     bus.record(never, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
 
     Supervisor(
@@ -302,7 +297,7 @@ def test_startup_resolves_stale_rows_by_checking_the_pid(tmp_path: pathlib.Path)
         liveness=FakeLiveness(frozenset({102})),
     ).resolve_stale()
 
-    assert bus.state(spoke).status is AgentStatus.EXITED
+    assert bus.attempt(spoke) == Closed(verdict=AgentStatus.COMPLETED)
     assert bus.state(alive).status is AgentStatus.RUNNING
     assert bus.state(dead).status is AgentStatus.CRASHED
     assert bus.state(never).status is AgentStatus.CRASHED
@@ -338,7 +333,7 @@ def test_startup_kills_a_wedged_agent_past_the_timeout_and_leaves_a_fresh_one_ru
     assert liveness.killed == [301]
 
 
-def test_a_startup_kill_writes_an_outcome_that_collect_task_can_close(tmp_path: pathlib.Path):
+def test_a_startup_kill_leaves_a_close_that_collect_task_can_report(tmp_path: pathlib.Path):
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     migrate_file(run_dir / "bus.db", latest_version())
@@ -365,8 +360,8 @@ def test_a_startup_kill_writes_an_outcome_that_collect_task_can_close(tmp_path: 
         liveness=FakeLiveness(frozenset({401})),
     ).resolve_stale()
 
-    assert bus.state(child).status is AgentStatus.TIMED_OUT
-    assert (run_dir / "tasks" / "wedged" / "outcome.json").exists()
+    assert bus.attempt(child) == Lost(close=AgentStatus.TIMED_OUT)
+    assert (run_dir / "tasks" / "wedged" / "outcome.json").exists() is False
 
     collected = CollectTask(run_dir=run_dir, clock=clock).run(TaskArgs(task=child), ctx)
 

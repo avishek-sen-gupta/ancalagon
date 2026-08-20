@@ -36,7 +36,7 @@ fileignoreconfig:
 - filename: tests/unit/test_cli_settings.py
   checksum: cea15c3f08de5aa695d51259ce0c2baa8dcd146131798eb9b7e7127c8ae54afd
 - filename: tests/integration/test_end_to_end.py
-  checksum: 9a51583ed27d5418a8263732e22f7ab0b5ce86fba6efaba18ed1d6120d9a37c1
+  checksum: ab158a4bf61331dd0f1268ff1d979718f83af74304dec41e81d00bac203317f6
 - filename: ancalagon/bus/bus.py
   checksum: facce559e5bc923708d6a1371d04be24fcfbedbb4053d0eeaa8ebd426bde49bf
 - filename: docs/architecture.md
