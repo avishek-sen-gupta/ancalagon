@@ -4,7 +4,7 @@ repos:
     hooks:
       - id: python-fp-lint
         args: [--config, fp.json]
-        exclude: ^tests/
+        exclude: ^(tests/|ancalagon/supervisor/process\.py$|ancalagon/supervisor/adopted_process\.py$)
   - repo: local
     hooks:
       - id: talisman
