@@ -628,6 +628,17 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert resumed.ok is True
     assert AgentStatus.COLLECTED not in [e.status for e in bus.history(still_running)]
 
+    lost = bus.enqueue(run_dir / "tasks" / "lost", parent_agent=1)
+    bus.record(lost, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(lost, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=7)
+    bus.record(lost, AgentStatus.TIMED_OUT, EventSource.SUPERVISOR, summary="killed after 600s")
+    (run_dir / "tasks" / "lost" / "outcome.json").unlink(missing_ok=True)
+
+    result = CollectTask(run_dir, FakeClock()).run(TaskArgs(task=lost), _ctx(tmp_path))
+    assert result.ok is False
+    assert result.summary.text_for_model() == "agent 7 ended as timed_out: killed after 600s"
+    assert AgentStatus.COLLECTED in [e.status for e in bus.history(lost)]
+
 
 def test_collect_task_named_by_a_stale_agent_id_records_collected_on_the_newest_agent(
     tmp_path: pathlib.Path,
