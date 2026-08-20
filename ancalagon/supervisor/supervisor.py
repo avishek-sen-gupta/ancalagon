@@ -40,8 +40,13 @@ class Supervisor:
         self.live: dict[int, Process] = {}
         self.started: dict[int, float] = {}
 
+    def _spawned_count(self) -> int:
+        return len(
+            [process for process in self.live.values() if not isinstance(process, AdoptedProcess)]
+        )
+
     def _start_queued(self) -> None:
-        free = self.max_concurrent - len(self.live)
+        free = self.max_concurrent - self._spawned_count()
         if free <= 0:
             return
         for state in self.bus.claim(limit=free):

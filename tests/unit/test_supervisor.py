@@ -429,3 +429,34 @@ def test_a_healthy_worker_left_by_a_previous_supervisor_is_adopted_and_reaped(
     bus.clock.sleep(11)
     third.tick()
     assert bus.attempt(nearly_wedged) == Lost(close=AgentStatus.TIMED_OUT)
+
+
+def test_the_concurrency_cap_governs_spawning_not_an_adopted_processes_slot(
+    tmp_path: pathlib.Path,
+):
+    bus = _open(tmp_path)
+    adopted_dir = tmp_path / "adopted"
+    adopted_dir.mkdir()
+    adopted = bus.enqueue(adopted_dir, parent_agent=HUMAN)
+    bus.record(adopted, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(adopted, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=4242)
+
+    ids = [bus.enqueue(tmp_path / "tasks" / f"t{i}", parent_agent=HUMAN) for i in range(2)]
+
+    spawner = FakeSpawner([(10_000, 0), (10_000, 0)])
+    supervisor = Supervisor(
+        bus=bus,
+        spawner=spawner,
+        max_concurrent=2,
+        timeout_s=600,
+        clock=bus.clock,
+        liveness=FakeLiveness(alive=frozenset({4242})),
+    )
+    supervisor.resolve_stale()
+    assert adopted in supervisor.live
+
+    supervisor.tick()
+
+    assert spawner.spawned == ids
+    assert set(supervisor.live) == {adopted, *ids}
+    assert len(supervisor.live) == 3
