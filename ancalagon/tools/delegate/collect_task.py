@@ -47,21 +47,22 @@ class CollectTask(Tool[TaskArgs]):
             state = bus.state(args.task)
         except KeyError as exc:
             return ctx.failure(self.name, str(exc))
-        if not isinstance(bus.attempt(bus.newest_agent(state.task)), (Closed, Lost)):
-            return ctx.failure(self.name, f"agent {state.agent} has not been closed yet")
+        newest = bus.newest_agent(state.task)
+        if not isinstance(bus.attempt(newest), (Closed, Lost)):
+            return ctx.failure(self.name, f"agent {newest} has not been closed yet")
         task_dir = pathlib.Path(state.dir)
         written = task_dir / "outcome.json"
         if not written.exists():
             return ctx.failure(
-                self.name, f"agent {state.agent} is {state.status.value}, no outcome yet"
+                self.name, f"agent {newest} is {bus.state(newest).status.value}, no outcome yet"
             )
         spec = TaskSpec.model_validate_json((task_dir / "spec.json").read_text())
         answer_class = resolve_class(spec.role.answer)
         outcome = outcome_adapter(answer_class).validate_json(written.read_text())
         if not bus.outstanding(state.task):
-            bus.record(args.task, AgentStatus.COLLECTED, EventSource.WORKER)
+            bus.record(newest, AgentStatus.COLLECTED, EventSource.WORKER)
         if isinstance(outcome, (Completed, Exhausted)):
             return ctx.full_result(self.name, outcome.value.model_dump_json(), ".json")
         return ctx.failure(
-            self.name, f"agent {state.agent} ended as {outcome.kind.value}: {_detail(outcome)}"
+            self.name, f"agent {newest} ended as {outcome.kind.value}: {_detail(outcome)}"
         )

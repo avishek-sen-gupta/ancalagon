@@ -3,6 +3,7 @@ import datetime
 import logging
 import pathlib
 
+from ancalagon.attempt.reported import Reported
 from ancalagon.bus.bus import Bus
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.agent_event import AgentEvent
@@ -18,16 +19,6 @@ from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
 
 LOGGER = logging.getLogger(__name__)
-
-REPORTED = frozenset(
-    {
-        AgentStatus.COMPLETED,
-        AgentStatus.EXHAUSTED,
-        AgentStatus.FAILED,
-        AgentStatus.NEEDS_INPUT,
-        AgentStatus.IDLING,
-    }
-)
 
 
 def _crashed(reason: str) -> Failed:
@@ -127,9 +118,7 @@ class Supervisor:
             self._resolve_one(state.agent)
 
     def _resolve_one(self, agent: int) -> None:
-        events = self.bus.history(agent)
-        statuses = {e.status for e in events if e.source is EventSource.WORKER}
-        if statuses & REPORTED:
+        if isinstance(self.bus.attempt(agent), Reported):
             self.bus.record(
                 agent,
                 AgentStatus.EXITED,
@@ -137,7 +126,7 @@ class Supervisor:
                 summary="closed at startup; worker had reported",
             )
             return
-        running = [e for e in events if e.status is AgentStatus.RUNNING]
+        running = [e for e in self.bus.history(agent) if e.status is AgentStatus.RUNNING]
         if running and self.liveness.is_running(running[-1].pid):
             self._resolve_running(agent, running[-1])
             return
