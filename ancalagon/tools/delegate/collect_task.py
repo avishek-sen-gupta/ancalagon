@@ -51,13 +51,15 @@ class CollectTask(Tool[TaskArgs]):
         attempt = bus.attempt(newest)
         if not isinstance(attempt, (Closed, Lost)):
             return ctx.failure(self.name, f"agent {newest} has not been closed yet")
-        summary = bus.state(newest).summary
         if not bus.outstanding(state.task):
             bus.record(newest, AgentStatus.COLLECTED, EventSource.WORKER)
         if isinstance(attempt, Lost):
+            closing = next(
+                event for event in reversed(bus.history(newest)) if event.status is attempt.close
+            )
             return ctx.failure(
                 self.name,
-                f"agent {newest} ended as {attempt.close.value}: {summary}",
+                f"agent {newest} ended as {attempt.close.value}: {closing.summary}",
             )
         task_dir = pathlib.Path(state.dir)
         spec = TaskSpec.model_validate_json((task_dir / "spec.json").read_text())
