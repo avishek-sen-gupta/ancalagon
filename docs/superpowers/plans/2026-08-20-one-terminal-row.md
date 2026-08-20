@@ -139,11 +139,7 @@ Extend `test_collect_task_returns_a_typed_answer_and_explains_every_other_ending
     bus.record(lost, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(lost, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=7)
     bus.record(
-        lost,
-        AgentStatus.TIMED_OUT,
-        EventSource.SUPERVISOR,
-        exit_code=-9,
-        summary="killed after 600s",
+        lost, AgentStatus.TIMED_OUT, EventSource.SUPERVISOR, summary="killed after 600s"
     )
     (run_dir / "tasks" / "lost" / "outcome.json").unlink(missing_ok=True)
 
@@ -278,7 +274,9 @@ git commit -m "A supervisor may record the verdict a worker left behind"
 
 **Interfaces:**
 - Consumes: `OutcomeHeader` (Task 1), the supervisor-verdict transition (Task 3), `collect_task` reading the bus (Task 2).
-- Produces: `Supervisor._close(agent: int, close: AgentStatus, code: int, summary: str) -> None`.
+- Produces: `Supervisor._close(agent: int, close: AgentStatus, summary: str) -> None`, and `Supervisor._finish(agent: int, status: AgentStatus, summary: str) -> None` with its `code` parameter removed.
+
+**No terminal row records an exit code.** A process the supervisor spawned has one and an adopted process never will, so recording it would make adopted rows distinguishable from spawned ones for a value nothing reads — `exit_code` is consulted by three test assertions and by no production code. Dropping it is what makes the two genuinely uniform rather than uniform-except-one-column. The diagnostic is not lost: a worker's stderr is already captured per agent in `stderr-<agent>.log`, and the summary says what happened in terms the supervisor actually observed.
 
 This is the core swap and it is indivisible: the worker's record and the supervisor's record cannot both exist, because a verdict recorded twice is an illegal transition.
 
@@ -340,33 +338,42 @@ Leave the `except` branch as it is — it already writes `outcome.json` and reco
 In `ancalagon/supervisor/supervisor.py`, delete `_write_outcome` and `_crashed`, and add:
 
 ```python
-    def _close(self, agent: int, close: AgentStatus, code: int, summary: str) -> None:
+    def _close(self, agent: int, close: AgentStatus, summary: str) -> None:
         written = pathlib.Path(self.bus.state(agent).dir) / "outcome.json"
         if written.exists():
             spoken = OutcomeHeader.model_validate_json(written.read_text())
-            self._finish(agent, AgentStatus(spoken.kind.value), code, summary)
+            self._finish(agent, AgentStatus(spoken.kind.value), summary)
             return
-        self._finish(agent, close, code, summary)
+        self._finish(agent, close, summary)
 ```
 
-Rewrite `_reap`'s body to use it:
+Drop `_finish`'s `code` parameter so no terminal row writes an `exit_code`:
+
+```python
+    def _finish(self, agent: int, status: AgentStatus, summary: str) -> None:
+        self.bus.record(agent, status, EventSource.SUPERVISOR, summary=summary)
+        self.live.pop(agent, None)
+        self.started.pop(agent, None)
+```
+
+Update its other caller, the spawn-failure branch of `_start_queued`, to
+`self._finish(state.agent, AgentStatus.CRASHED, f"spawn failed: {exc}")`.
+
+Rewrite `_reap`'s body. `poll()`'s value is tested for `None` and never otherwise used, which is exactly what makes an adopted process indistinguishable from a spawned one here:
 
 ```python
     def _reap(self) -> None:
         for agent, process in list(self.live.items()):
-            code = process.poll()
-            if code is None:
+            if process.poll() is None:
                 if self.clock.time() - self.started[agent] >= self.timeout_s:
                     LOGGER.warning("killing agent %s after %ss", agent, self.timeout_s)
                     process.kill()
-                    self._close(
-                        agent, AgentStatus.TIMED_OUT, -9, f"killed after {self.timeout_s}s"
-                    )
+                    self._close(agent, AgentStatus.TIMED_OUT, f"killed after {self.timeout_s}s")
                 continue
-            self._close(agent, AgentStatus.CRASHED, code, f"exited {code}")
+            self._close(agent, AgentStatus.CRASHED, "no outcome written")
 ```
 
-A worker that finished cleanly is now recorded by what it said, so the `EXITED`/`CRASHED` choice is gone: `CRASHED` is only the fallback when nothing was written.
+A worker that finished cleanly is now recorded by what it said, so the `EXITED`/`CRASHED` choice is gone: `CRASHED` is only the fallback when nothing was written, and the summary says that rather than quoting a code.
 
 Rewrite `_resolve_one` to use the same rule:
 
@@ -376,7 +383,7 @@ Rewrite `_resolve_one` to use the same rule:
         if running and self.liveness.is_running(running[-1].pid):
             self._resolve_running(agent, running[-1])
             return
-        self._close(agent, AgentStatus.CRASHED, -1, "no live process at startup")
+        self._close(agent, AgentStatus.CRASHED, "no live process at startup")
 ```
 
 The `Reported` branch goes — a worker can no longer have reported without the supervisor having closed it. Remove the `Reported` import.
@@ -385,9 +392,7 @@ In `_resolve_running`, replace the `_write_outcome` call and the `bus.record` be
 
 ```python
         self.liveness.kill(running.pid)
-        self._close(
-            agent, AgentStatus.TIMED_OUT, -9, f"killed after {self.timeout_s}s at startup"
-        )
+        self._close(agent, AgentStatus.TIMED_OUT, f"killed after {self.timeout_s}s at startup")
 ```
 
 Delete the now-unused `Budget`, `Failed`, `Outcome` and `TimedOut` imports; check each with grep before removing.
@@ -407,15 +412,21 @@ def settle(bus: Bus, agent: int, verdict: AgentStatus, pid: int = 1) -> None:
 
 One row where there were two. **Do not exempt a test from enforcement and do not weaken an assertion to accommodate a fixture** — a fixture that cannot write a legal sequence is describing a run that cannot happen.
 
-- [ ] **Step 6: Pin the CLI's exit code**
+- [ ] **Step 6: Drop the `exit_code` assertions**
+
+Three tests read `exit_code`, and no production code does: `tests/unit/test_supervisor.py:124,126` and `tests/integration/test_end_to_end.py:136`. Terminal rows no longer write it, so those assertions now compare against the column default and are trivially true.
+
+Replace each with an assertion on what the row now means — the folded attempt, or the summary. For example, `assert bus.state(good).exit_code == 0` becomes `assert bus.attempt(good) == Closed(verdict=AgentStatus.COMPLETED)`, and `assert bus.state(bad).exit_code == 1` becomes `assert bus.attempt(bad) == Lost(close=AgentStatus.CRASHED)`. **Do not simply delete them** — each was pinning that the supervisor distinguished two endings, and that distinction still exists, in a better place.
+
+- [ ] **Step 7: Pin the CLI's exit code**
 
 `ancalagon/cli.py:155` returns 1 when the root produced no outcome. Until now the supervisor fabricated one, so a crashed root exited 0. Add to `tests/integration/test_end_to_end.py` an assertion that a run whose root worker dies without writing `outcome.json` exits 1 — extend the existing crash test rather than adding a file.
 
-- [ ] **Step 7: Mutation-check**
+- [ ] **Step 8: Mutation-check**
 
 Make `_close` ignore the file and always record its `close` argument; the `Closed(verdict=COMPLETED)` assertion must fail. Restore.
 
-- [ ] **Step 8: Verify and commit**
+- [ ] **Step 9: Verify and commit**
 
 ```bash
 uv run python -m black . && uv run pyright && uv run python -m pytest tests/unit && uv run python -m pytest tests/integration && uv run lint-imports
@@ -560,9 +571,7 @@ Expected: FAIL with `assert 1 in {}` — `_resolve_running` returned without ado
 # A worker this supervisor did not spawn, watched through Liveness because it has no pipe.
 from ancalagon.supervisor.liveness import Liveness
 
-# The exit code of a process we did not fork is unavailable; -1 is what this codebase
-# already records when no code was observed.
-NO_EXIT_CODE = -1
+ENDED = -1
 
 
 class AdoptedProcess:
@@ -571,13 +580,15 @@ class AdoptedProcess:
         self.liveness = liveness
 
     def poll(self) -> int | None:
-        return None if self.liveness.is_running(self.pid) else NO_EXIT_CODE
+        return None if self.liveness.is_running(self.pid) else ENDED
 
     def kill(self) -> None:
         self.liveness.kill(self.pid)
 ```
 
 `AdoptedProcess` does not inherit `Process`, matching `subprocess.Popen`, which is the one structural contract in this codebase.
+
+`ENDED` is named for what it means here rather than as an exit code, because it is not one and is never read as one: after Task 4, `_reap` compares `poll()` to `None` and uses the value for nothing. Any non-`None` int would behave identically. It is `-1` only so that a value which escapes into a log cannot be mistaken for a clean exit.
 
 - [ ] **Step 4: Adopt in `_resolve_running`**
 
@@ -592,9 +603,7 @@ Replace the bare `return` in the inside-timeout branch:
             self.started[agent] = self.clock.time() - elapsed
             return
         self.liveness.kill(running.pid)
-        self._close(
-            agent, AgentStatus.TIMED_OUT, -9, f"killed after {self.timeout_s}s at startup"
-        )
+        self._close(agent, AgentStatus.TIMED_OUT, f"killed after {self.timeout_s}s at startup")
 ```
 
 `self.started` is back-dated by the elapsed time so the adopted worker's timeout is measured from when it actually started, not from when it was adopted.
@@ -660,6 +669,6 @@ git commit -m "Document one writer per store"
 
 **The one indivisible task.** Task 4 changes the worker and the supervisor together because a verdict recorded by both is an illegal transition — there is no green intermediate state. It is the largest task in the plan and the review after it matters most.
 
-**Type consistency.** `OutcomeHeader.kind: OutcomeKind`, `Supervisor._close(agent: int, close: AgentStatus, code: int, summary: str) -> None`, `AdoptedProcess(pid: int, liveness: Liveness)`, `Bus.attempt(agent: int) -> Attempt`, `Closed(verdict: AgentStatus)`, `Lost(close: AgentStatus)`, `settle(bus, agent, verdict, pid=1)` are used identically wherever they appear.
+**Type consistency.** `OutcomeHeader.kind: OutcomeKind`, `Supervisor._close(agent: int, close: AgentStatus, summary: str) -> None`, `AdoptedProcess(pid: int, liveness: Liveness)`, `Bus.attempt(agent: int) -> Attempt`, `Closed(verdict: AgentStatus)`, `Lost(close: AgentStatus)`, `settle(bus, agent, verdict, pid=1)` are used identically wherever they appear.
 
 **Known and accepted, from the spec:** a parent sees a child's verdict one tick later; the bus stops showing worker progress mid-run; existing run databases will not fold and are not migrated; two supervisors sharing one `bus.db` remain out of scope; `wakeable`/`_has_news` is still an N+1 per tick; a worker killed mid-write leaves an `outcome.json` that will not parse, which is unchanged by this work.
