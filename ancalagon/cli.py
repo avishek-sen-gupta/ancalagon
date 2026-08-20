@@ -75,7 +75,15 @@ def _contract_fault(name: str, field: str, ref: ClassRef) -> str:
     try:
         resolve_class(ref)
         return ""
-    except Exception as error:
+    except (
+        OSError,
+        ImportError,
+        SyntaxError,
+        AttributeError,
+        TypeError,
+        NameError,
+        ValueError,
+    ) as error:
         return (
             f"[roles.{name}] {field} names {ref.name} in {ref.module}, "
             f"which cannot be loaded: {type(error).__name__}: {error}"
@@ -128,9 +136,6 @@ def main(config_path: pathlib.Path) -> int:
     task_dir.mkdir(parents=True, exist_ok=True)
     (task_dir / "spec.json").write_text(root_spec(config).model_dump_json())
 
-    outcome = task_dir / "outcome.json"
-    outcome.unlink(missing_ok=True)
-
     clock = SystemClock()
     db = run_dir / "bus.db"
     ancalagon.migrations.migrate_file(db, ancalagon.migrations.latest_version())
@@ -152,6 +157,9 @@ def main(config_path: pathlib.Path) -> int:
     finally:
         supervisor.shutdown()
 
+    task = bus.task(task_dir)
+    newest = bus.newest_agent(task.id)
+    outcome = task_dir / f"outcome-{newest}.json"
     if not outcome.exists():
         LOGGER.error("root task produced no outcome; see %s", task_dir)
         return 1

@@ -25,7 +25,6 @@ CREATE TABLE agent_events (
                    'idling', 'collected')),
     source    TEXT    NOT NULL CHECK (source IN ('supervisor', 'worker')),
     pid       INTEGER NOT NULL DEFAULT 0,
-    exit_code INTEGER NOT NULL DEFAULT 0,
     summary   TEXT    NOT NULL DEFAULT '' CHECK (length(summary) <= 1000)
 );
 

@@ -12,5 +12,4 @@ class AgentEvent(pydantic.BaseModel, frozen=True):
     status: AgentStatus
     source: EventSource
     pid: int
-    exit_code: int
     summary: str

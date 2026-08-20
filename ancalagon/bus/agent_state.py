@@ -11,5 +11,4 @@ class AgentState(pydantic.BaseModel, frozen=True):
     parent_agent: int
     status: AgentStatus
     pid: int
-    exit_code: int
     summary: str

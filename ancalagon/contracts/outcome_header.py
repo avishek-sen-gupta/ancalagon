@@ -6,3 +6,4 @@ from ancalagon.contracts.outcome_kind import OutcomeKind
 
 class OutcomeHeader(pydantic.BaseModel, frozen=True):
     kind: OutcomeKind
+    summary: str

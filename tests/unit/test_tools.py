@@ -368,7 +368,7 @@ def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pa
     assert running.ok is False
     assert "already running" in running.error
 
-    bus.record(1, AgentStatus.CRASHED, EventSource.SUPERVISOR, exit_code=1, summary="died")
+    bus.record(1, AgentStatus.CRASHED, EventSource.SUPERVISOR, summary="died")
     retried = delegate.run(args, ctx)
     assert retried.ok is True
 
@@ -558,7 +558,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     long_finding = "the finding " * 20
     assert len(long_finding) > ctx.summary_chars
     settle(bus, answered, AgentStatus.COMPLETED)
-    (run_dir / "tasks" / "answered" / "outcome.json").write_text(
+    (run_dir / "tasks" / "answered" / f"outcome-{answered}.json").write_text(
         Completed[FreeText](
             value=FreeText(text=long_finding), summary="done", spent=spent
         ).model_dump_json()
@@ -577,7 +577,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert len(still_truncates.summary.text_for_model()) == ctx.summary_chars
 
     settle(bus, broken, AgentStatus.FAILED)
-    (run_dir / "tasks" / "broken" / "outcome.json").write_text(
+    (run_dir / "tasks" / "broken" / f"outcome-{broken}.json").write_text(
         Failed(error="ImportError: no module", summary="died", spent=spent).model_dump_json()
     )
     died = collect.run(TaskArgs(task=broken), ctx)
@@ -586,7 +586,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert "ImportError: no module" in died.error
 
     settle(bus, asked, AgentStatus.NEEDS_INPUT)
-    (run_dir / "tasks" / "asked" / "outcome.json").write_text(
+    (run_dir / "tasks" / "asked" / f"outcome-{asked}.json").write_text(
         NeedsInput(question="which caption?", summary="stuck", spent=spent).model_dump_json()
     )
     stuck = collect.run(TaskArgs(task=asked), ctx)
@@ -605,12 +605,12 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     still_running = queue_child("still_running")
 
     settle(bus, child, AgentStatus.COMPLETED)
-    (run_dir / "tasks" / "child" / "outcome.json").write_text(
+    (run_dir / "tasks" / "child" / f"outcome-{child}.json").write_text(
         Completed[FreeText](value=FreeText(text="c"), summary="done", spent=spent).model_dump_json()
     )
 
     settle(bus, still_running, AgentStatus.IDLING, pid=2)
-    (run_dir / "tasks" / "still_running" / "outcome.json").write_text(
+    (run_dir / "tasks" / "still_running" / f"outcome-{still_running}.json").write_text(
         Completed[FreeText](
             value=FreeText(text="s"), summary="also done", spent=spent
         ).model_dump_json()
@@ -631,7 +631,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     bus.record(lost, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(lost, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=7)
     bus.record(lost, AgentStatus.TIMED_OUT, EventSource.SUPERVISOR, summary="killed after 600s")
-    (run_dir / "tasks" / "lost" / "outcome.json").unlink(missing_ok=True)
+    (run_dir / "tasks" / "lost" / f"outcome-{lost}.json").unlink(missing_ok=True)
 
     result = CollectTask(run_dir, FakeClock()).run(TaskArgs(task=lost), _ctx(tmp_path))
     assert result.ok is False
@@ -660,7 +660,7 @@ def test_collect_task_named_by_a_stale_agent_id_records_collected_on_the_newest_
     task = bus.state(first).task
     second = bus.enqueue(task_dir, parent_agent=1)
     settle(bus, second, AgentStatus.COMPLETED)
-    (task_dir / "outcome.json").write_text(
+    (task_dir / f"outcome-{second}.json").write_text(
         Completed[FreeText](
             value=FreeText(text="resumed answer"),
             summary="done",

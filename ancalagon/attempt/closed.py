@@ -1,4 +1,4 @@
-# An attempt whose worker reported a verdict before the supervisor observed the process exit.
+# An attempt whose worker left an outcome behind, so the attempt spoke.
 import pydantic
 
 from ancalagon.contracts.agent_status import AgentStatus

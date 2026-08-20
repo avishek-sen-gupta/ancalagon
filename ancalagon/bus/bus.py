@@ -24,7 +24,7 @@ from ancalagon.contracts.event_source import EventSource
 
 LATEST = """
 SELECT a.id AS agent, a.task AS task, t.dir AS dir, t.parent_agent AS parent_agent,
-       e.status AS status, e.pid AS pid, e.exit_code AS exit_code, e.summary AS summary
+       e.status AS status, e.pid AS pid, e.summary AS summary
 FROM agents a
 JOIN tasks t ON t.id = a.task
 JOIN agent_events e ON e.id = (SELECT MAX(id) FROM agent_events WHERE agent = a.id)
@@ -76,21 +76,19 @@ class Bus:
         status: AgentStatus,
         source: EventSource,
         pid: int = 0,
-        exit_code: int = 0,
         summary: str = "",
     ) -> None:
         current = self.attempt(agent)
         next_state(current, status, source, pid)
         self.conn.execute(
-            "INSERT INTO agent_events (agent, ts, status, source, pid, exit_code, summary) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO agent_events (agent, ts, status, source, pid, summary) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
             (
                 agent,
                 self._now(),
                 status.value,
                 source.value,
                 pid,
-                exit_code,
                 summary[:SUMMARY_LIMIT],
             ),
         )
@@ -101,12 +99,11 @@ class Bus:
         status: AgentStatus,
         source: EventSource,
         pid: int = 0,
-        exit_code: int = 0,
         summary: str = "",
     ) -> None:
         self.conn.execute("BEGIN IMMEDIATE")
         try:
-            self._record(agent, status, source, pid, exit_code, summary)
+            self._record(agent, status, source, pid, summary)
         except Exception:
             self.conn.execute("ROLLBACK")
             raise

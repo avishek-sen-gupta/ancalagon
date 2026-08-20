@@ -15,7 +15,7 @@ from ancalagon.contracts.event_source import EventSource
 
 def _events(*pairs: tuple[AgentStatus, EventSource]) -> list[AgentEvent]:
     return [
-        AgentEvent(id=i, agent=1, ts="t", status=s, source=src, pid=0, exit_code=0, summary="")
+        AgentEvent(id=i, agent=1, ts="t", status=s, source=src, pid=0, summary="")
         for i, (s, src) in enumerate(pairs, start=1)
     ]
 
@@ -84,7 +84,6 @@ def test_running_carries_the_spawned_pid():
             status=AgentStatus.QUEUED,
             source=S,
             pid=0,
-            exit_code=0,
             summary="",
         ),
         AgentEvent(
@@ -94,7 +93,6 @@ def test_running_carries_the_spawned_pid():
             status=AgentStatus.CLAIMED,
             source=S,
             pid=0,
-            exit_code=0,
             summary="",
         ),
         AgentEvent(
@@ -104,7 +102,6 @@ def test_running_carries_the_spawned_pid():
             status=AgentStatus.RUNNING,
             source=S,
             pid=4242,
-            exit_code=0,
             summary="",
         ),
     ]

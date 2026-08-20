@@ -127,7 +127,7 @@ def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
     assert (task_dir / "spec.json").exists()
     assert json.loads((task_dir / "spec.json").read_text())["role"]["behaviour"] == ROOT_BEHAVIOUR
 
-    outcome = json.loads((task_dir / "outcome.json").read_text())
+    outcome = json.loads((task_dir / "outcome-1.json").read_text())
     assert outcome["kind"] == "failed"
     assert outcome["error"] != ""
 
@@ -284,10 +284,14 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
         run_dir=str(named),
         goal="Say hello.",
     )
-    outcome = named / "tasks" / "root" / "outcome.json"
+    task_dir = named / "tasks" / "root"
 
     assert main(config) == 0
-    assert json.loads(outcome.read_text())["kind"] == "failed"
+    opened = Bus.open(named / "bus.db", SystemClock())
+    task = opened.task(task_dir)
+    first_agent = opened.newest_agent(task.id)
+    first_outcome = task_dir / f"outcome-{first_agent}.json"
+    assert json.loads(first_outcome.read_text())["kind"] == "failed"
     capsys.readouterr()
 
     def refuse(self: SubprocessSpawner, task_dir: pathlib.Path, agent_id: int) -> Process:
@@ -297,7 +301,10 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
 
     assert main(config) == 1
     assert capsys.readouterr().out == ""
-    assert outcome.exists() is False
+    second_agent = opened.newest_agent(task.id)
+    assert second_agent != first_agent
+    assert (task_dir / f"outcome-{second_agent}.json").exists() is False
+    assert first_outcome.exists() is True
 
     def crash(self: SubprocessSpawner, task_dir: pathlib.Path, agent_id: int) -> Process:
         return subprocess.Popen([sys.executable, "-c", "raise SystemExit(1)"])
@@ -306,8 +313,10 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
 
     assert main(config) == 1
     assert capsys.readouterr().out == ""
-    assert outcome.exists() is False
+    third_agent = opened.newest_agent(task.id)
+    assert third_agent != second_agent
+    assert (task_dir / f"outcome-{third_agent}.json").exists() is False
+    assert first_outcome.exists() is True
 
     bus = Bus.open(named / "bus.db", SystemClock())
-    task = bus.task(named / "tasks" / "root")
     assert bus.attempt(bus.newest_agent(task.id)) == Lost(close=AgentStatus.CRASHED)

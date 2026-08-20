@@ -77,14 +77,16 @@ def test_a_real_model_asks_a_question_and_acts_on_the_answer(tmp_path: pathlib.P
         "the model did not ask; local models vary, and this test is about the resumed "
         "transcript being accepted, so re-run or use a stronger model"
     )
-    asked = json.loads((run_dir / "tasks" / "root" / "outcome.json").read_text())
+    asked = json.loads((run_dir / "tasks" / "root" / "outcome-1.json").read_text())
     assert asked["kind"] == "needs_input"
     assert asked["question"].strip() != ""
 
     assert answer_command(run_dir, 1, "Keep both captions.") == 0
     assert main(config) == 0
 
-    answered = json.loads((run_dir / "tasks" / "root" / "outcome.json").read_text())
+    root_task = bus.task(run_dir / "tasks" / "root")
+    newest_root = bus.newest_agent(root_task.id)
+    answered = json.loads((run_dir / "tasks" / "root" / f"outcome-{newest_root}.json").read_text())
     assert answered["kind"] in ("completed", "exhausted")
     said = json.dumps(answered).lower()
     assert "both" in said

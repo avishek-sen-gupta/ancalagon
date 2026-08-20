@@ -70,10 +70,10 @@ class Supervisor:
         self.started = {a: s for a, s in self.started.items() if a != agent}
 
     def _close(self, agent: int, close: AgentStatus, summary: str) -> None:
-        written = pathlib.Path(self.bus.state(agent).dir) / "outcome.json"
+        written = pathlib.Path(self.bus.state(agent).dir) / f"outcome-{agent}.json"
         if written.exists():
             spoken = OutcomeHeader.model_validate_json(written.read_text())
-            self._finish(agent, AgentStatus(spoken.kind.value), summary)
+            self._finish(agent, AgentStatus(spoken.kind.value), spoken.summary)
             return
         self._finish(agent, close, summary)
 

@@ -46,9 +46,9 @@ def _ctx(tmp_path: pathlib.Path) -> ToolContext:
     )
 
 
-def _write_completed(task_dir: pathlib.Path) -> None:
+def _write_completed(task_dir: pathlib.Path, agent: int) -> None:
     task_dir.mkdir(parents=True, exist_ok=True)
-    (task_dir / "outcome.json").write_text(
+    (task_dir / f"outcome-{agent}.json").write_text(
         Completed[FreeText](
             value=FreeText(text="done"), summary="done", spent=Budget(turns=1, tool_calls=1)
         ).model_dump_json()
@@ -89,7 +89,7 @@ def test_a_crash_leaves_the_outcome_a_parent_needs_to_collect(tmp_path: pathlib.
     bus = Bus.open(tmp_path / "bus.db", SystemClock())
     died = bus.enqueue(tmp_path / "tasks" / "died", parent_agent=0)
     spoke = bus.enqueue(tmp_path / "tasks" / "spoke", parent_agent=0)
-    _write_completed(tmp_path / "tasks" / "spoke")
+    _write_completed(tmp_path / "tasks" / "spoke", spoke)
 
     Supervisor(
         bus=bus,
@@ -102,7 +102,7 @@ def test_a_crash_leaves_the_outcome_a_parent_needs_to_collect(tmp_path: pathlib.
 
     assert bus.attempt(died) == Lost(close=AgentStatus.CRASHED)
     assert bus.attempt(spoke) == Closed(verdict=AgentStatus.COMPLETED)
-    assert (tmp_path / "tasks" / "died" / "outcome.json").exists() is False
+    assert (tmp_path / "tasks" / "died" / f"outcome-{died}.json").exists() is False
 
 
 def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: pathlib.Path):
@@ -111,7 +111,7 @@ def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: p
     good = bus.enqueue(tmp_path / "tasks" / "good", parent_agent=0)
     bad = bus.enqueue(tmp_path / "tasks" / "bad", parent_agent=0)
     wedged = bus.enqueue(tmp_path / "tasks" / "wedged", parent_agent=0)
-    _write_completed(tmp_path / "tasks" / "good")
+    _write_completed(tmp_path / "tasks" / "good", good)
 
     spawner = FakeSpawner([(0, 0), (0, 1), (10_000, 0)])
     clock = FakeClock()
@@ -126,7 +126,7 @@ def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: p
     assert bus.attempt(bad) == Lost(close=AgentStatus.CRASHED)
     assert bus.attempt(wedged) == Lost(close=AgentStatus.TIMED_OUT)
     assert [e.pid for e in bus.history(wedged) if e.pid][0] == 1000 + wedged
-    assert (tmp_path / "tasks" / "wedged" / "outcome.json").exists() is False
+    assert (tmp_path / "tasks" / "wedged" / f"outcome-{wedged}.json").exists() is False
 
 
 def test_supervisor_respects_concurrency_cap_and_leaves_live_tasks_running_on_shutdown(
@@ -173,7 +173,7 @@ def test_startup_resolves_agents_by_reading_the_outcome_a_worker_left(tmp_path: 
     bus = Bus.open(tmp_path / "bus.db", SystemClock())
     done = bus.enqueue(tmp_path / "tasks" / "done", parent_agent=0)
     silent = bus.enqueue(tmp_path / "tasks" / "silent", parent_agent=0)
-    _write_completed(tmp_path / "tasks" / "done")
+    _write_completed(tmp_path / "tasks" / "done", done)
     for agent in (done, silent):
         bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
         bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=4242)
@@ -213,10 +213,10 @@ def test_a_tick_wakes_an_idling_parent_once_a_supervisor_has_reaped_its_child(
     assert list(supervisor.live) == [parent, child]
 
     parent_dir.mkdir(parents=True, exist_ok=True)
-    (parent_dir / "outcome.json").write_text(
+    (parent_dir / f"outcome-{parent}.json").write_text(
         Idling(summary="waiting on children", spent=Budget(turns=1, tool_calls=1)).model_dump_json()
     )
-    _write_completed(tmp_path / "tasks" / "child")
+    _write_completed(tmp_path / "tasks" / "child", child)
 
     supervisor.tick()
     assert bus.attempt(parent) == Closed(verdict=AgentStatus.IDLING)
@@ -280,7 +280,7 @@ def test_startup_resolves_stale_rows_by_checking_the_pid(tmp_path: pathlib.Path)
     dead = bus.enqueue(tmp_path / "dead", parent_agent=HUMAN)
     never = bus.enqueue(tmp_path / "never", parent_agent=HUMAN)
 
-    _write_completed(tmp_path / "spoke")
+    _write_completed(tmp_path / "spoke", spoke)
     for agent, pid in ((spoke, 101), (alive, 102), (dead, 103)):
         bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
         bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=pid)
@@ -360,7 +360,7 @@ def test_a_startup_kill_leaves_a_close_that_collect_task_can_report(tmp_path: pa
     ).resolve_stale()
 
     assert bus.attempt(child) == Lost(close=AgentStatus.TIMED_OUT)
-    assert (run_dir / "tasks" / "wedged" / "outcome.json").exists() is False
+    assert (run_dir / "tasks" / "wedged" / f"outcome-{child}.json").exists() is False
 
     collected = CollectTask(run_dir=run_dir, clock=clock).run(TaskArgs(task=child), ctx)
 
@@ -391,7 +391,7 @@ def test_a_healthy_worker_left_by_a_previous_supervisor_is_adopted_and_reaped(
     assert bus.attempt(agent) == Running(pid=4242)
     assert agent in first.live
 
-    (task_dir / "outcome.json").write_text(
+    (task_dir / f"outcome-{agent}.json").write_text(
         Completed[FreeText](
             value=FreeText(text="done"), summary="done", spent=Budget(turns=1, tool_calls=1)
         ).model_dump_json()
@@ -460,3 +460,38 @@ def test_the_concurrency_cap_governs_spawning_not_an_adopted_processes_slot(
     assert spawner.spawned == ids
     assert set(supervisor.live) == {adopted, *ids}
     assert len(supervisor.live) == 3
+
+
+def test_a_re_attempt_on_the_same_task_directory_does_not_inherit_the_previous_outcome(
+    tmp_path: pathlib.Path,
+):
+    bus = _open(tmp_path)
+    task_dir = tmp_path / "retry"
+    first = bus.enqueue(task_dir, parent_agent=HUMAN)
+    _write_completed(task_dir, first)
+
+    Supervisor(
+        bus=bus,
+        spawner=FakeSpawner([(0, 0)]),
+        max_concurrent=2,
+        timeout_s=5,
+        poll_s=1.0,
+        clock=bus.clock,
+    ).tick()
+
+    assert bus.attempt(first) == Closed(verdict=AgentStatus.COMPLETED)
+    assert bus.state(first).summary == "done"
+
+    second = bus.enqueue(task_dir, parent_agent=HUMAN)
+    Supervisor(
+        bus=bus,
+        spawner=FakeSpawner([(0, 3)]),
+        max_concurrent=2,
+        timeout_s=5,
+        poll_s=1.0,
+        clock=bus.clock,
+    ).tick()
+
+    assert bus.attempt(second) == Lost(close=AgentStatus.CRASHED)
+    assert bus.state(second).summary == "no outcome written"
+    assert (task_dir / f"outcome-{first}.json").exists() is True

@@ -152,7 +152,7 @@ added — there is only the one migration. A parent's `idling` row and a child's
 row go with the rest of `agent_events`, so a downgraded database loses the record of why a
 parent stopped, along with everything else.
 
-Only the worker writes `outcome.json`, and only the supervisor writes a row about what
+Only the worker writes `outcome-<agent>.json`, and only the supervisor writes a row about what
 happened to an agent — one terminal row per agent, carrying the worker's own account when
 there is one on disk to read, or the supervisor's own observation when there is not. That
 single write is what an agent's rows mean: `Closed` if an answer exists, `Lost` if it does
@@ -172,7 +172,7 @@ Three kinds of process, communicating only through SQLite rows and files:
 - **Worker** — one agent session per process, one attempt at one task.
 
 There is no IPC. A parent writes `spec.json` and enqueues a row; a worker writes
-`outcome.json` and `transcript.jsonl`. A subagent that needs input returns
+`outcome-<agent>.json` and `transcript.jsonl`. A subagent that needs input returns
 `NeedsInput` and stops rather than asking mid-run, so nothing blocks and a dead
 child cannot hang its parent.
 
@@ -221,7 +221,7 @@ readable partial history — which is what makes resumption possible.
 ws/runs/<run>/
     bus.db                        tasks, agents, an append-only event log, model calls
     tasks/<task_id>/
-        spec.json  outcome.json  transcript.jsonl  stderr-<agent>.log  tools/
+        spec.json  outcome-<agent>.json  transcript.jsonl  stderr-<agent>.log  tools/
 ```
 
 Resumption is not a mode: a worker loads whatever transcript is already in its
