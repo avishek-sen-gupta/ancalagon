@@ -75,15 +75,7 @@ def _contract_fault(name: str, field: str, ref: ClassRef) -> str:
     try:
         resolve_class(ref)
         return ""
-    except (
-        OSError,
-        ImportError,
-        SyntaxError,
-        AttributeError,
-        TypeError,
-        NameError,
-        ValueError,
-    ) as error:
+    except Exception as error:
         return (
             f"[roles.{name}] {field} names {ref.name} in {ref.module}, "
             f"which cannot be loaded: {type(error).__name__}: {error}"
