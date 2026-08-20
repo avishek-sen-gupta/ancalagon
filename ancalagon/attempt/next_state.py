@@ -34,6 +34,8 @@ def next_state(current: Attempt, status: AgentStatus, source: EventSource, pid: 
             return Claimed()
         case (Claimed(), AgentStatus.RUNNING, EventSource.SUPERVISOR):
             return Running(pid=pid)
+        case (Running(), spoken_status, EventSource.SUPERVISOR) if spoken_status in VERDICTS:
+            return Closed(verdict=spoken_status)
         case (Running(), worker_status, EventSource.WORKER) if worker_status in VERDICTS:
             return Reported(verdict=worker_status)
         case (Reported(verdict=reported_verdict), close_status, EventSource.SUPERVISOR) if (

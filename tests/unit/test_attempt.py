@@ -83,6 +83,14 @@ def test_every_lifecycle_path_folds_to_the_state_it_describes():
             (AgentStatus.EXITED, S),
         )
     ) == Lost(close=AgentStatus.EXITED)
+    assert attempt_of(
+        _events(
+            (AgentStatus.QUEUED, S),
+            (AgentStatus.CLAIMED, S),
+            (AgentStatus.RUNNING, S),
+            (AgentStatus.COMPLETED, S),
+        )
+    ) == Closed(verdict=AgentStatus.COMPLETED)
 
 
 def test_running_carries_the_spawned_pid():
