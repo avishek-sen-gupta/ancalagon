@@ -623,6 +623,11 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert bus.uncollected(parent_task) == [still_running]
     assert bus.active_for(run_dir / "tasks" / "child") == []
 
+    child_again = collect.run(TaskArgs(task=child), ctx)
+    assert child_again.ok is False
+    assert child_again.error == f"agent {child} was already collected: ended as completed"
+    assert [e.status for e in bus.history(child)].count(AgentStatus.COLLECTED) == 1
+
     resumed = collect.run(TaskArgs(task=still_running), ctx)
     assert resumed.ok is True
     assert AgentStatus.COLLECTED not in [e.status for e in bus.history(still_running)]

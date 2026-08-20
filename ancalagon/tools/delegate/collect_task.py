@@ -2,7 +2,9 @@
 import pathlib
 
 from ancalagon.attempt.closed import Closed
+from ancalagon.attempt.collected import Collected
 from ancalagon.attempt.lost import Lost
+from ancalagon.bus.agent_state import AgentState
 from ancalagon.bus.bus import Bus
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.agent_status import AgentStatus
@@ -49,18 +51,24 @@ class CollectTask(Tool[TaskArgs]):
             return ctx.failure(self.name, str(exc))
         newest = bus.newest_agent(state.task)
         attempt = bus.attempt(newest)
-        if not isinstance(attempt, (Closed, Lost)):
-            return ctx.failure(self.name, f"agent {newest} has not been closed yet")
+        match attempt:
+            case Collected(verdict=verdict):
+                return ctx.failure(
+                    self.name,
+                    f"agent {newest} was already collected: ended as {verdict.value}",
+                )
+            case Closed():
+                return self._read_closed(bus, ctx, state, newest)
+            case Lost(close=close):
+                return self._read_lost(bus, ctx, state, newest, close)
+            case _:
+                return ctx.failure(self.name, f"agent {newest} has not been closed yet")
+
+    def _read_closed(
+        self, bus: Bus, ctx: ToolContext, state: AgentState, newest: int
+    ) -> ToolResult:
         if not bus.outstanding(state.task):
             bus.record(newest, AgentStatus.COLLECTED, EventSource.WORKER)
-        if isinstance(attempt, Lost):
-            closing = next(
-                event for event in reversed(bus.history(newest)) if event.status is attempt.close
-            )
-            return ctx.failure(
-                self.name,
-                f"agent {newest} ended as {attempt.close.value}: {closing.summary}",
-            )
         task_dir = pathlib.Path(state.dir)
         spec = TaskSpec.model_validate_json((task_dir / "spec.json").read_text())
         answer_class = resolve_class(spec.role.answer)
@@ -71,4 +79,15 @@ class CollectTask(Tool[TaskArgs]):
             return ctx.full_result(self.name, outcome.value.model_dump_json(), ".json")
         return ctx.failure(
             self.name, f"agent {newest} ended as {outcome.kind.value}: {_detail(outcome)}"
+        )
+
+    def _read_lost(
+        self, bus: Bus, ctx: ToolContext, state: AgentState, newest: int, close: AgentStatus
+    ) -> ToolResult:
+        if not bus.outstanding(state.task):
+            bus.record(newest, AgentStatus.COLLECTED, EventSource.WORKER)
+        closing = next(event for event in reversed(bus.history(newest)) if event.status is close)
+        return ctx.failure(
+            self.name,
+            f"agent {newest} ended as {close.value}: {closing.summary}",
         )
