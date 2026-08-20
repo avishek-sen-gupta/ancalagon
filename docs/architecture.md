@@ -442,7 +442,7 @@ ws/runs/r_0001/
     tasks/root/
         spec.json                 what was asked, with the whole role embedded
         transcript.jsonl          every message, one per line, tagged by agent id
-        outcome-<agent>.json              the result
+        outcome-<agent>.json      the result of that attempt, kept even when superseded
         stderr-1.log              the worker's stderr
         tools/0000-read_file.txt  every tool's full output
     tasks/<child>/                same shape, one per delegated task
