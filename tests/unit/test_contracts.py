@@ -149,9 +149,11 @@ def test_an_outcome_header_reads_the_kind_from_any_outcome():
     completed = Completed[FreeText](
         value=FreeText(text="done"), summary="done", spent=Budget(turns=1, tool_calls=2)
     )
-    assert (
-        OutcomeHeader.model_validate_json(completed.model_dump_json()).kind == OutcomeKind.COMPLETED
-    )
+    completed_header = OutcomeHeader.model_validate_json(completed.model_dump_json())
+    assert completed_header.kind == OutcomeKind.COMPLETED
+    assert completed_header.summary == "done"
 
     failed = Failed(error="boom", summary="boom", spent=Budget(turns=0, tool_calls=0))
-    assert OutcomeHeader.model_validate_json(failed.model_dump_json()).kind == OutcomeKind.FAILED
+    failed_header = OutcomeHeader.model_validate_json(failed.model_dump_json())
+    assert failed_header.kind == OutcomeKind.FAILED
+    assert failed_header.summary == "boom"

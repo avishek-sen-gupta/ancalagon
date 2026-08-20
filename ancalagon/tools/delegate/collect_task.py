@@ -65,7 +65,7 @@ class CollectTask(Tool[TaskArgs]):
         spec = TaskSpec.model_validate_json((task_dir / "spec.json").read_text())
         answer_class = resolve_class(spec.role.answer)
         outcome = outcome_adapter(answer_class).validate_json(
-            (task_dir / "outcome.json").read_text()
+            (task_dir / f"outcome-{newest}.json").read_text()
         )
         if isinstance(outcome, (Completed, Exhausted)):
             return ctx.full_result(self.name, outcome.value.model_dump_json(), ".json")

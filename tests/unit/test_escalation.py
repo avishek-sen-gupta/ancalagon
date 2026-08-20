@@ -88,7 +88,7 @@ def _run(
         clock=SystemClock(),
     )
     outcome = session.run()
-    (task_dir / "outcome.json").write_text(outcome.model_dump_json())
+    (task_dir / f"outcome-{agent}.json").write_text(outcome.model_dump_json())
     bus.record(
         agent, AgentStatus(outcome.kind.value), EventSource.SUPERVISOR, summary=outcome.summary
     )

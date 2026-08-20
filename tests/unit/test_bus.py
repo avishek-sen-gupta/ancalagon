@@ -204,7 +204,11 @@ def test_record_refuses_a_transition_the_lifecycle_does_not_allow(tmp_path: path
     with pytest.raises(IllegalTransition, match="queued"):
         bus.record(agent, AgentStatus.QUEUED, EventSource.SUPERVISOR)
 
-    settle(bus, agent, AgentStatus.COMPLETED)
+    bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
+    with pytest.raises(IllegalTransition, match="completed"):
+        bus.record(agent, AgentStatus.COMPLETED, EventSource.WORKER)
+    bus.record(agent, AgentStatus.COMPLETED, EventSource.SUPERVISOR)
     bus.record(agent, AgentStatus.COLLECTED, EventSource.WORKER)
 
     with pytest.raises(IllegalTransition, match="collected"):

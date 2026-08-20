@@ -128,7 +128,11 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
         assert resumed_root == []
         assert any(e.status is AgentStatus.COMPLETED for e in bus.history(4))
 
-        answered = json.loads((run_dir / "tasks" / "root" / "outcome.json").read_text())
+        root_task = bus.task(run_dir / "tasks" / "root")
+        newest_root = bus.newest_agent(root_task.id)
+        answered = json.loads(
+            (run_dir / "tasks" / "root" / f"outcome-{newest_root}.json").read_text()
+        )
         assert answered["kind"] == "completed"
         assert answered["value"]["text"] == "both halves handled"
 
@@ -139,7 +143,9 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
         assert any(
             b.get("name") == "need_input" for l in lines[: answered_at[0]] for b in l["blocks"]
         )
-        resumed_child = json.loads((child_dir / "outcome.json").read_text())
+        child_task = bus.task(child_dir)
+        newest_child = bus.newest_agent(child_task.id)
+        resumed_child = json.loads((child_dir / f"outcome-{newest_child}.json").read_text())
         assert resumed_child["kind"] == "completed"
         assert resumed_child["value"]["text"] == "ambiguous half: kept both"
     finally:
@@ -186,7 +192,9 @@ def test_a_supervisor_wakes_an_idling_root_once_its_child_settles(
         assert any(e.status is AgentStatus.IDLING for e in bus.history(first_root))
         assert any(e.status is AgentStatus.COMPLETED for e in bus.history(second_root))
 
-        outcome = json.loads((run_dir / "tasks" / "root" / "outcome.json").read_text())
+        outcome = json.loads(
+            (run_dir / "tasks" / "root" / f"outcome-{second_root}.json").read_text()
+        )
         assert outcome["kind"] == "completed"
         assert outcome["value"]["text"] == "resumed after idle"
 

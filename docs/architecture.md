@@ -18,7 +18,7 @@ every hand-off is a SQLite row or a file.
 ```
 cli.py ──writes spec.json──▶ tasks/root/
    │                              ▲
-   │ enqueue                      │ outcome.json
+   │ enqueue                      │ outcome-<agent>.json
    ▼                              │
  bus.db ◀──claim──── supervisor ──┴──spawn──▶ worker ──▶ Session ──▶ llm ──▶ provider
                                                             │
@@ -51,8 +51,9 @@ cli.py ──writes spec.json──▶ tasks/root/
    the task row and adds another agent.
 5. Constructs the `Supervisor` and calls `run_until_idle()`, then `shutdown()` in a
    `finally`.
-6. Prints `tasks/root/outcome.json`. Any outcome from a previous attempt is deleted before
-   enqueuing, so a run that dies without writing one exits 1 instead of reporting the old one.
+6. Prints the root's newest agent's `outcome-<agent>.json`. Because that file is named for the
+   attempt that wrote it, a run that dies without writing one exits 1 instead of reporting an
+   earlier attempt's answer.
 
 The CLI never spawns anything and never speaks to a model.
 
@@ -96,7 +97,7 @@ going down a version when there is only one.
   spawn appends `crashed` and reports to the parent.
 - `_reap` polls each live process. One still running but past `agent_timeout_s` is killed and
   closed `timed_out`; one no longer running is closed `crashed`. Closing reads whatever the
-  worker left on disk: if `outcome.json` exists, the terminal row records that outcome's
+  worker left on disk: if `outcome-<agent>.json` exists, the terminal row records that outcome's
   `kind` — the worker spoke, so its account is what gets written, even for a process the
   supervisor had to kill — and if it does not, the row records the close the supervisor
   itself observed. The exit code decides nothing; no terminal row records one.
@@ -105,7 +106,7 @@ going down a version when there is only one.
   not as an event fired when a child finishes, and skips a task whose newest agent is still
   one of this supervisor's own live processes. A child is news only once its newest agent
   reaches `Closed` or `Lost`, and only the supervisor writes either: the worker records
-  nothing about its own lifecycle at all, only `outcome.json`, so waking on the worker's own
+  nothing about its own lifecycle at all, only `outcome-<agent>.json`, so waking on the worker's own
   word is not an option — there is no word to wake on. The predicate therefore reads the
   database alone — a watcher, or a second supervisor, gets the same answer. Re-enqueuing
   runs the parent again as a **new** agent against the same task, with a fresh copy of its
@@ -116,7 +117,7 @@ going down a version when there is only one.
 - Before the loop starts, `resolve_stale` settles what a previous supervisor left behind.
   `Bus.unreaped()` finds agents whose attempt is `Claimed` or `Running` — spawned, or spoken
   for, but never closed. Deriving that from the whole history rather than from the latest row
-  is what catches a worker that had already written `outcome.json` before the previous
+  is what catches a worker that had already written `outcome-<agent>.json` before the previous
   supervisor stopped: its last row is still `running`, so nobody else has closed it yet. The
   recorded pid then decides what happens to it. A process still alive and inside its timeout
   is **adopted**, not abandoned: it is wrapped in an `AdoptedProcess` — a `Liveness` check
@@ -124,7 +125,7 @@ going down a version when there is only one.
   so it is reaped, closed and waited for like any other agent this supervisor started, with
   its timeout measured from when it actually started rather than from when it was adopted.
   One alive past its timeout is killed and closed `timed_out`, and one that is gone is closed
-  `crashed` — both through the same read of `outcome.json` that `_reap` uses, so a worker that
+  `crashed` — both through the same read of `outcome-<agent>.json` that `_reap` uses, so a worker that
   managed to write its answer before the previous supervisor died is still `Closed`, not
   `Lost`. `shutdown` writes nothing at all — a supervisor that stops leaves its rows for the
   next one to settle.
@@ -138,13 +139,13 @@ Nothing is ever updated: every status is a new row, so an agent's whole history 
 Only the supervisor ever writes a row about an agent's own lifecycle, and it writes exactly
 one terminal row per agent — carrying both that the process ended and what the worker said,
 when the worker said anything — which is why there is nothing left to reconcile against
-`outcome.json`: the terminal row was read from it.
+`outcome-<agent>.json`: the terminal row was read from it.
 
 That holds for the whole schema, not just this table. There is no row anywhere in `bus.db`
 that is written twice: current state is *derived* by folding an agent's whole history, so
 `claim` appends a `claimed` event rather than setting a flag. A parent learns what happened
 to a child the same way everything else does — by reading its events and its
-`outcome.json`, through `check_task` and `collect_task`. There is no notification to
+`outcome-<agent>.json`, through `check_task` and `collect_task`. There is no notification to
 deliver and no cursor to advance. `collect_task` appends a `collected` event to a closed
 child's newest agent, so a parent reading its answer is itself a fact in the log, not
 something inferred from the parent's own behaviour afterwards. A `Collected` attempt is
@@ -157,10 +158,10 @@ An agent's events are not a log the code reads selectively. `ancalagon/attempt/`
 into exactly one state: `Nascent` before anything is written, then `Queued`, `Claimed`,
 `Running`, and finally `Closed`, `Lost` or `Collected` — seven states, one fold, no others.
 
-Only the worker writes `outcome.json`, and only the supervisor writes an agent's terminal
+Only the worker writes `outcome-<agent>.json`, and only the supervisor writes an agent's terminal
 row, so the state that row lands in is decided by whether the worker got to write first.
 `Closed` means an answer exists on disk; `Lost` means it does not. That holds by
-construction, not by convention: `_close` in the supervisor checks for `outcome.json` before
+construction, not by convention: `_close` in the supervisor checks for `outcome-<agent>.json` before
 every terminal write, and there is nowhere else in the codebase that produces one. A worker
 that caught an exception and still managed to write its outcome is `Closed(failed)`, never
 `Lost` — `Lost` is for an attempt that never got to leave anything behind at all, killed on
@@ -192,7 +193,7 @@ One consequence is worth stating plainly, because it changes what a parent can d
 `collect_task` requires a child to be `Closed` or `Lost` before it will read the answer, and
 fails with "has not been closed yet" otherwise. A parent can no longer collect from a child
 whose process is still exiting. It reads the bus, not the filesystem, to decide this — a
-`Lost` child never gets an `outcome.json` to read, so `collect_task` reports it straight from
+`Lost` child never gets an `outcome-<agent>.json` to read, so `collect_task` reports it straight from
 the summary on the event that closed it, and a `Closed` one is read from disk as before.
 
 It never retries. A crash is reported; the parent decides.
@@ -248,16 +249,16 @@ Invoked as `python -m ancalagon.worker --run-dir … --dir … --agent-id … --
    "resume mode".
 4. Builds the registry, which is the only thing the `Session` is given: it holds no reference
    to any tool.
-5. Runs the session and writes its outcome to `outcome.json`, then returns 0.
+5. Runs the session and writes its outcome to `outcome-<agent>.json`, then returns 0.
 
-A worker records nothing to the bus about its own lifecycle — `outcome.json` is the whole of
+A worker records nothing to the bus about its own lifecycle — `outcome-<agent>.json` is the whole of
 what it leaves behind about how it ended. The supervisor is the only writer of an agent's
 terminal row, and it reads that file to decide what to write in it, which is what keeps the
 row and the file from ever disagreeing.
 
 Any exception writes a `Failed` outcome carrying the traceback and returns 1, so a task is
 never left uncollectable. This is the one catch-all in the codebase and it is deliberate: it
-is the outermost frame of a process, and a worker that dies without an `outcome.json` is
+is the outermost frame of a process, and a worker that dies without an `outcome-<agent>.json` is
 indistinguishable to `collect_task` from one still working, for ever.
 
 `build_registry` decides which tools an agent's registry can serve at all, not which of them
@@ -441,7 +442,7 @@ ws/runs/r_0001/
     tasks/root/
         spec.json                 what was asked, with the whole role embedded
         transcript.jsonl          every message, one per line, tagged by agent id
-        outcome.json              the result
+        outcome-<agent>.json              the result
         stderr-1.log              the worker's stderr
         tools/0000-read_file.txt  every tool's full output
     tasks/<child>/                same shape, one per delegated task
@@ -457,7 +458,7 @@ Everything is inspectable without ancalagon:
 
 ```bash
 sqlite3 ws/runs/r_0001/bus.db \
-  "select agent, status, source, exit_code, summary from agent_events order by id"
+  "select agent, status, source, summary from agent_events order by id"
 sqlite3 ws/runs/r_0001/bus.db \
   "select agent, count(*), sum(prompt_tokens), sum(cache_read_tokens)
    from model_calls group by agent"

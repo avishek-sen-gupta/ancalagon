@@ -127,7 +127,7 @@ def main(
     run_dir: pathlib.Path, task_dir: pathlib.Path, agent_id: int, config_path: pathlib.Path
 ) -> int:
     config = load_config(config_path)
-    outcome_path = task_dir / "outcome.json"
+    outcome_path = task_dir / f"outcome-{agent_id}.json"
     transcript_path = task_dir / "transcript.jsonl"
     log = Transcript(path=transcript_path, agent_id=agent_id)
     clock = SystemClock()
