@@ -5,6 +5,7 @@ import pydantic
 import pytest
 
 import ancalagon.config.config
+from ancalagon.attempt.lost import Lost
 from ancalagon.bus.bus import HUMAN, Bus
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
@@ -22,6 +23,7 @@ from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.schedule.active_for import active_for
 from ancalagon.schedule.newest_agent import newest_agent
+from ancalagon.schedule.task_of import task_of
 from ancalagon.schedule.uncollected import uncollected
 from ancalagon.tools.artifacts.convert_args import ConvertArgs
 from ancalagon.tools.artifacts.convert_document import ConvertDocument
@@ -373,8 +375,8 @@ def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pa
 
     task_dir = run_dir / "tasks" / "analyse"
     assert active_for(bus.snapshot(), str(task_dir)) == (2,)
-    assert bus.state(1).status is AgentStatus.CRASHED
-    assert bus.state(2).dir == str(task_dir)
+    assert bus.attempt(1) == Lost(close=AgentStatus.CRASHED)
+    assert bus.dir_of(2) == str(task_dir)
 
     written = TaskSpec.model_validate_json((task_dir / "spec.json").read_text())
     assert written.role.behaviour == "b"
@@ -533,7 +535,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert stuck.ok is False
     assert "which caption?" in stuck.error
 
-    parent_task = bus.state(answered).task
+    parent_task = task_of(bus.snapshot(), answered).id
     child_delegate = DelegateTo("worker", role, run_dir, parent=answered, clock=SystemClock())
 
     def queue_child(task_id: str) -> int:
@@ -602,7 +604,7 @@ def test_collect_task_named_by_a_stale_agent_id_records_collected_on_the_newest_
     first = active_for(bus.snapshot(), str(task_dir))[0]
     settle(bus, first, AgentStatus.IDLING)
 
-    task = bus.state(first).task
+    task = task_of(bus.snapshot(), first).id
     second = bus.enqueue(task_dir, parent_agent=1)
     settle(bus, second, AgentStatus.COMPLETED)
     (task_dir / f"outcome-{second}.json").write_text(

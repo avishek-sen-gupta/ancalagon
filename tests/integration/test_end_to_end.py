@@ -13,6 +13,7 @@ from ancalagon.cli import main
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.schedule.newest_agent import newest_agent
+from ancalagon.schedule.task_of import task_of
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 
@@ -133,8 +134,6 @@ def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
     assert outcome["error"] != ""
 
     bus = Bus.open(run_dir / "bus.db", SystemClock())
-    row = bus.state(1)
-    assert row.status is AgentStatus.FAILED
     assert bus.attempt(1) == Closed(verdict=AgentStatus.FAILED)
 
     stderr_logs = list(task_dir.glob("stderr-*.log"))
@@ -187,10 +186,11 @@ def test_a_named_run_dir_is_reused_by_a_second_invocation(tmp_path: pathlib.Path
 
     bus = Bus.open(named / "bus.db", SystemClock())
     task = bus.task(named / "tasks" / "root")
-    assert bus.state(1).task == task.id
-    assert bus.state(2).task == task.id
-    assert bus.state(1).status is AgentStatus.FAILED
-    assert bus.state(2).status is AgentStatus.FAILED
+    snapshot = bus.snapshot()
+    assert task_of(snapshot, 1).id == task.id
+    assert task_of(snapshot, 2).id == task.id
+    assert bus.attempt(1) == Closed(verdict=AgentStatus.FAILED)
+    assert bus.attempt(2) == Closed(verdict=AgentStatus.FAILED)
     assert len(list((named / "tasks" / "root").glob("stderr-*.log"))) == 2
 
 

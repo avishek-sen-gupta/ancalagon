@@ -36,11 +36,13 @@ _LATEST = sa.select(
     _A.c.id.label("agent"),
     _A.c.task.label("task"),
     _T.c.dir.label("dir"),
-    _T.c.parent_agent.label("parent_agent"),
-    _E.c.status.label("status"),
-    _E.c.pid.label("pid"),
-    _E.c.summary.label("summary"),
 ).select_from(_A.join(_T, _T.c.id == _A.c.task).join(_E, _E.c.id == _LATEST_EVENT_ID))
+
+_DIR_OF = (
+    sa.select(_T.c.dir)
+    .select_from(_A.join(_T, _T.c.id == _A.c.task))
+    .where(_A.c.id == sa.bindparam("agent"))
+)
 
 _INSERT_TASK = (
     sqlite_dialect.insert(tasks)
@@ -108,7 +110,7 @@ class Bus:
 
     def _states(
         self,
-        stmt: sa.sql.Select[tuple[int, int, str, int, str, int, str]],
+        stmt: sa.sql.Select[tuple[int, int, str]],
         binds: Mapping[str, BindValue] = {},
     ) -> list[AgentState]:
         rows = self._exec(stmt, binds).fetchall()
@@ -184,11 +186,12 @@ class Bus:
         self.conn.execute("COMMIT")
         return waiting
 
-    def state(self, agent: int) -> AgentState:
-        found = self._states(_LATEST.where(_A.c.id == sa.bindparam("agent")), {"agent": agent})
-        if not found:
-            raise KeyError(f"no agent {agent}")
-        return found[0]
+    def dir_of(self, agent: int) -> str:
+        match self._exec(_DIR_OF, {"agent": agent}).fetchone():
+            case None:
+                raise KeyError(f"no agent {agent}")
+            case row:
+                return str(row["dir"])
 
     def attempt(self, agent: int) -> Attempt:
         return attempt_of(self.history(agent))

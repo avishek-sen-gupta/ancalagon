@@ -170,7 +170,7 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
     assert "keep both captions" in first.question
 
     child_a, child_b = root + 1, root + 2
-    assert bus.state(child_a).dir == str(run_dir / "tasks" / "child-a")
+    assert bus.dir_of(child_a) == str(run_dir / "tasks" / "child-a")
 
     asked = _run(
         run_dir,
@@ -200,7 +200,7 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
 
     assert answer_command(run_dir, root, "keep both") == 0
     assert f"answered agent {root}" in capsys.readouterr().out
-    resumed_root = bus.state(active_for(bus.snapshot(), str(root_dir))[0]).agent
+    resumed_root = active_for(bus.snapshot(), str(root_dir))[0]
 
     history = load(root_dir / "transcript.jsonl")
     assert history[-1].blocks[0] == Text(text="keep both")
