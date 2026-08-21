@@ -9,6 +9,7 @@ from ancalagon.bus.bus import Bus
 from ancalagon.cli import main
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
+from ancalagon.schedule.newest_agent import newest_agent
 
 MODEL = os.environ.get("ANCALAGON_LOCAL_MODEL", "")
 
@@ -85,7 +86,7 @@ def test_a_real_model_asks_a_question_and_acts_on_the_answer(tmp_path: pathlib.P
     assert main(config) == 0
 
     root_task = bus.task(run_dir / "tasks" / "root")
-    newest_root = bus.newest_agent(root_task.id)
+    newest_root = newest_agent(bus.snapshot(), root_task.id)
     answered = json.loads((run_dir / "tasks" / "root" / f"outcome-{newest_root}.json").read_text())
     assert answered["kind"] in ("completed", "exhausted")
     said = json.dumps(answered).lower()

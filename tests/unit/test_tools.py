@@ -20,6 +20,9 @@ from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.migrations import latest_version, migrate_file
+from ancalagon.schedule.active_for import active_for
+from ancalagon.schedule.newest_agent import newest_agent
+from ancalagon.schedule.uncollected import uncollected
 from ancalagon.tools.artifacts.convert_args import ConvertArgs
 from ancalagon.tools.artifacts.convert_document import ConvertDocument
 from ancalagon.tools.artifacts.document_format import DocumentFormat
@@ -369,7 +372,7 @@ def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pa
     assert retried.ok is True
 
     task_dir = run_dir / "tasks" / "analyse"
-    assert [s.agent for s in bus.active_for(task_dir)] == [2]
+    assert active_for(bus.snapshot(), str(task_dir)) == (2,)
     assert bus.state(1).status is AgentStatus.CRASHED
     assert bus.state(2).dir == str(task_dir)
 
@@ -480,7 +483,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     def queue(task_id: str) -> int:
         args = delegate.args_model(task_id=task_id, goal="g", input=FreeText(text="go"))
         assert delegate.run(args, ctx).ok is True
-        return int(bus.active_for(run_dir / "tasks" / task_id)[0].agent)
+        return active_for(bus.snapshot(), str(run_dir / "tasks" / task_id))[0]
 
     spent = Budget(turns=1, tool_calls=1)
     answered = queue("answered")
@@ -536,7 +539,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     def queue_child(task_id: str) -> int:
         args = child_delegate.args_model(task_id=task_id, goal="g", input=FreeText(text="go"))
         assert child_delegate.run(args, ctx).ok is True
-        return int(bus.active_for(run_dir / "tasks" / task_id)[0].agent)
+        return active_for(bus.snapshot(), str(run_dir / "tasks" / task_id))[0]
 
     child = queue_child("child")
     still_running = queue_child("still_running")
@@ -553,12 +556,12 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
         ).model_dump_json()
     )
 
-    assert bus.uncollected(parent_task) == [child, still_running]
+    assert uncollected(bus.snapshot(), parent_task) == (child, still_running)
     child_got = collect.run(TaskArgs(task=child), ctx)
     assert child_got.ok is True
     assert AgentStatus.COLLECTED in [e.status for e in bus.history(child)]
-    assert bus.uncollected(parent_task) == [still_running]
-    assert bus.active_for(run_dir / "tasks" / "child") == []
+    assert uncollected(bus.snapshot(), parent_task) == (still_running,)
+    assert active_for(bus.snapshot(), str(run_dir / "tasks" / "child")) == ()
 
     child_again = collect.run(TaskArgs(task=child), ctx)
     assert child_again.ok is False
@@ -596,7 +599,7 @@ def test_collect_task_named_by_a_stale_agent_id_records_collected_on_the_newest_
     args = delegate.args_model(task_id="resumed", goal="g", input=FreeText(text="go"))
     assert delegate.run(args, ctx).ok is True
     task_dir = run_dir / "tasks" / "resumed"
-    first = bus.active_for(task_dir)[0].agent
+    first = active_for(bus.snapshot(), str(task_dir))[0]
     settle(bus, first, AgentStatus.IDLING)
 
     task = bus.state(first).task
@@ -610,7 +613,7 @@ def test_collect_task_named_by_a_stale_agent_id_records_collected_on_the_newest_
         ).model_dump_json()
     )
 
-    assert bus.newest_agent(task) == second
+    assert newest_agent(bus.snapshot(), task) == second
 
     result = collect.run(TaskArgs(task=first), ctx)
 

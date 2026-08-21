@@ -10,6 +10,7 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.migrations import latest_version, migrate_file
+from ancalagon.schedule.active_for import active_for
 from ancalagon.tools.delegate.answer_args import AnswerArgs
 from ancalagon.tools.delegate.answer_task import AnswerTask
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -68,7 +69,7 @@ def test_answering_a_suspended_agent_appends_the_answer_and_queues_a_new_attempt
     assert lines[2]["agent"] == 0
     assert lines[0]["blocks"][0]["text"] == "the goal"
 
-    assert [s.agent for s in bus.active_for(task_dir)] == [resumed]
+    assert active_for(bus.snapshot(), str(task_dir)) == (resumed,)
     assert bus.state(resumed).status is AgentStatus.QUEUED
     assert bus.state(resumed).task == bus.state(agent).task
     assert bus.state(resumed).parent_agent == 0

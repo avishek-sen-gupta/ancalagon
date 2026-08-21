@@ -9,6 +9,8 @@ from ancalagon.cli import main
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.schedule.active_for import active_for
+from ancalagon.schedule.newest_agent import newest_agent
 from tests.integration.scripted_model import ScriptedModel
 
 AMBIGUOUS = "The ambiguous half."
@@ -124,12 +126,12 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
         assert answer_command(run_dir, 1, "keep both") == 0
         assert main(config) == 0
 
-        resumed_root = bus.active_for(run_dir / "tasks" / "root")
-        assert resumed_root == []
+        resumed_root = active_for(bus.snapshot(), str(run_dir / "tasks" / "root"))
+        assert resumed_root == ()
         assert any(e.status is AgentStatus.COMPLETED for e in bus.history(4))
 
         root_task = bus.task(run_dir / "tasks" / "root")
-        newest_root = bus.newest_agent(root_task.id)
+        newest_root = newest_agent(bus.snapshot(), root_task.id)
         answered = json.loads(
             (run_dir / "tasks" / "root" / f"outcome-{newest_root}.json").read_text()
         )
@@ -144,7 +146,7 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
             b.get("name") == "need_input" for l in lines[: answered_at[0]] for b in l["blocks"]
         )
         child_task = bus.task(child_dir)
-        newest_child = bus.newest_agent(child_task.id)
+        newest_child = newest_agent(bus.snapshot(), child_task.id)
         resumed_child = json.loads((child_dir / f"outcome-{newest_child}.json").read_text())
         assert resumed_child["kind"] == "completed"
         assert resumed_child["value"]["text"] == "ambiguous half: kept both"
@@ -213,7 +215,7 @@ def test_a_supervisor_wakes_an_idling_root_once_its_child_settles(
         assert len(resumed) == 1
 
         idle_child_task = bus.task(run_dir / "tasks" / "idle-child")
-        idle_child_agent = bus.newest_agent(idle_child_task.id)
+        idle_child_agent = newest_agent(bus.snapshot(), idle_child_task.id)
         last_request = json.loads(model.requests[-1])
         idle_results = [
             m

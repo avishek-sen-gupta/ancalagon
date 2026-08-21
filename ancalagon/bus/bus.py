@@ -7,15 +7,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import sqlite as sqlite_dialect
 
 import ancalagon.migrations
-from ancalagon.attempt.attempt import (
-    Attempt,
-    Claimed,
-    Closed,
-    Collected,
-    Lost,
-    Queued,
-    Running,
-)
+from ancalagon.attempt.attempt import Attempt, Queued
 from ancalagon.attempt.attempt_of import attempt_of
 from ancalagon.attempt.next_state import next_state
 from ancalagon.attempt.snapshot import Snapshot
@@ -87,36 +79,11 @@ _INSERT_CALL = sa.insert(model_calls).values(
     cache_read_tokens=sa.bindparam("cache_read_tokens"),
 )
 
-_NEWEST_AGENT = sa.select(sa.func.max(agents.c.id).label("agent")).where(
-    agents.c.task == sa.bindparam("task")
-)
-
-_CHILD_TASKS = (
-    sa.select(tasks)
-    .where(
-        tasks.c.parent_agent.in_(
-            sa.select(agents.c.id).where(agents.c.task == sa.bindparam("task"))
-        )
-    )
-    .order_by(tasks.c.id)
-)
-
 _ALL_TASKS = sa.select(tasks).order_by(tasks.c.id)
 
 _ALL_AGENTS = sa.select(agents).order_by(agents.c.id)
 
 _ALL_EVENTS = sa.select(agent_events).order_by(agent_events.c.id)
-
-_LAST_IDLED_EVENT_ID = sa.select(sa.func.max(agent_events.c.id).label("id")).where(
-    sa.and_(
-        agent_events.c.agent == sa.bindparam("agent"),
-        agent_events.c.status == sa.bindparam("status"),
-    )
-)
-
-_NEWEST_EVENT_ID = sa.select(sa.func.max(agent_events.c.id).label("id")).where(
-    agent_events.c.agent == sa.bindparam("agent")
-)
 
 _HISTORY = (
     sa.select(agent_events)
@@ -278,92 +245,6 @@ class Bus:
 
     def attempt(self, agent: int) -> Attempt:
         return attempt_of(self.history(agent))
-
-    def unreaped(self) -> list[AgentState]:
-        return [
-            state
-            for state in self._states(_LATEST.order_by(_A.c.id))
-            if isinstance(self.attempt(state.agent), (Claimed, Running))
-        ]
-
-    def active_for(self, dir: pathlib.Path) -> list[AgentState]:
-        return [
-            state
-            for state in self._states(
-                _LATEST.where(_T.c.dir == sa.bindparam("dir")).order_by(_A.c.id),
-                {"dir": str(dir)},
-            )
-            if isinstance(self.attempt(state.agent), (Queued, Claimed, Running))
-        ]
-
-    def newest_agent(self, task: int) -> int:
-        return int(self._exec(_NEWEST_AGENT, {"task": task}).fetchone()["agent"])
-
-    def child_tasks(self, task: int) -> list[HarnessTask]:
-        rows = self._exec(_CHILD_TASKS, {"task": task}).fetchall()
-        return [HarnessTask.model_validate(dict(r)) for r in rows]
-
-    def outstanding(self, task: int) -> bool:
-        match self.attempt(self.newest_agent(task)):
-            case Closed(verdict=closed_verdict):
-                return closed_verdict is AgentStatus.IDLING
-            case Collected(verdict=collected_verdict):
-                return collected_verdict is AgentStatus.IDLING
-            case Lost():
-                return False
-            case _:
-                return True
-
-    def uncollected(self, task: int) -> list[int]:
-        return [
-            self.newest_agent(t.id)
-            for t in self.child_tasks(task)
-            if isinstance(self.attempt(self.newest_agent(t.id)), (Closed, Lost))
-        ]
-
-    def _all_tasks(self) -> list[HarnessTask]:
-        rows = self._exec(_ALL_TASKS).fetchall()
-        return [HarnessTask.model_validate(dict(r)) for r in rows]
-
-    def _last_idled_event_id(self, task: int) -> int:
-        row = self._exec(
-            _LAST_IDLED_EVENT_ID,
-            {"agent": self.newest_agent(task), "status": AgentStatus.IDLING.value},
-        ).fetchone()
-        return int(row["id"] or 0)
-
-    def _is_news(self, agent: int) -> bool:
-        match self.attempt(agent):
-            case Closed(verdict=verdict):
-                return verdict is not AgentStatus.IDLING
-            case Lost():
-                return True
-            case _:
-                return False
-
-    def _has_news(self, task: int) -> bool:
-        idled_at = self._last_idled_event_id(task)
-        if idled_at == 0:
-            return False
-        return any(
-            self._is_news(self.newest_agent(child.id))
-            and self._newest_event_id(self.newest_agent(child.id)) > idled_at
-            for child in self.child_tasks(task)
-        )
-
-    def _newest_event_id(self, agent: int) -> int:
-        return int(self._exec(_NEWEST_EVENT_ID, {"agent": agent}).fetchone()["id"])
-
-    def wakeable(self) -> list[HarnessTask]:
-        return [t for t in self._all_tasks() if self._has_news(t.id)]
-
-    def live_children(self, agent: int) -> list[AgentState]:
-        task = self.state(agent).task
-        return [
-            self.state(self.newest_agent(t.id))
-            for t in self.child_tasks(task)
-            if self.outstanding(t.id)
-        ]
 
     def queued_count(self) -> int:
         return len(self._queued())
