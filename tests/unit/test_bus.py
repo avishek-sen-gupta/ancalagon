@@ -37,11 +37,13 @@ def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.
     second = bus.enqueue(tmp_path / "tasks" / "beta", parent_agent=first)
     assert bus.state(first).status is AgentStatus.QUEUED
     assert bus.state(second).parent_agent == first
+    assert bus.queued_count() == 2
 
     claimed = bus.claim(limit=10)
     assert sorted(s.agent for s in claimed) == [first, second]
     assert other.claim(limit=10) == []
     assert bus.state(first).status is AgentStatus.CLAIMED
+    assert bus.queued_count() == 0
 
     bus.record(first, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=4242)
     assert bus.state(first).pid == 4242
@@ -68,6 +70,7 @@ def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.
     assert bus.history(retried)[0].ts == "2026-01-01T00:01:30+00:00"
     assert bus.task(alpha).id == bus.state(first).task == bus.state(retried).task
     assert [s.agent for s in bus.active_for(alpha)] == [retried]
+    assert bus.queued_count() == 1
 
 
 def test_depth_counts_ancestors_with_the_root_at_zero(tmp_path: pathlib.Path):
