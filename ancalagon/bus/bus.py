@@ -1,6 +1,11 @@
 # The task queue and append-only agent log. Claiming is atomic so two supervisors never overlap.
 import pathlib
 import sqlite3
+import typing
+from collections.abc import Mapping
+
+import sqlalchemy as sa
+from sqlalchemy.dialects import sqlite as sqlite_dialect
 
 import ancalagon.migrations
 from ancalagon.attempt.attempt import (
@@ -15,6 +20,7 @@ from ancalagon.attempt.attempt import (
 from ancalagon.attempt.attempt_of import attempt_of
 from ancalagon.attempt.next_state import next_state
 from ancalagon.bus.agent_state import AgentState
+from ancalagon.bus.schema import agent_events, agents, model_calls, tasks
 from ancalagon.bus.task_row import TaskRow
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.agent_event import AgentEvent
@@ -22,13 +28,124 @@ from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.event_source import EventSource
 
-LATEST = """
-SELECT a.id AS agent, a.task AS task, t.dir AS dir, t.parent_agent AS parent_agent,
-       e.status AS status, e.pid AS pid, e.summary AS summary
-FROM agents a
-JOIN tasks t ON t.id = a.task
-JOIN agent_events e ON e.id = (SELECT MAX(id) FROM agent_events WHERE agent = a.id)
-"""
+DIALECT = sqlite_dialect.dialect(paramstyle="qmark")
+
+BindValue = str | int
+
+_A = agents.alias("a")
+_T = tasks.alias("t")
+_E = agent_events.alias("e")
+_LATEST_E = agent_events.alias("le")
+
+_LATEST_EVENT_ID = (
+    sa.select(sa.func.max(_LATEST_E.c.id)).where(_LATEST_E.c.agent == _A.c.id).scalar_subquery()
+)
+
+_LATEST = sa.select(
+    _A.c.id.label("agent"),
+    _A.c.task.label("task"),
+    _T.c.dir.label("dir"),
+    _T.c.parent_agent.label("parent_agent"),
+    _E.c.status.label("status"),
+    _E.c.pid.label("pid"),
+    _E.c.summary.label("summary"),
+).select_from(_A.join(_T, _T.c.id == _A.c.task).join(_E, _E.c.id == _LATEST_EVENT_ID))
+
+_INSERT_TASK = (
+    sqlite_dialect.insert(tasks)
+    .values(
+        dir=sa.bindparam("dir"),
+        parent_agent=sa.bindparam("parent_agent"),
+        created=sa.bindparam("created"),
+    )
+    .on_conflict_do_update(index_elements=[tasks.c.dir], set_={"dir": tasks.c.dir})
+    .returning(tasks.c.id)
+)
+
+_INSERT_AGENT = (
+    sa.insert(agents)
+    .values(task=sa.bindparam("task"), created=sa.bindparam("created"))
+    .returning(agents.c.id)
+)
+
+_INSERT_EVENT = sa.insert(agent_events).values(
+    agent=sa.bindparam("agent"),
+    ts=sa.bindparam("ts"),
+    status=sa.bindparam("status"),
+    source=sa.bindparam("source"),
+    pid=sa.bindparam("pid"),
+    summary=sa.bindparam("summary"),
+)
+
+_INSERT_CALL = sa.insert(model_calls).values(
+    agent=sa.bindparam("agent"),
+    ts=sa.bindparam("ts"),
+    model=sa.bindparam("model"),
+    prompt_tokens=sa.bindparam("prompt_tokens"),
+    completion_tokens=sa.bindparam("completion_tokens"),
+    cache_creation_tokens=sa.bindparam("cache_creation_tokens"),
+    cache_read_tokens=sa.bindparam("cache_read_tokens"),
+)
+
+_NEWEST_AGENT = sa.select(sa.func.max(agents.c.id).label("agent")).where(
+    agents.c.task == sa.bindparam("task")
+)
+
+_CHILD_TASKS = (
+    sa.select(tasks)
+    .where(
+        tasks.c.parent_agent.in_(
+            sa.select(agents.c.id).where(agents.c.task == sa.bindparam("task"))
+        )
+    )
+    .order_by(tasks.c.id)
+)
+
+_ALL_TASKS = sa.select(tasks).order_by(tasks.c.id)
+
+_LAST_IDLED_EVENT_ID = sa.select(sa.func.max(agent_events.c.id).label("id")).where(
+    sa.and_(
+        agent_events.c.agent == sa.bindparam("agent"),
+        agent_events.c.status == sa.bindparam("status"),
+    )
+)
+
+_NEWEST_EVENT_ID = sa.select(sa.func.max(agent_events.c.id).label("id")).where(
+    agent_events.c.agent == sa.bindparam("agent")
+)
+
+_HISTORY = (
+    sa.select(agent_events)
+    .where(agent_events.c.agent == sa.bindparam("agent"))
+    .order_by(agent_events.c.id)
+)
+
+_TASK_BY_DIR = sa.select(tasks).where(tasks.c.dir == sa.bindparam("dir"))
+
+_CALLS = (
+    sa.select(
+        model_calls.c.model,
+        model_calls.c.prompt_tokens,
+        model_calls.c.completion_tokens,
+        model_calls.c.cache_creation_tokens,
+        model_calls.c.cache_read_tokens,
+    )
+    .where(model_calls.c.agent == sa.bindparam("agent"))
+    .order_by(model_calls.c.id)
+)
+
+_TOKENS_BY_AGENT = (
+    sa.select(
+        model_calls.c.agent,
+        sa.func.max(model_calls.c.model).label("model"),
+        sa.func.sum(model_calls.c.prompt_tokens).label("prompt_tokens"),
+        sa.func.sum(model_calls.c.completion_tokens).label("completion_tokens"),
+        sa.func.sum(model_calls.c.cache_creation_tokens).label("cache_creation_tokens"),
+        sa.func.sum(model_calls.c.cache_read_tokens).label("cache_read_tokens"),
+    )
+    .group_by(model_calls.c.agent)
+    .order_by(model_calls.c.agent)
+)
 
 # Agent ids start at 1, so 0 is the person who started the run rather than any agent.
 HUMAN = 0
@@ -66,8 +183,19 @@ class Bus:
             )
         return cls(conn, clock)
 
-    def _states(self, where: str, params: tuple[str | int, ...]) -> list[AgentState]:
-        rows = self.conn.execute(LATEST + where, params).fetchall()
+    def _exec(
+        self, stmt: sa.sql.ClauseElement, binds: Mapping[str, BindValue] = {}
+    ) -> sqlite3.Cursor:
+        compiled = typing.cast(sa.sql.compiler.SQLCompiler, stmt.compile(dialect=DIALECT))
+        names: list[str] = compiled.positiontup or []
+        return self.conn.execute(str(compiled), tuple(binds[name] for name in names))
+
+    def _states(
+        self,
+        stmt: sa.sql.Select[tuple[int, int, str, int, str, int, str]],
+        binds: Mapping[str, BindValue] = {},
+    ) -> list[AgentState]:
+        rows = self._exec(stmt, binds).fetchall()
         return [AgentState.model_validate(dict(r)) for r in rows]
 
     def _record(
@@ -80,17 +208,16 @@ class Bus:
     ) -> None:
         current = self.attempt(agent)
         next_state(current, status, source, pid)
-        self.conn.execute(
-            "INSERT INTO agent_events (agent, ts, status, source, pid, summary) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                agent,
-                self._now(),
-                status.value,
-                source.value,
-                pid,
-                summary[:SUMMARY_LIMIT],
-            ),
+        self._exec(
+            _INSERT_EVENT,
+            {
+                "agent": agent,
+                "ts": self._now(),
+                "status": status.value,
+                "source": source.value,
+                "pid": pid,
+                "summary": summary[:SUMMARY_LIMIT],
+            },
         )
 
     def record(
@@ -111,14 +238,12 @@ class Bus:
 
     def enqueue(self, dir: pathlib.Path, parent_agent: int) -> int:
         self.conn.execute("BEGIN IMMEDIATE")
-        task = self.conn.execute(
-            "INSERT INTO tasks (dir, parent_agent, created) VALUES (?, ?, ?) "
-            "ON CONFLICT(dir) DO UPDATE SET dir = dir RETURNING id",
-            (str(dir), parent_agent, self._now()),
+        task = self._exec(
+            _INSERT_TASK,
+            {"dir": str(dir), "parent_agent": parent_agent, "created": self._now()},
         ).fetchone()
-        agent = self.conn.execute(
-            "INSERT INTO agents (task, created) VALUES (?, ?) RETURNING id",
-            (int(task["id"]), self._now()),
+        agent = self._exec(
+            _INSERT_AGENT, {"task": int(task["id"]), "created": self._now()}
         ).fetchone()
         agent_id = int(agent["id"])
         self._record(agent_id, AgentStatus.QUEUED, EventSource.SUPERVISOR)
@@ -129,7 +254,8 @@ class Bus:
         return [
             state
             for state in self._states(
-                "WHERE e.status = ? ORDER BY a.id", (AgentStatus.QUEUED.value,)
+                _LATEST.where(_E.c.status == sa.bindparam("status")).order_by(_A.c.id),
+                {"status": AgentStatus.QUEUED.value},
             )
             if self.attempt(state.agent) == Queued()
         ]
@@ -143,7 +269,7 @@ class Bus:
         return waiting
 
     def state(self, agent: int) -> AgentState:
-        found = self._states("WHERE a.id = ?", (agent,))
+        found = self._states(_LATEST.where(_A.c.id == sa.bindparam("agent")), {"agent": agent})
         if not found:
             raise KeyError(f"no agent {agent}")
         return found[0]
@@ -154,30 +280,25 @@ class Bus:
     def unreaped(self) -> list[AgentState]:
         return [
             state
-            for state in self._states("ORDER BY a.id", ())
+            for state in self._states(_LATEST.order_by(_A.c.id))
             if isinstance(self.attempt(state.agent), (Claimed, Running))
         ]
 
     def active_for(self, dir: pathlib.Path) -> list[AgentState]:
         return [
             state
-            for state in self._states("WHERE t.dir = ? ORDER BY a.id", (str(dir),))
+            for state in self._states(
+                _LATEST.where(_T.c.dir == sa.bindparam("dir")).order_by(_A.c.id),
+                {"dir": str(dir)},
+            )
             if isinstance(self.attempt(state.agent), (Queued, Claimed, Running))
         ]
 
     def newest_agent(self, task: int) -> int:
-        return int(
-            self.conn.execute(
-                "SELECT MAX(id) AS agent FROM agents WHERE task = ?", (task,)
-            ).fetchone()["agent"]
-        )
+        return int(self._exec(_NEWEST_AGENT, {"task": task}).fetchone()["agent"])
 
     def child_tasks(self, task: int) -> list[TaskRow]:
-        rows = self.conn.execute(
-            "SELECT * FROM tasks WHERE parent_agent IN "
-            "(SELECT id FROM agents WHERE task = ?) ORDER BY id",
-            (task,),
-        ).fetchall()
+        rows = self._exec(_CHILD_TASKS, {"task": task}).fetchall()
         return [TaskRow.model_validate(dict(r)) for r in rows]
 
     def outstanding(self, task: int) -> bool:
@@ -199,13 +320,13 @@ class Bus:
         ]
 
     def _all_tasks(self) -> list[TaskRow]:
-        rows = self.conn.execute("SELECT * FROM tasks ORDER BY id").fetchall()
+        rows = self._exec(_ALL_TASKS).fetchall()
         return [TaskRow.model_validate(dict(r)) for r in rows]
 
     def _last_idled_event_id(self, task: int) -> int:
-        row = self.conn.execute(
-            "SELECT MAX(id) AS id FROM agent_events WHERE agent = ? AND status = ?",
-            (self.newest_agent(task), AgentStatus.IDLING.value),
+        row = self._exec(
+            _LAST_IDLED_EVENT_ID,
+            {"agent": self.newest_agent(task), "status": AgentStatus.IDLING.value},
         ).fetchone()
         return int(row["id"] or 0)
 
@@ -229,11 +350,7 @@ class Bus:
         )
 
     def _newest_event_id(self, agent: int) -> int:
-        return int(
-            self.conn.execute(
-                "SELECT MAX(id) AS id FROM agent_events WHERE agent = ?", (agent,)
-            ).fetchone()["id"]
-        )
+        return int(self._exec(_NEWEST_EVENT_ID, {"agent": agent}).fetchone()["id"])
 
     def wakeable(self) -> list[TaskRow]:
         return [t for t in self._all_tasks() if self._has_news(t.id)]
@@ -250,49 +367,36 @@ class Bus:
         return len(self._queued())
 
     def history(self, agent: int) -> list[AgentEvent]:
-        rows = self.conn.execute(
-            "SELECT * FROM agent_events WHERE agent = ? ORDER BY id", (agent,)
-        ).fetchall()
+        rows = self._exec(_HISTORY, {"agent": agent}).fetchall()
         return [AgentEvent.model_validate(dict(r)) for r in rows]
 
     def task(self, dir: pathlib.Path) -> TaskRow:
-        match self.conn.execute("SELECT * FROM tasks WHERE dir = ?", (str(dir),)).fetchone():
+        match self._exec(_TASK_BY_DIR, {"dir": str(dir)}).fetchone():
             case None:
                 raise KeyError(f"no task at {dir}")
             case row:
                 return TaskRow.model_validate(dict(row))
 
     def record_call(self, agent: int, usage: CallUsage) -> None:
-        self.conn.execute(
-            "INSERT INTO model_calls (agent, ts, model, prompt_tokens, completion_tokens, "
-            "cache_creation_tokens, cache_read_tokens) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (
-                agent,
-                self._now(),
-                usage.model,
-                usage.prompt_tokens,
-                usage.completion_tokens,
-                usage.cache_creation_tokens,
-                usage.cache_read_tokens,
-            ),
+        self._exec(
+            _INSERT_CALL,
+            {
+                "agent": agent,
+                "ts": self._now(),
+                "model": usage.model,
+                "prompt_tokens": usage.prompt_tokens,
+                "completion_tokens": usage.completion_tokens,
+                "cache_creation_tokens": usage.cache_creation_tokens,
+                "cache_read_tokens": usage.cache_read_tokens,
+            },
         )
 
     def calls(self, agent: int) -> list[CallUsage]:
-        rows = self.conn.execute(
-            "SELECT model, prompt_tokens, completion_tokens, cache_creation_tokens, "
-            "cache_read_tokens FROM model_calls WHERE agent = ? ORDER BY id",
-            (agent,),
-        ).fetchall()
+        rows = self._exec(_CALLS, {"agent": agent}).fetchall()
         return [CallUsage.model_validate(dict(r)) for r in rows]
 
     def tokens_by_agent(self) -> dict[int, CallUsage]:
-        rows = self.conn.execute(
-            "SELECT agent, MAX(model) AS model, SUM(prompt_tokens) AS prompt_tokens, "
-            "SUM(completion_tokens) AS completion_tokens, "
-            "SUM(cache_creation_tokens) AS cache_creation_tokens, "
-            "SUM(cache_read_tokens) AS cache_read_tokens "
-            "FROM model_calls GROUP BY agent ORDER BY agent"
-        ).fetchall()
+        rows = self._exec(_TOKENS_BY_AGENT).fetchall()
         return {
             int(r["agent"]): CallUsage.model_validate(
                 {k: v for k, v in dict(r).items() if k != "agent"}
