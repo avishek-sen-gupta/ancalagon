@@ -6,12 +6,12 @@ from collections.abc import Mapping
 import sqlalchemy as sa
 from sqlalchemy.dialects import sqlite as sqlite_dialect
 
-import ancalagon.migrations
 from ancalagon.attempt.attempt import Attempt, Queued
 from ancalagon.attempt.attempt_of import attempt_of
 from ancalagon.attempt.next_state import next_state
 from ancalagon.attempt.snapshot import Snapshot
 from ancalagon.bus.agent_state import AgentState
+from ancalagon.bus.connect import connect
 from ancalagon.bus.schema import agent_events, agents, model_calls, tasks
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.agent_event import AgentEvent
@@ -134,25 +134,8 @@ class Bus:
         return self.clock.now().isoformat()
 
     @classmethod
-    def _connect(cls, path: pathlib.Path) -> sqlite3.Connection:
-        conn = sqlite3.connect(path, isolation_level=None)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA busy_timeout = 5000")
-        return conn
-
-    @classmethod
     def open(cls, path: pathlib.Path, clock: Clock) -> "Bus":
-        if not path.exists():
-            raise ValueError(f"{path} does not exist")
-        conn = cls._connect(path)
-        found = ancalagon.migrations.user_version(conn)
-        latest = ancalagon.migrations.latest_version()
-        if found != latest:
-            raise ValueError(
-                f"{path} is at schema version {found}, not {latest}; "
-                f"run: ancalagon migrate --db {path}"
-            )
-        return cls(conn, clock)
+        return cls(connect(path), clock)
 
     def _exec(
         self, stmt: sa.sql.ClauseElement, binds: Mapping[str, BindValue] = {}
