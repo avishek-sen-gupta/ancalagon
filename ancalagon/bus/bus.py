@@ -1,7 +1,6 @@
 # The task queue and append-only agent log. Claiming is atomic so two supervisors never overlap.
 import pathlib
 import sqlite3
-import typing
 from collections.abc import Mapping
 
 import sqlalchemy as sa
@@ -28,7 +27,7 @@ from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.event_source import EventSource
 
-DIALECT = sqlite_dialect.dialect(paramstyle="qmark")
+DIALECT = sqlite_dialect.dialect(paramstyle="named")
 
 BindValue = str | int
 
@@ -186,9 +185,7 @@ class Bus:
     def _exec(
         self, stmt: sa.sql.ClauseElement, binds: Mapping[str, BindValue] = {}
     ) -> sqlite3.Cursor:
-        compiled = typing.cast(sa.sql.compiler.SQLCompiler, stmt.compile(dialect=DIALECT))
-        names: list[str] = compiled.positiontup or []
-        return self.conn.execute(str(compiled), tuple(binds[name] for name in names))
+        return self.conn.execute(str(stmt.compile(dialect=DIALECT)), dict(binds))
 
     def _states(
         self,
