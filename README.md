@@ -199,7 +199,9 @@ rg '"agent": 17' ws/runs/r_0001/tasks/*/transcript.jsonl
 ```
 
 Every model call is recorded too, so a run can be asked what it consumed and
-which agent consumed it:
+which agent consumed it. That table has its own store, `MeterStore`, behind the
+`Meter` a session calls — a separate concern from the agent lifecycle rows above,
+sharing the run's one connection rather than a second database:
 
 ```bash
 sqlite3 -json ws/runs/r_0001/bus.db \

@@ -74,6 +74,15 @@ for. Reading a run is not: every tool, watcher and delegate tool that merely ope
 would otherwise rewrite it, and there would be no way to look at an old run without changing
 it. `LifecycleStore.open` is the one everything else uses, and it only ever reads.
 
+There is one connection, not one store. `ancalagon/bus/connect.py` opens it, sets
+`PRAGMA busy_timeout` and runs the schema-version check above, and two adapters share what it
+returns. `LifecycleStore` (`ancalagon/bus/lifecycle_store.py`) owns `tasks`, `agents` and
+`agent_events` — everything about what an agent is doing. `MeterStore`
+(`ancalagon/bus/meter_store.py`) owns `model_calls` and sits behind the `Meter` protocol the
+session already calls; recording what a call cost is a different concern from recording what
+an agent did, so it is a different table behind a different port, not a second set of methods
+on the same class.
+
 There is a single migration, `001_init`, describing the schema as it stands today. The
 project's answer to a schema change is to edit it in place, not to add a numbered migration
 on top: run directories are disposable and no compatibility with an older schema is promised,
@@ -89,7 +98,34 @@ going down a version when there is only one.
 
 ### 2. Supervising — `ancalagon/supervisor/supervisor.py`
 
-`run_until_idle()` loops on `tick()`:
+`LifecycleStore.snapshot()` is the only way anything reads lifecycle state. It runs three
+queries — every task, every agent, every event — inside one deferred transaction, and folds
+the result into a frozen `Snapshot` (`ancalagon/attempt/snapshot.py`) that resolves each
+agent's whole history into its attempt once, rather than leaving every caller to fold it
+again. Every scheduling rule reads that `Snapshot` and nothing else: `outstanding`,
+`uncollected`, `live_children`, `active_for`, `unreaped`, `wakeable`, `newest_agent`,
+`task_of`, `is_news`, `has_news` and `depth_of` are pure functions in `ancalagon/schedule/`,
+none of which import `ancalagon.bus`.
+
+Three import-linter contracts hold that boundary at the build, not at review: layers point
+downward through the package list in `pyproject.toml`; the domain — `ancalagon.attempt` and
+`ancalagon.schedule` — may not import `ancalagon.bus`; and nothing outside the adapters may
+import `sqlite3` or `sqlalchemy` directly. `ancalagon.bus` is one of those adapters.
+`ancalagon.migrations` is the other, and its absence from the SQL contract's source list is a
+decision, not an oversight: it opens its own raw connection to run the `.sql` files, because
+it is the adapter that creates the schema the others assume already exists. That absence is
+worth stating in prose rather than leaving to the TOML alone — an earlier version of the
+contract listed only the package directories and missed every top-level orchestrator module
+entirely, `ancalagon.cli` among them, until a fresh proof of a real violation on `cli.py`
+caught the gap; `ancalagon.migrations` was considered and left out on purpose once that pass
+was made, not forgotten by the same kind of omission.
+
+`run_until_idle()` loops on `tick()`, which calls `snapshot()` exactly once, after starting
+and reaping, so the whole of a tick's scheduling logic — waking idled parents included — costs
+the same three reads whether a task has no children or fifty. A test pins that count with
+`sqlite3`'s own trace callback rather than trusting the design to hold as the code changes; a
+task graph the size of a tree used to cost one query per task plus three per child, issued
+twenty times a second.
 
 - `_start_queued` claims **one agent at a time** — `bus.claim(limit=1)`, which appends
   `claimed` — and spawns it before claiming the next. Claiming a batch first would strand
@@ -102,8 +138,8 @@ going down a version when there is only one.
   supervisor had to kill — and if it does not, the row records the close the supervisor
   itself observed. The exit code decides nothing; no terminal row records one.
 - `_wake_idling` re-enqueues a task whose newest agent idled and has since had a child settle
-  — `LifecycleStore.wakeable()` evaluates that as a predicate over the whole database each tick,
-  not as an event fired when a child finishes, and skips a task whose newest agent is still
+  — `wakeable` evaluates that as a predicate over the tick's `Snapshot`, not as an event fired
+  when a child finishes, and skips a task whose newest agent is still
   one of this supervisor's own live processes. A child is news only once its newest agent
   reaches `Closed` or `Lost`, and only the supervisor writes either: the worker records
   nothing about its own lifecycle at all, only `outcome-<agent>.json`, so waking on the worker's own
@@ -114,9 +150,10 @@ going down a version when there is only one.
   that idles waiting on three children may therefore spend four budgets across the run, not
   one.
 - The loop exits when nothing is live and nothing is queued.
-- Before the loop starts, `resolve_stale` settles what a previous supervisor left behind.
-  `LifecycleStore.unreaped()` finds agents whose attempt is `Claimed` or `Running` — spawned, or spoken
-  for, but never closed. Deriving that from the whole history rather than from the latest row
+- Before the loop starts, `resolve_stale` takes its own `snapshot()` and settles what a
+  previous supervisor left behind. `unreaped` finds agents whose attempt is `Claimed` or
+  `Running` — spawned, or spoken for, but never closed. Deriving that from the whole history
+  rather than from the latest row
   is what catches a worker that had already written `outcome-<agent>.json` before the previous
   supervisor stopped: its last row is still `running`, so nobody else has closed it yet. The
   recorded pid then decides what happens to it. A process still alive and inside its timeout
