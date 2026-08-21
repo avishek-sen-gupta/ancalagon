@@ -12,11 +12,10 @@ from ancalagon.attempt.next_state import next_state
 from ancalagon.attempt.snapshot import Snapshot
 from ancalagon.bus.agent_state import AgentState
 from ancalagon.bus.connect import connect
-from ancalagon.bus.schema import agent_events, agents, model_calls, tasks
+from ancalagon.bus.schema import agent_events, agents, tasks
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.agent_event import AgentEvent
 from ancalagon.contracts.agent_status import AgentStatus
-from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.harness_task import HarnessTask
 
@@ -69,16 +68,6 @@ _INSERT_EVENT = sa.insert(agent_events).values(
     summary=sa.bindparam("summary"),
 )
 
-_INSERT_CALL = sa.insert(model_calls).values(
-    agent=sa.bindparam("agent"),
-    ts=sa.bindparam("ts"),
-    model=sa.bindparam("model"),
-    prompt_tokens=sa.bindparam("prompt_tokens"),
-    completion_tokens=sa.bindparam("completion_tokens"),
-    cache_creation_tokens=sa.bindparam("cache_creation_tokens"),
-    cache_read_tokens=sa.bindparam("cache_read_tokens"),
-)
-
 _ALL_TASKS = sa.select(tasks).order_by(tasks.c.id)
 
 _ALL_AGENTS = sa.select(agents).order_by(agents.c.id)
@@ -92,31 +81,6 @@ _HISTORY = (
 )
 
 _TASK_BY_DIR = sa.select(tasks).where(tasks.c.dir == sa.bindparam("dir"))
-
-_CALLS = (
-    sa.select(
-        model_calls.c.model,
-        model_calls.c.prompt_tokens,
-        model_calls.c.completion_tokens,
-        model_calls.c.cache_creation_tokens,
-        model_calls.c.cache_read_tokens,
-    )
-    .where(model_calls.c.agent == sa.bindparam("agent"))
-    .order_by(model_calls.c.id)
-)
-
-_TOKENS_BY_AGENT = (
-    sa.select(
-        model_calls.c.agent,
-        sa.func.max(model_calls.c.model).label("model"),
-        sa.func.sum(model_calls.c.prompt_tokens).label("prompt_tokens"),
-        sa.func.sum(model_calls.c.completion_tokens).label("completion_tokens"),
-        sa.func.sum(model_calls.c.cache_creation_tokens).label("cache_creation_tokens"),
-        sa.func.sum(model_calls.c.cache_read_tokens).label("cache_read_tokens"),
-    )
-    .group_by(model_calls.c.agent)
-    .order_by(model_calls.c.agent)
-)
 
 # Agent ids start at 1, so 0 is the person who started the run rather than any agent.
 HUMAN = 0
@@ -242,33 +206,6 @@ class Bus:
                 raise KeyError(f"no task at {dir}")
             case row:
                 return HarnessTask.model_validate(dict(row))
-
-    def record_call(self, agent: int, usage: CallUsage) -> None:
-        self._exec(
-            _INSERT_CALL,
-            {
-                "agent": agent,
-                "ts": self._now(),
-                "model": usage.model,
-                "prompt_tokens": usage.prompt_tokens,
-                "completion_tokens": usage.completion_tokens,
-                "cache_creation_tokens": usage.cache_creation_tokens,
-                "cache_read_tokens": usage.cache_read_tokens,
-            },
-        )
-
-    def calls(self, agent: int) -> list[CallUsage]:
-        rows = self._exec(_CALLS, {"agent": agent}).fetchall()
-        return [CallUsage.model_validate(dict(r)) for r in rows]
-
-    def tokens_by_agent(self) -> dict[int, CallUsage]:
-        rows = self._exec(_TOKENS_BY_AGENT).fetchall()
-        return {
-            int(r["agent"]): CallUsage.model_validate(
-                {k: v for k, v in dict(r).items() if k != "agent"}
-            )
-            for r in rows
-        }
 
     def snapshot(self) -> Snapshot:
         self.conn.execute("BEGIN")

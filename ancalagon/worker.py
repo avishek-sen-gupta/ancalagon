@@ -10,6 +10,8 @@ import pydantic
 
 from ancalagon.bus.bus import Bus
 from ancalagon.bus.bus_meter import BusMeter
+from ancalagon.bus.connect import connect
+from ancalagon.bus.meter_store import MeterStore
 from ancalagon.children.bus_children import BusChildren
 from ancalagon.clock.clock import Clock
 from ancalagon.clock.system_clock import SystemClock
@@ -131,7 +133,9 @@ def main(
     transcript_path = task_dir / "transcript.jsonl"
     log = Transcript(path=transcript_path, agent_id=agent_id)
     clock = SystemClock()
-    bus = Bus.open(run_dir / "bus.db", clock)
+    conn = connect(run_dir / "bus.db")
+    bus = Bus(conn, clock)
+    meter_store = MeterStore(conn, clock)
     try:
         spec_text = (task_dir / "spec.json").read_text()
         spec = TaskSpec.model_validate_json(spec_text)
@@ -172,7 +176,7 @@ def main(
             output_class=output_class,
             clock=clock,
             children=BusChildren(bus, agent_id),
-            meter=BusMeter(bus),
+            meter=BusMeter(meter_store),
             compact_above_tokens=config.compact_above_tokens,
             keep_recent_messages=config.keep_recent_messages,
         )
