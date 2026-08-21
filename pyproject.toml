@@ -53,6 +53,7 @@ layers = [
     "ancalagon.children",
     "ancalagon.answer",
     "ancalagon.bus",
+    "ancalagon.schedule",
     "ancalagon.attempt",
     "ancalagon.llm : ancalagon.transcript",
     "ancalagon.workspace",
