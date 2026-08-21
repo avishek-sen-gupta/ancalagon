@@ -20,10 +20,11 @@ class CheckTask(Tool[TaskArgs]):
         self.clock = clock
 
     def run(self, args: TaskArgs, ctx: ToolContext) -> ToolResult:
-        try:
-            state = Bus.open(self.run_dir / "bus.db", self.clock).state(args.task)
-        except KeyError as exc:
-            return ctx.failure(self.name, str(exc))
+        bus = Bus.open(self.run_dir / "bus.db", self.clock)
+        snapshot = bus.snapshot()
+        if args.task not in snapshot.task_by_agent:
+            return ctx.failure(self.name, f"no agent {args.task}")
+        latest = snapshot.events[args.task][-1]
         return ctx.result(
-            self.name, f"agent {state.agent} is {state.status.value}: {state.summary}"
+            self.name, f"agent {args.task} is {latest.status.value}: {latest.summary}"
         )

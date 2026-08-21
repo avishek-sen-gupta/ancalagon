@@ -1,6 +1,8 @@
 # A session's children as the bus sees them, for the agent that owns them.
 from ancalagon.bus.bus import Bus
 from ancalagon.children.children import Children
+from ancalagon.schedule.live_children import live_children
+from ancalagon.schedule.uncollected import uncollected
 
 
 class BusChildren(Children):
@@ -9,7 +11,9 @@ class BusChildren(Children):
         self.agent = agent
 
     def outstanding(self) -> tuple[int, ...]:
-        return tuple(s.agent for s in self.bus.live_children(self.agent))
+        snapshot = self.bus.snapshot()
+        return live_children(snapshot, self.agent)
 
     def uncollected(self) -> tuple[int, ...]:
-        return tuple(self.bus.uncollected(self.bus.state(self.agent).task))
+        snapshot = self.bus.snapshot()
+        return uncollected(snapshot, snapshot.task_by_agent[self.agent])

@@ -9,6 +9,7 @@ from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.tool_result import ToolResult
+from ancalagon.schedule.active_for import active_for
 from ancalagon.tools.delegate.delegate_args import DelegateArgs
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -40,11 +41,14 @@ class DelegateTo(Tool[DelegateArgs]):
     def run(self, args: DelegateArgs, ctx: ToolContext) -> ToolResult:
         task_dir = self.run_dir / "tasks" / args.task_id
         bus = Bus.open(self.run_dir / "bus.db", self.clock)
-        active = bus.active_for(task_dir)
+        snapshot = bus.snapshot()
+        active = active_for(snapshot, str(task_dir))
         if active:
+            agent = active[0]
+            status = snapshot.events[agent][-1].status
             return ctx.failure(
                 self.name,
-                f"task {args.task_id} is already {active[0].status.value} as agent {active[0].agent}",
+                f"task {args.task_id} is already {status.value} as agent {agent}",
             )
         task_dir.mkdir(parents=True, exist_ok=True)
         spec = AgentSpec[type(args.input)](
