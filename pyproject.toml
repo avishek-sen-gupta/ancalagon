@@ -41,6 +41,7 @@ testpaths = ["tests"]
 
 [tool.importlinter]
 root_package = "ancalagon"
+include_external_packages = true
 
 [[tool.importlinter.contracts]]
 name = "Layers point downward"
@@ -70,3 +71,29 @@ modules = [
     "ancalagon.clock",
     "ancalagon.sandbox",
 ]
+
+[[tool.importlinter.contracts]]
+name = "Domain does not import adapters"
+type = "forbidden"
+source_modules = ["ancalagon.attempt", "ancalagon.schedule"]
+forbidden_modules = ["ancalagon.bus"]
+
+[[tool.importlinter.contracts]]
+name = "SQL stays in the adapters"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = [
+    "ancalagon.attempt",
+    "ancalagon.children",
+    "ancalagon.clock",
+    "ancalagon.config",
+    "ancalagon.contracts",
+    "ancalagon.llm",
+    "ancalagon.sandbox",
+    "ancalagon.schedule",
+    "ancalagon.supervisor",
+    "ancalagon.tools",
+    "ancalagon.transcript",
+    "ancalagon.workspace",
+]
+forbidden_modules = ["sqlite3", "sqlalchemy"]
