@@ -4,7 +4,7 @@ import pathlib
 import pytest
 
 from ancalagon.answer_command import answer_command
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.cli import main
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
@@ -114,7 +114,7 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
 
     try:
         assert main(config) == 0
-        bus = Bus.open(run_dir / "bus.db", SystemClock())
+        bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
 
         def asked(agent: int) -> bool:
             return any(e.status is AgentStatus.NEEDS_INPUT for e in bus.history(agent))
@@ -179,7 +179,7 @@ def test_a_supervisor_wakes_an_idling_root_once_its_child_settles(
 
     try:
         assert main(config) == 0
-        bus = Bus.open(run_dir / "bus.db", SystemClock())
+        bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
 
         root_task = bus.task(run_dir / "tasks" / "root")
         agents = [

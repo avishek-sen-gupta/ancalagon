@@ -1,12 +1,12 @@
 # A session's children as the bus sees them, for the agent that owns them.
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.children.children import Children
 from ancalagon.schedule.live_children import live_children
 from ancalagon.schedule.uncollected import uncollected
 
 
 class BusChildren(Children):
-    def __init__(self, bus: Bus, agent: int):
+    def __init__(self, bus: LifecycleStore, agent: int):
         self.bus = bus
         self.agent = agent
 

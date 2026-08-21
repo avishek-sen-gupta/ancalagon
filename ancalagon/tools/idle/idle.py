@@ -1,7 +1,7 @@
 # Stops an attempt to wait for a live child; there is nothing to wait for once none remain.
 import pathlib
 
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.idled import Idled
 from ancalagon.contracts.tool_result import ToolResult
@@ -27,7 +27,7 @@ class Idle(Tool[IdleArgs]):
         self.clock = clock
 
     def run(self, args: IdleArgs, ctx: ToolContext) -> ToolResult:
-        bus = Bus.open(self.run_dir / "bus.db", self.clock)
+        bus = LifecycleStore.open(self.run_dir / "bus.db", self.clock)
         snapshot = bus.snapshot()
         live = live_children(snapshot, self.agent)
         if not live:

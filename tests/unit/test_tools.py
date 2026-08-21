@@ -6,7 +6,7 @@ import pytest
 
 import ancalagon.config.config
 from ancalagon.attempt.lost import Lost
-from ancalagon.bus.bus import HUMAN, Bus
+from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
@@ -260,7 +260,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         keep_recent_messages=8,
     )
     migrate_file(tmp_path / "bus.db", latest_version())
-    bus = Bus.open(tmp_path / "bus.db", SystemClock())
+    bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock())
     root_agent = bus.enqueue(tmp_path / "root-agent", parent_agent=HUMAN)
     nested_agent = bus.enqueue(tmp_path / "nested-agent", parent_agent=HUMAN)
     full_role = Role(
@@ -330,7 +330,7 @@ def test_idle_refuses_once_its_children_have_settled(tmp_path: pathlib.Path):
     run_dir = tmp_path / "run"
     (run_dir / "tasks").mkdir(parents=True)
     migrate_file(run_dir / "bus.db", latest_version())
-    bus = Bus.open(run_dir / "bus.db", FakeClock())
+    bus = LifecycleStore.open(run_dir / "bus.db", FakeClock())
     parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN)
     child = bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent)
     bus.record(child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
@@ -352,7 +352,7 @@ def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pa
     delegate = DelegateTo("analyst", role, run_dir, parent=1, clock=SystemClock())
     args = delegate.args_model(task_id="analyse", goal="g", input=FreeText(text="look at this"))
     migrate_file(run_dir / "bus.db", latest_version())
-    bus = Bus.open(run_dir / "bus.db", SystemClock())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
 
     assert delegate.run(args, ctx).ok is True
     queued = delegate.run(args, ctx)
@@ -480,7 +480,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     role = Role(behaviour="b", tools=(), budget=Budget(turns=20, tool_calls=60))
     delegate = DelegateTo("worker", role, run_dir, parent=1, clock=SystemClock())
     collect = CollectTask(run_dir=run_dir, clock=SystemClock())
-    bus = Bus.open(run_dir / "bus.db", SystemClock())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
 
     def queue(task_id: str) -> int:
         args = delegate.args_model(task_id=task_id, goal="g", input=FreeText(text="go"))
@@ -596,7 +596,7 @@ def test_collect_task_named_by_a_stale_agent_id_records_collected_on_the_newest_
     role = Role(behaviour="b", tools=(), budget=Budget(turns=20, tool_calls=60))
     delegate = DelegateTo("worker", role, run_dir, parent=1, clock=SystemClock())
     collect = CollectTask(run_dir=run_dir, clock=SystemClock())
-    bus = Bus.open(run_dir / "bus.db", SystemClock())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
 
     args = delegate.args_model(task_id="resumed", goal="g", input=FreeText(text="go"))
     assert delegate.run(args, ctx).ok is True

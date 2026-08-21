@@ -6,7 +6,7 @@ import pytest
 from ancalagon.answer import answer_task
 from ancalagon.answer_command import answer_command
 from ancalagon.attempt.queued import Queued
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
@@ -30,7 +30,7 @@ def _ctx(tmp_path: pathlib.Path) -> ToolContext:
     )
 
 
-def _suspended(tmp_path: pathlib.Path) -> tuple[pathlib.Path, Bus, int]:
+def _suspended(tmp_path: pathlib.Path) -> tuple[pathlib.Path, LifecycleStore, int]:
     run_dir = tmp_path / "run"
     task_dir = run_dir / "tasks" / "asked"
     task_dir.mkdir(parents=True)
@@ -41,7 +41,7 @@ def _suspended(tmp_path: pathlib.Path) -> tuple[pathlib.Path, Bus, int]:
         '"agent":1,"seq":1,"ts":"t"}\n'
     )
     migrate_file(run_dir / "bus.db", latest_version())
-    bus = Bus.open(run_dir / "bus.db", SystemClock())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
     agent = bus.enqueue(task_dir, parent_agent=0)
     bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)

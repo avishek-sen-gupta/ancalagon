@@ -5,7 +5,7 @@ from ancalagon.attempt.closed import Closed
 from ancalagon.attempt.lost import Lost
 from ancalagon.attempt.queued import Queued
 from ancalagon.attempt.running import Running
-from ancalagon.bus.bus import HUMAN, Bus
+from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
@@ -30,10 +30,10 @@ from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.workspace import Workspace
 
 
-def _open(tmp_path: pathlib.Path) -> Bus:
+def _open(tmp_path: pathlib.Path) -> LifecycleStore:
     db = tmp_path / "bus.db"
     migrate_file(db, latest_version())
-    return Bus.open(db, FakeClock())
+    return LifecycleStore.open(db, FakeClock())
 
 
 def _ctx(tmp_path: pathlib.Path) -> ToolContext:
@@ -89,7 +89,7 @@ class FakeSpawner(Spawner):
 
 def test_a_crash_leaves_the_outcome_a_parent_needs_to_collect(tmp_path: pathlib.Path):
     migrate_file(tmp_path / "bus.db", latest_version())
-    bus = Bus.open(tmp_path / "bus.db", SystemClock())
+    bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock())
     died = bus.enqueue(tmp_path / "tasks" / "died", parent_agent=0)
     spoke = bus.enqueue(tmp_path / "tasks" / "spoke", parent_agent=0)
     _write_completed(tmp_path / "tasks" / "spoke", spoke)
@@ -110,7 +110,7 @@ def test_a_crash_leaves_the_outcome_a_parent_needs_to_collect(tmp_path: pathlib.
 
 def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: pathlib.Path):
     migrate_file(tmp_path / "bus.db", latest_version())
-    bus = Bus.open(tmp_path / "bus.db", SystemClock())
+    bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock())
     good = bus.enqueue(tmp_path / "tasks" / "good", parent_agent=0)
     bad = bus.enqueue(tmp_path / "tasks" / "bad", parent_agent=0)
     wedged = bus.enqueue(tmp_path / "tasks" / "wedged", parent_agent=0)
@@ -136,7 +136,7 @@ def test_supervisor_respects_concurrency_cap_and_leaves_live_tasks_running_on_sh
     tmp_path: pathlib.Path,
 ):
     migrate_file(tmp_path / "bus.db", latest_version())
-    bus = Bus.open(tmp_path / "bus.db", SystemClock())
+    bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock())
     ids = [bus.enqueue(tmp_path / "tasks" / f"t{i}", parent_agent=0) for i in range(3)]
 
     spawner = FakeSpawner([(10_000, 0)] * 3)
@@ -173,7 +173,7 @@ def test_supervisor_respects_concurrency_cap_and_leaves_live_tasks_running_on_sh
 
 def test_startup_resolves_agents_by_reading_the_outcome_a_worker_left(tmp_path: pathlib.Path):
     migrate_file(tmp_path / "bus.db", latest_version())
-    bus = Bus.open(tmp_path / "bus.db", SystemClock())
+    bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock())
     done = bus.enqueue(tmp_path / "tasks" / "done", parent_agent=0)
     silent = bus.enqueue(tmp_path / "tasks" / "silent", parent_agent=0)
     _write_completed(tmp_path / "tasks" / "done", done)
@@ -200,7 +200,7 @@ def test_a_tick_wakes_an_idling_parent_once_a_supervisor_has_reaped_its_child(
     tmp_path: pathlib.Path,
 ):
     migrate_file(tmp_path / "bus.db", latest_version())
-    bus = Bus.open(tmp_path / "bus.db", SystemClock())
+    bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock())
     parent_dir = tmp_path / "tasks" / "parent"
     parent = bus.enqueue(parent_dir, parent_agent=0)
     child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=parent)
@@ -243,7 +243,7 @@ def test_a_wake_is_skipped_while_the_idling_agents_process_is_still_live(
     tmp_path: pathlib.Path,
 ):
     migrate_file(tmp_path / "bus.db", latest_version())
-    bus = Bus.open(tmp_path / "bus.db", SystemClock())
+    bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock())
     parent_dir = tmp_path / "tasks" / "parent"
     parent = bus.enqueue(parent_dir, parent_agent=0)
     child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=parent)
@@ -340,7 +340,7 @@ def test_a_startup_kill_leaves_a_close_that_collect_task_can_report(tmp_path: pa
     run_dir.mkdir()
     migrate_file(run_dir / "bus.db", latest_version())
     clock = FakeClock()
-    bus = Bus.open(run_dir / "bus.db", clock)
+    bus = LifecycleStore.open(run_dir / "bus.db", clock)
     ctx = _ctx(tmp_path)
     role = Role(behaviour="b", tools=(), budget=Budget(turns=20, tool_calls=60))
     delegate = DelegateTo("worker", role, run_dir, parent=HUMAN, clock=clock)

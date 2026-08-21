@@ -5,7 +5,7 @@ from ancalagon.attempt.closed import Closed
 from ancalagon.attempt.collected import Collected
 from ancalagon.attempt.lost import Lost
 from ancalagon.attempt.snapshot import Snapshot
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.completed import Completed
@@ -47,7 +47,7 @@ class CollectTask(Tool[TaskArgs]):
         self.clock = clock
 
     def run(self, args: TaskArgs, ctx: ToolContext) -> ToolResult:
-        bus = Bus.open(self.run_dir / "bus.db", self.clock)
+        bus = LifecycleStore.open(self.run_dir / "bus.db", self.clock)
         snapshot = bus.snapshot()
         if args.task not in snapshot.task_by_agent:
             return ctx.failure(self.name, f"no agent {args.task}")
@@ -68,7 +68,7 @@ class CollectTask(Tool[TaskArgs]):
                 return ctx.failure(self.name, f"agent {newest} has not been closed yet")
 
     def _read_closed(
-        self, bus: Bus, ctx: ToolContext, snapshot: Snapshot, task: int, newest: int
+        self, bus: LifecycleStore, ctx: ToolContext, snapshot: Snapshot, task: int, newest: int
     ) -> ToolResult:
         if not outstanding(snapshot, task):
             bus.record(newest, AgentStatus.COLLECTED, EventSource.WORKER)
@@ -86,7 +86,7 @@ class CollectTask(Tool[TaskArgs]):
 
     def _read_lost(
         self,
-        bus: Bus,
+        bus: LifecycleStore,
         ctx: ToolContext,
         snapshot: Snapshot,
         task: int,
