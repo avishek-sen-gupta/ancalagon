@@ -22,6 +22,7 @@ from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.llm.fake_llm import FakeLLM
 from ancalagon.migrations import latest_version, migrate_file
+from ancalagon.schedule.active_for import active_for
 from ancalagon.session import Session
 from ancalagon.tools.delegate.answer_task import AnswerTask
 from ancalagon.tools.delegate.check_task import CheckTask
@@ -199,7 +200,7 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
 
     assert answer_command(run_dir, root, "keep both") == 0
     assert f"answered agent {root}" in capsys.readouterr().out
-    resumed_root = bus.state(bus.active_for(root_dir)[0].agent).agent
+    resumed_root = bus.state(active_for(bus.snapshot(), str(root_dir))[0]).agent
 
     history = load(root_dir / "transcript.jsonl")
     assert history[-1].blocks[0] == Text(text="keep both")
@@ -229,7 +230,7 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
     collected = (root_dir / "tools").glob("*collect_task*")
     assert any("the clear half is fine" in p.read_text() for p in collected)
 
-    resumed_a = bus.active_for(run_dir / "tasks" / "child-a")[0].agent
+    resumed_a = active_for(bus.snapshot(), str(run_dir / "tasks" / "child-a"))[0]
     assert resumed_a != child_a
     child_history = load(run_dir / "tasks" / "child-a" / "transcript.jsonl")
     assert child_history[-1].blocks[0] == Text(text="keep both")

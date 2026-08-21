@@ -16,7 +16,11 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.migrations import latest_version, migrate_file
+from ancalagon.schedule.active_for import active_for
 from ancalagon.schedule.depth_of import depth_of
+from ancalagon.schedule.live_children import live_children
+from ancalagon.schedule.outstanding import outstanding
+from ancalagon.schedule.wakeable import wakeable
 from tests.unit.conftest import settle
 
 
@@ -63,14 +67,14 @@ def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.
     ]
     assert bus.attempt(first) == Closed(verdict=AgentStatus.NEEDS_INPUT)
     assert bus.attempt(second) == Claimed()
-    assert bus.active_for(alpha) == []
+    assert active_for(bus.snapshot(), str(alpha)) == ()
 
     clock.sleep(90)
     retried = bus.enqueue(alpha, parent_agent=0)
     assert retried != first
     assert bus.history(retried)[0].ts == "2026-01-01T00:01:30+00:00"
     assert bus.task(alpha).id == bus.state(first).task == bus.state(retried).task
-    assert [s.agent for s in bus.active_for(alpha)] == [retried]
+    assert active_for(bus.snapshot(), str(alpha)) == (retried,)
     assert bus.queued_count() == 1
 
 
@@ -95,12 +99,12 @@ def test_the_bus_knows_which_children_are_live(
     first = bus.enqueue(tmp_path / "a", parent_agent=parent)
     second = bus.enqueue(tmp_path / "b", parent_agent=parent)
 
-    assert [s.agent for s in bus.live_children(parent)] == [first, second]
+    assert live_children(bus.snapshot(), parent) == (first, second)
 
     settle(bus, parent, AgentStatus.IDLING)
 
     settle(bus, first, AgentStatus.COMPLETED)
-    assert [s.agent for s in bus.live_children(parent)] == [second]
+    assert live_children(bus.snapshot(), parent) == (second,)
 
 
 def test_a_task_sees_children_from_every_attempt_and_knows_when_it_is_outstanding(
@@ -110,22 +114,22 @@ def test_a_task_sees_children_from_every_attempt_and_knows_when_it_is_outstandin
     first = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
     early = bus.enqueue(tmp_path / "early", parent_agent=first)
 
-    assert [s.agent for s in bus.live_children(first)] == [early]
-    assert bus.outstanding(bus.state(early).task) is True
+    assert live_children(bus.snapshot(), first) == (early,)
+    assert outstanding(bus.snapshot(), bus.state(early).task) is True
 
     settle(bus, first, AgentStatus.IDLING)
     woken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
     late = bus.enqueue(tmp_path / "late", parent_agent=woken)
 
-    assert sorted(s.agent for s in bus.live_children(woken)) == [early, late]
+    assert tuple(sorted(live_children(bus.snapshot(), woken))) == (early, late)
 
     settle(bus, early, AgentStatus.COMPLETED)
-    assert [s.agent for s in bus.live_children(woken)] == [late]
-    assert bus.outstanding(bus.state(early).task) is False
+    assert live_children(bus.snapshot(), woken) == (late,)
+    assert outstanding(bus.snapshot(), bus.state(early).task) is False
 
     settle(bus, late, AgentStatus.IDLING, pid=2)
-    assert bus.outstanding(bus.state(late).task) is True
-    assert [s.agent for s in bus.live_children(woken)] == [late]
+    assert outstanding(bus.snapshot(), bus.state(late).task) is True
+    assert live_children(bus.snapshot(), woken) == (late,)
 
 
 def test_a_task_is_wakeable_only_for_news_a_supervisor_has_marked(
@@ -136,42 +140,42 @@ def test_a_task_is_wakeable_only_for_news_a_supervisor_has_marked(
     first = bus.enqueue(tmp_path / "a", parent_agent=parent)
     second = bus.enqueue(tmp_path / "b", parent_agent=parent)
 
-    assert bus.wakeable() == []
+    assert wakeable(bus.snapshot()) == ()
 
     settle(bus, parent, AgentStatus.IDLING)
-    assert bus.wakeable() == []
+    assert wakeable(bus.snapshot()) == ()
 
     bus.record(first, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(first, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
-    assert bus.wakeable() == []
+    assert wakeable(bus.snapshot()) == ()
     bus.record(first, AgentStatus.COMPLETED, EventSource.SUPERVISOR)
-    assert [t.dir for t in bus.wakeable()] == [str(tmp_path / "root")]
+    assert [t.dir for t in wakeable(bus.snapshot())] == [str(tmp_path / "root")]
 
     woken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
-    assert bus.wakeable() == []
+    assert wakeable(bus.snapshot()) == ()
 
     settle(bus, woken, AgentStatus.IDLING)
-    assert bus.wakeable() == []
+    assert wakeable(bus.snapshot()) == ()
 
     bus.record(second, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(second, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=2)
-    assert bus.wakeable() == []
+    assert wakeable(bus.snapshot()) == ()
     bus.record(second, AgentStatus.CRASHED, EventSource.SUPERVISOR)
-    assert [t.dir for t in bus.wakeable()] == [str(tmp_path / "root")]
+    assert [t.dir for t in wakeable(bus.snapshot())] == [str(tmp_path / "root")]
 
     rewoken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
     idled_child = bus.enqueue(tmp_path / "c", parent_agent=rewoken)
     reporting_child = bus.enqueue(tmp_path / "d", parent_agent=rewoken)
-    assert bus.wakeable() == []
+    assert wakeable(bus.snapshot()) == ()
 
     settle(bus, rewoken, AgentStatus.IDLING)
-    assert bus.wakeable() == []
+    assert wakeable(bus.snapshot()) == ()
 
     settle(bus, idled_child, AgentStatus.IDLING, pid=3)
-    assert bus.wakeable() == []
+    assert wakeable(bus.snapshot()) == ()
 
     settle(bus, reporting_child, AgentStatus.COMPLETED, pid=4)
-    assert [t.dir for t in bus.wakeable()] == [str(tmp_path / "root")]
+    assert [t.dir for t in wakeable(bus.snapshot())] == [str(tmp_path / "root")]
 
 
 def test_children_reports_outstanding_and_uncollected_for_one_agent(tmp_path: pathlib.Path):

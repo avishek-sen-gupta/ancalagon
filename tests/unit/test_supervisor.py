@@ -16,6 +16,8 @@ from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.role import Role
 from ancalagon.migrations import latest_version, migrate_file
+from ancalagon.schedule.active_for import active_for
+from ancalagon.schedule.unreaped import unreaped
 from ancalagon.supervisor.fake_liveness import FakeLiveness
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
@@ -145,7 +147,7 @@ def test_supervisor_respects_concurrency_cap_and_leaves_live_tasks_running_on_sh
     supervisor.tick()
     assert spawner.spawned == ids[:2]
     assert len(supervisor.live) == 2
-    assert [s.agent for s in bus.unreaped()] == ids[:2]
+    assert unreaped(bus.snapshot()) == tuple(ids[:2])
     processes = typing.cast(dict[int, FakeProcess], dict(supervisor.live))
 
     supervisor.shutdown()
@@ -188,7 +190,7 @@ def test_startup_resolves_agents_by_reading_the_outcome_a_worker_left(tmp_path: 
         liveness=FakeLiveness(frozenset()),
     ).run_until_idle()
 
-    assert [s.agent for s in bus.unreaped()] == []
+    assert unreaped(bus.snapshot()) == ()
     assert bus.attempt(done) == Closed(verdict=AgentStatus.COMPLETED)
     assert bus.attempt(silent) == Lost(close=AgentStatus.CRASHED)
 
@@ -224,14 +226,14 @@ def test_a_tick_wakes_an_idling_parent_once_a_supervisor_has_reaped_its_child(
     supervisor.tick()
     assert bus.attempt(child) == Closed(verdict=AgentStatus.COMPLETED)
 
-    active = bus.active_for(parent_dir)
+    active = active_for(bus.snapshot(), str(parent_dir))
     assert len(active) == 1
-    resumed = active[0].agent
+    resumed = active[0]
     assert resumed != parent
     assert bus.attempt(resumed) == Queued()
 
     supervisor.tick()
-    active_after = bus.active_for(parent_dir)
+    active_after = active_for(bus.snapshot(), str(parent_dir))
     assert len(active_after) == 1
     assert bus.attempt(resumed) == Running(pid=1000 + resumed)
 
@@ -343,7 +345,7 @@ def test_a_startup_kill_leaves_a_close_that_collect_task_can_report(tmp_path: pa
     delegate = DelegateTo("worker", role, run_dir, parent=HUMAN, clock=clock)
     args = delegate.args_model(task_id="wedged", goal="g", input=FreeText(text="go"))
     assert delegate.run(args, ctx).ok is True
-    child = bus.active_for(run_dir / "tasks" / "wedged")[0].agent
+    child = active_for(bus.snapshot(), str(run_dir / "tasks" / "wedged"))[0]
 
     bus.record(child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=401)

@@ -12,6 +12,7 @@ from ancalagon.bus.bus import Bus
 from ancalagon.cli import main
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
+from ancalagon.schedule.newest_agent import newest_agent
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 
@@ -289,7 +290,7 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
     assert main(config) == 0
     opened = Bus.open(named / "bus.db", SystemClock())
     task = opened.task(task_dir)
-    first_agent = opened.newest_agent(task.id)
+    first_agent = newest_agent(opened.snapshot(), task.id)
     first_outcome = task_dir / f"outcome-{first_agent}.json"
     assert json.loads(first_outcome.read_text())["kind"] == "failed"
     capsys.readouterr()
@@ -301,7 +302,7 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
 
     assert main(config) == 1
     assert capsys.readouterr().out == ""
-    second_agent = opened.newest_agent(task.id)
+    second_agent = newest_agent(opened.snapshot(), task.id)
     assert second_agent != first_agent
     assert (task_dir / f"outcome-{second_agent}.json").exists() is False
     assert first_outcome.exists() is True
@@ -313,10 +314,10 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
 
     assert main(config) == 1
     assert capsys.readouterr().out == ""
-    third_agent = opened.newest_agent(task.id)
+    third_agent = newest_agent(opened.snapshot(), task.id)
     assert third_agent != second_agent
     assert (task_dir / f"outcome-{third_agent}.json").exists() is False
     assert first_outcome.exists() is True
 
     bus = Bus.open(named / "bus.db", SystemClock())
-    assert bus.attempt(bus.newest_agent(task.id)) == Lost(close=AgentStatus.CRASHED)
+    assert bus.attempt(newest_agent(bus.snapshot(), task.id)) == Lost(close=AgentStatus.CRASHED)
