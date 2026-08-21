@@ -3,6 +3,7 @@ import datetime
 import logging
 import pathlib
 
+from ancalagon.attempt.snapshot import Snapshot
 from ancalagon.bus.agent_state import AgentState
 from ancalagon.bus.bus import Bus
 from ancalagon.clock.clock import Clock
@@ -10,6 +11,9 @@ from ancalagon.contracts.agent_event import AgentEvent
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.outcome_header import OutcomeHeader
+from ancalagon.schedule.newest_agent import newest_agent
+from ancalagon.schedule.unreaped import unreaped
+from ancalagon.schedule.wakeable import wakeable
 from ancalagon.supervisor.adopted_process import AdoptedProcess
 from ancalagon.supervisor.liveness import Liveness
 from ancalagon.supervisor.os_liveness import OS_LIVENESS
@@ -95,9 +99,9 @@ class Supervisor:
             case _:
                 self._close(agent, AgentStatus.CRASHED, "no outcome written")
 
-    def _wake_idling(self) -> None:
+    def _wake_idling(self, snapshot: Snapshot) -> None:
         asleep = [
-            task for task in self.bus.wakeable() if self.bus.newest_agent(task.id) not in self.live
+            task for task in wakeable(snapshot) if newest_agent(snapshot, task.id) not in self.live
         ]
         for task in asleep:
             self.bus.enqueue(pathlib.Path(task.dir), parent_agent=task.parent_agent)
@@ -105,11 +109,13 @@ class Supervisor:
     def tick(self) -> None:
         self._start_queued()
         self._reap()
-        self._wake_idling()
+        snapshot = self.bus.snapshot()
+        self._wake_idling(snapshot)
 
     def resolve_stale(self) -> None:
-        for state in self.bus.unreaped():
-            self._resolve_one(state.agent)
+        snapshot = self.bus.snapshot()
+        for agent in unreaped(snapshot):
+            self._resolve_one(agent)
 
     def _resolve_one(self, agent: int) -> None:
         running = [e for e in self.bus.history(agent) if e.status is AgentStatus.RUNNING]

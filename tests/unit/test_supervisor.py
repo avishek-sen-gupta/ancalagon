@@ -495,3 +495,20 @@ def test_a_re_attempt_on_the_same_task_directory_does_not_inherit_the_previous_o
     assert bus.attempt(second) == Lost(close=AgentStatus.CRASHED)
     assert bus.state(second).summary == "no outcome written"
     assert (task_dir / f"outcome-{first}.json").exists() is True
+
+
+def test_a_tick_reads_the_database_a_fixed_number_of_times(tmp_path: pathlib.Path):
+    bus = _open(tmp_path)
+    parent = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
+    for name in ("a", "b", "c", "d"):
+        bus.enqueue(tmp_path / name, parent_agent=parent)
+
+    statements: list[str] = []
+    bus.conn.set_trace_callback(statements.append)
+    Supervisor(
+        bus=bus, spawner=FakeSpawner([]), max_concurrent=0, timeout_s=60, clock=FakeClock()
+    ).tick()
+    bus.conn.set_trace_callback(None)
+
+    selects = [s for s in statements if s.lstrip().upper().startswith("SELECT")]
+    assert len(selects) == 3
