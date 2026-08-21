@@ -6,7 +6,7 @@ import pathlib
 import pydantic
 import pytest
 
-from ancalagon.bus.bus import HUMAN, Bus
+from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
 from ancalagon.children.bus_children import BusChildren
 from ancalagon.children.children import Children
 from ancalagon.clock.fake_clock import FakeClock
@@ -204,7 +204,7 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
     run_dir = tmp_path / "run"
     (run_dir / "tasks").mkdir(parents=True)
     migrate_file(run_dir / "bus.db", latest_version())
-    bus = Bus.open(run_dir / "bus.db", FakeClock())
+    bus = LifecycleStore.open(run_dir / "bus.db", FakeClock())
     parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN)
     child = bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent)
 
@@ -259,7 +259,7 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
     run_dir = tmp_path / "run"
     (run_dir / "tasks").mkdir(parents=True)
     migrate_file(run_dir / "bus.db", latest_version())
-    bus = Bus.open(run_dir / "bus.db", FakeClock())
+    bus = LifecycleStore.open(run_dir / "bus.db", FakeClock())
     parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN)
     bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent)
 

@@ -5,7 +5,7 @@ import pathlib
 import pytest
 
 from ancalagon.answer_command import answer_command
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.budget import Budget
@@ -62,7 +62,7 @@ def _run(
         summary_chars=400,
         agent_id=agent,
     )
-    bus = Bus.open(run_dir / "bus.db", SystemClock())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
     bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=100 + agent)
     session = Session(
@@ -135,7 +135,7 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
         )
     )
     migrate_file(run_dir / "bus.db", latest_version())
-    bus = Bus.open(run_dir / "bus.db", SystemClock())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
     root = bus.enqueue(root_dir, parent_agent=0)
 
     first = _run(

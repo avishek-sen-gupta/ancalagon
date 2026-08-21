@@ -8,7 +8,7 @@ import pydantic
 
 import ancalagon.migrations
 from ancalagon.answer_command import answer_command
-from ancalagon.bus.bus import HUMAN, Bus
+from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
@@ -132,10 +132,10 @@ def main(config_path: pathlib.Path) -> int:
     clock = SystemClock()
     db = run_dir / "bus.db"
     ancalagon.migrations.migrate_file(db, ancalagon.migrations.latest_version())
-    bus = Bus.open(db, clock)
+    bus = LifecycleStore.open(db, clock)
     bus.enqueue(task_dir, parent_agent=HUMAN)
     supervisor = Supervisor(
-        bus=Bus.open(db, clock),
+        bus=LifecycleStore.open(db, clock),
         spawner=SubprocessSpawner(
             run_dir=run_dir,
             config_path=config_path.resolve(),

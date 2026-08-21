@@ -8,7 +8,7 @@ import pytest
 
 from ancalagon.attempt.closed import Closed
 from ancalagon.attempt.lost import Lost
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.cli import main
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
@@ -133,7 +133,7 @@ def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
     assert outcome["kind"] == "failed"
     assert outcome["error"] != ""
 
-    bus = Bus.open(run_dir / "bus.db", SystemClock())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
     assert bus.attempt(1) == Closed(verdict=AgentStatus.FAILED)
 
     stderr_logs = list(task_dir.glob("stderr-*.log"))
@@ -184,7 +184,7 @@ def test_a_named_run_dir_is_reused_by_a_second_invocation(tmp_path: pathlib.Path
 
     assert [p.name for p in (tmp_path / "ws" / "runs").iterdir()] == ["item-0001"]
 
-    bus = Bus.open(named / "bus.db", SystemClock())
+    bus = LifecycleStore.open(named / "bus.db", SystemClock())
     task = bus.task(named / "tasks" / "root")
     snapshot = bus.snapshot()
     assert task_of(snapshot, 1).id == task.id
@@ -288,7 +288,7 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
     task_dir = named / "tasks" / "root"
 
     assert main(config) == 0
-    opened = Bus.open(named / "bus.db", SystemClock())
+    opened = LifecycleStore.open(named / "bus.db", SystemClock())
     task = opened.task(task_dir)
     first_agent = newest_agent(opened.snapshot(), task.id)
     first_outcome = task_dir / f"outcome-{first_agent}.json"
@@ -319,5 +319,5 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
     assert (task_dir / f"outcome-{third_agent}.json").exists() is False
     assert first_outcome.exists() is True
 
-    bus = Bus.open(named / "bus.db", SystemClock())
+    bus = LifecycleStore.open(named / "bus.db", SystemClock())
     assert bus.attempt(newest_agent(bus.snapshot(), task.id)) == Lost(close=AgentStatus.CRASHED)

@@ -2,7 +2,7 @@
 import pathlib
 
 from ancalagon.attempt.snapshot import Snapshot
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.message import Message
@@ -24,7 +24,7 @@ def answer_task(
     answered_by: int,
     clock: Clock,
 ) -> int:
-    bus = Bus.open(run_dir / "bus.db", clock)
+    bus = LifecycleStore.open(run_dir / "bus.db", clock)
     snapshot = bus.snapshot()
     if not any(e.status is AgentStatus.NEEDS_INPUT for e in snapshot.events[agent]):
         raise ValueError(

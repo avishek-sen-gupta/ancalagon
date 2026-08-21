@@ -3,7 +3,7 @@ import sqlite3
 
 import pytest
 
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.migrate_command import migrate_command
 from ancalagon.migrations import latest_version, migrate, migrate_file, user_version
@@ -72,23 +72,23 @@ def test_a_bus_never_migrates_itself_and_the_command_does_it_offline(
 ):
     db = tmp_path / "bus.db"
     with pytest.raises(ValueError, match="does not exist"):
-        Bus.open(db, SystemClock())
+        LifecycleStore.open(db, SystemClock())
 
     assert migrate_file(db, latest_version()) == (0, latest_version())
-    Bus.open(db, SystemClock())
+    LifecycleStore.open(db, SystemClock())
 
     stale = tmp_path / "stale.db"
     migrate(sqlite3.connect(stale), 0)
     with pytest.raises(ValueError, match="schema version 0, not 1"):
-        Bus.open(stale, SystemClock())
+        LifecycleStore.open(stale, SystemClock())
 
     with pytest.raises(ValueError, match="does not exist"):
         migrate_command(tmp_path / "absent.db", -1)
 
     assert migrate_command(stale, -1) == 0
     assert capsys.readouterr().out.strip().endswith("0 -> 1")
-    Bus.open(stale, SystemClock())
+    LifecycleStore.open(stale, SystemClock())
 
     assert migrate_command(stale, 0) == 0
     with pytest.raises(ValueError, match="schema version 0, not 1"):
-        Bus.open(stale, SystemClock())
+        LifecycleStore.open(stale, SystemClock())

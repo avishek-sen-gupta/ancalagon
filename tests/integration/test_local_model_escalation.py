@@ -5,7 +5,7 @@ import pathlib
 import pytest
 
 from ancalagon.answer_command import answer_command
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.cli import main
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
@@ -73,7 +73,7 @@ def test_a_real_model_asks_a_question_and_acts_on_the_answer(tmp_path: pathlib.P
     config = _config(tmp_path, run_dir, goal)
 
     assert main(config) == 0
-    bus = Bus.open(run_dir / "bus.db", SystemClock())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
     assert any(e.status is AgentStatus.NEEDS_INPUT for e in bus.history(1)), (
         "the model did not ask; local models vary, and this test is about the resumed "
         "transcript being accepted, so re-run or use a stronger model"

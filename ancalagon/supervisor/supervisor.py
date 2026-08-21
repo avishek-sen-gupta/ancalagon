@@ -5,7 +5,7 @@ import pathlib
 
 from ancalagon.attempt.snapshot import Snapshot
 from ancalagon.bus.agent_state import AgentState
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.agent_event import AgentEvent
 from ancalagon.contracts.agent_status import AgentStatus
@@ -26,7 +26,7 @@ LOGGER = logging.getLogger(__name__)
 class Supervisor:
     def __init__(
         self,
-        bus: Bus,
+        bus: LifecycleStore,
         spawner: Spawner,
         max_concurrent: int,
         timeout_s: int,

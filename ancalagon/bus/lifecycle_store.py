@@ -91,7 +91,7 @@ HUMAN = 0
 SUMMARY_LIMIT = 1000
 
 
-class Bus:
+class LifecycleStore:
     def __init__(self, conn: sqlite3.Connection, clock: Clock):
         self.conn = conn
         self.clock = clock
@@ -100,7 +100,7 @@ class Bus:
         return self.clock.now().isoformat()
 
     @classmethod
-    def open(cls, path: pathlib.Path, clock: Clock) -> "Bus":
+    def open(cls, path: pathlib.Path, clock: Clock) -> "LifecycleStore":
         return cls(connect(path), clock)
 
     def _exec(

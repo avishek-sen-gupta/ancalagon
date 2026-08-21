@@ -8,7 +8,7 @@ import traceback
 
 import pydantic
 
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.bus.bus_meter import BusMeter
 from ancalagon.bus.connect import connect
 from ancalagon.bus.meter_store import MeterStore
@@ -134,7 +134,7 @@ def main(
     log = Transcript(path=transcript_path, agent_id=agent_id)
     clock = SystemClock()
     conn = connect(run_dir / "bus.db")
-    bus = Bus(conn, clock)
+    bus = LifecycleStore(conn, clock)
     meter_store = MeterStore(conn, clock)
     try:
         spec_text = (task_dir / "spec.json").read_text()

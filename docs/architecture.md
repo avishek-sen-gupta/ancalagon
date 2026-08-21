@@ -57,7 +57,7 @@ cli.py ──writes spec.json──▶ tasks/root/
 
 The CLI never spawns anything and never speaks to a model.
 
-**Opening a bus never migrates it.** `Bus.open` requires a database that exists and is
+**Opening a bus never migrates it.** `LifecycleStore.open` requires a database that exists and is
 already at the latest version, and raises otherwise, naming the command to run. Migrating is
 `migrations.migrate_file`, called in exactly two places: `main` above, which brings the run's
 own database up before opening it, and the `migrate` command, which does it without starting
@@ -72,7 +72,7 @@ The split matters because the two acts have different blast radii. Starting a ru
 deliberate act on a directory you named, so upgrading its schema is part of what you asked
 for. Reading a run is not: every tool, watcher and delegate tool that merely opens the bus
 would otherwise rewrite it, and there would be no way to look at an old run without changing
-it. `Bus.open` is the one everything else uses, and it only ever reads.
+it. `LifecycleStore.open` is the one everything else uses, and it only ever reads.
 
 There is a single migration, `001_init`, describing the schema as it stands today. The
 project's answer to a schema change is to edit it in place, not to add a numbered migration
@@ -102,7 +102,7 @@ going down a version when there is only one.
   supervisor had to kill — and if it does not, the row records the close the supervisor
   itself observed. The exit code decides nothing; no terminal row records one.
 - `_wake_idling` re-enqueues a task whose newest agent idled and has since had a child settle
-  — `Bus.wakeable()` evaluates that as a predicate over the whole database each tick,
+  — `LifecycleStore.wakeable()` evaluates that as a predicate over the whole database each tick,
   not as an event fired when a child finishes, and skips a task whose newest agent is still
   one of this supervisor's own live processes. A child is news only once its newest agent
   reaches `Closed` or `Lost`, and only the supervisor writes either: the worker records
@@ -115,7 +115,7 @@ going down a version when there is only one.
   one.
 - The loop exits when nothing is live and nothing is queued.
 - Before the loop starts, `resolve_stale` settles what a previous supervisor left behind.
-  `Bus.unreaped()` finds agents whose attempt is `Claimed` or `Running` — spawned, or spoken
+  `LifecycleStore.unreaped()` finds agents whose attempt is `Claimed` or `Running` — spawned, or spoken
   for, but never closed. Deriving that from the whole history rather than from the latest row
   is what catches a worker that had already written `outcome-<agent>.json` before the previous
   supervisor stopped: its last row is still `running`, so nobody else has closed it yet. The
@@ -181,7 +181,7 @@ of the latest row, but for an agent's own lifecycle the fold and the latest row 
 because nothing writes over what the terminal row already said.
 
 `next_state` is the single transition table and `attempt_of` is a fold over it, so the
-lifecycle has one definition rather than one per caller. `Bus.record` is where it is
+lifecycle has one definition rather than one per caller. `LifecycleStore.record` is where it is
 enforced: it derives the current attempt, asks `next_state`, and refuses an illegal write
 with `IllegalTransition` naming the state, the status and the source. `queued` is legal only
 from `Nascent`, `claimed` only from `Queued`, `running` only from `Claimed` — a finished
@@ -466,7 +466,7 @@ rg '"agent": 1' ws/runs/r_0001/tasks/root/transcript.jsonl
 ```
 
 There is no `ancalagon usage` verb — `run` and `migrate` are the only commands. The schema is
-the query surface, and `Bus.calls` and `Bus.tokens_by_agent` are the same two queries for
+the query surface, and `MeterStore.calls` and `MeterStore.tokens_by_agent` are the same two queries for
 callers already holding a bus.
 
 ## Where to start reading

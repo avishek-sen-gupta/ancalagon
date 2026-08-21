@@ -1,7 +1,7 @@
 # Reports a delegated task's status without waiting.
 import pathlib
 
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.delegate.task_args import TaskArgs
@@ -20,7 +20,7 @@ class CheckTask(Tool[TaskArgs]):
         self.clock = clock
 
     def run(self, args: TaskArgs, ctx: ToolContext) -> ToolResult:
-        bus = Bus.open(self.run_dir / "bus.db", self.clock)
+        bus = LifecycleStore.open(self.run_dir / "bus.db", self.clock)
         snapshot = bus.snapshot()
         if args.task not in snapshot.task_by_agent:
             return ctx.failure(self.name, f"no agent {args.task}")

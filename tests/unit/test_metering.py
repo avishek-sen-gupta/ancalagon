@@ -1,6 +1,6 @@
 import pathlib
 
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.bus.bus_meter import BusMeter
 from ancalagon.bus.connect import connect
 from ancalagon.bus.meter_store import MeterStore
@@ -16,7 +16,7 @@ def test_calls_accumulate_per_agent_and_survive_across_agents(tmp_path: pathlib.
     migrate_file(tmp_path / "bus.db", latest_version())
     conn = connect(tmp_path / "bus.db")
     clock = SystemClock()
-    bus = Bus(conn, clock)
+    bus = LifecycleStore(conn, clock)
     meter_store = MeterStore(conn, clock)
     first = bus.enqueue(tmp_path / "tasks" / "alpha", parent_agent=0)
     second = bus.enqueue(tmp_path / "tasks" / "beta", parent_agent=first)
@@ -56,7 +56,7 @@ def test_the_no_op_meter_records_nothing_and_satisfies_the_protocol(tmp_path: pa
 
     conn = connect(tmp_path / "bus.db")
     clock = SystemClock()
-    bus = Bus(conn, clock)
+    bus = LifecycleStore(conn, clock)
     meter_store = MeterStore(conn, clock)
     agent = bus.enqueue(tmp_path / "tasks" / "a", parent_agent=0)
     assert meter_store.calls(agent) == []

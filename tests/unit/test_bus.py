@@ -8,7 +8,7 @@ from ancalagon.attempt.closed import Closed
 from ancalagon.attempt.illegal_transition import IllegalTransition
 from ancalagon.attempt.queued import Queued
 from ancalagon.attempt.running import Running
-from ancalagon.bus.bus import HUMAN, Bus
+from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
 from ancalagon.children.bus_children import BusChildren
 from ancalagon.children.no_children import NO_CHILDREN
 from ancalagon.clock.fake_clock import FakeClock
@@ -25,18 +25,18 @@ from ancalagon.schedule.wakeable import wakeable
 from tests.unit.conftest import settle
 
 
-def _open(tmp_path: pathlib.Path) -> Bus:
+def _open(tmp_path: pathlib.Path) -> LifecycleStore:
     db = tmp_path / "bus.db"
     migrate_file(db, latest_version())
-    return Bus.open(db, FakeClock())
+    return LifecycleStore.open(db, FakeClock())
 
 
 def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.Path):
     db = tmp_path / "bus.db"
     migrate_file(db, latest_version())
     clock = FakeClock()
-    bus = Bus.open(db, clock)
-    other = Bus.open(db, SystemClock())
+    bus = LifecycleStore.open(db, clock)
+    other = LifecycleStore.open(db, SystemClock())
     alpha = tmp_path / "tasks" / "alpha"
 
     first = bus.enqueue(alpha, parent_agent=0)
@@ -82,7 +82,7 @@ def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.
 
 def test_depth_counts_ancestors_with_the_root_at_zero(tmp_path: pathlib.Path):
     migrate_file(tmp_path / "bus.db", latest_version())
-    bus = Bus.open(tmp_path / "bus.db", SystemClock())
+    bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock())
     root = bus.enqueue(tmp_path / "tasks" / "root", parent_agent=0)
     child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=root)
     grandchild = bus.enqueue(tmp_path / "tasks" / "grandchild", parent_agent=child)

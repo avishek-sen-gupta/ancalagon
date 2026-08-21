@@ -157,7 +157,7 @@ happened to an agent — one terminal row per agent, carrying the worker's own a
 there is one on disk to read, or the supervisor's own observation when there is not. That
 single write is what an agent's rows mean: `Closed` if an answer exists, `Lost` if it does
 not, decided the same way every time rather than assumed from whichever row is newest.
-`Bus.record` enforces the order regardless, refusing to write a transition the lifecycle does
+`LifecycleStore.record` enforces the order regardless, refusing to write a transition the lifecycle does
 not allow, so a sequence that could not have happened is caught where it is written rather
 than later, by whichever predicate first disagrees with it. `docs/architecture.md` has the
 states and the reasoning.

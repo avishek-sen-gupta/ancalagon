@@ -3,7 +3,7 @@ import pathlib
 
 import pydantic
 
-from ancalagon.bus.bus import Bus
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.resolve import resolve_class
@@ -40,7 +40,7 @@ class DelegateTo(Tool[DelegateArgs]):
 
     def run(self, args: DelegateArgs, ctx: ToolContext) -> ToolResult:
         task_dir = self.run_dir / "tasks" / args.task_id
-        bus = Bus.open(self.run_dir / "bus.db", self.clock)
+        bus = LifecycleStore.open(self.run_dir / "bus.db", self.clock)
         snapshot = bus.snapshot()
         active = active_for(snapshot, str(task_dir))
         if active:

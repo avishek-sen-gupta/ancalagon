@@ -3,7 +3,7 @@ import pathlib
 import sys
 
 from ancalagon.answer import answer_task
-from ancalagon.bus.bus import HUMAN
+from ancalagon.bus.lifecycle_store import HUMAN
 from ancalagon.clock.system_clock import SystemClock
 
 
