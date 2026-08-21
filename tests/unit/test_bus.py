@@ -264,3 +264,8 @@ def test_a_snapshot_carries_every_task_agent_and_folded_attempt(tmp_path: pathli
     assert snap.attempts[first] == Closed(verdict=AgentStatus.COMPLETED)
     assert snap.attempts[second] == Queued()
     assert [e.status for e in snap.events[second]] == [AgentStatus.QUEUED]
+
+    for agent, task in snap.task_by_agent.items():
+        assert agent in snap.agents_by_task[task]
+        assert agent in snap.events
+        assert agent in snap.attempts

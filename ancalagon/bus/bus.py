@@ -407,13 +407,19 @@ class Bus:
         }
 
     def snapshot(self) -> Snapshot:
-        snap_tasks = tuple(
-            HarnessTask.model_validate(dict(r)) for r in self._exec(_ALL_TASKS).fetchall()
-        )
-        agent_rows = [dict(r) for r in self._exec(_ALL_AGENTS).fetchall()]
-        event_rows = [
-            AgentEvent.model_validate(dict(r)) for r in self._exec(_ALL_EVENTS).fetchall()
-        ]
+        self.conn.execute("BEGIN")
+        try:
+            snap_tasks = tuple(
+                HarnessTask.model_validate(dict(r)) for r in self._exec(_ALL_TASKS).fetchall()
+            )
+            agent_rows = [dict(r) for r in self._exec(_ALL_AGENTS).fetchall()]
+            event_rows = [
+                AgentEvent.model_validate(dict(r)) for r in self._exec(_ALL_EVENTS).fetchall()
+            ]
+        except Exception:
+            self.conn.execute("ROLLBACK")
+            raise
+        self.conn.execute("COMMIT")
         agents_by_task = {
             task.id: tuple(int(r["id"]) for r in agent_rows if int(r["task"]) == task.id)
             for task in snap_tasks
