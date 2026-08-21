@@ -20,12 +20,12 @@ from ancalagon.attempt.attempt_of import attempt_of
 from ancalagon.attempt.next_state import next_state
 from ancalagon.bus.agent_state import AgentState
 from ancalagon.bus.schema import agent_events, agents, model_calls, tasks
-from ancalagon.bus.task_row import TaskRow
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.agent_event import AgentEvent
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.event_source import EventSource
+from ancalagon.contracts.harness_task import HarnessTask
 
 DIALECT = sqlite_dialect.dialect(paramstyle="named")
 
@@ -294,9 +294,9 @@ class Bus:
     def newest_agent(self, task: int) -> int:
         return int(self._exec(_NEWEST_AGENT, {"task": task}).fetchone()["agent"])
 
-    def child_tasks(self, task: int) -> list[TaskRow]:
+    def child_tasks(self, task: int) -> list[HarnessTask]:
         rows = self._exec(_CHILD_TASKS, {"task": task}).fetchall()
-        return [TaskRow.model_validate(dict(r)) for r in rows]
+        return [HarnessTask.model_validate(dict(r)) for r in rows]
 
     def outstanding(self, task: int) -> bool:
         match self.attempt(self.newest_agent(task)):
@@ -316,9 +316,9 @@ class Bus:
             if isinstance(self.attempt(self.newest_agent(t.id)), (Closed, Lost))
         ]
 
-    def _all_tasks(self) -> list[TaskRow]:
+    def _all_tasks(self) -> list[HarnessTask]:
         rows = self._exec(_ALL_TASKS).fetchall()
-        return [TaskRow.model_validate(dict(r)) for r in rows]
+        return [HarnessTask.model_validate(dict(r)) for r in rows]
 
     def _last_idled_event_id(self, task: int) -> int:
         row = self._exec(
@@ -349,7 +349,7 @@ class Bus:
     def _newest_event_id(self, agent: int) -> int:
         return int(self._exec(_NEWEST_EVENT_ID, {"agent": agent}).fetchone()["id"])
 
-    def wakeable(self) -> list[TaskRow]:
+    def wakeable(self) -> list[HarnessTask]:
         return [t for t in self._all_tasks() if self._has_news(t.id)]
 
     def live_children(self, agent: int) -> list[AgentState]:
@@ -367,12 +367,12 @@ class Bus:
         rows = self._exec(_HISTORY, {"agent": agent}).fetchall()
         return [AgentEvent.model_validate(dict(r)) for r in rows]
 
-    def task(self, dir: pathlib.Path) -> TaskRow:
+    def task(self, dir: pathlib.Path) -> HarnessTask:
         match self._exec(_TASK_BY_DIR, {"dir": str(dir)}).fetchone():
             case None:
                 raise KeyError(f"no task at {dir}")
             case row:
-                return TaskRow.model_validate(dict(row))
+                return HarnessTask.model_validate(dict(row))
 
     def record_call(self, agent: int, usage: CallUsage) -> None:
         self._exec(
