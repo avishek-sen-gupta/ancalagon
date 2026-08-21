@@ -17,6 +17,7 @@ from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.role import Role
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.schedule.active_for import active_for
+from ancalagon.schedule.task_of import task_of
 from ancalagon.schedule.unreaped import unreaped
 from ancalagon.supervisor.fake_liveness import FakeLiveness
 from ancalagon.supervisor.process import Process
@@ -153,9 +154,9 @@ def test_supervisor_respects_concurrency_cap_and_leaves_live_tasks_running_on_sh
     supervisor.shutdown()
     assert supervisor.live == {}
     assert all(not process.killed for process in processes.values())
-    assert bus.state(ids[0]).status is AgentStatus.RUNNING
-    assert bus.state(ids[1]).status is AgentStatus.RUNNING
-    assert bus.state(ids[2]).status is AgentStatus.QUEUED
+    assert bus.attempt(ids[0]) == Running(pid=1000 + ids[0])
+    assert bus.attempt(ids[1]) == Running(pid=1000 + ids[1])
+    assert bus.attempt(ids[2]) == Queued()
 
     Supervisor(
         bus=bus,
@@ -166,8 +167,8 @@ def test_supervisor_respects_concurrency_cap_and_leaves_live_tasks_running_on_sh
         clock=clock,
         liveness=FakeLiveness(frozenset()),
     ).resolve_stale()
-    assert bus.state(ids[0]).status is AgentStatus.CRASHED
-    assert bus.state(ids[1]).status is AgentStatus.CRASHED
+    assert bus.attempt(ids[0]) == Lost(close=AgentStatus.CRASHED)
+    assert bus.attempt(ids[1]) == Lost(close=AgentStatus.CRASHED)
 
 
 def test_startup_resolves_agents_by_reading_the_outcome_a_worker_left(tmp_path: pathlib.Path):
@@ -246,7 +247,7 @@ def test_a_wake_is_skipped_while_the_idling_agents_process_is_still_live(
     parent_dir = tmp_path / "tasks" / "parent"
     parent = bus.enqueue(parent_dir, parent_agent=0)
     child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=parent)
-    parent_task = bus.state(parent).task
+    parent_task = task_of(bus.snapshot(), parent).id
 
     def agents_for(task_id: int) -> list[int]:
         rows = bus.conn.execute("SELECT id FROM agents WHERE task = ?", (task_id,)).fetchall()
@@ -299,9 +300,9 @@ def test_startup_resolves_stale_rows_by_checking_the_pid(tmp_path: pathlib.Path)
     ).resolve_stale()
 
     assert bus.attempt(spoke) == Closed(verdict=AgentStatus.COMPLETED)
-    assert bus.state(alive).status is AgentStatus.RUNNING
-    assert bus.state(dead).status is AgentStatus.CRASHED
-    assert bus.state(never).status is AgentStatus.CRASHED
+    assert bus.attempt(alive) == Running(pid=102)
+    assert bus.attempt(dead) == Lost(close=AgentStatus.CRASHED)
+    assert bus.attempt(never) == Lost(close=AgentStatus.CRASHED)
 
 
 def test_startup_kills_a_wedged_agent_past_the_timeout_and_leaves_a_fresh_one_running(
@@ -329,8 +330,8 @@ def test_startup_kills_a_wedged_agent_past_the_timeout_and_leaves_a_fresh_one_ru
         liveness=liveness,
     ).resolve_stale()
 
-    assert bus.state(wedged).status is AgentStatus.TIMED_OUT
-    assert bus.state(fresh).status is AgentStatus.RUNNING
+    assert bus.attempt(wedged) == Lost(close=AgentStatus.TIMED_OUT)
+    assert bus.attempt(fresh) == Running(pid=302)
     assert liveness.killed == [301]
 
 
@@ -482,7 +483,7 @@ def test_a_re_attempt_on_the_same_task_directory_does_not_inherit_the_previous_o
     ).tick()
 
     assert bus.attempt(first) == Closed(verdict=AgentStatus.COMPLETED)
-    assert bus.state(first).summary == "done"
+    assert bus.history(first)[-1].summary == "done"
 
     second = bus.enqueue(task_dir, parent_agent=HUMAN)
     Supervisor(
@@ -495,7 +496,7 @@ def test_a_re_attempt_on_the_same_task_directory_does_not_inherit_the_previous_o
     ).tick()
 
     assert bus.attempt(second) == Lost(close=AgentStatus.CRASHED)
-    assert bus.state(second).summary == "no outcome written"
+    assert bus.history(second)[-1].summary == "no outcome written"
     assert (task_dir / f"outcome-{first}.json").exists() is True
 
 

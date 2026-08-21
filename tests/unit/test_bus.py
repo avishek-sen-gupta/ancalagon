@@ -20,6 +20,7 @@ from ancalagon.schedule.active_for import active_for
 from ancalagon.schedule.depth_of import depth_of
 from ancalagon.schedule.live_children import live_children
 from ancalagon.schedule.outstanding import outstanding
+from ancalagon.schedule.task_of import task_of
 from ancalagon.schedule.wakeable import wakeable
 from tests.unit.conftest import settle
 
@@ -40,18 +41,18 @@ def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.
 
     first = bus.enqueue(alpha, parent_agent=0)
     second = bus.enqueue(tmp_path / "tasks" / "beta", parent_agent=first)
-    assert bus.state(first).status is AgentStatus.QUEUED
-    assert bus.state(second).parent_agent == first
+    assert bus.attempt(first) == Queued()
+    assert task_of(bus.snapshot(), second).parent_agent == first
     assert bus.queued_count() == 2
 
     claimed = bus.claim(limit=10)
     assert sorted(s.agent for s in claimed) == [first, second]
     assert other.claim(limit=10) == []
-    assert bus.state(first).status is AgentStatus.CLAIMED
+    assert bus.attempt(first) == Claimed()
     assert bus.queued_count() == 0
 
     bus.record(first, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=4242)
-    assert bus.state(first).pid == 4242
+    assert bus.history(first)[-1].pid == 4242
     assert bus.attempt(first) == Running(pid=4242)
     assert bus.attempt(second) == Claimed()
 
@@ -73,7 +74,8 @@ def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.
     retried = bus.enqueue(alpha, parent_agent=0)
     assert retried != first
     assert bus.history(retried)[0].ts == "2026-01-01T00:01:30+00:00"
-    assert bus.task(alpha).id == bus.state(first).task == bus.state(retried).task
+    snap = bus.snapshot()
+    assert bus.task(alpha).id == task_of(snap, first).id == task_of(snap, retried).id
     assert active_for(bus.snapshot(), str(alpha)) == (retried,)
     assert bus.queued_count() == 1
 
@@ -115,7 +117,7 @@ def test_a_task_sees_children_from_every_attempt_and_knows_when_it_is_outstandin
     early = bus.enqueue(tmp_path / "early", parent_agent=first)
 
     assert live_children(bus.snapshot(), first) == (early,)
-    assert outstanding(bus.snapshot(), bus.state(early).task) is True
+    assert outstanding(bus.snapshot(), task_of(bus.snapshot(), early).id) is True
 
     settle(bus, first, AgentStatus.IDLING)
     woken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
@@ -125,10 +127,10 @@ def test_a_task_sees_children_from_every_attempt_and_knows_when_it_is_outstandin
 
     settle(bus, early, AgentStatus.COMPLETED)
     assert live_children(bus.snapshot(), woken) == (late,)
-    assert outstanding(bus.snapshot(), bus.state(early).task) is False
+    assert outstanding(bus.snapshot(), task_of(bus.snapshot(), early).id) is False
 
     settle(bus, late, AgentStatus.IDLING, pid=2)
-    assert outstanding(bus.snapshot(), bus.state(late).task) is True
+    assert outstanding(bus.snapshot(), task_of(bus.snapshot(), late).id) is True
     assert live_children(bus.snapshot(), woken) == (late,)
 
 
@@ -185,7 +187,7 @@ def test_children_reports_outstanding_and_uncollected_for_one_agent(tmp_path: pa
     parent = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
     done = bus.enqueue(tmp_path / "done", parent_agent=parent)
     busy = bus.enqueue(tmp_path / "busy", parent_agent=parent)
-    assert bus.state(parent).task != parent
+    assert task_of(bus.snapshot(), parent).id != parent
 
     children = BusChildren(bus, parent)
     assert children.outstanding() == (done, busy)

@@ -1,14 +1,8 @@
-# An agent joined to its task and its latest event: what callers actually ask for.
+# An agent joined to its task and directory: what claiming and queuing actually need.
 import pydantic
-
-from ancalagon.contracts.agent_status import AgentStatus
 
 
 class AgentState(pydantic.BaseModel, frozen=True):
     agent: int
     task: int
     dir: str
-    parent_agent: int
-    status: AgentStatus
-    pid: int
-    summary: str

@@ -5,12 +5,14 @@ import pytest
 
 from ancalagon.answer import answer_task
 from ancalagon.answer_command import answer_command
+from ancalagon.attempt.queued import Queued
 from ancalagon.bus.bus import Bus
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.schedule.active_for import active_for
+from ancalagon.schedule.task_of import task_of
 from ancalagon.tools.delegate.answer_args import AnswerArgs
 from ancalagon.tools.delegate.answer_task import AnswerTask
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -70,9 +72,10 @@ def test_answering_a_suspended_agent_appends_the_answer_and_queues_a_new_attempt
     assert lines[0]["blocks"][0]["text"] == "the goal"
 
     assert active_for(bus.snapshot(), str(task_dir)) == (resumed,)
-    assert bus.state(resumed).status is AgentStatus.QUEUED
-    assert bus.state(resumed).task == bus.state(agent).task
-    assert bus.state(resumed).parent_agent == 0
+    assert bus.attempt(resumed) == Queued()
+    snap = bus.snapshot()
+    assert task_of(snap, resumed).id == task_of(snap, agent).id
+    assert task_of(snap, resumed).parent_agent == 0
 
     with pytest.raises(ValueError, match="never asked"):
         answer_task(run_dir, resumed, "again", answered_by=0, clock=SystemClock())
