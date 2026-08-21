@@ -11,7 +11,7 @@ class Transcript:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.handle = path.open("a", encoding="utf-8")
 
-    def append(self, message: Message) -> None:
+    def write(self, message: Message) -> None:
         self.handle.write(message.model_dump_json() + "\n")
         self.handle.flush()
 

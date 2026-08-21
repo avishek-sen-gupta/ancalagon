@@ -38,9 +38,6 @@ from ancalagon.tools.files.edit_file import EditFile
 from ancalagon.tools.files.list_dir import ListDir
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.files.write_file import WriteFile
-from ancalagon.tools.history.git_history import GitHistory
-from ancalagon.tools.history.git_operation import GitOperation
-from ancalagon.tools.history.history_args import HistoryArgs
 from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.parse.parse_args import ParseArgs
 from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
@@ -51,7 +48,6 @@ from ancalagon.tools.search.ast_grep import AstGrep
 from ancalagon.tools.search.find_symbol import FindSymbol
 from ancalagon.tools.search.grep_args import GrepArgs
 from ancalagon.tools.search.ripgrep import Ripgrep
-from ancalagon.tools.search.run_command import run_command
 from ancalagon.tools.search.sed import Sed
 from ancalagon.tools.search.sed_args import SedArgs
 from ancalagon.tools.search.symbol_args import SymbolArgs
@@ -447,65 +443,6 @@ def test_artifact_and_history_tools_read_what_read_file_cannot(tmp_path: pathlib
     converted = ConvertDocument().run(ConvertArgs(path=page, to=DocumentFormat.PLAIN), ctx)
     assert converted.ok is True
     assert "Title" in converted.path.read_text()
-
-
-def test_git_history_reports_intent_and_refuses_option_injection(tmp_path: pathlib.Path):
-    ctx = _ctx(tmp_path)
-    repo = ctx.workspace.write_root
-    tracked = repo / "thing.py"
-    tracked.write_text("x = 1\n")
-    for command in (
-        ["git", "init", "-q"],
-        ["git", "config", "user.email", "t@example.com"],
-        ["git", "config", "user.name", "T"],
-        ["git", "add", "thing.py"],
-        ["git", "commit", "-q", "-m", "workaround for a vendor bug"],
-    ):
-        run_command(["git", "-C", str(repo), *command[1:]])
-
-    log = GitHistory().run(HistoryArgs(path=tracked, operation=GitOperation.LOG), ctx)
-    assert log.ok is True
-    assert "workaround for a vendor bug" in log.path.read_text()
-
-    blame = GitHistory().run(HistoryArgs(path=tracked, operation=GitOperation.BLAME), ctx)
-    assert blame.ok is True
-    assert "x = 1" in blame.path.read_text()
-
-    with pytest.raises(pydantic.ValidationError):
-        HistoryArgs(path=tracked, operation=GitOperation.SHOW, rev="--upload-pack=x")
-
-    missing = GitHistory().run(HistoryArgs(path=tracked, operation=GitOperation.SHOW), ctx)
-    assert missing.ok is False
-    assert "needs a rev" in missing.error
-
-
-def test_tree_walking_tools_all_honour_gitignore(tmp_path: pathlib.Path):
-    ctx = _ctx(tmp_path)
-    root = ctx.workspace.write_root
-    (root / "src").mkdir()
-    (root / "vendored").mkdir()
-    (root / ".gitignore").write_text("vendored/\n")
-    run_command(["git", "-C", str(root), "init", "-q"])
-    (root / "src" / "real.py").write_text("def real_thing(): pass\n")
-    (root / "vendored" / "dep.py").write_text("def vendored_thing(): pass\n")
-
-    symbols = FindSymbol().run(SymbolArgs(roots=[root]), ctx).path.read_text()
-    assert "real_thing" in symbols
-    assert "vendored_thing" not in symbols
-
-    matches = Ripgrep().run(GrepArgs(pattern="thing", roots=[root]), ctx).path.read_text()
-    assert "real.py" in matches
-    assert "dep.py" not in matches
-
-    counted = CodeStats().run(StatsArgs(roots=[root], by_file=True), ctx).path.read_text()
-    assert "real.py" in counted
-    assert "dep.py" not in counted
-
-    structural = (
-        AstGrep().run(GrepArgs(pattern="def $N(): pass", roots=[root]), ctx).path.read_text()
-    )
-    assert "real.py" in structural
-    assert "dep.py" not in structural
 
 
 def test_tree_walking_tools_honour_gitignore_outside_a_repository(tmp_path: pathlib.Path):

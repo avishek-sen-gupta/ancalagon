@@ -77,4 +77,6 @@ fileignoreconfig:
   checksum: a47f6beb49c611b82fcd8c2216a8e0f0abfc5c81badb24dcb8e4b76bf983e325
 - filename: ancalagon/tools/delegate/check_task.py
   checksum: b5e955ca20838d959faf9440875bed4632c104e30853351fc80a04e63f19e762
+- filename: ancalagon/answer.py
+  checksum: d13545f7786da496b8b54b47b9fbbe061f51f1ae991a549b31398fc6f09e01b6
 version: "1.0"
