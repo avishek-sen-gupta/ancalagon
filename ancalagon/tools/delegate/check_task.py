@@ -24,7 +24,7 @@ class CheckTask(Tool[TaskArgs]):
         snapshot = bus.snapshot()
         if args.task not in snapshot.task_by_agent:
             return ctx.failure(self.name, f"no agent {args.task}")
-        latest = snapshot.events[args.task][-1]
+        latest = max(snapshot.events[args.task], key=lambda event: event.id)
         return ctx.result(
             self.name, f"agent {args.task} is {latest.status.value}: {latest.summary}"
         )

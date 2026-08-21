@@ -45,7 +45,7 @@ class DelegateTo(Tool[DelegateArgs]):
         active = active_for(snapshot, str(task_dir))
         if active:
             agent = active[0]
-            status = snapshot.events[agent][-1].status
+            status = max(snapshot.events[agent], key=lambda event: event.id).status
             return ctx.failure(
                 self.name,
                 f"task {args.task_id} is already {status.value} as agent {agent}",
