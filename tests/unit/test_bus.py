@@ -9,7 +9,6 @@ from ancalagon.attempt.illegal_transition import IllegalTransition
 from ancalagon.attempt.queued import Queued
 from ancalagon.attempt.running import Running
 from ancalagon.bus.bus import HUMAN, Bus
-from ancalagon.bus.depth_of import depth_of
 from ancalagon.children.bus_children import BusChildren
 from ancalagon.children.no_children import NO_CHILDREN
 from ancalagon.clock.fake_clock import FakeClock
@@ -17,6 +16,7 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.migrations import latest_version, migrate_file
+from ancalagon.schedule.depth_of import depth_of
 from tests.unit.conftest import settle
 
 
@@ -81,9 +81,10 @@ def test_depth_counts_ancestors_with_the_root_at_zero(tmp_path: pathlib.Path):
     child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=root)
     grandchild = bus.enqueue(tmp_path / "tasks" / "grandchild", parent_agent=child)
 
-    assert depth_of(bus, root) == 0
-    assert depth_of(bus, child) == 1
-    assert depth_of(bus, grandchild) == 2
+    snapshot = bus.snapshot()
+    assert depth_of(snapshot, root) == 0
+    assert depth_of(snapshot, child) == 1
+    assert depth_of(snapshot, grandchild) == 2
 
 
 def test_the_bus_knows_which_children_are_live(

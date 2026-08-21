@@ -141,7 +141,7 @@ class Session:
         )
         self.seq += 1
         self.messages.append(message)
-        self.transcript.append(message)
+        self.transcript.write(message)
 
     def _spent(self) -> Budget:
         return Budget(

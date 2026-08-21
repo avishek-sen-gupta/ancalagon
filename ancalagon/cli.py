@@ -22,6 +22,7 @@ from ancalagon.sandbox.fence import Fence
 from ancalagon.sandbox.sandbox import Sandbox
 from ancalagon.sandbox.strategy import Strategy
 from ancalagon.sandbox.unsandboxed import Unsandboxed
+from ancalagon.schedule.newest_agent import newest_agent
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
 
@@ -150,7 +151,7 @@ def main(config_path: pathlib.Path) -> int:
         supervisor.shutdown()
 
     task = bus.task(task_dir)
-    newest = bus.newest_agent(task.id)
+    newest = newest_agent(bus.snapshot(), task.id)
     outcome = task_dir / f"outcome-{newest}.json"
     if not outcome.exists():
         LOGGER.error("root task produced no outcome; see %s", task_dir)

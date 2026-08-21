@@ -13,10 +13,10 @@ def test_transcript_persists_per_message_and_repairs_interrupted_tool_calls(tmp_
     path = tmp_path / "transcript.jsonl"
     log = Transcript(path=path, agent_id=17)
 
-    log.append(Message(role=MessageRole.USER, blocks=[Text(text="go")], agent=17, seq=0, ts="t0"))
+    log.write(Message(role=MessageRole.USER, blocks=[Text(text="go")], agent=17, seq=0, ts="t0"))
     assert path.read_text().count("\n") == 1
 
-    log.append(
+    log.write(
         Message(
             role=MessageRole.ASSISTANT,
             blocks=[ToolUse(id="tu_1", name="ripgrep", arguments="{}")],

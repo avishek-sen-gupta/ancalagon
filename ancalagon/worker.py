@@ -10,7 +10,6 @@ import pydantic
 
 from ancalagon.bus.bus import Bus
 from ancalagon.bus.bus_meter import BusMeter
-from ancalagon.bus.depth_of import depth_of
 from ancalagon.children.bus_children import BusChildren
 from ancalagon.clock.clock import Clock
 from ancalagon.clock.system_clock import SystemClock
@@ -25,6 +24,7 @@ from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient
+from ancalagon.schedule.depth_of import depth_of
 from ancalagon.session import Session
 from ancalagon.tools.artifacts.convert_document import ConvertDocument
 from ancalagon.tools.artifacts.extract_strings import ExtractStrings
@@ -164,7 +164,7 @@ def main(
                 spec,
                 run_dir,
                 parent=agent_id,
-                depth=depth_of(bus, agent_id),
+                depth=depth_of(bus.snapshot(), agent_id),
                 output_class=output_class,
                 clock=clock,
             ),
