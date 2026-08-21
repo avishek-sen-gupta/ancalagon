@@ -60,7 +60,6 @@ layers = [
     "ancalagon.workspace",
     "ancalagon.config",
     "ancalagon.contracts : ancalagon.clock : ancalagon.sandbox",
-    "ancalagon.migrations",
 ]
 
 [[tool.importlinter.contracts]]
@@ -83,17 +82,23 @@ name = "SQL stays in the adapters"
 type = "forbidden"
 allow_indirect_imports = true
 source_modules = [
+    "ancalagon.answer",
+    "ancalagon.answer_command",
     "ancalagon.attempt",
     "ancalagon.children",
+    "ancalagon.cli",
     "ancalagon.clock",
     "ancalagon.config",
     "ancalagon.contracts",
     "ancalagon.llm",
+    "ancalagon.migrate_command",
     "ancalagon.sandbox",
     "ancalagon.schedule",
+    "ancalagon.session",
     "ancalagon.supervisor",
     "ancalagon.tools",
     "ancalagon.transcript",
+    "ancalagon.worker",
     "ancalagon.workspace",
 ]
 forbidden_modules = ["sqlite3", "sqlalchemy"]
