@@ -79,4 +79,6 @@ fileignoreconfig:
   checksum: b5e955ca20838d959faf9440875bed4632c104e30853351fc80a04e63f19e762
 - filename: ancalagon/answer.py
   checksum: d13545f7786da496b8b54b47b9fbbe061f51f1ae991a549b31398fc6f09e01b6
+- filename: tests/integration/test_git_tools.py
+  checksum: c2fe5cfee1bd632e92081c008ae2fd62e37bd186ccfb48f94d97934cb615696f
 version: "1.0"
