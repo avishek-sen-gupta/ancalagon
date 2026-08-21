@@ -125,15 +125,18 @@ class Bus:
         self.conn.execute("COMMIT")
         return agent_id
 
-    def claim(self, limit: int) -> list[AgentState]:
-        self.conn.execute("BEGIN IMMEDIATE")
-        waiting = [
+    def _queued(self) -> list[AgentState]:
+        return [
             state
             for state in self._states(
                 "WHERE e.status = ? ORDER BY a.id", (AgentStatus.QUEUED.value,)
             )
             if self.attempt(state.agent) == Queued()
-        ][:limit]
+        ]
+
+    def claim(self, limit: int) -> list[AgentState]:
+        self.conn.execute("BEGIN IMMEDIATE")
+        waiting = self._queued()[:limit]
         for state in waiting:
             self._record(state.agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
         self.conn.execute("COMMIT")
@@ -244,7 +247,7 @@ class Bus:
         ]
 
     def queued_count(self) -> int:
-        return len(self._states("WHERE e.status = ?", (AgentStatus.QUEUED.value,)))
+        return len(self._queued())
 
     def history(self, agent: int) -> list[AgentEvent]:
         rows = self.conn.execute(
