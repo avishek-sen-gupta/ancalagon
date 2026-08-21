@@ -81,4 +81,6 @@ fileignoreconfig:
   checksum: d13545f7786da496b8b54b47b9fbbe061f51f1ae991a549b31398fc6f09e01b6
 - filename: tests/integration/test_git_tools.py
   checksum: c2fe5cfee1bd632e92081c008ae2fd62e37bd186ccfb48f94d97934cb615696f
+- filename: ancalagon/tools/delegate/collect_task.py
+  checksum: fad5b1429612d86ed08ebced31a6cba06cdf7a9a12c11293e262445f91d2ca85
 version: "1.0"

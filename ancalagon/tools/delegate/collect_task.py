@@ -95,8 +95,9 @@ class CollectTask(Tool[TaskArgs]):
     ) -> ToolResult:
         if not outstanding(snapshot, task):
             bus.record(newest, AgentStatus.COLLECTED, EventSource.WORKER)
-        closing = next(
-            event for event in reversed(snapshot.events[newest]) if event.status is close
+        closing = max(
+            (event for event in snapshot.events[newest] if event.status is close),
+            key=lambda event: event.id,
         )
         return ctx.failure(
             self.name,
