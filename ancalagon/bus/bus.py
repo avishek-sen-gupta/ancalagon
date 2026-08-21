@@ -18,6 +18,7 @@ from ancalagon.attempt.attempt import (
 )
 from ancalagon.attempt.attempt_of import attempt_of
 from ancalagon.attempt.next_state import next_state
+from ancalagon.attempt.snapshot import Snapshot
 from ancalagon.bus.agent_state import AgentState
 from ancalagon.bus.schema import agent_events, agents, model_calls, tasks
 from ancalagon.clock.clock import Clock
@@ -101,6 +102,10 @@ _CHILD_TASKS = (
 )
 
 _ALL_TASKS = sa.select(tasks).order_by(tasks.c.id)
+
+_ALL_AGENTS = sa.select(agents).order_by(agents.c.id)
+
+_ALL_EVENTS = sa.select(agent_events).order_by(agent_events.c.id)
 
 _LAST_IDLED_EVENT_ID = sa.select(sa.func.max(agent_events.c.id).label("id")).where(
     sa.and_(
@@ -400,3 +405,28 @@ class Bus:
             )
             for r in rows
         }
+
+    def snapshot(self) -> Snapshot:
+        snap_tasks = tuple(
+            HarnessTask.model_validate(dict(r)) for r in self._exec(_ALL_TASKS).fetchall()
+        )
+        agent_rows = [dict(r) for r in self._exec(_ALL_AGENTS).fetchall()]
+        event_rows = [
+            AgentEvent.model_validate(dict(r)) for r in self._exec(_ALL_EVENTS).fetchall()
+        ]
+        agents_by_task = {
+            task.id: tuple(int(r["id"]) for r in agent_rows if int(r["task"]) == task.id)
+            for task in snap_tasks
+        }
+        task_by_agent = {int(r["id"]): int(r["task"]) for r in agent_rows}
+        events = {
+            int(r["id"]): tuple(e for e in event_rows if e.agent == int(r["id"]))
+            for r in agent_rows
+        }
+        return Snapshot(
+            tasks=snap_tasks,
+            agents_by_task=agents_by_task,
+            task_by_agent=task_by_agent,
+            events=events,
+            attempts={agent: attempt_of(found) for agent, found in events.items()},
+        )

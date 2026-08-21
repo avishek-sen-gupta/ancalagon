@@ -6,6 +6,7 @@ import pytest
 from ancalagon.attempt.claimed import Claimed
 from ancalagon.attempt.closed import Closed
 from ancalagon.attempt.illegal_transition import IllegalTransition
+from ancalagon.attempt.queued import Queued
 from ancalagon.attempt.running import Running
 from ancalagon.bus.bus import HUMAN, Bus
 from ancalagon.bus.depth_of import depth_of
@@ -247,3 +248,19 @@ def test_a_rejected_record_leaves_no_open_transaction_and_no_partial_write(
         bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     assert bus.history(agent) == before
     bus.conn.execute("ROLLBACK")
+
+
+def test_a_snapshot_carries_every_task_agent_and_folded_attempt(tmp_path: pathlib.Path):
+    bus = _open(tmp_path)
+    first = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
+    settle(bus, first, AgentStatus.COMPLETED)
+    second = bus.enqueue(tmp_path / "child", parent_agent=first)
+
+    snap = bus.snapshot()
+
+    assert [t.dir for t in snap.tasks] == [str(tmp_path / "root"), str(tmp_path / "child")]
+    assert snap.agents_by_task == {1: (first,), 2: (second,)}
+    assert snap.task_by_agent == {first: 1, second: 2}
+    assert snap.attempts[first] == Closed(verdict=AgentStatus.COMPLETED)
+    assert snap.attempts[second] == Queued()
+    assert [e.status for e in snap.events[second]] == [AgentStatus.QUEUED]
