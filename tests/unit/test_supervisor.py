@@ -500,7 +500,9 @@ def test_a_re_attempt_on_the_same_task_directory_does_not_inherit_the_previous_o
     assert (task_dir / f"outcome-{first}.json").exists() is True
 
 
-def test_a_tick_reads_the_database_a_fixed_number_of_times(tmp_path: pathlib.Path):
+def test_waking_reads_the_database_a_fixed_number_of_times_whatever_the_child_count(
+    tmp_path: pathlib.Path,
+):
     bus = _open(tmp_path)
     parent = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
     for name in ("a", "b", "c", "d"):

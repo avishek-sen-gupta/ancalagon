@@ -121,16 +121,17 @@ caught the gap; `ancalagon.migrations` was considered and left out on purpose on
 was made, not forgotten by the same kind of omission.
 
 `run_until_idle()` loops on `tick()`, which calls `snapshot()` exactly once, after starting
-and reaping, so the whole of a tick's scheduling logic — waking idled parents included — costs
-the same three reads whether a task has no children or fifty. A test pins that count with
-`sqlite3`'s own trace callback rather than trusting the design to hold as the code changes; a
-task graph the size of a tree used to cost one query per task plus three per child, issued
-twenty times a second.
+and reaping, so waking idled parents costs the same three reads regardless of how many tasks
+or children exist — the cost that used to grow with both. A test pins that count with
+`sqlite3`'s own trace callback, isolated to the wake path by leaving no concurrency free to
+start queued agents, rather than trusting the design to hold as the code changes; a task graph
+the size of a tree used to cost one query per task plus three per child, issued twenty times a
+second. Starting and reaping issue their own reads on top of those three, scaling with how many
+agents are claimed and how many processes are live.
 
-- `_start_queued` claims **one agent at a time** — `bus.claim(limit=1)`, which appends
-  `claimed` — and spawns it before claiming the next. Claiming a batch first would strand
-  siblings if one spawn failed. After spawning it appends `running` with the pid; a failed
-  spawn appends `crashed` and reports to the parent.
+- `_start_queued` claims a batch sized to the free concurrency — `bus.claim(limit=free)`, which
+  appends `claimed` — and spawns each in turn. After spawning it appends `running` with the
+  pid; a failed spawn appends `crashed` and reports to the parent.
 - `_reap` polls each live process. One still running but past `agent_timeout_s` is killed and
   closed `timed_out`; one no longer running is closed `crashed`. Closing reads whatever the
   worker left on disk: if `outcome-<agent>.json` exists, the terminal row records that outcome's

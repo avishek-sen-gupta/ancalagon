@@ -26,6 +26,8 @@ def answer_task(
 ) -> int:
     bus = LifecycleStore.open(run_dir / "bus.db", clock)
     snapshot = bus.snapshot()
+    if agent not in snapshot.task_by_agent:
+        raise KeyError(f"no agent {agent}")
     if not any(e.status is AgentStatus.NEEDS_INPUT for e in snapshot.events[agent]):
         raise ValueError(
             f"agent {agent} is {_status(snapshot, agent).value} and never asked a question"
