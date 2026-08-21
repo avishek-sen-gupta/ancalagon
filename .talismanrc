@@ -73,4 +73,8 @@ fileignoreconfig:
   checksum: d3677cc79863869ac93b341f241071ca532a8bcaf725ec686e52e156c1a9006b
 - filename: docs/superpowers/plans/2026-08-21-ports-and-adapters-for-the-bus.md
   checksum: a1e084f51ae089c3128c71e75b19916c289916d12bbb4f617ed1cf3b16863be8
+- filename: ancalagon/tools/delegate/delegate_to.py
+  checksum: a47f6beb49c611b82fcd8c2216a8e0f0abfc5c81badb24dcb8e4b76bf983e325
+- filename: ancalagon/tools/delegate/check_task.py
+  checksum: b5e955ca20838d959faf9440875bed4632c104e30853351fc80a04e63f19e762
 version: "1.0"
