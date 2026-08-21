@@ -1,4 +1,4 @@
-# Appends and flushes per message, so a killed agent still leaves a resumable history.
+# Writes and flushes per message, so a killed agent still leaves a resumable history.
 import pathlib
 
 from ancalagon.contracts.message import Message
