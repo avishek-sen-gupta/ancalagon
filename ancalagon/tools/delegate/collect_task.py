@@ -70,15 +70,14 @@ class CollectTask(Tool[TaskArgs]):
     def _read_closed(
         self, bus: Bus, ctx: ToolContext, snapshot: Snapshot, task: int, newest: int
     ) -> ToolResult:
-        still_outstanding = outstanding(snapshot, task)
+        if not outstanding(snapshot, task):
+            bus.record(newest, AgentStatus.COLLECTED, EventSource.WORKER)
         task_dir = pathlib.Path(task_of(snapshot, newest).dir)
         spec = TaskSpec.model_validate_json((task_dir / "spec.json").read_text())
         answer_class = resolve_class(spec.role.answer)
         outcome = outcome_adapter(answer_class).validate_json(
             (task_dir / f"outcome-{newest}.json").read_text()
         )
-        if not still_outstanding:
-            bus.record(newest, AgentStatus.COLLECTED, EventSource.WORKER)
         if isinstance(outcome, (Completed, Exhausted)):
             return ctx.full_result(self.name, outcome.value.model_dump_json(), ".json")
         return ctx.failure(
@@ -94,12 +93,11 @@ class CollectTask(Tool[TaskArgs]):
         newest: int,
         close: AgentStatus,
     ) -> ToolResult:
-        still_outstanding = outstanding(snapshot, task)
+        if not outstanding(snapshot, task):
+            bus.record(newest, AgentStatus.COLLECTED, EventSource.WORKER)
         closing = next(
             event for event in reversed(snapshot.events[newest]) if event.status is close
         )
-        if not still_outstanding:
-            bus.record(newest, AgentStatus.COLLECTED, EventSource.WORKER)
         return ctx.failure(
             self.name,
             f"agent {newest} ended as {close.value}: {closing.summary}",
