@@ -3,6 +3,7 @@ import pathlib
 import pytest
 
 from ancalagon.config.config import Config
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.config.load import load_config
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.scope_error import ScopeError
@@ -18,7 +19,7 @@ def test_scoping_rejects_every_escape_and_config_round_trips(tmp_path: pathlib.P
     (read_only / "a.txt").write_text("data")
     (outside / "secret.txt").write_text("nope")
 
-    ws = Workspace(write_root=write_root, read_roots=(read_only, write_root))
+    ws = Workspace(RealFileSystem(), write_root=write_root, read_roots=(read_only, write_root))
 
     assert ws.resolve_write(write_root / "out.json") == (write_root / "out.json").resolve()
     assert ws.resolve_read(read_only / "a.txt") == (read_only / "a.txt").resolve()
@@ -85,7 +86,9 @@ role = ""
     assert config.request_timeout_s == 300
     assert config.max_concurrent_agents == 1
     assert config.agent_timeout_s == 3600
-    assert Workspace.from_config(config).resolve_read(read_only / "a.txt").exists()
+    assert (
+        Workspace.from_config(config, RealFileSystem()).resolve_read(read_only / "a.txt").exists()
+    )
 
 
 def test_config_resolves_relative_roots_against_the_config_file_not_the_cwd(
@@ -175,7 +178,7 @@ role = ""
     assert config.write_root == (project / "ws").resolve()
     assert config.read_roots == ((home / "artifacts").resolve(),)
 
-    workspace = Workspace.from_config(config)
+    workspace = Workspace.from_config(config, RealFileSystem())
     wanted = home / "artifacts" / "graph.json"
     wanted.write_text("{}")
     assert workspace.resolve_read(pathlib.Path("~/artifacts/graph.json")) == wanted.resolve()
@@ -221,3 +224,32 @@ def _without_key(text: str, section: str, key: str) -> str:
         )
         for block in blocks
     )
+
+
+def test_workspace_reads_and_writes_only_inside_its_roots(tmp_path: pathlib.Path):
+    write_root = tmp_path / "ws"
+    read_only = tmp_path / "artifacts"
+    write_root.mkdir()
+    read_only.mkdir()
+    source = read_only / "given.txt"
+    source.write_text("given", encoding="utf-8")
+    outside = tmp_path / "outside.txt"
+    outside.write_text("untouched", encoding="utf-8")
+
+    workspace = Workspace(
+        RealFileSystem(), write_root=write_root, read_roots=(read_only, write_root)
+    )
+
+    workspace.write_text(write_root / "in.txt", "fine")
+    assert workspace.read_text(write_root / "in.txt") == "fine"
+    assert workspace.read_text(source) == "given"
+
+    with pytest.raises(ScopeError):
+        workspace.write_text(source, "clobbered")
+    assert source.read_text(encoding="utf-8") == "given"
+
+    with pytest.raises(ScopeError):
+        workspace.read_text(outside)
+    with pytest.raises(ScopeError):
+        workspace.write_text(outside, "clobbered")
+    assert outside.read_text(encoding="utf-8") == "untouched"

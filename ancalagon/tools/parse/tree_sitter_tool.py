@@ -41,6 +41,6 @@ class TreeSitter(Tool[ParseArgs]):
             return ctx.failure(self.name, str(exc))
         language = tree_sitter.Language(LANGUAGES[args.language]())
         parser = tree_sitter.Parser(language)
-        tree = parser.parse(path.read_bytes())
+        tree = parser.parse(ctx.workspace.read_bytes(path))
         nodes = pydantic.TypeAdapter(list[AstNode]).dump_json(_walk(tree.root_node), indent=2)
         return ctx.result(self.name, nodes.decode(), ".json")

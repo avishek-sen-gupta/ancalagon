@@ -18,6 +18,7 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.message import Message
@@ -146,7 +147,7 @@ def main(
             repair(load(transcript_path)) if transcript_path.exists() else []
         )
         ctx = ToolContext(
-            workspace=Workspace.from_config(config),
+            workspace=Workspace.from_config(config, RealFileSystem()),
             output_dir=task_dir / "tools",
             summary_chars=config.summary_chars,
             agent_id=agent_id,

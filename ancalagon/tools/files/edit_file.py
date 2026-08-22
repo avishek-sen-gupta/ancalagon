@@ -17,8 +17,8 @@ class EditFile(Tool[EditArgs]):
             path = ctx.workspace.resolve_write(args.path)
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
-        original = path.read_text(encoding="utf-8")
+        original = ctx.workspace.read_text(path)
         if args.old not in original:
             return ctx.failure(self.name, f"{args.old!r} not found in {path}")
-        path.write_text(original.replace(args.old, args.new, 1), encoding="utf-8")
+        ctx.workspace.write_text(path, original.replace(args.old, args.new, 1))
         return ctx.result(self.name, f"edited {path}")

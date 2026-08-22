@@ -36,6 +36,7 @@ from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.transcript.history import load, repair
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.fs.real_file_system import RealFileSystem
 
 
 def _call(id: str, name: str, **arguments: str | int) -> ToolUse:
@@ -57,7 +58,7 @@ def _run(
         repair(load(transcript_path)) if transcript_path.exists() else []
     )
     ctx = ToolContext(
-        workspace=Workspace(write_root=run_dir, read_roots=(run_dir,)),
+        workspace=Workspace(RealFileSystem(), write_root=run_dir, read_roots=(run_dir,)),
         output_dir=task_dir / "tools",
         summary_chars=400,
         agent_id=agent,

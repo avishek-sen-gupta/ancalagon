@@ -26,8 +26,8 @@ class ToolContext:
         path = self.workspace.resolve_write(
             self.output_dir / f"{next(self.counter):04d}-{tool_name}{suffix}"
         )
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
+        self.workspace.mkdir(path.parent, parents=True, exist_ok=True)
+        self.workspace.write_text(path, text)
         return path
 
     def result(self, tool_name: str, text: str, suffix: str = ".txt") -> ToolResult:
@@ -57,15 +57,11 @@ class ToolContext:
         offset: int,
         total: int,
     ) -> ToolResult:
-        kept: list[str] = []
-        used = 0
-        for line in lines:
-            if used + len(line) + 1 > self.summary_chars:
-                if not kept:
-                    kept.append(line[: self.summary_chars])
-                break
-            kept.append(line)
-            used += len(line) + 1
+        totals = itertools.accumulate(len(line) + 1 for line in lines)
+        fitting = [
+            line for line, total in zip(lines, totals, strict=True) if total <= self.summary_chars
+        ]
+        kept = fitting if fitting or not lines else [lines[0][: self.summary_chars]]
         last = offset + len(kept)
         body = "\n".join(kept)
         note = f"[lines {offset}-{last} of {total}" + (

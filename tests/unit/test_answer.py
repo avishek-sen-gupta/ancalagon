@@ -17,13 +17,14 @@ from ancalagon.tools.delegate.answer_args import AnswerArgs
 from ancalagon.tools.delegate.answer_task import AnswerTask
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.fs.real_file_system import RealFileSystem
 
 
 def _ctx(tmp_path: pathlib.Path) -> ToolContext:
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
     return ToolContext(
-        workspace=Workspace(write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
         output_dir=write_root / "tools",
         summary_chars=200,
         agent_id=7,

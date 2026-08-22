@@ -38,6 +38,7 @@ from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.fs.real_file_system import RealFileSystem
 
 
 class Verdict(pydantic.BaseModel):
@@ -54,7 +55,7 @@ def _session(
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
     ctx = ToolContext(
-        workspace=Workspace(write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
         output_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=17,
@@ -211,7 +212,7 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
     ctx = ToolContext(
-        workspace=Workspace(write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
         output_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=parent,
@@ -266,7 +267,7 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
     ctx = ToolContext(
-        workspace=Workspace(write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
         output_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=parent,
@@ -464,7 +465,7 @@ def test_a_session_takes_its_behaviour_and_budget_from_its_role(tmp_path: pathli
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
     ctx = ToolContext(
-        workspace=Workspace(write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
         output_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=17,
@@ -536,7 +537,7 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
 
     children = ScriptedChildren([(2,), ()], [(), (2,)])
     ctx = ToolContext(
-        workspace=Workspace(write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
         output_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=17,

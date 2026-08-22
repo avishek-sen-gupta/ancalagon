@@ -18,7 +18,7 @@ class ListDir(Tool[PathArgs]):
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
-        if not path.is_dir():
+        if not ctx.workspace.is_dir(path):
             return ctx.failure(self.name, missing_hint(path))
-        entries = "\n".join(sorted(p.name for p in path.iterdir()))
+        entries = "\n".join(sorted(p.name for p in ctx.workspace.iterdir(path)))
         return ctx.result(self.name, entries)
