@@ -8,7 +8,7 @@ from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
 
 FREE_TEXT = ClassRef(
-    module=str(pathlib.Path(ancalagon.contracts.free_text.__file__)), name="FreeText"
+    module=str(pathlib.PurePath(ancalagon.contracts.free_text.__file__)), name="FreeText"
 )
 
 

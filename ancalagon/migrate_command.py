@@ -6,7 +6,7 @@ import ancalagon.migrations
 from ancalagon.fs.file_system import FileSystem
 
 
-def migrate_command(path: pathlib.Path, to: int, fs: FileSystem) -> int:
+def migrate_command(path: pathlib.PurePath, to: int, fs: FileSystem) -> int:
     if not fs.is_dir(path.parent):
         raise ValueError(f"{path.parent} does not exist")
     target = ancalagon.migrations.latest_version(fs) if to < 0 else to

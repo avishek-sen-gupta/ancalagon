@@ -43,7 +43,7 @@ class CollectTask(Tool[TaskArgs]):
     cost = 1
     args_model = TaskArgs
 
-    def __init__(self, run_dir: pathlib.Path, clock: Clock, fs: FileSystem):
+    def __init__(self, run_dir: pathlib.PurePath, clock: Clock, fs: FileSystem):
         self.run_dir = run_dir
         self.clock = clock
         self.fs = fs
@@ -74,7 +74,7 @@ class CollectTask(Tool[TaskArgs]):
     ) -> ToolResult:
         if not outstanding(snapshot, task):
             bus.record(newest, AgentStatus.COLLECTED, EventSource.WORKER)
-        task_dir = pathlib.Path(task_of(snapshot, newest).dir)
+        task_dir = pathlib.PurePath(task_of(snapshot, newest).dir)
         spec = TaskSpec.model_validate_json(self.fs.read_text(task_dir / "spec.json"))
         answer_class = resolve_class(spec.role.answer)
         outcome = outcome_adapter(answer_class).validate_json(

@@ -32,17 +32,19 @@ from ancalagon.supervisor.supervisor import Supervisor
 LOGGER = logging.getLogger(__name__)
 
 
-def _allocated_run_dir(write_root: pathlib.Path, clock: Clock, fs: FileSystem) -> pathlib.Path:
+def _allocated_run_dir(
+    write_root: pathlib.PurePath, clock: Clock, fs: FileSystem
+) -> pathlib.PurePath:
     runs = write_root / "runs"
     fs.mkdir(runs, parents=True, exist_ok=True)
     return runs / clock.now().strftime("r_%Y%m%d-%H%M%S")
 
 
 def created_run_dir(
-    run_dir: str, write_root: pathlib.Path, clock: Clock, fs: FileSystem
-) -> pathlib.Path:
+    run_dir: str, write_root: pathlib.PurePath, clock: Clock, fs: FileSystem
+) -> pathlib.PurePath:
     if run_dir:
-        named = pathlib.Path(run_dir)
+        named = pathlib.PurePath(run_dir)
         fs.mkdir(named, parents=True, exist_ok=True)
         return named
     allocated = _allocated_run_dir(write_root, clock, fs)
@@ -50,14 +52,14 @@ def created_run_dir(
     return allocated
 
 
-def init_command(config_path: pathlib.Path, run_dir: str) -> int:
+def init_command(config_path: pathlib.PurePath, run_dir: str) -> int:
     fs = RealFileSystem()
     config = load_config(config_path, fs)
     sys.stdout.write(f"{created_run_dir(run_dir, config.write_root, SystemClock(), fs)}\n")
     return 0
 
 
-def _text_of(path: pathlib.Path, named_by: str, fs: FileSystem) -> str:
+def _text_of(path: pathlib.PurePath, named_by: str, fs: FileSystem) -> str:
     if not fs.is_file(path):
         raise ValueError(f"[run] {named_by} names {path}, which does not exist")
     return fs.read_text(path)
@@ -66,7 +68,7 @@ def _text_of(path: pathlib.Path, named_by: str, fs: FileSystem) -> str:
 def goal_of(settings: RunSettings, fs: FileSystem) -> str:
     if not settings.goal_file:
         raise ValueError("no goal: set [run] goal_file")
-    goal = _text_of(pathlib.Path(settings.goal_file), "goal_file", fs)
+    goal = _text_of(pathlib.PurePath(settings.goal_file), "goal_file", fs)
     if not goal.strip():
         raise ValueError(f"[run] goal_file {settings.goal_file} is empty")
     return goal
@@ -115,7 +117,7 @@ def root_spec(config: Config, fs: FileSystem) -> AgentSpec[pydantic.BaseModel]:
     input_class = resolve_class(role.input)
     given = (
         input_class.model_validate_json(
-            _text_of(pathlib.Path(config.run.input_file), "input_file", fs)
+            _text_of(pathlib.PurePath(config.run.input_file), "input_file", fs)
         )
         if config.run.input_file
         else _from_goal(input_class, role, goal)
@@ -123,7 +125,7 @@ def root_spec(config: Config, fs: FileSystem) -> AgentSpec[pydantic.BaseModel]:
     return AgentSpec[input_class](task_id="root", role=role, goal=goal, input=given)
 
 
-def sandbox_of(config: Config, run_dir: pathlib.Path, fs: FileSystem) -> Sandbox:
+def sandbox_of(config: Config, run_dir: pathlib.PurePath, fs: FileSystem) -> Sandbox:
     if config.sandbox is Strategy.NONE:
         return Unsandboxed()
     return Fence(
@@ -134,7 +136,7 @@ def sandbox_of(config: Config, run_dir: pathlib.Path, fs: FileSystem) -> Sandbox
     )
 
 
-def main(config_path: pathlib.Path, run_dir: pathlib.Path) -> int:
+def main(config_path: pathlib.PurePath, run_dir: pathlib.PurePath) -> int:
     logging.basicConfig(level=logging.INFO)
     fs = RealFileSystem()
     config = load_config(config_path, fs)
@@ -152,7 +154,7 @@ def main(config_path: pathlib.Path, run_dir: pathlib.Path) -> int:
         bus=LifecycleStore.open(db, clock, fs),
         spawner=SubprocessSpawner(
             run_dir=run_dir,
-            config_path=config_path.resolve(),
+            config_path=fs.resolve(config_path),
             environment=RealEnvironment(),
             fs=fs,
             sandbox=sandbox_of(config, run_dir, fs),
@@ -181,16 +183,16 @@ def cli() -> int:
     parser = argparse.ArgumentParser(prog="ancalagon")
     commands = parser.add_subparsers(dest="command", required=True)
     run = commands.add_parser("run")
-    run.add_argument("--config", type=pathlib.Path, required=True)
-    run.add_argument("--run-dir", type=pathlib.Path, required=True)
+    run.add_argument("--config", type=pathlib.PurePath, required=True)
+    run.add_argument("--run-dir", type=pathlib.PurePath, required=True)
     init = commands.add_parser("init")
-    init.add_argument("--config", type=pathlib.Path, required=True)
+    init.add_argument("--config", type=pathlib.PurePath, required=True)
     init.add_argument("--run-dir", type=str, default="")
     migrate = commands.add_parser("migrate")
-    migrate.add_argument("--db", type=pathlib.Path, required=True)
+    migrate.add_argument("--db", type=pathlib.PurePath, required=True)
     migrate.add_argument("--to", type=int, default=-1)
     answer = commands.add_parser("answer")
-    answer.add_argument("--run-dir", type=pathlib.Path, required=True)
+    answer.add_argument("--run-dir", type=pathlib.PurePath, required=True)
     answer.add_argument("--task", type=int, required=True)
     answer.add_argument("--answer", type=str, required=True)
     args = parser.parse_args()

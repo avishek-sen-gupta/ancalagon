@@ -22,7 +22,7 @@ class Idle(Tool[IdleArgs]):
     cost = 0
     args_model = IdleArgs
 
-    def __init__(self, run_dir: pathlib.Path, agent: int, clock: Clock, fs: FileSystem):
+    def __init__(self, run_dir: pathlib.PurePath, agent: int, clock: Clock, fs: FileSystem):
         self.run_dir = run_dir
         self.agent = agent
         self.clock = clock

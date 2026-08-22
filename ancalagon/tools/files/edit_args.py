@@ -4,6 +4,6 @@ import pydantic
 
 
 class EditArgs(pydantic.BaseModel, frozen=True):
-    path: pathlib.Path
+    path: pathlib.PurePath
     old: str
     new: str

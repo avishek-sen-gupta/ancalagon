@@ -32,5 +32,8 @@ def test_the_real_file_system_reads_writes_lists_and_reports_what_is_there(
         handle.write("replaced")
     assert fs.read_text(note) == "replaced"
 
+    assert fs.resolve(nested / ".." / "b") == nested
+    assert str(fs.expanduser(pathlib.Path("~"))).startswith("/")
+
     fs.unlink(note)
     assert fs.exists(note) is False

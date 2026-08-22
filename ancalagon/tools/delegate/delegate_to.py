@@ -23,7 +23,7 @@ class DelegateTo(Tool[DelegateArgs]):
         self,
         role_name: str,
         role: Role,
-        run_dir: pathlib.Path,
+        run_dir: pathlib.PurePath,
         parent: int,
         clock: Clock,
         fs: FileSystem,

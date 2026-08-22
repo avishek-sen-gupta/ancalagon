@@ -5,5 +5,5 @@ import pydantic
 
 
 class StringsArgs(pydantic.BaseModel, frozen=True):
-    path: pathlib.Path
+    path: pathlib.PurePath
     min_length: int = 6

@@ -20,7 +20,7 @@ class AnswerTask(Tool[AnswerArgs]):
     cost = 1
     args_model = AnswerArgs
 
-    def __init__(self, run_dir: pathlib.Path, parent: int, clock: Clock, fs: FileSystem):
+    def __init__(self, run_dir: pathlib.PurePath, parent: int, clock: Clock, fs: FileSystem):
         self.run_dir = run_dir
         self.parent = parent
         self.clock = clock

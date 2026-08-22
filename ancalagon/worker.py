@@ -66,7 +66,7 @@ LOGGER = logging.getLogger(__name__)
 
 def available_tools(
     roles: collections.abc.Mapping[str, Role],
-    run_dir: pathlib.Path,
+    run_dir: pathlib.PurePath,
     parent: int,
     output_class: type[pydantic.BaseModel],
     clock: Clock,
@@ -102,7 +102,7 @@ def available_tools(
 def build_registry(
     config: Config,
     spec: TaskSpec,
-    run_dir: pathlib.Path,
+    run_dir: pathlib.PurePath,
     parent: int,
     depth: int,
     output_class: type[pydantic.BaseModel],
@@ -130,7 +130,10 @@ def build_registry(
 
 
 def main(
-    run_dir: pathlib.Path, task_dir: pathlib.Path, agent_id: int, config_path: pathlib.Path
+    run_dir: pathlib.PurePath,
+    task_dir: pathlib.PurePath,
+    agent_id: int,
+    config_path: pathlib.PurePath,
 ) -> int:
     fs = RealFileSystem()
     config = load_config(config_path, fs)
@@ -204,10 +207,10 @@ def main(
 
 def cli() -> int:
     parser = argparse.ArgumentParser(prog="ancalagon.worker")
-    parser.add_argument("--run-dir", type=pathlib.Path, required=True)
-    parser.add_argument("--dir", type=pathlib.Path, required=True)
+    parser.add_argument("--run-dir", type=pathlib.PurePath, required=True)
+    parser.add_argument("--dir", type=pathlib.PurePath, required=True)
     parser.add_argument("--agent-id", type=int, required=True)
-    parser.add_argument("--config", type=pathlib.Path, required=True)
+    parser.add_argument("--config", type=pathlib.PurePath, required=True)
     args = parser.parse_args()
     return main(args.run_dir, args.dir, args.agent_id, args.config)
 

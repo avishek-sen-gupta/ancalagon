@@ -12,7 +12,7 @@ class ToolContext:
     def __init__(
         self,
         workspace: Workspace,
-        output_dir: pathlib.Path,
+        output_dir: pathlib.PurePath,
         summary_chars: int,
         agent_id: int,
     ):
@@ -22,7 +22,7 @@ class ToolContext:
         self.agent_id = agent_id
         self.counter = itertools.count()
 
-    def write_output(self, tool_name: str, text: str, suffix: str) -> pathlib.Path:
+    def write_output(self, tool_name: str, text: str, suffix: str) -> pathlib.PurePath:
         path = self.workspace.resolve_write(
             self.output_dir / f"{next(self.counter):04d}-{tool_name}{suffix}"
         )

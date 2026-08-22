@@ -19,7 +19,7 @@ def _status(snapshot: Snapshot, agent: int) -> AgentStatus:
 
 
 def answer_task(
-    run_dir: pathlib.Path,
+    run_dir: pathlib.PurePath,
     agent: int,
     answer: str,
     answered_by: int,
@@ -35,7 +35,7 @@ def answer_task(
             f"agent {agent} is {_status(snapshot, agent).value} and never asked a question"
         )
     task = task_of(snapshot, agent)
-    task_dir = pathlib.Path(task.dir)
+    task_dir = pathlib.PurePath(task.dir)
     active = active_for(snapshot, task.dir)
     if active:
         raise ValueError(

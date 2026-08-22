@@ -9,11 +9,11 @@ if typing.TYPE_CHECKING:
     from ancalagon.config.config import Config
 
 
-def missing_hint(path: pathlib.Path) -> str:
+def missing_hint(path: pathlib.PurePath) -> str:
     return f"no file or directory at {path}{_hint(path)}"
 
 
-def _hint(path: pathlib.Path) -> str:
+def _hint(path: pathlib.PurePath) -> str:
     if path.is_absolute():
         return ""
     return ". Relative paths resolve against the working directory; give an absolute path"
@@ -21,11 +21,11 @@ def _hint(path: pathlib.Path) -> str:
 
 class Workspace:
     def __init__(
-        self, fs: FileSystem, write_root: pathlib.Path, read_roots: tuple[pathlib.Path, ...]
+        self, fs: FileSystem, write_root: pathlib.PurePath, read_roots: tuple[pathlib.PurePath, ...]
     ):
         self.fs = fs
-        self.write_root = write_root.expanduser().resolve()
-        self.read_roots = tuple(r.expanduser().resolve() for r in read_roots)
+        self.write_root = fs.resolve(fs.expanduser(write_root))
+        self.read_roots = tuple(fs.resolve(fs.expanduser(r)) for r in read_roots)
 
     @classmethod
     def from_config(cls, config: "Config", fs: FileSystem) -> "Workspace":
@@ -33,41 +33,41 @@ class Workspace:
             fs, write_root=config.write_root, read_roots=(*config.read_roots, config.write_root)
         )
 
-    def resolve_write(self, path: pathlib.Path) -> pathlib.Path:
-        resolved = path.expanduser().resolve()
+    def resolve_write(self, path: pathlib.PurePath) -> pathlib.PurePath:
+        resolved = self.fs.resolve(self.fs.expanduser(path))
         if not resolved.is_relative_to(self.write_root):
             raise ScopeError(f"{path} is outside write_root {self.write_root}{_hint(path)}")
         return resolved
 
-    def resolve_read(self, path: pathlib.Path) -> pathlib.Path:
-        resolved = path.expanduser().resolve()
+    def resolve_read(self, path: pathlib.PurePath) -> pathlib.PurePath:
+        resolved = self.fs.resolve(self.fs.expanduser(path))
         if not any(resolved.is_relative_to(root) for root in self.read_roots):
             raise ScopeError(f"{path} is outside read_roots {self.read_roots}{_hint(path)}")
         return resolved
 
-    def read_text(self, path: pathlib.Path) -> str:
+    def read_text(self, path: pathlib.PurePath) -> str:
         return self.fs.read_text(self.resolve_read(path))
 
-    def read_bytes(self, path: pathlib.Path) -> bytes:
+    def read_bytes(self, path: pathlib.PurePath) -> bytes:
         return self.fs.read_bytes(self.resolve_read(path))
 
-    def iterdir(self, path: pathlib.Path) -> tuple[pathlib.Path, ...]:
+    def iterdir(self, path: pathlib.PurePath) -> tuple[pathlib.PurePath, ...]:
         return self.fs.iterdir(self.resolve_read(path))
 
-    def exists(self, path: pathlib.Path) -> bool:
+    def exists(self, path: pathlib.PurePath) -> bool:
         return self.fs.exists(self.resolve_read(path))
 
-    def is_file(self, path: pathlib.Path) -> bool:
+    def is_file(self, path: pathlib.PurePath) -> bool:
         return self.fs.is_file(self.resolve_read(path))
 
-    def is_dir(self, path: pathlib.Path) -> bool:
+    def is_dir(self, path: pathlib.PurePath) -> bool:
         return self.fs.is_dir(self.resolve_read(path))
 
-    def write_text(self, path: pathlib.Path, text: str) -> None:
+    def write_text(self, path: pathlib.PurePath, text: str) -> None:
         self.fs.write_text(self.resolve_write(path), text)
 
-    def mkdir(self, path: pathlib.Path, parents: bool = False, exist_ok: bool = False) -> None:
+    def mkdir(self, path: pathlib.PurePath, parents: bool = False, exist_ok: bool = False) -> None:
         self.fs.mkdir(self.resolve_write(path), parents=parents, exist_ok=exist_ok)
 
-    def unlink(self, path: pathlib.Path) -> None:
+    def unlink(self, path: pathlib.PurePath) -> None:
         self.fs.unlink(self.resolve_write(path))

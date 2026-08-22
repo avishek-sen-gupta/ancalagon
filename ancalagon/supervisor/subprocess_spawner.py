@@ -18,8 +18,8 @@ def inherited(environment: Environment, sandbox: Sandbox) -> dict[str, str]:
 class SubprocessSpawner(Spawner):
     def __init__(
         self,
-        run_dir: pathlib.Path,
-        config_path: pathlib.Path,
+        run_dir: pathlib.PurePath,
+        config_path: pathlib.PurePath,
         environment: Environment,
         fs: FileSystem,
         sandbox: Sandbox = UNSANDBOXED,
@@ -30,7 +30,7 @@ class SubprocessSpawner(Spawner):
         self.fs = fs
         self.sandbox = sandbox
 
-    def spawn(self, task_dir: pathlib.Path, agent_id: int) -> Process:
+    def spawn(self, task_dir: pathlib.PurePath, agent_id: int) -> Process:
         stderr = task_dir / f"stderr-{agent_id}.log"
         self.fs.mkdir(stderr.parent, parents=True, exist_ok=True)
         command = [

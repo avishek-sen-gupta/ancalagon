@@ -42,7 +42,7 @@ def test_scoping_rejects_every_escape_and_config_round_trips(tmp_path: pathlib.P
     )
     written = inside.result("read_file", "hello")
     assert written.path == (write_root / "tools" / "0000-read_file.txt").resolve()
-    assert written.path.read_text() == "hello"
+    assert pathlib.Path(written.path).read_text() == "hello"
 
     escaping = ToolContext(workspace=ws, output_dir=outside / "tools", summary_chars=10, agent_id=1)
     with pytest.raises(ScopeError):
@@ -86,9 +86,8 @@ role = ""
     assert config.request_timeout_s == 300
     assert config.max_concurrent_agents == 1
     assert config.agent_timeout_s == 3600
-    assert (
-        Workspace.from_config(config, RealFileSystem()).resolve_read(read_only / "a.txt").exists()
-    )
+    resolved = Workspace.from_config(config, RealFileSystem()).resolve_read(read_only / "a.txt")
+    assert pathlib.Path(resolved).exists()
 
 
 def test_config_resolves_relative_roots_against_the_config_file_not_the_cwd(

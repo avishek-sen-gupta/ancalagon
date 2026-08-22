@@ -82,7 +82,7 @@ class FakeSpawner(Spawner):
         self.script = list(script)
         self.spawned: list[int] = []
 
-    def spawn(self, task_dir: pathlib.Path, agent_id: int) -> FakeProcess:
+    def spawn(self, task_dir: pathlib.PurePath, agent_id: int) -> FakeProcess:
         self.spawned.append(agent_id)
         exit_after, code = self.script.pop(0)
         return FakeProcess(pid=1000 + agent_id, exit_after=exit_after, code=code)

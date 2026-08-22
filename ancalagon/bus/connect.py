@@ -6,7 +6,7 @@ import ancalagon.migrations
 from ancalagon.fs.file_system import FileSystem
 
 
-def connect(path: pathlib.Path, fs: FileSystem) -> sqlite3.Connection:
+def connect(path: pathlib.PurePath, fs: FileSystem) -> sqlite3.Connection:
     if not fs.exists(path):
         raise ValueError(f"{path} does not exist; run: ancalagon migrate --db {path}")
     conn = sqlite3.connect(path, isolation_level=None)

@@ -98,7 +98,7 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
     ]
     assert {s.name for s in registry.schemas()} == set(registry.names())
 
-    target = ctx.workspace.write_root / "note.txt"
+    target = pathlib.Path(ctx.workspace.write_root) / "note.txt"
     written = registry.get("write_file").invoke(
         f'{{"path": "{target}", "content": "hello world"}}', ctx
     )
@@ -107,7 +107,7 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
 
     read = registry.get("read_file").invoke(f'{{"path": "{target}"}}', ctx)
     assert read.ok is True
-    assert read.path.read_text() == "hello world"
+    assert pathlib.Path(read.path).read_text() == "hello world"
     assert read.byte_count == 11
 
     edited = registry.get("edit_file").invoke(
@@ -125,7 +125,7 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
 
     listed = registry.get("list_dir").invoke(f'{{"path": "{ctx.workspace.write_root}"}}', ctx)
     assert listed.ok is True
-    assert "note.txt" in listed.path.read_text()
+    assert "note.txt" in pathlib.Path(listed.path).read_text()
 
     outside = tmp_path / "outside.txt"
     outside.write_text("secret")
@@ -144,7 +144,7 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
     assert deleted.ok is True
     assert not target.exists()
 
-    big = ctx.workspace.write_root / "big.txt"
+    big = pathlib.Path(ctx.workspace.write_root) / "big.txt"
     big.write_text("\n".join(f"line {i}" for i in range(60)))
     first = registry.get("read_file").invoke(f'{{"path": "{big}"}}', ctx)
     assert first.ok is True
@@ -177,7 +177,7 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     tmp_path: pathlib.Path,
 ):
     ctx = _ctx(tmp_path)
-    source = ctx.workspace.write_root / "sample.py"
+    source = pathlib.Path(ctx.workspace.write_root) / "sample.py"
     source.write_text("def alpha():\n    return 1\n\n\ndef beta():\n    return 2\n")
     before = source.read_text()
 
@@ -185,7 +185,9 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
         GrepArgs(pattern="def (alpha|beta)", roots=[ctx.workspace.write_root]), ctx
     )
     assert found.ok is True
-    assert [l.split(":", 2)[2].strip() for l in found.path.read_text().splitlines()] == [
+    assert [
+        l.split(":", 2)[2].strip() for l in pathlib.Path(found.path).read_text().splitlines()
+    ] == [
         "def alpha():",
         "def beta():",
     ]
@@ -195,23 +197,25 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     )
     matches = [
         r
-        for r in (json.loads(line) for line in structured.path.read_text().splitlines())
+        for r in (
+            json.loads(line) for line in pathlib.Path(structured.path).read_text().splitlines()
+        )
         if r["type"] == "match"
     ]
     assert str(source) in [m["data"]["path"]["text"] for m in matches]
 
     missing = Ripgrep().run(GrepArgs(pattern="zzz_absent", roots=[ctx.workspace.write_root]), ctx)
     assert missing.ok is True
-    assert missing.path.read_text() == ""
+    assert pathlib.Path(missing.path).read_text() == ""
 
     streamed = Sed().run(SedArgs(script="s/alpha/gamma/", path=source), ctx)
     assert streamed.ok is True
-    assert "gamma" in streamed.path.read_text()
+    assert "gamma" in pathlib.Path(streamed.path).read_text()
     assert source.read_text() == before
 
     parsed = TreeSitter().run(ParseArgs(path=source, language="python"), ctx)
     assert parsed.ok is True
-    assert '"type": "function_definition"' in parsed.path.read_text()
+    assert '"type": "function_definition"' in pathlib.Path(parsed.path).read_text()
 
     unsupported = TreeSitter().run(ParseArgs(path=source, language="cobol"), ctx)
     assert unsupported.ok is False
@@ -220,18 +224,18 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     denied = Sed().run(SedArgs(script="s/a/b/", path=tmp_path / "outside.txt"), ctx)
     assert denied.ok is False
 
-    flags = ctx.workspace.write_root / "flags.txt"
+    flags = pathlib.Path(ctx.workspace.write_root) / "flags.txt"
     flags.write_text("a line mentioning --files here\n")
 
     literal = Ripgrep().run(GrepArgs(pattern="--files", roots=[ctx.workspace.write_root]), ctx)
     assert literal.ok is True
-    assert [l.split(":", 2)[2] for l in literal.path.read_text().splitlines()] == [
+    assert [l.split(":", 2)[2] for l in pathlib.Path(literal.path).read_text().splitlines()] == [
         "a line mentioning --files here"
     ]
 
     dashed = Sed().run(SedArgs(script="s/--files/--flags/", path=flags), ctx)
     assert dashed.ok is True
-    assert dashed.path.read_text() == "a line mentioning --flags here\n"
+    assert pathlib.Path(dashed.path).read_text() == "a line mentioning --flags here\n"
 
 
 def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names(
@@ -396,7 +400,7 @@ def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pa
 
 def test_survey_and_symbol_tools_report_structure_not_mentions(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
-    root = ctx.workspace.write_root
+    root = pathlib.Path(ctx.workspace.write_root)
     (root / "widget.py").write_text(
         "class Widget:\n    def spin(self):\n        return 1\n\n\ndef make_widget():\n"
         "    return Widget()\n"
@@ -405,18 +409,20 @@ def test_survey_and_symbol_tools_report_structure_not_mentions(tmp_path: pathlib
 
     stats = CodeStats().run(StatsArgs(roots=[root]), ctx)
     assert stats.ok is True
-    assert "Python" in stats.path.read_text()
+    assert "Python" in pathlib.Path(stats.path).read_text()
 
     defined = FindSymbol().run(SymbolArgs(roots=[root], name="Widget"), ctx)
     assert defined.ok is True
-    lines = [l for l in defined.path.read_text().splitlines() if l.strip()]
+    lines = [l for l in pathlib.Path(defined.path).read_text().splitlines() if l.strip()]
     assert len(lines) == 1
     assert "class" in lines[0]
     assert "widget.py" in lines[0]
-    assert "user.py" not in defined.path.read_text()
+    assert "user.py" not in pathlib.Path(defined.path).read_text()
 
     everything = FindSymbol().run(SymbolArgs(roots=[root]), ctx)
-    assert {l.split()[0] for l in everything.path.read_text().splitlines() if l.strip()} >= {
+    assert {
+        l.split()[0] for l in pathlib.Path(everything.path).read_text().splitlines() if l.strip()
+    } >= {
         "Widget",
         "spin",
         "make_widget",
@@ -428,7 +434,7 @@ def test_survey_and_symbol_tools_report_structure_not_mentions(tmp_path: pathlib
 
 def test_artifact_and_history_tools_read_what_read_file_cannot(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
-    root = ctx.workspace.write_root
+    root = pathlib.Path(ctx.workspace.write_root)
 
     binary = root / "blob.bin"
     binary.write_bytes(b"\x00\x01\x02CONNECTION_STRING_HERE\x00\xff" * 3)
@@ -438,13 +444,13 @@ def test_artifact_and_history_tools_read_what_read_file_cannot(tmp_path: pathlib
 
     found = ExtractStrings().run(StringsArgs(path=binary, min_length=8), ctx)
     assert found.ok is True
-    assert "CONNECTION_STRING_HERE" in found.path.read_text()
+    assert "CONNECTION_STRING_HERE" in pathlib.Path(found.path).read_text()
 
     doc = root / "graph.json"
     doc.write_text('{"nodes": [{"id": "a"}, {"id": "b"}]}')
     ids = QueryJson().run(QueryArgs(path=doc, filter=".nodes[].id"), ctx)
     assert ids.ok is True
-    assert ids.path.read_text().split() == ["a", "b"]
+    assert pathlib.Path(ids.path).read_text().split() == ["a", "b"]
 
     unsafe = QueryJson().run(QueryArgs(path=doc, filter="--version"), ctx)
     assert unsafe.ok is False
@@ -454,12 +460,12 @@ def test_artifact_and_history_tools_read_what_read_file_cannot(tmp_path: pathlib
     page.write_text("# Title\n\nSome *emphasis*.\n")
     converted = ConvertDocument().run(ConvertArgs(path=page, to=DocumentFormat.PLAIN), ctx)
     assert converted.ok is True
-    assert "Title" in converted.path.read_text()
+    assert "Title" in pathlib.Path(converted.path).read_text()
 
 
 def test_tree_walking_tools_honour_gitignore_outside_a_repository(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
-    root = ctx.workspace.write_root
+    root = pathlib.Path(ctx.workspace.write_root)
     (root / "src").mkdir()
     (root / "vendored").mkdir()
     (root / ".gitignore").write_text("vendored/\n")
@@ -468,10 +474,12 @@ def test_tree_walking_tools_honour_gitignore_outside_a_repository(tmp_path: path
     assert not (root / ".git").exists()
 
     for text in (
-        Ripgrep().run(GrepArgs(pattern="thing", roots=[root]), ctx).path.read_text(),
-        FindSymbol().run(SymbolArgs(roots=[root]), ctx).path.read_text(),
-        AstGrep().run(GrepArgs(pattern="def $N(): pass", roots=[root]), ctx).path.read_text(),
-        CodeStats().run(StatsArgs(roots=[root], by_file=True), ctx).path.read_text(),
+        pathlib.Path(Ripgrep().run(GrepArgs(pattern="thing", roots=[root]), ctx).path).read_text(),
+        pathlib.Path(FindSymbol().run(SymbolArgs(roots=[root]), ctx).path).read_text(),
+        pathlib.Path(
+            AstGrep().run(GrepArgs(pattern="def $N(): pass", roots=[root]), ctx).path
+        ).read_text(),
+        pathlib.Path(CodeStats().run(StatsArgs(roots=[root], by_file=True), ctx).path).read_text(),
     ):
         assert "dep.py" not in text
         assert "vendored_thing" not in text
@@ -518,9 +526,9 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert got.ok is True
     assert got.truncated is False
     assert json.loads(got.summary.text_for_model()) == {"text": long_finding}
-    assert json.loads(got.path.read_text()) == {"text": long_finding}
+    assert json.loads(pathlib.Path(got.path).read_text()) == {"text": long_finding}
 
-    haystack = ctx.workspace.write_root / "haystack.txt"
+    haystack = pathlib.Path(ctx.workspace.write_root) / "haystack.txt"
     haystack.write_text("\n".join(f"needle {i}" for i in range(30)) + "\n")
     still_truncates = Ripgrep().run(GrepArgs(pattern="needle", roots=[haystack]), ctx)
     assert still_truncates.ok is True

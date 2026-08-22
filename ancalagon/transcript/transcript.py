@@ -6,7 +6,7 @@ from ancalagon.fs.file_system import FileSystem
 
 
 class Transcript:
-    def __init__(self, fs: FileSystem, path: pathlib.Path, agent_id: int):
+    def __init__(self, fs: FileSystem, path: pathlib.PurePath, agent_id: int):
         self.path = path
         self.agent_id = agent_id
         fs.mkdir(path.parent, parents=True, exist_ok=True)

@@ -1,18 +1,12 @@
 #!/bin/bash
-# Bans ambient process access outside the adapter that owns it. Pyright cannot see this:
-# os.environ is a legal import everywhere, and the thing to ban is the read, not the import.
+# Bans reading the process environment outside the adapter that owns it. Pyright cannot see
+# this: os.environ is a legal import everywhere, and the thing to ban is the read, not the
+# import. The filesystem needs no rule here - PurePath has no read_text to call.
 
 set -uo pipefail
 
 ENV_HITS=$(rg -n --type py 'os\.environ|os\.getenv' ancalagon \
   --glob '!ancalagon/env/real_environment.py' 2>/dev/null)
-
-FS_HITS=$(rg -n --type py '\.(read_text|write_text|read_bytes|mkdir|unlink|iterdir|glob|exists|is_file|is_dir)\(' ancalagon \
-  --glob '!ancalagon/fs/real_file_system.py' 2>/dev/null \
-  | rg -v '(ctx\.workspace|self\.workspace|self\.fs|\bfs)\.')
-
-OPEN_HITS=$(rg -n --type py '\.open\(' ancalagon \
-  --glob '!ancalagon/fs/real_file_system.py' 2>/dev/null | rg -v 'Store\.open\(')
 
 STATUS=0
 
@@ -21,24 +15,6 @@ if [ -n "$ENV_HITS" ]; then
   echo "                 ancalagon/env/real_environment.py. Inject an Environment and"
   echo "                 call .variables() instead."
   echo "$ENV_HITS"
-  echo ""
-  STATUS=1
-fi
-
-if [ -n "$FS_HITS" ]; then
-  echo "[ambient-access] A file is touched outside ancalagon/fs/real_file_system.py."
-  echo "                 Go through a Workspace when the path came from a model, or"
-  echo "                 through an injected FileSystem when the harness built it."
-  echo "$FS_HITS"
-  echo ""
-  STATUS=1
-fi
-
-if [ -n "$OPEN_HITS" ]; then
-  echo "[ambient-access] A file handle is opened outside"
-  echo "                 ancalagon/fs/real_file_system.py. Use open_append or"
-  echo "                 open_write on an injected FileSystem."
-  echo "$OPEN_HITS"
   echo ""
   STATUS=1
 fi

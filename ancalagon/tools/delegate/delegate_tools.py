@@ -12,7 +12,7 @@ from ancalagon.tools.registry.bound_tool import BoundTool
 
 def delegate_tools(
     roles: collections.abc.Mapping[str, Role],
-    run_dir: pathlib.Path,
+    run_dir: pathlib.PurePath,
     parent: int,
     clock: Clock,
     fs: FileSystem,

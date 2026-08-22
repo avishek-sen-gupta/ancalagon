@@ -18,7 +18,7 @@ fileignoreconfig:
 - filename: tests/unit/test_config_load.py
   checksum: f4624a41022a6ac8f37af41149ac0b0d871edff7b99b211a9b93a8acaf21ff17
 - filename: tests/unit/test_tools.py
-  checksum: ed9c919d580ae0f2f7151fabd8ba18fc779fb8cf8c74a0a3703f3563bcf2350c
+  checksum: 9941dfc1f32319b406b22a820cb4bebbed13fdfa684c57f6bb6009bcf621ae61
 - filename: tests/unit/test_llm_adapter.py
   checksum: 4e349117cdce70f4e5826b48679943272b44c242b322bb29daaad176a363a1c0
 - filename: ancalagon/tools/submit/submit_answer.py
@@ -80,7 +80,7 @@ fileignoreconfig:
 - filename: ancalagon/answer.py
   checksum: d13545f7786da496b8b54b47b9fbbe061f51f1ae991a549b31398fc6f09e01b6
 - filename: tests/integration/test_git_tools.py
-  checksum: c2fe5cfee1bd632e92081c008ae2fd62e37bd186ccfb48f94d97934cb615696f
+  checksum: 8b6dd01b06342096ed00be43f63e16c24a0f758023e04b44dfd5599b6714f4c6
 - filename: ancalagon/tools/delegate/collect_task.py
   checksum: fad5b1429612d86ed08ebced31a6cba06cdf7a9a12c11293e262445f91d2ca85
 - filename: docs/superpowers/specs/2026-08-22-ports-for-filesystem-and-environment-design.md
@@ -97,4 +97,6 @@ fileignoreconfig:
   checksum: 4253b44588533e63153fc150ea3bda6574e30ca6ed729011022945178ebcaa71
 - filename: docs/superpowers/plans/2026-08-22-filesystem-port.md
   checksum: 69e9d802246c4cadd979e02a2cf1ed17e4a9418a071a32ca1aa6290ae26076a7
+- filename: docs/superpowers/plans/2026-08-22-purepath-in-the-domain.md
+  checksum: 4b97177211c68f590092d712da13869a07a29ea491a8acd6f72ddff8528a2874
 version: "1.0"
