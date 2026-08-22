@@ -1,13 +1,17 @@
 # The only place in the codebase that starts an OS process.
-import os
 import pathlib
 import subprocess
 import sys
 
+from ancalagon.env.environment import Environment
 from ancalagon.sandbox.sandbox import Sandbox
 from ancalagon.sandbox.unsandboxed import UNSANDBOXED
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
+
+
+def inherited(environment: Environment, sandbox: Sandbox) -> dict[str, str]:
+    return {**environment.variables(), **sandbox.environment()}
 
 
 class SubprocessSpawner(Spawner):
@@ -15,10 +19,12 @@ class SubprocessSpawner(Spawner):
         self,
         run_dir: pathlib.Path,
         config_path: pathlib.Path,
+        environment: Environment,
         sandbox: Sandbox = UNSANDBOXED,
     ):
         self.run_dir = run_dir
         self.config_path = config_path
+        self.environment = environment
         self.sandbox = sandbox
 
     def spawn(self, task_dir: pathlib.Path, agent_id: int) -> Process:
@@ -42,5 +48,5 @@ class SubprocessSpawner(Spawner):
             stdout=subprocess.DEVNULL,
             stderr=stderr.open("w"),
             cwd=self.run_dir,
-            env={**os.environ, **self.sandbox.environment()},
+            env=inherited(self.environment, self.sandbox),
         )

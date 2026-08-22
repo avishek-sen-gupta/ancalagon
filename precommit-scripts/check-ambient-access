@@ -1,0 +1,22 @@
+#!/bin/bash
+# Bans ambient process access outside the adapter that owns it. Pyright cannot see this:
+# os.environ is a legal import everywhere, and the thing to ban is the read, not the import.
+
+set -uo pipefail
+
+ENV_HITS=$(rg -n --type py 'os\.environ|os\.getenv' ancalagon \
+  --glob '!ancalagon/env/real_environment.py' 2>/dev/null)
+
+STATUS=0
+
+if [ -n "$ENV_HITS" ]; then
+  echo "[ambient-access] The process environment is read outside"
+  echo "                 ancalagon/env/real_environment.py. Inject an Environment and"
+  echo "                 call .variables() instead."
+  echo "$ENV_HITS"
+  echo ""
+  STATUS=1
+fi
+
+[ $STATUS -eq 0 ] && echo "[ambient-access] Clean."
+exit $STATUS

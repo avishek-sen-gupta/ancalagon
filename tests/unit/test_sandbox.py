@@ -2,10 +2,12 @@ import collections.abc
 import json
 import pathlib
 
+from ancalagon.env.fake_environment import FakeEnvironment
+from ancalagon.env.real_environment import RealEnvironment
 from ancalagon.sandbox.fence import Fence
 from ancalagon.sandbox.sandbox import Sandbox
 from ancalagon.sandbox.unsandboxed import Unsandboxed
-from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
+from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner, inherited
 
 
 def test_the_unsandboxed_strategy_changes_neither_the_command_nor_the_environment():
@@ -58,10 +60,23 @@ class RecordingSandbox(Sandbox):
 
 def test_the_spawner_wraps_the_worker_command_with_its_sandbox(tmp_path: pathlib.Path):
     sandbox = RecordingSandbox()
-    spawner = SubprocessSpawner(run_dir=tmp_path, config_path=tmp_path / "c.toml", sandbox=sandbox)
+    spawner = SubprocessSpawner(
+        run_dir=tmp_path,
+        config_path=tmp_path / "c.toml",
+        environment=RealEnvironment(),
+        sandbox=sandbox,
+    )
 
     process = spawner.spawn(tmp_path / "tasks" / "root", agent_id=7)
     process.kill()
 
     assert sandbox.seen[1:3] == ["-m", "ancalagon.worker"]
     assert "--agent-id" in sandbox.seen
+
+
+def test_a_child_inherits_the_given_environment_with_the_sandbox_overriding_it():
+    ambient = FakeEnvironment({"PATH": "/bin", "MARKER": "ambient"})
+
+    assert inherited(ambient, RecordingSandbox()) == {"PATH": "/bin", "MARKER": "set"}
+    assert inherited(FakeEnvironment(), RecordingSandbox()) == {"MARKER": "set"}
+    assert inherited(ambient, Unsandboxed()) == {"PATH": "/bin", "MARKER": "ambient"}

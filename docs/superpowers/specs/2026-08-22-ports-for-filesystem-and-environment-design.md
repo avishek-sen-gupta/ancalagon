@@ -19,8 +19,8 @@ hook, but the propagation path is real and unguarded.
 
 The filesystem is the larger gap, and the more surprising one, because it looks solved. `Workspace`
 is a **path authority**, not an I/O port: `resolve_read` and `resolve_write` answer "may I touch
-this path" and hand back a resolved `pathlib.Path`. The caller then reads it. Around twenty call
-sites do their own `read_text`, `write_text`, `mkdir` and `unlink`.
+this path" and hand back a resolved `pathlib.Path`. The caller then reads it. **53 call sites
+across 22 files** then do their own `read_text`, `write_text`, `mkdir` and `unlink`.
 
 Every agent-facing tool does resolve first — all seventeen were checked, and there is no bypass
 today. But that is a convention each tool re-enacts, not an invariant. A tool that forgets to
@@ -45,7 +45,7 @@ only adapter. The surface is exactly what the sweep found in use, and nothing mo
 |---|---|
 | Content | `read_text`, `write_text`, `read_bytes` |
 | Structure | `mkdir(path, parents, exist_ok)`, `unlink` |
-| Listing | `iterdir`, `glob(path, pattern)` |
+| Listing | `iterdir`, `glob(path, pattern)` — `glob` is used only by `migrations` |
 | Predicates | `exists`, `is_file`, `is_dir` |
 | Handles | `open_append`, `open_write` — both returning `typing.TextIO` |
 | Normalisation | `resolve` |
@@ -125,14 +125,15 @@ inconsistent — `worker.py:140` uses the platform default, `transcript` and the
 `encoding="utf-8"` — and unifying on UTF-8 removes the parameter rather than propagating the
 inconsistency. On the platforms this runs on the two already agree, so no behaviour changes.
 
-**`LifecycleStore.open` keeps its name.** A textual ban on `.open(` collides with it at seven call
-sites. The script excludes `Store.open(` explicitly rather than renaming a well-named factory to
+**`LifecycleStore.open` keeps its name.** A textual ban on `.open(` collides with it: of the nine
+`.open(` calls in the package, seven are `LifecycleStore.open` and only two are real file handles
+(`transcript.py`, `subprocess_spawner.py`). The script excludes `Store.open(` explicitly rather than renaming a well-named factory to
 satisfy a text search. This goes the opposite way to `Transcript.append`, which was renamed to
 `write` for a lint false positive last week: that rename also read better, and this one would not.
 
-**Threading is the bulk of the diff.** `worker.py`, `cli.py`, `transcript`, `config/load`,
-`migrations`, `sandbox/fence.py` and `bus/connect.py` each gain a `FileSystem` parameter, threaded
-from their entry point. This buys explicitness, not new tests, and the plan should not pretend
+**Threading is the bulk of the diff.** `worker.py`, `cli.py` (including `init_command` and
+`created_run_dir`), `transcript`, `config/load`, `migrations`, `sandbox/fence.py` and
+`bus/connect.py` each gain a `FileSystem` parameter, threaded from their entry point. This buys explicitness, not new tests, and the plan should not pretend
 otherwise.
 
 ## Residuals
