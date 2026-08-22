@@ -6,6 +6,7 @@ from ancalagon.config.load import load_config
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.role import FREE_TEXT
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.sandbox.strategy import Strategy
 
 TEMPLATE = """
@@ -56,7 +57,7 @@ def test_run_settings_resolve_against_the_config_file(tmp_path: pathlib.Path):
         '[run]\ngoal_file = "./goal.md"\n' 'input_file = "./input.json"\nrole = "analyst"\n',
     )
 
-    settings = load_config(path).run
+    settings = load_config(path, RealFileSystem()).run
 
     assert settings.goal_file == str(tmp_path / "goal.md")
     assert settings.input_file == str(tmp_path / "input.json")
@@ -71,12 +72,12 @@ def test_the_run_section_is_required_and_names_its_fields(
         "blank.toml",
         '[run]\ngoal_file = ""\ninput_file = ""\nrole = ""\n',
     )
-    settings = load_config(blank).run
+    settings = load_config(blank, RealFileSystem()).run
     assert (settings.goal_file, settings.input_file) == ("", "")
     assert settings.role == ""
 
     with pytest.raises(KeyError):
-        load_config(_config_file(tmp_path, "absent.toml", ""))
+        load_config(_config_file(tmp_path, "absent.toml", ""), RealFileSystem())
 
     with pytest.raises(KeyError):
         load_config(
@@ -84,7 +85,8 @@ def test_the_run_section_is_required_and_names_its_fields(
                 tmp_path,
                 "partial.toml",
                 '[run]\ngoal_file = ""\ninput_file = ""\n',
-            )
+            ),
+            fs=RealFileSystem(),
         )
 
 
@@ -94,7 +96,7 @@ def test_the_sandbox_strategy_and_its_domains_come_from_the_config(tmp_path: pat
         "sandboxed.toml",
         '[run]\ngoal_file = ""\ninput_file = ""\nrole = "scout"\n',
     )
-    config = load_config(path)
+    config = load_config(path, RealFileSystem())
 
     assert config.sandbox is Strategy.FENCE
     assert config.allowed_domains == ("bedrock-runtime.us-east-1.amazonaws.com",)
@@ -119,7 +121,7 @@ budget = { turns = 4, tool_calls = 8 }
 """,
     )
 
-    roles = load_config(config).roles
+    roles = load_config(config, RealFileSystem()).roles
 
     assert sorted(roles) == ["analyst", "scout"]
     assert roles["analyst"].behaviour == "Analyse."
@@ -138,4 +140,4 @@ budget = { turns = 4, tool_calls = 8 }
         )
     )
     with pytest.raises(ValueError, match=r"\[roles.field scout\]"):
-        load_config(spaced)
+        load_config(spaced, RealFileSystem())

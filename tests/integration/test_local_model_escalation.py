@@ -9,6 +9,7 @@ from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.cli import main
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.schedule.newest_agent import newest_agent
 from tests.integration.prepared_run import prepared_run_dir
 
@@ -73,7 +74,7 @@ def test_a_real_model_asks_a_question_and_acts_on_the_answer(tmp_path: pathlib.P
     config = _config(tmp_path, run_dir, goal)
 
     assert main(config, prepared_run_dir(run_dir)) == 0
-    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
     assert any(e.status is AgentStatus.NEEDS_INPUT for e in bus.history(1)), (
         "the model did not ask; local models vary, and this test is about the resumed "
         "transcript being accepted, so re-run or use a stronger model"

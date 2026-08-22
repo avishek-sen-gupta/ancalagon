@@ -10,6 +10,7 @@ from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.schedule.active_for import active_for
 from ancalagon.schedule.task_of import task_of
@@ -17,7 +18,6 @@ from ancalagon.tools.delegate.answer_args import AnswerArgs
 from ancalagon.tools.delegate.answer_task import AnswerTask
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.workspace import Workspace
-from ancalagon.fs.real_file_system import RealFileSystem
 
 
 def _ctx(tmp_path: pathlib.Path) -> ToolContext:
@@ -41,8 +41,8 @@ def _suspended(tmp_path: pathlib.Path) -> tuple[pathlib.Path, LifecycleStore, in
         '{"role":"assistant","blocks":[{"kind":"text","text":"asking"}],'
         '"agent":1,"seq":1,"ts":"t"}\n'
     )
-    migrate_file(run_dir / "bus.db", latest_version())
-    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
+    migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
     agent = bus.enqueue(task_dir, parent_agent=0)
     bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
@@ -56,12 +56,16 @@ def test_answering_a_suspended_agent_appends_the_answer_and_queues_a_new_attempt
     task_dir = run_dir / "tasks" / "asked"
 
     with pytest.raises(ValueError, match="never asked"):
-        answer_task(run_dir, agent, "too early", answered_by=0, clock=SystemClock())
+        answer_task(
+            run_dir, agent, "too early", answered_by=0, clock=SystemClock(), fs=RealFileSystem()
+        )
 
     bus.record(agent, AgentStatus.NEEDS_INPUT, EventSource.SUPERVISOR, summary="which one?")
     bus.record(agent, AgentStatus.COLLECTED, EventSource.WORKER)
 
-    resumed = answer_task(run_dir, agent, "the second one", answered_by=0, clock=SystemClock())
+    resumed = answer_task(
+        run_dir, agent, "the second one", answered_by=0, clock=SystemClock(), fs=RealFileSystem()
+    )
     assert resumed != agent
 
     lines = [json.loads(l) for l in (task_dir / "transcript.jsonl").read_text().splitlines()]
@@ -79,10 +83,12 @@ def test_answering_a_suspended_agent_appends_the_answer_and_queues_a_new_attempt
     assert task_of(snap, resumed).parent_agent == 0
 
     with pytest.raises(ValueError, match="never asked"):
-        answer_task(run_dir, resumed, "again", answered_by=0, clock=SystemClock())
+        answer_task(
+            run_dir, resumed, "again", answered_by=0, clock=SystemClock(), fs=RealFileSystem()
+        )
 
     with pytest.raises(KeyError):
-        answer_task(run_dir, 99, "nobody", answered_by=0, clock=SystemClock())
+        answer_task(run_dir, 99, "nobody", answered_by=0, clock=SystemClock(), fs=RealFileSystem())
 
 
 def test_the_tool_and_the_command_both_answer_and_report_what_they_queued(
@@ -92,7 +98,7 @@ def test_the_tool_and_the_command_both_answer_and_report_what_they_queued(
     bus.record(agent, AgentStatus.NEEDS_INPUT, EventSource.SUPERVISOR, summary="which one?")
     ctx = _ctx(tmp_path)
 
-    tool = AnswerTask(run_dir=run_dir, parent=7, clock=SystemClock())
+    tool = AnswerTask(run_dir=run_dir, parent=7, clock=SystemClock(), fs=RealFileSystem())
     answered = tool.run(AnswerArgs(task=agent, answer="by tool"), ctx)
     assert answered.ok is True
     assert f"answered agent {agent}" in answered.summary.text_for_model()

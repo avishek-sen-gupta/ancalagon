@@ -3,8 +3,8 @@ import pathlib
 import pytest
 
 from ancalagon.config.config import Config
-from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.config.load import load_config
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.workspace.workspace import Workspace
@@ -78,7 +78,7 @@ goal_file = ""
 input_file = ""
 role = ""
 """)
-    config = load_config(config_path)
+    config = load_config(config_path, RealFileSystem())
     assert config.write_root == write_root
     assert config.read_roots == (read_only,)
     assert config.model == "claude-opus-5"
@@ -130,7 +130,7 @@ role = ""
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
 
-    config = load_config(config_path)
+    config = load_config(config_path, RealFileSystem())
     assert config.write_root == (project / "ws").resolve()
     assert config.read_roots == ((project / "artifacts").resolve(),)
 
@@ -174,7 +174,7 @@ input_file = ""
 role = ""
 """)
     monkeypatch.chdir(tmp_path)
-    config = load_config(config_path)
+    config = load_config(config_path, RealFileSystem())
     assert config.write_root == (project / "ws").resolve()
     assert config.read_roots == ((home / "artifacts").resolve(),)
 
@@ -211,7 +211,7 @@ def test_config_needs_three_fields_in_code_but_a_complete_file_on_disk(
         broken = tmp_path / f"missing-{key}.toml"
         broken.write_text(_without_key(example, section, key))
         with pytest.raises(KeyError):
-            load_config(broken)
+            load_config(broken, RealFileSystem())
 
 
 def _without_key(text: str, section: str, key: str) -> str:

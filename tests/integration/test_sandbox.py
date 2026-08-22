@@ -6,6 +6,7 @@ import subprocess
 
 import pytest
 
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.sandbox.fence import Fence
 
 pytestmark = pytest.mark.skipif(shutil.which("fence") is None, reason="fence is not installed")
@@ -19,7 +20,7 @@ def test_fence_confines_writes_and_leaves_the_toolchain_working(tmp_path: pathli
     outside = tmp_path / "outside"
     outside.mkdir()
 
-    sandbox = Fence(write_root=write_root, allowed_domains=[], run_dir=run_dir)
+    sandbox = Fence(write_root=write_root, allowed_domains=[], run_dir=run_dir, fs=RealFileSystem())
     env = {**os.environ, **sandbox.environment()}
     env.pop("TMPDIR", None)
 

@@ -5,6 +5,7 @@ import pytest
 
 from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.system_clock import SystemClock
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrate_command import migrate_command
 from ancalagon.migrations import latest_version, migrate, migrate_file, user_version
 
@@ -13,10 +14,10 @@ def test_migrations_round_trip_and_checks_reject_bad_rows(tmp_path: pathlib.Path
     conn = sqlite3.connect(tmp_path / "bus.db")
 
     assert user_version(conn) == 0
-    assert latest_version() == 1
+    assert latest_version(RealFileSystem()) == 1
 
-    migrate(conn, latest_version())
-    assert user_version(conn) == latest_version()
+    migrate(conn, latest_version(RealFileSystem()), RealFileSystem())
+    assert user_version(conn) == latest_version(RealFileSystem())
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {"tasks", "agents", "agent_events", "model_calls"} <= tables
     assert not {"messages", "cursors"} & tables
@@ -61,7 +62,7 @@ def test_migrations_round_trip_and_checks_reject_bad_rows(tmp_path: pathlib.Path
     )
     conn.execute("INSERT INTO model_calls (agent, ts, prompt_tokens) VALUES (1, 't', 10)")
 
-    migrate(conn, 0)
+    migrate(conn, 0, RealFileSystem())
     assert user_version(conn) == 0
     remaining = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert not {"tasks", "agents", "agent_events", "model_calls"} & remaining
@@ -72,28 +73,31 @@ def test_a_bus_never_migrates_itself_and_the_command_does_it_offline(
 ):
     db = tmp_path / "bus.db"
     with pytest.raises(ValueError, match="does not exist"):
-        LifecycleStore.open(db, SystemClock())
+        LifecycleStore.open(db, SystemClock(), RealFileSystem())
 
-    assert migrate_file(db, latest_version()) == (0, latest_version())
-    LifecycleStore.open(db, SystemClock())
+    assert migrate_file(db, latest_version(RealFileSystem()), RealFileSystem()) == (
+        0,
+        latest_version(RealFileSystem()),
+    )
+    LifecycleStore.open(db, SystemClock(), RealFileSystem())
 
     stale = tmp_path / "stale.db"
-    migrate(sqlite3.connect(stale), 0)
+    migrate(sqlite3.connect(stale), 0, RealFileSystem())
     with pytest.raises(ValueError, match="schema version 0, not 1"):
-        LifecycleStore.open(stale, SystemClock())
+        LifecycleStore.open(stale, SystemClock(), RealFileSystem())
 
     with pytest.raises(ValueError, match="does not exist"):
-        migrate_command(tmp_path / "no-such-dir" / "absent.db", -1)
+        migrate_command(tmp_path / "no-such-dir" / "absent.db", -1, RealFileSystem())
 
     fresh = tmp_path / "fresh.db"
-    assert migrate_command(fresh, -1) == 0
+    assert migrate_command(fresh, -1, RealFileSystem()) == 0
     assert capsys.readouterr().out.strip().endswith("0 -> 1")
-    LifecycleStore.open(fresh, SystemClock())
+    LifecycleStore.open(fresh, SystemClock(), RealFileSystem())
 
-    assert migrate_command(stale, -1) == 0
+    assert migrate_command(stale, -1, RealFileSystem()) == 0
     assert capsys.readouterr().out.strip().endswith("0 -> 1")
-    LifecycleStore.open(stale, SystemClock())
+    LifecycleStore.open(stale, SystemClock(), RealFileSystem())
 
-    assert migrate_command(stale, 0) == 0
+    assert migrate_command(stale, 0, RealFileSystem()) == 0
     with pytest.raises(ValueError, match="schema version 0, not 1"):
-        LifecycleStore.open(stale, SystemClock())
+        LifecycleStore.open(stale, SystemClock(), RealFileSystem())

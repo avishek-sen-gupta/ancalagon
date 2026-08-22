@@ -10,6 +10,7 @@ from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.role import FREE_TEXT, Role
 from ancalagon.contracts.run_settings import RunSettings
+from ancalagon.fs.file_system import FileSystem
 from ancalagon.sandbox.strategy import Strategy
 
 ROLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -54,9 +55,9 @@ def _role(base: pathlib.Path, name: str, raw: RawRole) -> Role:
     )
 
 
-def load_config(path: pathlib.Path) -> Config:
+def load_config(path: pathlib.Path, fs: FileSystem) -> Config:
     base = path.resolve().parent
-    raw = tomllib.loads(path.read_text())
+    raw = tomllib.loads(fs.read_text(path))
     workspace = raw["workspace"]
     model = raw["model"]
     limits = raw["limits"]

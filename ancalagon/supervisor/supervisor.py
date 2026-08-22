@@ -11,6 +11,7 @@ from ancalagon.contracts.agent_event import AgentEvent
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.outcome_header import OutcomeHeader
+from ancalagon.fs.file_system import FileSystem
 from ancalagon.schedule.newest_agent import newest_agent
 from ancalagon.schedule.unreaped import unreaped
 from ancalagon.schedule.wakeable import wakeable
@@ -31,6 +32,7 @@ class Supervisor:
         max_concurrent: int,
         timeout_s: int,
         clock: Clock,
+        fs: FileSystem,
         poll_s: float = 0.05,
         liveness: Liveness = OS_LIVENESS,
     ):
@@ -40,6 +42,7 @@ class Supervisor:
         self.timeout_s = timeout_s
         self.poll_s = poll_s
         self.clock = clock
+        self.fs = fs
         self.liveness = liveness
         self.live: dict[int, Process] = {}
         self.started: dict[int, float] = {}
@@ -75,8 +78,8 @@ class Supervisor:
 
     def _close(self, agent: int, close: AgentStatus, summary: str) -> None:
         written = pathlib.Path(self.bus.dir_of(agent)) / f"outcome-{agent}.json"
-        if written.exists():
-            spoken = OutcomeHeader.model_validate_json(written.read_text())
+        if self.fs.exists(written):
+            spoken = OutcomeHeader.model_validate_json(self.fs.read_text(written))
             self._finish(agent, AgentStatus(spoken.kind.value), spoken.summary)
             return
         self._finish(agent, close, summary)

@@ -8,9 +8,9 @@ import traceback
 
 import pydantic
 
-from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.bus.bus_meter import BusMeter
 from ancalagon.bus.connect import connect
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.bus.meter_store import MeterStore
 from ancalagon.children.bus_children import BusChildren
 from ancalagon.clock.clock import Clock
@@ -18,7 +18,6 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
-from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.message import Message
@@ -26,6 +25,8 @@ from ancalagon.contracts.outcome import SUMMARY_CHARS
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
+from ancalagon.fs.file_system import FileSystem
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient
 from ancalagon.schedule.depth_of import depth_of
 from ancalagon.session import Session
@@ -69,6 +70,7 @@ def available_tools(
     parent: int,
     output_class: type[pydantic.BaseModel],
     clock: Clock,
+    fs: FileSystem,
 ) -> list[BoundTool]:
     return [
         bind_tool(ReadFile()),
@@ -87,12 +89,12 @@ def available_tools(
         bind_tool(QueryJson()),
         bind_tool(GitHistory()),
         bind_tool(TreeSitter()),
-        *delegate_tools(roles, run_dir=run_dir, parent=parent, clock=clock),
-        bind_tool(CheckTask(run_dir=run_dir, clock=clock)),
-        bind_tool(CollectTask(run_dir=run_dir, clock=clock)),
-        bind_tool(AnswerTask(run_dir=run_dir, parent=parent, clock=clock)),
+        *delegate_tools(roles, run_dir=run_dir, parent=parent, clock=clock, fs=fs),
+        bind_tool(CheckTask(run_dir=run_dir, clock=clock, fs=fs)),
+        bind_tool(CollectTask(run_dir=run_dir, clock=clock, fs=fs)),
+        bind_tool(AnswerTask(run_dir=run_dir, parent=parent, clock=clock, fs=fs)),
         bind_tool(NeedInput()),
-        bind_tool(Idle(run_dir=run_dir, agent=parent, clock=clock)),
+        bind_tool(Idle(run_dir=run_dir, agent=parent, clock=clock, fs=fs)),
         bind_tool(SubmitAnswer(output_class)),
     ]
 
@@ -105,11 +107,12 @@ def build_registry(
     depth: int,
     output_class: type[pydantic.BaseModel],
     clock: Clock,
+    fs: FileSystem,
 ) -> Registry:
     spawnable = {
         name: role for name, role in config.roles.items() if f"delegate_{name}" in spec.role.tools
     }
-    available = available_tools(spawnable, run_dir, parent, output_class, clock)
+    available = available_tools(spawnable, run_dir, parent, output_class, clock, fs)
     wanted = set(spec.role.tools) | {Idle.name, SubmitAnswer.name}
     unknown = wanted - {t.name for t in available}
     if unknown:
@@ -129,25 +132,26 @@ def build_registry(
 def main(
     run_dir: pathlib.Path, task_dir: pathlib.Path, agent_id: int, config_path: pathlib.Path
 ) -> int:
-    config = load_config(config_path)
+    fs = RealFileSystem()
+    config = load_config(config_path, fs)
     outcome_path = task_dir / f"outcome-{agent_id}.json"
     transcript_path = task_dir / "transcript.jsonl"
-    log = Transcript(path=transcript_path, agent_id=agent_id)
+    log = Transcript(fs, path=transcript_path, agent_id=agent_id)
     clock = SystemClock()
-    conn = connect(run_dir / "bus.db")
+    conn = connect(run_dir / "bus.db", fs)
     bus = LifecycleStore(conn, clock)
     meter_store = MeterStore(conn, clock)
     try:
-        spec_text = (task_dir / "spec.json").read_text()
+        spec_text = fs.read_text(task_dir / "spec.json")
         spec = TaskSpec.model_validate_json(spec_text)
         output_class = resolve_class(spec.role.answer)
         input_class = resolve_class(spec.role.input)
         given = AgentSpec[input_class].model_validate_json(spec_text).input
         history: collections.abc.Sequence[Message] = (
-            repair(load(transcript_path)) if transcript_path.exists() else []
+            repair(load(fs, transcript_path)) if fs.exists(transcript_path) else []
         )
         ctx = ToolContext(
-            workspace=Workspace.from_config(config, RealFileSystem()),
+            workspace=Workspace.from_config(config, fs),
             output_dir=task_dir / "tools",
             summary_chars=config.summary_chars,
             agent_id=agent_id,
@@ -172,6 +176,7 @@ def main(
                 depth=depth_of(bus.snapshot(), agent_id),
                 output_class=output_class,
                 clock=clock,
+                fs=fs,
             ),
             ctx=ctx,
             output_class=output_class,
@@ -182,7 +187,7 @@ def main(
             keep_recent_messages=config.keep_recent_messages,
         )
         outcome = session.run()
-        outcome_path.write_text(outcome.model_dump_json())
+        fs.write_text(outcome_path, outcome.model_dump_json())
         return 0
     except Exception as exc:
         LOGGER.exception("worker failed")
@@ -191,7 +196,7 @@ def main(
             summary=str(exc)[:SUMMARY_CHARS],
             spent=Budget(turns=0, tool_calls=0),
         )
-        outcome_path.write_text(failure.model_dump_json())
+        fs.write_text(outcome_path, failure.model_dump_json())
         return 1
     finally:
         log.close()

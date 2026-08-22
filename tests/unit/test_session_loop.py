@@ -25,6 +25,7 @@ from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.llm.fake_llm import FakeLLM
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.session import Session
@@ -38,7 +39,6 @@ from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.workspace.workspace import Workspace
-from ancalagon.fs.real_file_system import RealFileSystem
 
 
 class Verdict(pydantic.BaseModel):
@@ -74,7 +74,7 @@ def _session(
         spec=spec,
         input=given,
         messages=[],
-        transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=17),
+        transcript=Transcript(RealFileSystem(), path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
         llm=FakeLLM(replies),
         registry=Registry(
@@ -204,8 +204,8 @@ def test_session_stops_and_returns_the_question_when_an_agent_needs_input(
 def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib.Path):
     run_dir = tmp_path / "run"
     (run_dir / "tasks").mkdir(parents=True)
-    migrate_file(run_dir / "bus.db", latest_version())
-    bus = LifecycleStore.open(run_dir / "bus.db", FakeClock())
+    migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
+    bus = LifecycleStore.open(run_dir / "bus.db", FakeClock(), RealFileSystem())
     parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN)
     child = bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent)
 
@@ -231,7 +231,9 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
         spec=spec,
         input=Verdict(answer="seed"),
         messages=[],
-        transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=parent),
+        transcript=Transcript(
+            RealFileSystem(), path=tmp_path / "transcript.jsonl", agent_id=parent
+        ),
         agent_id=parent,
         llm=FakeLLM(
             [
@@ -241,7 +243,9 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
                 )
             ]
         ),
-        registry=Registry([bind_tool(Idle(run_dir=run_dir, agent=parent, clock=FakeClock()))]),
+        registry=Registry(
+            [bind_tool(Idle(run_dir=run_dir, agent=parent, clock=FakeClock(), fs=RealFileSystem()))]
+        ),
         ctx=ctx,
         output_class=Verdict,
         clock=FakeClock(),
@@ -259,8 +263,8 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
 ):
     run_dir = tmp_path / "run"
     (run_dir / "tasks").mkdir(parents=True)
-    migrate_file(run_dir / "bus.db", latest_version())
-    bus = LifecycleStore.open(run_dir / "bus.db", FakeClock())
+    migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
+    bus = LifecycleStore.open(run_dir / "bus.db", FakeClock(), RealFileSystem())
     parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN)
     bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent)
 
@@ -286,13 +290,17 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
         spec=spec,
         input=Verdict(answer="seed"),
         messages=[],
-        transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=parent),
+        transcript=Transcript(
+            RealFileSystem(), path=tmp_path / "transcript.jsonl", agent_id=parent
+        ),
         agent_id=parent,
         llm=FakeLLM([Reply(blocks=[Text(text="not json at all")], stop_reason="stop")]),
         registry=Registry(
             [
                 bind_tool(ReadFile()),
-                bind_tool(Idle(run_dir=run_dir, agent=parent, clock=FakeClock())),
+                bind_tool(
+                    Idle(run_dir=run_dir, agent=parent, clock=FakeClock(), fs=RealFileSystem())
+                ),
             ]
         ),
         ctx=ctx,
@@ -490,7 +498,7 @@ def test_a_session_takes_its_behaviour_and_budget_from_its_role(tmp_path: pathli
         spec=spec,
         input=FreeText(text="go"),
         messages=[],
-        transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=17),
+        transcript=Transcript(RealFileSystem(), path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
         llm=llm,
         registry=Registry([bind_tool(SubmitAnswer(FreeText))]),
@@ -584,15 +592,15 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
         spec=spec,
         input=Verdict(answer="seed"),
         messages=[],
-        transcript=Transcript(path=tmp_path / "transcript.jsonl", agent_id=17),
+        transcript=Transcript(RealFileSystem(), path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
         llm=llm,
         registry=Registry(
             [
                 bind_tool(ReadFile()),
-                bind_tool(Idle(run_dir=tmp_path, agent=17, clock=FakeClock())),
+                bind_tool(Idle(run_dir=tmp_path, agent=17, clock=FakeClock(), fs=RealFileSystem())),
                 bind_tool(SubmitAnswer(Verdict)),
-                bind_tool(CollectTask(run_dir=tmp_path, clock=FakeClock())),
+                bind_tool(CollectTask(run_dir=tmp_path, clock=FakeClock(), fs=RealFileSystem())),
             ]
         ),
         ctx=ctx,

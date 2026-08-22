@@ -8,6 +8,7 @@ from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.text import Text
+from ancalagon.fs.file_system import FileSystem
 from ancalagon.schedule.active_for import active_for
 from ancalagon.schedule.task_of import task_of
 from ancalagon.transcript.transcript import Transcript
@@ -23,8 +24,9 @@ def answer_task(
     answer: str,
     answered_by: int,
     clock: Clock,
+    fs: FileSystem,
 ) -> int:
-    bus = LifecycleStore.open(run_dir / "bus.db", clock)
+    bus = LifecycleStore.open(run_dir / "bus.db", clock, fs)
     snapshot = bus.snapshot()
     if agent not in snapshot.task_by_agent:
         raise KeyError(f"no agent {agent}")
@@ -41,13 +43,13 @@ def answer_task(
             f"is {_status(snapshot, active[0]).value} on the same task"
         )
     path = task_dir / "transcript.jsonl"
-    log = Transcript(path=path, agent_id=answered_by)
+    log = Transcript(fs, path=path, agent_id=answered_by)
     log.write(
         Message(
             role=MessageRole.USER,
             blocks=[Text(text=answer)],
             agent=answered_by,
-            seq=len(path.read_text(encoding="utf-8").splitlines()),
+            seq=len(fs.read_text(path).splitlines()),
             ts=clock.now().isoformat(),
         )
     )

@@ -20,6 +20,7 @@ from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.llm.fake_llm import FakeLLM
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.schedule.active_for import active_for
@@ -36,7 +37,6 @@ from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.transcript.history import load, repair
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.workspace.workspace import Workspace
-from ancalagon.fs.real_file_system import RealFileSystem
 
 
 def _call(id: str, name: str, **arguments: str | int) -> ToolUse:
@@ -55,7 +55,7 @@ def _run(
     spec = TaskSpec.model_validate_json((task_dir / "spec.json").read_text())
     transcript_path = task_dir / "transcript.jsonl"
     history: collections.abc.Sequence[Message] = (
-        repair(load(transcript_path)) if transcript_path.exists() else []
+        repair(load(RealFileSystem(), transcript_path)) if transcript_path.exists() else []
     )
     ctx = ToolContext(
         workspace=Workspace(RealFileSystem(), write_root=run_dir, read_roots=(run_dir,)),
@@ -63,24 +63,32 @@ def _run(
         summary_chars=400,
         agent_id=agent,
     )
-    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
     bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=100 + agent)
     session = Session(
         spec=spec,
         input=FreeText(text="go"),
         messages=history,
-        transcript=Transcript(path=transcript_path, agent_id=agent),
+        transcript=Transcript(RealFileSystem(), path=transcript_path, agent_id=agent),
         agent_id=agent,
         llm=FakeLLM(replies),
         registry=Registry(
             [
                 *delegate_tools(
-                    {"investigate": INVESTIGATE}, run_dir=run_dir, parent=agent, clock=SystemClock()
+                    {"investigate": INVESTIGATE},
+                    run_dir=run_dir,
+                    parent=agent,
+                    clock=SystemClock(),
+                    fs=RealFileSystem(),
                 ),
-                bind_tool(CheckTask(run_dir=run_dir, clock=SystemClock())),
-                bind_tool(CollectTask(run_dir=run_dir, clock=SystemClock())),
-                bind_tool(AnswerTask(run_dir=run_dir, parent=agent, clock=SystemClock())),
+                bind_tool(CheckTask(run_dir=run_dir, clock=SystemClock(), fs=RealFileSystem())),
+                bind_tool(CollectTask(run_dir=run_dir, clock=SystemClock(), fs=RealFileSystem())),
+                bind_tool(
+                    AnswerTask(
+                        run_dir=run_dir, parent=agent, clock=SystemClock(), fs=RealFileSystem()
+                    )
+                ),
                 bind_tool(NeedInput()),
                 bind_tool(SubmitAnswer(FreeText)),
             ]
@@ -135,8 +143,8 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
             }
         )
     )
-    migrate_file(run_dir / "bus.db", latest_version())
-    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
+    migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
     root = bus.enqueue(root_dir, parent_agent=0)
 
     first = _run(
@@ -203,7 +211,7 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
     assert f"answered agent {root}" in capsys.readouterr().out
     resumed_root = active_for(bus.snapshot(), str(root_dir))[0]
 
-    history = load(root_dir / "transcript.jsonl")
+    history = load(RealFileSystem(), root_dir / "transcript.jsonl")
     assert history[-1].blocks[0] == Text(text="keep both")
 
     second = _run(
@@ -233,7 +241,7 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
 
     resumed_a = active_for(bus.snapshot(), str(run_dir / "tasks" / "child-a"))[0]
     assert resumed_a != child_a
-    child_history = load(run_dir / "tasks" / "child-a" / "transcript.jsonl")
+    child_history = load(RealFileSystem(), run_dir / "tasks" / "child-a" / "transcript.jsonl")
     assert child_history[-1].blocks[0] == Text(text="keep both")
     assert any(
         isinstance(b, ToolUse) and b.name == "need_input" for m in child_history for b in m.blocks

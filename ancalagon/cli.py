@@ -13,11 +13,13 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
-from ancalagon.env.real_environment import RealEnvironment
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.run_settings import RunSettings
+from ancalagon.env.real_environment import RealEnvironment
+from ancalagon.fs.file_system import FileSystem
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrate_command import migrate_command
 from ancalagon.sandbox.fence import Fence
 from ancalagon.sandbox.sandbox import Sandbox
@@ -30,38 +32,41 @@ from ancalagon.supervisor.supervisor import Supervisor
 LOGGER = logging.getLogger(__name__)
 
 
-def _allocated_run_dir(write_root: pathlib.Path, clock: Clock) -> pathlib.Path:
+def _allocated_run_dir(write_root: pathlib.Path, clock: Clock, fs: FileSystem) -> pathlib.Path:
     runs = write_root / "runs"
-    runs.mkdir(parents=True, exist_ok=True)
+    fs.mkdir(runs, parents=True, exist_ok=True)
     return runs / clock.now().strftime("r_%Y%m%d-%H%M%S")
 
 
-def created_run_dir(run_dir: str, write_root: pathlib.Path, clock: Clock) -> pathlib.Path:
+def created_run_dir(
+    run_dir: str, write_root: pathlib.Path, clock: Clock, fs: FileSystem
+) -> pathlib.Path:
     if run_dir:
         named = pathlib.Path(run_dir)
-        named.mkdir(parents=True, exist_ok=True)
+        fs.mkdir(named, parents=True, exist_ok=True)
         return named
-    allocated = _allocated_run_dir(write_root, clock)
-    allocated.mkdir(parents=True)
+    allocated = _allocated_run_dir(write_root, clock, fs)
+    fs.mkdir(allocated, parents=True)
     return allocated
 
 
 def init_command(config_path: pathlib.Path, run_dir: str) -> int:
-    config = load_config(config_path)
-    sys.stdout.write(f"{created_run_dir(run_dir, config.write_root, SystemClock())}\n")
+    fs = RealFileSystem()
+    config = load_config(config_path, fs)
+    sys.stdout.write(f"{created_run_dir(run_dir, config.write_root, SystemClock(), fs)}\n")
     return 0
 
 
-def _text_of(path: pathlib.Path, named_by: str) -> str:
-    if not path.is_file():
+def _text_of(path: pathlib.Path, named_by: str, fs: FileSystem) -> str:
+    if not fs.is_file(path):
         raise ValueError(f"[run] {named_by} names {path}, which does not exist")
-    return path.read_text()
+    return fs.read_text(path)
 
 
-def goal_of(settings: RunSettings) -> str:
+def goal_of(settings: RunSettings, fs: FileSystem) -> str:
     if not settings.goal_file:
         raise ValueError("no goal: set [run] goal_file")
-    goal = _text_of(pathlib.Path(settings.goal_file), "goal_file")
+    goal = _text_of(pathlib.Path(settings.goal_file), "goal_file", fs)
     if not goal.strip():
         raise ValueError(f"[run] goal_file {settings.goal_file} is empty")
     return goal
@@ -100,56 +105,62 @@ def check_contracts(config: Config) -> None:
         raise ValueError("\n".join(faults))
 
 
-def root_spec(config: Config) -> AgentSpec[pydantic.BaseModel]:
+def root_spec(config: Config, fs: FileSystem) -> AgentSpec[pydantic.BaseModel]:
     if config.run.role not in config.roles:
         raise ValueError(
             f"[run] role: no role named {config.run.role}; declared: {sorted(config.roles)}"
         )
     role = config.roles[config.run.role]
-    goal = goal_of(config.run)
+    goal = goal_of(config.run, fs)
     input_class = resolve_class(role.input)
     given = (
-        input_class.model_validate_json(_text_of(pathlib.Path(config.run.input_file), "input_file"))
+        input_class.model_validate_json(
+            _text_of(pathlib.Path(config.run.input_file), "input_file", fs)
+        )
         if config.run.input_file
         else _from_goal(input_class, role, goal)
     )
     return AgentSpec[input_class](task_id="root", role=role, goal=goal, input=given)
 
 
-def sandbox_of(config: Config, run_dir: pathlib.Path) -> Sandbox:
+def sandbox_of(config: Config, run_dir: pathlib.Path, fs: FileSystem) -> Sandbox:
     if config.sandbox is Strategy.NONE:
         return Unsandboxed()
     return Fence(
         write_root=config.write_root,
         allowed_domains=config.allowed_domains,
         run_dir=run_dir,
+        fs=fs,
     )
 
 
 def main(config_path: pathlib.Path, run_dir: pathlib.Path) -> int:
     logging.basicConfig(level=logging.INFO)
-    config = load_config(config_path)
+    fs = RealFileSystem()
+    config = load_config(config_path, fs)
     check_contracts(config)
 
     clock = SystemClock()
     db = run_dir / "bus.db"
-    bus = LifecycleStore.open(db, clock)
+    bus = LifecycleStore.open(db, clock, fs)
 
     task_dir = run_dir / "tasks" / "root"
-    task_dir.mkdir(parents=True, exist_ok=True)
-    (task_dir / "spec.json").write_text(root_spec(config).model_dump_json())
+    fs.mkdir(task_dir, parents=True, exist_ok=True)
+    fs.write_text(task_dir / "spec.json", root_spec(config, fs).model_dump_json())
     bus.enqueue(task_dir, parent_agent=HUMAN)
     supervisor = Supervisor(
-        bus=LifecycleStore.open(db, clock),
+        bus=LifecycleStore.open(db, clock, fs),
         spawner=SubprocessSpawner(
             run_dir=run_dir,
             config_path=config_path.resolve(),
             environment=RealEnvironment(),
-            sandbox=sandbox_of(config, run_dir),
+            fs=fs,
+            sandbox=sandbox_of(config, run_dir, fs),
         ),
         max_concurrent=config.max_concurrent_agents,
         timeout_s=config.agent_timeout_s,
         clock=clock,
+        fs=fs,
     )
     try:
         supervisor.run_until_idle()
@@ -159,10 +170,10 @@ def main(config_path: pathlib.Path, run_dir: pathlib.Path) -> int:
     task = bus.task(task_dir)
     newest = newest_agent(bus.snapshot(), task.id)
     outcome = task_dir / f"outcome-{newest}.json"
-    if not outcome.exists():
+    if not fs.exists(outcome):
         LOGGER.error("root task produced no outcome; see %s", task_dir)
         return 1
-    sys.stdout.write(outcome.read_text() + "\n")
+    sys.stdout.write(fs.read_text(outcome) + "\n")
     return 0
 
 
@@ -187,7 +198,7 @@ def cli() -> int:
         if args.command == "init":
             return init_command(args.config, args.run_dir)
         if args.command == "migrate":
-            return migrate_command(args.db, args.to)
+            return migrate_command(args.db, args.to, RealFileSystem())
         if args.command == "answer":
             return answer_command(args.run_dir, args.task, args.answer)
         return main(args.config, args.run_dir)
