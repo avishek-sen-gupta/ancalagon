@@ -598,3 +598,4 @@ the one edge that needs an argument, and `TaskArgs` parses it.
 | How is a provider called? | `llm/adapters/litellm_client.py` |
 | What stops an agent escaping? | `workspace/workspace.py` |
 | What may touch a file at all? | `fs/real_file_system.py`, and the contracts in `pyproject.toml` |
+| What happened in a run I already have? | `trace/graph_of.py`, and `viz/mermaid.py` to draw it |
