@@ -38,13 +38,6 @@ repos:
         pass_filenames: false
         files: \.py$
 
-      - id: ambient-access
-        name: Ban ambient environment access
-        entry: precommit-scripts/check-ambient-access
-        language: script
-        pass_filenames: false
-        files: \.py$
-
       - id: import-layers
         name: Import layers point downward
         entry: bash -c 'uv run --no-sync lint-imports'
