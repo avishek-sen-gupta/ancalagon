@@ -6,9 +6,9 @@ import sys
 
 import pydantic
 
-import ancalagon.migrations
 from ancalagon.answer_command import answer_command
 from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
+from ancalagon.clock.clock import Clock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
@@ -29,21 +29,26 @@ from ancalagon.supervisor.supervisor import Supervisor
 LOGGER = logging.getLogger(__name__)
 
 
-def _allocated_run_dir(write_root: pathlib.Path) -> pathlib.Path:
+def _allocated_run_dir(write_root: pathlib.Path, clock: Clock) -> pathlib.Path:
     runs = write_root / "runs"
     runs.mkdir(parents=True, exist_ok=True)
-    existing = [int(p.name[2:]) for p in runs.glob("r_*") if p.name[2:].isdigit()]
-    return runs / f"r_{max(existing, default=0) + 1:04d}"
+    return runs / clock.now().strftime("r_%Y%m%d-%H%M%S")
 
 
-def run_dir_of(settings: RunSettings, write_root: pathlib.Path) -> pathlib.Path:
-    if settings.run_dir:
-        named = pathlib.Path(settings.run_dir)
+def created_run_dir(run_dir: str, write_root: pathlib.Path, clock: Clock) -> pathlib.Path:
+    if run_dir:
+        named = pathlib.Path(run_dir)
         named.mkdir(parents=True, exist_ok=True)
         return named
-    allocated = _allocated_run_dir(write_root)
+    allocated = _allocated_run_dir(write_root, clock)
     allocated.mkdir(parents=True)
     return allocated
+
+
+def init_command(config_path: pathlib.Path, run_dir: str) -> int:
+    config = load_config(config_path)
+    sys.stdout.write(f"{created_run_dir(run_dir, config.write_root, SystemClock())}\n")
+    return 0
 
 
 def _text_of(path: pathlib.Path, named_by: str) -> str:
@@ -120,19 +125,18 @@ def sandbox_of(config: Config, run_dir: pathlib.Path) -> Sandbox:
     )
 
 
-def main(config_path: pathlib.Path) -> int:
+def main(config_path: pathlib.Path, run_dir: pathlib.Path) -> int:
     logging.basicConfig(level=logging.INFO)
     config = load_config(config_path)
     check_contracts(config)
-    run_dir = run_dir_of(config.run, config.write_root)
-    task_dir = run_dir / "tasks" / "root"
-    task_dir.mkdir(parents=True, exist_ok=True)
-    (task_dir / "spec.json").write_text(root_spec(config).model_dump_json())
 
     clock = SystemClock()
     db = run_dir / "bus.db"
-    ancalagon.migrations.migrate_file(db, ancalagon.migrations.latest_version())
     bus = LifecycleStore.open(db, clock)
+
+    task_dir = run_dir / "tasks" / "root"
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "spec.json").write_text(root_spec(config).model_dump_json())
     bus.enqueue(task_dir, parent_agent=HUMAN)
     supervisor = Supervisor(
         bus=LifecycleStore.open(db, clock),
@@ -165,6 +169,10 @@ def cli() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     run = commands.add_parser("run")
     run.add_argument("--config", type=pathlib.Path, required=True)
+    run.add_argument("--run-dir", type=pathlib.Path, required=True)
+    init = commands.add_parser("init")
+    init.add_argument("--config", type=pathlib.Path, required=True)
+    init.add_argument("--run-dir", type=str, default="")
     migrate = commands.add_parser("migrate")
     migrate.add_argument("--db", type=pathlib.Path, required=True)
     migrate.add_argument("--to", type=int, default=-1)
@@ -174,11 +182,13 @@ def cli() -> int:
     answer.add_argument("--answer", type=str, required=True)
     args = parser.parse_args()
     try:
+        if args.command == "init":
+            return init_command(args.config, args.run_dir)
         if args.command == "migrate":
             return migrate_command(args.db, args.to)
         if args.command == "answer":
             return answer_command(args.run_dir, args.task, args.answer)
-        return main(args.config)
+        return main(args.config, args.run_dir)
     except ValueError as error:
         sys.stderr.write(f"{error}\n")
         return 2

@@ -29,7 +29,6 @@ def _optional_root(base: pathlib.Path, value: str) -> str:
 
 def _run_settings(base: pathlib.Path, run: collections.abc.Mapping[str, str]) -> RunSettings:
     return RunSettings(
-        run_dir=_optional_root(base, run["run_dir"]),
         goal_file=_optional_root(base, run["goal_file"]),
         input_file=_optional_root(base, run["input_file"]),
         role=run["role"],

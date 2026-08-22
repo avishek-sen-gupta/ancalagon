@@ -73,7 +73,6 @@ summary_chars = 1000
 strategy = "none"
 
 [run]
-run_dir = ""
 goal_file = ""
 input_file = ""
 role = ""
@@ -120,7 +119,6 @@ summary_chars = 1000
 strategy = "none"
 
 [run]
-run_dir = ""
 goal_file = ""
 input_file = ""
 role = ""
@@ -168,7 +166,6 @@ summary_chars = 1000
 strategy = "none"
 
 [run]
-run_dir = ""
 goal_file = ""
 input_file = ""
 role = ""

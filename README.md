@@ -23,8 +23,18 @@ guessed at mid-run.
 uv sync
 cp ancalagon.example.toml ancalagon.toml   # edit write_root, read_roots and goal_file
 echo "..." > goal.md
-uv run ancalagon run --config ancalagon.toml
+RUN_DIR=$(uv run ancalagon init --config ancalagon.toml)
+uv run ancalagon migrate --db "$RUN_DIR/bus.db"
+uv run ancalagon run --config ancalagon.toml --run-dir "$RUN_DIR"
 ```
+
+`scripts/ancrun.zsh <config.toml> [run-dir]` does all three; run it with no run directory to
+allocate a fresh one, or pass an existing one to continue that run. Those three steps are the
+startup script. `init` allocates `<write_root>/runs/r_YYYYMMDD-HHMMSS` from the UTC clock and
+prints it, or creates and prints the directory given to `--run-dir`. `migrate` brings that run's
+database to the latest schema, creating it on a fresh directory. `run` never creates or
+upgrades a database: it refuses one that is absent or out of date and names the command to
+fix it.
 
 Everything an agent is — its behaviour, what it is told, what shape it must answer in, its
 tools, its budget — is a **role**, declared under `[roles.*]` and never authored at runtime:
@@ -56,13 +66,13 @@ input come from files rather than from a `delegate` call, since it has no parent
 
 ```toml
 [run]
-run_dir = "./ws/runs/item-0001"  # reused on a second invocation, which continues the transcript
 goal_file = "./goal.md"
 input_file = ""                  # validated against the root role's input class; empty + FreeText means {"text": goal}
 role = "root"
 ```
 
-An empty `run_dir` allocates the next `runs/r_NNNN`. An unset, missing or empty `goal_file`
+A run directory is named on the command line, never in the TOML. Passing the same one to a
+second invocation continues that run rather than starting over. An unset, missing or empty `goal_file`
 exits 2 without starting a run, and so does `[run] role` naming a role `[roles.*]` does not
 declare. Every declared role's `input` and `answer` are resolved before the run starts too, so
 a contract module that does not parse or does not exist exits 2 naming the role and the path,
@@ -113,7 +123,7 @@ a stray `[agent]`, `[tools]` or `[budget]` section — loads silently and is sim
 Upgrading a config means deleting those sections yourself; nothing will tell you they are
 dead weight.
 
-Keep a named `run_dir` under `<write_root>/runs/` as above: the watcher below only sees
+Keep a named run directory under `<write_root>/runs/` as above: the watcher below only sees
 `<write_root>/runs/*/tasks/*` and `<write_root>/*/tasks/*`, and a run elsewhere is invisible to it.
 
 Watch a run as it happens, including subagents spawned mid-run:
@@ -143,8 +153,8 @@ run directory keeps working after an upgrade. Nothing else migrates: opening a b
 one requires it to be current already. To upgrade a database without starting a run:
 
 ```bash
-ancalagon migrate --db ws/runs/r_0001/bus.db          # to the latest version
-ancalagon migrate --db ws/runs/r_0001/bus.db --to 0   # or back down to a given one
+ancalagon migrate --db ws/runs/r_20260822-121500/bus.db          # to the latest version
+ancalagon migrate --db ws/runs/r_20260822-121500/bus.db --to 0   # or back down to a given one
 ```
 
 `--to 0` drops every table the schema creates, not just what a later migration would have
@@ -180,8 +190,8 @@ Stopping is not giving up. Answer it and it continues from where it left off, wi
 everything it had already worked out:
 
 ```bash
-ancalagon answer --run-dir ws/runs/r_0001 --task 1 --answer "keep both captions"
-ancalagon run --config ancalagon.toml          # same run_dir; picks it up
+ancalagon answer --run-dir ws/runs/r_20260822-121500 --task 1 --answer "keep both captions"
+ancalagon run --config ancalagon.toml --run-dir ws/runs/r_20260822-121500   # same run dir; picks it up
 ```
 
 A parent can do the same to its own child mid-run with the `answer_task` tool, and a
@@ -193,9 +203,9 @@ other children keep working — so by the time you answer, their results are wai
 Everything is on disk and in one SQLite file:
 
 ```bash
-sqlite3 ws/runs/r_0001/bus.db \
+sqlite3 ws/runs/r_20260822-121500/bus.db \
   "select agent, status, source, summary from agent_events order by id"
-rg '"agent": 17' ws/runs/r_0001/tasks/*/transcript.jsonl
+rg '"agent": 17' ws/runs/r_20260822-121500/tasks/*/transcript.jsonl
 ```
 
 Every model call is recorded too, so a run can be asked what it consumed and
@@ -204,7 +214,7 @@ which agent consumed it. That table has its own store, `MeterStore`, behind the
 sharing the run's one connection rather than a second database:
 
 ```bash
-sqlite3 -json ws/runs/r_0001/bus.db \
+sqlite3 -json ws/runs/r_20260822-121500/bus.db \
   "select agent, model, sum(prompt_tokens), sum(completion_tokens),
           sum(cache_creation_tokens), sum(cache_read_tokens)
    from model_calls group by agent"

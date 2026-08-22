@@ -10,6 +10,7 @@ from ancalagon.cli import main
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.schedule.newest_agent import newest_agent
+from tests.integration.prepared_run import prepared_run_dir
 
 MODEL = os.environ.get("ANCALAGON_LOCAL_MODEL", "")
 
@@ -52,7 +53,6 @@ turns = 4
 tool_calls = 8
 
 [run]
-run_dir = "{run_dir}"
 goal_file = "{goal_file}"
 input_file = ""
 role = "root"
@@ -72,7 +72,7 @@ def test_a_real_model_asks_a_question_and_acts_on_the_answer(tmp_path: pathlib.P
     )
     config = _config(tmp_path, run_dir, goal)
 
-    assert main(config) == 0
+    assert main(config, prepared_run_dir(run_dir)) == 0
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
     assert any(e.status is AgentStatus.NEEDS_INPUT for e in bus.history(1)), (
         "the model did not ask; local models vary, and this test is about the resumed "
@@ -83,7 +83,7 @@ def test_a_real_model_asks_a_question_and_acts_on_the_answer(tmp_path: pathlib.P
     assert asked["question"].strip() != ""
 
     assert answer_command(run_dir, 1, "Keep both captions.") == 0
-    assert main(config) == 0
+    assert main(config, prepared_run_dir(run_dir)) == 0
 
     root_task = bus.task(run_dir / "tasks" / "root")
     newest_root = newest_agent(bus.snapshot(), root_task.id)

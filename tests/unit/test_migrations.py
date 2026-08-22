@@ -83,7 +83,12 @@ def test_a_bus_never_migrates_itself_and_the_command_does_it_offline(
         LifecycleStore.open(stale, SystemClock())
 
     with pytest.raises(ValueError, match="does not exist"):
-        migrate_command(tmp_path / "absent.db", -1)
+        migrate_command(tmp_path / "no-such-dir" / "absent.db", -1)
+
+    fresh = tmp_path / "fresh.db"
+    assert migrate_command(fresh, -1) == 0
+    assert capsys.readouterr().out.strip().endswith("0 -> 1")
+    LifecycleStore.open(fresh, SystemClock())
 
     assert migrate_command(stale, -1) == 0
     assert capsys.readouterr().out.strip().endswith("0 -> 1")

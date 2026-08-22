@@ -34,7 +34,7 @@ strategy = "fence"
 {block}
 """
 
-REQUIRED_RUN = '[run]\nrun_dir = ""\ngoal_file = ""\ninput_file = ""\nrole = "scout"\n'
+REQUIRED_RUN = '[run]\ngoal_file = ""\ninput_file = ""\nrole = "scout"\n'
 
 
 def _config_file(tmp_path: pathlib.Path, name: str, run: str) -> pathlib.Path:
@@ -53,13 +53,11 @@ def test_run_settings_resolve_against_the_config_file(tmp_path: pathlib.Path):
     path = _config_file(
         tmp_path,
         "populated.toml",
-        '[run]\nrun_dir = "./ws/runs/item"\ngoal_file = "./goal.md"\n'
-        'input_file = "./input.json"\nrole = "analyst"\n',
+        '[run]\ngoal_file = "./goal.md"\n' 'input_file = "./input.json"\nrole = "analyst"\n',
     )
 
     settings = load_config(path).run
 
-    assert settings.run_dir == str(tmp_path / "ws" / "runs" / "item")
     assert settings.goal_file == str(tmp_path / "goal.md")
     assert settings.input_file == str(tmp_path / "input.json")
     assert settings.role == "analyst"
@@ -71,10 +69,10 @@ def test_the_run_section_is_required_and_names_its_fields(
     blank = _config_file(
         tmp_path,
         "blank.toml",
-        '[run]\nrun_dir = ""\ngoal_file = ""\ninput_file = ""\nrole = ""\n',
+        '[run]\ngoal_file = ""\ninput_file = ""\nrole = ""\n',
     )
     settings = load_config(blank).run
-    assert (settings.run_dir, settings.goal_file, settings.input_file) == ("", "", "")
+    assert (settings.goal_file, settings.input_file) == ("", "")
     assert settings.role == ""
 
     with pytest.raises(KeyError):
@@ -85,7 +83,7 @@ def test_the_run_section_is_required_and_names_its_fields(
             _config_file(
                 tmp_path,
                 "partial.toml",
-                '[run]\nrun_dir = ""\ngoal_file = ""\ninput_file = ""\n',
+                '[run]\ngoal_file = ""\ninput_file = ""\n',
             )
         )
 
@@ -94,7 +92,7 @@ def test_the_sandbox_strategy_and_its_domains_come_from_the_config(tmp_path: pat
     path = _config_file(
         tmp_path,
         "sandboxed.toml",
-        '[run]\nrun_dir = ""\ngoal_file = ""\ninput_file = ""\nrole = "scout"\n',
+        '[run]\ngoal_file = ""\ninput_file = ""\nrole = "scout"\n',
     )
     config = load_config(path)
 

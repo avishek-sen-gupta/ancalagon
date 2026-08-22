@@ -6,8 +6,8 @@ import ancalagon.migrations
 
 
 def migrate_command(path: pathlib.Path, to: int) -> int:
-    if not path.is_file():
-        raise ValueError(f"{path} does not exist")
+    if not path.parent.is_dir():
+        raise ValueError(f"{path.parent} does not exist")
     target = ancalagon.migrations.latest_version() if to < 0 else to
     before, after = ancalagon.migrations.migrate_file(path, target)
     sys.stdout.write(f"{path}: {before} -> {after}\n")

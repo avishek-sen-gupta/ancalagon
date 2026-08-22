@@ -11,6 +11,7 @@ from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.schedule.active_for import active_for
 from ancalagon.schedule.newest_agent import newest_agent
+from tests.integration.prepared_run import prepared_run_dir
 from tests.integration.scripted_model import ScriptedModel
 
 AMBIGUOUS = "The ambiguous half."
@@ -76,7 +77,6 @@ turns = 4
 tool_calls = 8
 
 [run]
-run_dir = "{run_dir}"
 goal_file = "{goal_file}"
 input_file = ""
 role = "root"
@@ -113,7 +113,7 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
     config = _config(tmp_path, run_dir, ROOT)
 
     try:
-        assert main(config) == 0
+        assert main(config, prepared_run_dir(run_dir)) == 0
         bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
 
         def asked(agent: int) -> bool:
@@ -124,7 +124,7 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
         assert any(e.status is AgentStatus.COMPLETED for e in bus.history(3))
 
         assert answer_command(run_dir, 1, "keep both") == 0
-        assert main(config) == 0
+        assert main(config, prepared_run_dir(run_dir)) == 0
 
         resumed_root = active_for(bus.snapshot(), str(run_dir / "tasks" / "root"))
         assert resumed_root == ()
@@ -178,7 +178,7 @@ def test_a_supervisor_wakes_an_idling_root_once_its_child_settles(
     config = _config(tmp_path, run_dir, ROOT_IDLE)
 
     try:
-        assert main(config) == 0
+        assert main(config, prepared_run_dir(run_dir)) == 0
         bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
 
         root_task = bus.task(run_dir / "tasks" / "root")

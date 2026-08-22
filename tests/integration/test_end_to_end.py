@@ -14,7 +14,9 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.schedule.newest_agent import newest_agent
 from ancalagon.schedule.task_of import task_of
+from tests.integration.prepared_run import prepared_run_dir
 from ancalagon.supervisor.process import Process
+from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 
 ROOT_BEHAVIOUR = (
@@ -27,7 +29,6 @@ def _config(
     turns: int,
     tool_calls: int,
     model: str = "",
-    run_dir: str = "",
     goal: str = "",
     goal_file: str = "",
     input_file: str = "",
@@ -90,7 +91,6 @@ turns = {turns}
 tool_calls = {tool_calls}
 
 [run]
-run_dir = "{run_dir}"
 goal_file = "{goal_source}"
 input_file = "{input_file}"
 role = "{role_name}"
@@ -98,14 +98,26 @@ role = "{role_name}"
     return config
 
 
-def _run_cli(config: pathlib.Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+def _cli(env: dict[str, str], *argv: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-m", "ancalagon.cli", "run", "--config", str(config)],
+        [sys.executable, "-m", "ancalagon.cli", *argv],
         capture_output=True,
         text=True,
         timeout=300,
         env=env,
     )
+
+
+def _run_cli(
+    config: pathlib.Path, env: dict[str, str], run_dir: str = ""
+) -> subprocess.CompletedProcess[str]:
+    named = ["--run-dir", run_dir] if run_dir else []
+    started = _cli(env, "init", "--config", str(config), *named)
+    assert started.returncode == 0, started.stderr
+    allocated = started.stdout.strip()
+    migrated = _cli(env, "migrate", "--db", f"{allocated}/bus.db")
+    assert migrated.returncode == 0, migrated.stderr
+    return _cli(env, "run", "--config", str(config), "--run-dir", allocated)
 
 
 def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
@@ -173,13 +185,12 @@ def test_a_named_run_dir_is_reused_by_a_second_invocation(tmp_path: pathlib.Path
         turns=2,
         tool_calls=4,
         model="no-such-provider/no-such-model",
-        run_dir=str(named),
         goal="Say hello.",
     )
 
-    first = _run_cli(config, dict(os.environ))
+    first = _run_cli(config, dict(os.environ), run_dir=str(named))
     assert first.returncode == 0, first.stderr
-    second = _run_cli(config, dict(os.environ))
+    second = _run_cli(config, dict(os.environ), run_dir=str(named))
     assert second.returncode == 0, second.stderr
 
     assert [p.name for p in (tmp_path / "ws" / "runs").iterdir()] == ["item-0001"]
@@ -282,12 +293,11 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
         turns=2,
         tool_calls=4,
         model="no-such-provider/no-such-model",
-        run_dir=str(named),
         goal="Say hello.",
     )
     task_dir = named / "tasks" / "root"
 
-    assert main(config) == 0
+    assert main(config, prepared_run_dir(named)) == 0
     opened = LifecycleStore.open(named / "bus.db", SystemClock())
     task = opened.task(task_dir)
     first_agent = newest_agent(opened.snapshot(), task.id)
@@ -300,7 +310,7 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
 
     monkeypatch.setattr(SubprocessSpawner, "spawn", refuse)
 
-    assert main(config) == 1
+    assert main(config, named) == 1
     assert capsys.readouterr().out == ""
     second_agent = newest_agent(opened.snapshot(), task.id)
     assert second_agent != first_agent
@@ -312,7 +322,7 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
 
     monkeypatch.setattr(SubprocessSpawner, "spawn", crash)
 
-    assert main(config) == 1
+    assert main(config, named) == 1
     assert capsys.readouterr().out == ""
     third_agent = newest_agent(opened.snapshot(), task.id)
     assert third_agent != second_agent
@@ -321,3 +331,26 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
 
     bus = LifecycleStore.open(named / "bus.db", SystemClock())
     assert bus.attempt(newest_agent(bus.snapshot(), task.id)) == Lost(close=AgentStatus.CRASHED)
+
+
+def test_a_run_refuses_a_database_the_startup_script_has_not_migrated(tmp_path: pathlib.Path):
+    named = tmp_path / "ws" / "runs" / "item-0001"
+    config = _config(
+        tmp_path,
+        turns=2,
+        tool_calls=4,
+        model="no-such-provider/no-such-model",
+        goal="Say hello.",
+    )
+    named.mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="ancalagon migrate"):
+        main(config, named)
+    assert (named / "bus.db").exists() is False
+
+    migrate_file(named / "bus.db", 0)
+    with pytest.raises(ValueError, match="schema version 0, not 1"):
+        main(config, named)
+
+    migrate_file(named / "bus.db", latest_version())
+    assert main(config, named) == 0

@@ -45,7 +45,6 @@ tools = ["read_file", "list_dir", "ripgrep", "ast_grep", "find_symbol", "need_in
 budget = { turns = 14, tool_calls = 35 }
 
 [run]
-run_dir = ""
 goal_file = "./goal.md"
 input_file = ""
 role = "root"
