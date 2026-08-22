@@ -17,5 +17,5 @@ class DeleteFile(Tool[PathArgs]):
             path = ctx.workspace.resolve_write(args.path)
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
-        path.unlink()
+        ctx.workspace.unlink(path)
         return ctx.result(self.name, f"deleted {path}")

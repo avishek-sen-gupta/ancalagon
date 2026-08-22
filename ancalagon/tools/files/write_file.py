@@ -17,6 +17,6 @@ class WriteFile(Tool[WriteArgs]):
             path = ctx.workspace.resolve_write(args.path)
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(args.content, encoding="utf-8")
+        ctx.workspace.mkdir(path.parent, parents=True, exist_ok=True)
+        ctx.workspace.write_text(path, args.content)
         return ctx.result(self.name, f"wrote {len(args.content)} chars to {path}")

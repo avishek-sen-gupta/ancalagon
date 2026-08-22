@@ -28,6 +28,7 @@ from ancalagon.tools.delegate.delegate_to import DelegateTo
 from ancalagon.tools.delegate.task_args import TaskArgs
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.fs.real_file_system import RealFileSystem
 
 
 def _open(tmp_path: pathlib.Path) -> LifecycleStore:
@@ -42,7 +43,7 @@ def _ctx(tmp_path: pathlib.Path) -> ToolContext:
     outputs = write_root / "outputs"
     outputs.mkdir(exist_ok=True)
     return ToolContext(
-        workspace=Workspace(write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
         output_dir=outputs,
         summary_chars=50,
         agent_id=17,

@@ -43,9 +43,9 @@ class GitHistory(Tool[HistoryArgs]):
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
-        if not path.exists():
+        if not ctx.workspace.exists(path):
             return ctx.failure(self.name, missing_hint(path))
-        repo = str(path if path.is_dir() else path.parent)
+        repo = str(path if ctx.workspace.is_dir(path) else path.parent)
         code, out, err = run_command(self._command(args, str(path), repo))
         if code != 0:
             return ctx.failure(self.name, err)
