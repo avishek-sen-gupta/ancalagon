@@ -19,8 +19,10 @@ hook, but the propagation path is real and unguarded.
 
 The filesystem is the larger gap, and the more surprising one, because it looks solved. `Workspace`
 is a **path authority**, not an I/O port: `resolve_read` and `resolve_write` answer "may I touch
-this path" and hand back a resolved `pathlib.Path`. The caller then reads it. **53 call sites
-across 22 files** then do their own `read_text`, `write_text`, `mkdir` and `unlink`.
+this path" and hand back a resolved `pathlib.Path`. The caller then reads it. **44 call sites
+across 22 files** then do their own `read_text`, `write_text`, `mkdir` and `unlink` — 14 of them
+tool-facing and reachable through `Workspace`, the other 30 harness-internal, on paths the harness
+builds rather than paths a model supplies.
 
 Every agent-facing tool does resolve first — all seventeen were checked, and there is no bypass
 today. But that is a convention each tool re-enacts, not an invariant. A tool that forgets to
@@ -48,10 +50,12 @@ only adapter. The surface is exactly what the sweep found in use, and nothing mo
 | Listing | `iterdir`, `glob(path, pattern)` — `glob` is used only by `migrations` |
 | Predicates | `exists`, `is_file`, `is_dir` |
 | Handles | `open_append`, `open_write` — both returning `typing.TextIO` |
-| Normalisation | `resolve` |
 
-`resolve` belongs here despite reading like path arithmetic: it follows symlinks, so it touches
-the disk.
+`resolve` was on this list and has been removed. It reads no content and writes nothing; it
+normalises a path and follows symlinks in components that already exist. Putting it behind the port
+would add nine call sites and force a `FileSystem` into `Workspace.__init__` and
+`contracts/resolve.py` purely to normalise strings, without changing what can go wrong. It joins
+`expanduser` in the residuals.
 
 **`ancalagon/env/environment.py`** — an `Environment` protocol with one method returning
 `Mapping[str, str]`, and `real_environment.py` wrapping `os.environ`. It is injected into
@@ -96,8 +100,8 @@ and the calls to ban are methods, which the import graph cannot see.
 
 `precommit-scripts/check-filesystem-access` follows the pattern `check-type-hygiene` already
 establishes — a ripgrep script for a syntactic rule the type checker cannot express. It bans the
-twelve `pathlib` methods those operations wrap — `read_text`, `write_text`, `read_bytes`, `mkdir`,
-`unlink`, `iterdir`, `glob`, `exists`, `is_file`, `is_dir`, `open`, `resolve` — outside
+eleven `pathlib` methods those operations wrap — `read_text`, `write_text`, `read_bytes`, `mkdir`,
+`unlink`, `iterdir`, `glob`, `exists`, `is_file`, `is_dir`, `open` — outside
 `ancalagon/fs/real_file_system.py`, and excludes `tests/`, where `tmp_path` on real paths remains
 correct.
 
@@ -141,6 +145,7 @@ otherwise.
 - `Path.expanduser()` reads `HOME` from the environment, so it is strictly environment access
   wearing a filesystem shape. It stays on `pathlib` and outside the ban. Routing it through
   `Environment` would mean reimplementing `expanduser`, which is worse than the leak.
+- `Path.resolve()` stays on `pathlib` too, for the reason given above.
 - `run_command` still inherits the environment it is given, has no `cwd`, and has no `timeout`. A
   hung `rg` or `git` blocks its worker indefinitely with nothing to reap it. That is a real defect
   and it is out of scope here; it is recorded so it is not rediscovered.
