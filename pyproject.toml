@@ -70,9 +70,18 @@ type = "independence"
 modules = [
     "ancalagon.contracts",
     "ancalagon.clock",
-    "ancalagon.sandbox",
     "ancalagon.env",
     "ancalagon.fs",
+]
+
+[[tool.importlinter.contracts]]
+name = "The sandbox knows the file system and nothing else of ours"
+type = "forbidden"
+source_modules = ["ancalagon.sandbox"]
+forbidden_modules = [
+    "ancalagon.clock",
+    "ancalagon.contracts",
+    "ancalagon.env",
 ]
 
 [[tool.importlinter.contracts]]

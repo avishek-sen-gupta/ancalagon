@@ -3,6 +3,7 @@ import pathlib
 import sqlite3
 
 from ancalagon.bus import schema
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrations import latest_version, migrate_file
 
 
@@ -12,7 +13,7 @@ def _columns(conn: sqlite3.Connection, table: str) -> list[str]:
 
 def test_schema_py_tables_match_the_migrated_database_columns(tmp_path: pathlib.Path):
     db = tmp_path / "bus.db"
-    migrate_file(db, latest_version())
+    migrate_file(db, latest_version(RealFileSystem()), RealFileSystem())
     conn = sqlite3.connect(db)
 
     assert _columns(conn, "tasks") == ["id", "dir", "parent_agent", "created"]

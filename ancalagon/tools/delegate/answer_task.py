@@ -4,6 +4,7 @@ import pathlib
 from ancalagon.answer import answer_task
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.tool_result import ToolResult
+from ancalagon.fs.file_system import FileSystem
 from ancalagon.tools.delegate.answer_args import AnswerArgs
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -19,15 +20,21 @@ class AnswerTask(Tool[AnswerArgs]):
     cost = 1
     args_model = AnswerArgs
 
-    def __init__(self, run_dir: pathlib.Path, parent: int, clock: Clock):
+    def __init__(self, run_dir: pathlib.Path, parent: int, clock: Clock, fs: FileSystem):
         self.run_dir = run_dir
         self.parent = parent
         self.clock = clock
+        self.fs = fs
 
     def run(self, args: AnswerArgs, ctx: ToolContext) -> ToolResult:
         try:
             resumed = answer_task(
-                self.run_dir, args.task, args.answer, answered_by=self.parent, clock=self.clock
+                self.run_dir,
+                args.task,
+                args.answer,
+                answered_by=self.parent,
+                clock=self.clock,
+                fs=self.fs,
             )
         except (KeyError, ValueError) as exc:
             return ctx.failure(self.name, str(exc))

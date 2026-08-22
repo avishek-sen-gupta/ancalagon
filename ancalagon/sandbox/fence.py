@@ -4,6 +4,7 @@ import pathlib
 
 import pydantic
 
+from ancalagon.fs.file_system import FileSystem
 from ancalagon.sandbox.sandbox import Sandbox
 
 POLICY = "fence.json"
@@ -28,13 +29,15 @@ class Fence(Sandbox):
         write_root: pathlib.Path,
         allowed_domains: collections.abc.Sequence[str],
         run_dir: pathlib.Path,
+        fs: FileSystem,
     ):
         self.policy = run_dir / POLICY
-        self.policy.write_text(
+        fs.write_text(
+            self.policy,
             Policy(
                 network=Network(allowedDomains=list(allowed_domains)),
                 filesystem=Filesystem(allowWrite=[str(write_root), str(run_dir)]),
-            ).model_dump_json()
+            ).model_dump_json(),
         )
 
     def wrap(self, command: collections.abc.Sequence[str]) -> collections.abc.Sequence[str]:

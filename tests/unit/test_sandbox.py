@@ -4,6 +4,7 @@ import pathlib
 
 from ancalagon.env.fake_environment import FakeEnvironment
 from ancalagon.env.real_environment import RealEnvironment
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.sandbox.fence import Fence
 from ancalagon.sandbox.sandbox import Sandbox
 from ancalagon.sandbox.unsandboxed import Unsandboxed
@@ -26,6 +27,7 @@ def test_fence_writes_its_policy_and_wraps_the_command(tmp_path: pathlib.Path):
         write_root=write_root,
         allowed_domains=["bedrock-runtime.us-east-1.amazonaws.com"],
         run_dir=run_dir,
+        fs=RealFileSystem(),
     )
 
     policy = json.loads((run_dir / "fence.json").read_text())
@@ -65,6 +67,7 @@ def test_the_spawner_wraps_the_worker_command_with_its_sandbox(tmp_path: pathlib
         config_path=tmp_path / "c.toml",
         environment=RealEnvironment(),
         sandbox=sandbox,
+        fs=RealFileSystem(),
     )
 
     process = spawner.spawn(tmp_path / "tasks" / "root", agent_id=7)

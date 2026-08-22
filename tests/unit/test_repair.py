@@ -5,13 +5,14 @@ from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
-from ancalagon.transcript.transcript import Transcript
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.transcript.history import load, repair
+from ancalagon.transcript.transcript import Transcript
 
 
 def test_transcript_persists_per_message_and_repairs_interrupted_tool_calls(tmp_path: pathlib.Path):
     path = tmp_path / "transcript.jsonl"
-    log = Transcript(path=path, agent_id=17)
+    log = Transcript(RealFileSystem(), path=path, agent_id=17)
 
     log.write(Message(role=MessageRole.USER, blocks=[Text(text="go")], agent=17, seq=0, ts="t0"))
     assert path.read_text().count("\n") == 1
@@ -27,7 +28,7 @@ def test_transcript_persists_per_message_and_repairs_interrupted_tool_calls(tmp_
     )
     log.close()
 
-    loaded = load(path)
+    loaded = load(RealFileSystem(), path)
     assert [m.seq for m in loaded] == [0, 1]
     assert loaded[0].agent == 17
 

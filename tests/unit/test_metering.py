@@ -1,11 +1,12 @@
 import pathlib
 
-from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.bus.bus_meter import BusMeter
 from ancalagon.bus.connect import connect
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.bus.meter_store import MeterStore
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.call_usage import CallUsage
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.llm.meter import Meter
 from ancalagon.llm.unmetered import Unmetered
 from ancalagon.migrations import latest_version, migrate_file
@@ -13,8 +14,8 @@ from ancalagon.schedule.task_of import task_of
 
 
 def test_calls_accumulate_per_agent_and_survive_across_agents(tmp_path: pathlib.Path):
-    migrate_file(tmp_path / "bus.db", latest_version())
-    conn = connect(tmp_path / "bus.db")
+    migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
+    conn = connect(tmp_path / "bus.db", RealFileSystem())
     clock = SystemClock()
     bus = LifecycleStore(conn, clock)
     meter_store = MeterStore(conn, clock)
@@ -52,9 +53,9 @@ def test_the_no_op_meter_records_nothing_and_satisfies_the_protocol(tmp_path: pa
     quiet: Meter = Unmetered()
     quiet.record(1, CallUsage(prompt_tokens=999))
 
-    migrate_file(tmp_path / "bus.db", latest_version())
+    migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
 
-    conn = connect(tmp_path / "bus.db")
+    conn = connect(tmp_path / "bus.db", RealFileSystem())
     clock = SystemClock()
     bus = LifecycleStore(conn, clock)
     meter_store = MeterStore(conn, clock)

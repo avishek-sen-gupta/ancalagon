@@ -9,6 +9,7 @@ from ancalagon.cli import main
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.schedule.active_for import active_for
 from ancalagon.schedule.newest_agent import newest_agent
 from tests.integration.prepared_run import prepared_run_dir
@@ -114,7 +115,7 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
 
     try:
         assert main(config, prepared_run_dir(run_dir)) == 0
-        bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
+        bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
 
         def asked(agent: int) -> bool:
             return any(e.status is AgentStatus.NEEDS_INPUT for e in bus.history(agent))
@@ -179,7 +180,7 @@ def test_a_supervisor_wakes_an_idling_root_once_its_child_settles(
 
     try:
         assert main(config, prepared_run_dir(run_dir)) == 0
-        bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
+        bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
 
         root_task = bus.task(run_dir / "tasks" / "root")
         agents = [

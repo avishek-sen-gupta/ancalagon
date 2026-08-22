@@ -16,8 +16,8 @@ from ancalagon.contracts.outcome_header import OutcomeHeader
 from ancalagon.contracts.outcome_kind import OutcomeKind
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
-from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.run_settings import RunSettings
+from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
 

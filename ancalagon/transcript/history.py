@@ -6,12 +6,13 @@ from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.fs.file_system import FileSystem
 
 INTERRUPTED = "interrupted: agent terminated before this tool returned"
 
 
-def load(path: pathlib.Path) -> list[Message]:
-    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+def load(fs: FileSystem, path: pathlib.Path) -> list[Message]:
+    lines = [line for line in fs.read_text(path).splitlines() if line.strip()]
     return [Message.model_validate_json(line) for line in lines]
 
 

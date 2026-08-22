@@ -4,6 +4,7 @@ import subprocess
 import sys
 
 from ancalagon.env.environment import Environment
+from ancalagon.fs.file_system import FileSystem
 from ancalagon.sandbox.sandbox import Sandbox
 from ancalagon.sandbox.unsandboxed import UNSANDBOXED
 from ancalagon.supervisor.process import Process
@@ -20,16 +21,18 @@ class SubprocessSpawner(Spawner):
         run_dir: pathlib.Path,
         config_path: pathlib.Path,
         environment: Environment,
+        fs: FileSystem,
         sandbox: Sandbox = UNSANDBOXED,
     ):
         self.run_dir = run_dir
         self.config_path = config_path
         self.environment = environment
+        self.fs = fs
         self.sandbox = sandbox
 
     def spawn(self, task_dir: pathlib.Path, agent_id: int) -> Process:
         stderr = task_dir / f"stderr-{agent_id}.log"
-        stderr.parent.mkdir(parents=True, exist_ok=True)
+        self.fs.mkdir(stderr.parent, parents=True, exist_ok=True)
         command = [
             sys.executable,
             "-m",
@@ -46,7 +49,7 @@ class SubprocessSpawner(Spawner):
         return subprocess.Popen(
             list(self.sandbox.wrap(command)),
             stdout=subprocess.DEVNULL,
-            stderr=stderr.open("w"),
+            stderr=self.fs.open_write(stderr),
             cwd=self.run_dir,
             env=inherited(self.environment, self.sandbox),
         )

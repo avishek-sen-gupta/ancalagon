@@ -5,6 +5,7 @@ from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.idled import Idled
 from ancalagon.contracts.tool_result import ToolResult
+from ancalagon.fs.file_system import FileSystem
 from ancalagon.schedule.live_children import live_children
 from ancalagon.tools.idle.idle_args import IdleArgs
 from ancalagon.tools.registry.tool import Tool
@@ -21,13 +22,14 @@ class Idle(Tool[IdleArgs]):
     cost = 0
     args_model = IdleArgs
 
-    def __init__(self, run_dir: pathlib.Path, agent: int, clock: Clock):
+    def __init__(self, run_dir: pathlib.Path, agent: int, clock: Clock, fs: FileSystem):
         self.run_dir = run_dir
         self.agent = agent
         self.clock = clock
+        self.fs = fs
 
     def run(self, args: IdleArgs, ctx: ToolContext) -> ToolResult:
-        bus = LifecycleStore.open(self.run_dir / "bus.db", self.clock)
+        bus = LifecycleStore.open(self.run_dir / "bus.db", self.clock, self.fs)
         snapshot = bus.snapshot()
         live = live_children(snapshot, self.agent)
         if not live:

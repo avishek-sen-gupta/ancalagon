@@ -12,12 +12,13 @@ from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.cli import main
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
+from ancalagon.fs.real_file_system import RealFileSystem
+from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.schedule.newest_agent import newest_agent
 from ancalagon.schedule.task_of import task_of
-from tests.integration.prepared_run import prepared_run_dir
 from ancalagon.supervisor.process import Process
-from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
+from tests.integration.prepared_run import prepared_run_dir
 
 ROOT_BEHAVIOUR = (
     "You investigate a codebase or a set of artifacts to answer the goal you are given."
@@ -145,7 +146,7 @@ def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
     assert outcome["kind"] == "failed"
     assert outcome["error"] != ""
 
-    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
     assert bus.attempt(1) == Closed(verdict=AgentStatus.FAILED)
 
     stderr_logs = list(task_dir.glob("stderr-*.log"))
@@ -195,7 +196,7 @@ def test_a_named_run_dir_is_reused_by_a_second_invocation(tmp_path: pathlib.Path
 
     assert [p.name for p in (tmp_path / "ws" / "runs").iterdir()] == ["item-0001"]
 
-    bus = LifecycleStore.open(named / "bus.db", SystemClock())
+    bus = LifecycleStore.open(named / "bus.db", SystemClock(), RealFileSystem())
     task = bus.task(named / "tasks" / "root")
     snapshot = bus.snapshot()
     assert task_of(snapshot, 1).id == task.id
@@ -298,7 +299,7 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
     task_dir = named / "tasks" / "root"
 
     assert main(config, prepared_run_dir(named)) == 0
-    opened = LifecycleStore.open(named / "bus.db", SystemClock())
+    opened = LifecycleStore.open(named / "bus.db", SystemClock(), RealFileSystem())
     task = opened.task(task_dir)
     first_agent = newest_agent(opened.snapshot(), task.id)
     first_outcome = task_dir / f"outcome-{first_agent}.json"
@@ -329,7 +330,7 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
     assert (task_dir / f"outcome-{third_agent}.json").exists() is False
     assert first_outcome.exists() is True
 
-    bus = LifecycleStore.open(named / "bus.db", SystemClock())
+    bus = LifecycleStore.open(named / "bus.db", SystemClock(), RealFileSystem())
     assert bus.attempt(newest_agent(bus.snapshot(), task.id)) == Lost(close=AgentStatus.CRASHED)
 
 
@@ -348,9 +349,9 @@ def test_a_run_refuses_a_database_the_startup_script_has_not_migrated(tmp_path: 
         main(config, named)
     assert (named / "bus.db").exists() is False
 
-    migrate_file(named / "bus.db", 0)
+    migrate_file(named / "bus.db", 0, RealFileSystem())
     with pytest.raises(ValueError, match="schema version 0, not 1"):
         main(config, named)
 
-    migrate_file(named / "bus.db", latest_version())
+    migrate_file(named / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     assert main(config, named) == 0

@@ -18,6 +18,7 @@ from ancalagon.contracts.agent_event import AgentEvent
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.harness_task import HarnessTask
+from ancalagon.fs.file_system import FileSystem
 
 DIALECT = sqlite_dialect.dialect(paramstyle="named")
 
@@ -100,8 +101,8 @@ class LifecycleStore:
         return self.clock.now().isoformat()
 
     @classmethod
-    def open(cls, path: pathlib.Path, clock: Clock) -> "LifecycleStore":
-        return cls(connect(path), clock)
+    def open(cls, path: pathlib.Path, clock: Clock, fs: FileSystem) -> "LifecycleStore":
+        return cls(connect(path, fs), clock)
 
     def _exec(
         self, stmt: sa.sql.ClauseElement, binds: Mapping[str, BindValue] = {}

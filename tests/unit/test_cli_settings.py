@@ -11,6 +11,7 @@ from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.run_settings import RunSettings
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.sandbox.fence import Fence
 from ancalagon.sandbox.strategy import Strategy
 from ancalagon.sandbox.unsandboxed import Unsandboxed
@@ -23,17 +24,23 @@ def test_a_named_run_dir_is_created_verbatim_and_an_unnamed_one_is_stamped(
     named = tmp_path / "units" / "abc123"
     clock = FakeClock()
 
-    assert created_run_dir(str(named), write_root, clock) == named
+    assert created_run_dir(str(named), write_root, clock, RealFileSystem()) == named
     assert named.is_dir()
-    assert created_run_dir(str(named), write_root, clock) == named
+    assert created_run_dir(str(named), write_root, clock, RealFileSystem()) == named
 
-    assert created_run_dir("", write_root, clock) == write_root / "runs" / "r_20260101-000000"
+    assert (
+        created_run_dir("", write_root, clock, RealFileSystem())
+        == write_root / "runs" / "r_20260101-000000"
+    )
     clock.sleep(61)
-    assert created_run_dir("", write_root, clock) == write_root / "runs" / "r_20260101-000101"
+    assert (
+        created_run_dir("", write_root, clock, RealFileSystem())
+        == write_root / "runs" / "r_20260101-000101"
+    )
 
     clock.sleep(-61)
     with pytest.raises(FileExistsError):
-        created_run_dir("", write_root, clock)
+        created_run_dir("", write_root, clock, RealFileSystem())
 
 
 def test_an_allocated_run_dir_refuses_a_directory_another_run_already_took(
@@ -43,31 +50,31 @@ def test_an_allocated_run_dir_refuses_a_directory_another_run_already_took(
     taken = write_root / "runs" / "r_0001"
     taken.mkdir(parents=True)
 
-    def race(_: pathlib.Path, __: FakeClock) -> pathlib.Path:
+    def race(_: pathlib.Path, __: FakeClock, ___: RealFileSystem) -> pathlib.Path:
         return taken
 
     monkeypatch.setattr(cli, "_allocated_run_dir", race)
 
     with pytest.raises(FileExistsError):
-        created_run_dir("", write_root, FakeClock())
+        created_run_dir("", write_root, FakeClock(), RealFileSystem())
 
 
 def test_a_goal_comes_from_the_file_and_from_nowhere_else(tmp_path: pathlib.Path):
     goal_file = tmp_path / "goal.md"
     goal_file.write_text("describe the item")
 
-    assert goal_of(RunSettings(goal_file=str(goal_file))) == "describe the item"
+    assert goal_of(RunSettings(goal_file=str(goal_file)), RealFileSystem()) == "describe the item"
 
     with pytest.raises(ValueError, match="no goal"):
-        goal_of(RunSettings())
+        goal_of(RunSettings(), RealFileSystem())
 
     goal_file.write_text("   \n")
     with pytest.raises(ValueError, match="empty"):
-        goal_of(RunSettings(goal_file=str(goal_file)))
+        goal_of(RunSettings(goal_file=str(goal_file)), RealFileSystem())
 
     absent = tmp_path / "no-such-goal.md"
     with pytest.raises(ValueError, match="does not exist"):
-        goal_of(RunSettings(goal_file=str(absent)))
+        goal_of(RunSettings(goal_file=str(absent)), RealFileSystem())
 
 
 def test_the_root_spec_comes_from_its_role_and_its_two_files(tmp_path: pathlib.Path):
@@ -93,7 +100,7 @@ def test_the_root_spec_comes_from_its_role_and_its_two_files(tmp_path: pathlib.P
         ),
     )
 
-    spec = root_spec(config)
+    spec = root_spec(config, RealFileSystem())
 
     assert spec.task_id == "root"
     assert spec.role == role
@@ -102,7 +109,7 @@ def test_the_root_spec_comes_from_its_role_and_its_two_files(tmp_path: pathlib.P
 
     absent = config.model_copy(update={"run": config.run.model_copy(update={"role": "nobody"})})
     with pytest.raises(ValueError, match="no role named nobody"):
-        root_spec(absent)
+        root_spec(absent, RealFileSystem())
 
 
 def test_sandbox_of_resolves_each_strategy_and_fence_is_the_unstated_default(
@@ -120,11 +127,11 @@ def test_sandbox_of_resolves_each_strategy_and_fence_is_the_unstated_default(
     )
     assert defaulted.sandbox is Strategy.FENCE
 
-    assert isinstance(sandbox_of(defaulted, run_dir), Fence)
+    assert isinstance(sandbox_of(defaulted, run_dir, RealFileSystem()), Fence)
     assert json.loads((run_dir / "fence.json").read_text()) == {
         "network": {"allowedDomains": ["bedrock-runtime.us-east-1.amazonaws.com"]},
         "filesystem": {"allowWrite": [str(write_root), str(run_dir)]},
     }
 
     unsandboxed = defaulted.model_copy(update={"sandbox": Strategy.NONE})
-    assert isinstance(sandbox_of(unsandboxed, run_dir), Unsandboxed)
+    assert isinstance(sandbox_of(unsandboxed, run_dir, RealFileSystem()), Unsandboxed)

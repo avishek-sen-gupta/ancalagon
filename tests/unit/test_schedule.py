@@ -1,6 +1,5 @@
 # The scheduling rules, exercised as pure functions of a snapshot.
-from collections.abc import Mapping
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from ancalagon.attempt.attempt_of import attempt_of
 from ancalagon.attempt.snapshot import Snapshot

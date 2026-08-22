@@ -20,6 +20,7 @@ from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.tool_result import ToolResult
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.schedule.active_for import active_for
 from ancalagon.schedule.newest_agent import newest_agent
@@ -60,7 +61,6 @@ from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.tools.survey.stats_args import StatsArgs
 from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
-from ancalagon.fs.real_file_system import RealFileSystem
 from tests.unit.conftest import settle
 
 
@@ -260,8 +260,8 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         compact_above_tokens=0,
         keep_recent_messages=8,
     )
-    migrate_file(tmp_path / "bus.db", latest_version())
-    bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock())
+    migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
+    bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
     root_agent = bus.enqueue(tmp_path / "root-agent", parent_agent=HUMAN)
     nested_agent = bus.enqueue(tmp_path / "nested-agent", parent_agent=HUMAN)
     full_role = Role(
@@ -277,6 +277,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         depth=0,
         output_class=FreeText,
         clock=SystemClock(),
+        fs=RealFileSystem(),
     )
     at_limit = build_registry(
         config,
@@ -286,6 +287,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         depth=1,
         output_class=FreeText,
         clock=SystemClock(),
+        fs=RealFileSystem(),
     )
 
     assert "delegate_scout" in at_root.names()
@@ -305,6 +307,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         depth=0,
         output_class=FreeText,
         clock=SystemClock(),
+        fs=RealFileSystem(),
     )
     assert set(narrowed.names()) == {"read_file", "ripgrep", "idle", "submit_answer"}
 
@@ -322,6 +325,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
             depth=0,
             output_class=FreeText,
             clock=SystemClock(),
+            fs=RealFileSystem(),
         )
     assert "'delegate_ghost', 'grep', 'rigrep'" in str(refused.value)
     assert "ripgrep" in str(refused.value)
@@ -330,15 +334,15 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
 def test_idle_refuses_once_its_children_have_settled(tmp_path: pathlib.Path):
     run_dir = tmp_path / "run"
     (run_dir / "tasks").mkdir(parents=True)
-    migrate_file(run_dir / "bus.db", latest_version())
-    bus = LifecycleStore.open(run_dir / "bus.db", FakeClock())
+    migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
+    bus = LifecycleStore.open(run_dir / "bus.db", FakeClock(), RealFileSystem())
     parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN)
     child = bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent)
     bus.record(child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
     bus.record(child, AgentStatus.COMPLETED, EventSource.SUPERVISOR)
 
-    idle = bind_tool(Idle(run_dir=run_dir, agent=parent, clock=FakeClock()))
+    idle = bind_tool(Idle(run_dir=run_dir, agent=parent, clock=FakeClock(), fs=RealFileSystem()))
     refused = idle.invoke("{}", _ctx(tmp_path))
 
     assert refused.ok is False
@@ -350,10 +354,12 @@ def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pa
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     role = Role(behaviour="b", tools=(), budget=Budget(turns=3, tool_calls=5))
-    delegate = DelegateTo("analyst", role, run_dir, parent=1, clock=SystemClock())
+    delegate = DelegateTo(
+        "analyst", role, run_dir, parent=1, clock=SystemClock(), fs=RealFileSystem()
+    )
     args = delegate.args_model(task_id="analyse", goal="g", input=FreeText(text="look at this"))
-    migrate_file(run_dir / "bus.db", latest_version())
-    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
+    migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
 
     assert delegate.run(args, ctx).ok is True
     queued = delegate.run(args, ctx)
@@ -477,11 +483,13 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     ctx = _ctx(tmp_path)
     run_dir = tmp_path / "run"
     run_dir.mkdir()
-    migrate_file(run_dir / "bus.db", latest_version())
+    migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     role = Role(behaviour="b", tools=(), budget=Budget(turns=20, tool_calls=60))
-    delegate = DelegateTo("worker", role, run_dir, parent=1, clock=SystemClock())
-    collect = CollectTask(run_dir=run_dir, clock=SystemClock())
-    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
+    delegate = DelegateTo(
+        "worker", role, run_dir, parent=1, clock=SystemClock(), fs=RealFileSystem()
+    )
+    collect = CollectTask(run_dir=run_dir, clock=SystemClock(), fs=RealFileSystem())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
 
     def queue(task_id: str) -> int:
         args = delegate.args_model(task_id=task_id, goal="g", input=FreeText(text="go"))
@@ -537,7 +545,9 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert "which caption?" in stuck.error
 
     parent_task = task_of(bus.snapshot(), answered).id
-    child_delegate = DelegateTo("worker", role, run_dir, parent=answered, clock=SystemClock())
+    child_delegate = DelegateTo(
+        "worker", role, run_dir, parent=answered, clock=SystemClock(), fs=RealFileSystem()
+    )
 
     def queue_child(task_id: str) -> int:
         args = child_delegate.args_model(task_id=task_id, goal="g", input=FreeText(text="go"))
@@ -581,7 +591,9 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     bus.record(lost, AgentStatus.TIMED_OUT, EventSource.SUPERVISOR, summary="killed after 600s")
     (run_dir / "tasks" / "lost" / f"outcome-{lost}.json").unlink(missing_ok=True)
 
-    result = CollectTask(run_dir, FakeClock()).run(TaskArgs(task=lost), _ctx(tmp_path))
+    result = CollectTask(run_dir, FakeClock(), RealFileSystem()).run(
+        TaskArgs(task=lost), _ctx(tmp_path)
+    )
     assert result.ok is False
     assert result.summary.text_for_model() == "agent 7 ended as timed_out: killed after 600s"
     assert AgentStatus.COLLECTED in [e.status for e in bus.history(lost)]
@@ -593,11 +605,13 @@ def test_collect_task_named_by_a_stale_agent_id_records_collected_on_the_newest_
     ctx = _ctx(tmp_path)
     run_dir = tmp_path / "run"
     run_dir.mkdir()
-    migrate_file(run_dir / "bus.db", latest_version())
+    migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     role = Role(behaviour="b", tools=(), budget=Budget(turns=20, tool_calls=60))
-    delegate = DelegateTo("worker", role, run_dir, parent=1, clock=SystemClock())
-    collect = CollectTask(run_dir=run_dir, clock=SystemClock())
-    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock())
+    delegate = DelegateTo(
+        "worker", role, run_dir, parent=1, clock=SystemClock(), fs=RealFileSystem()
+    )
+    collect = CollectTask(run_dir=run_dir, clock=SystemClock(), fs=RealFileSystem())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
 
     args = delegate.args_model(task_id="resumed", goal="g", input=FreeText(text="go"))
     assert delegate.run(args, ctx).ok is True
@@ -645,9 +659,9 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     }
     run_dir = tmp_path / "run"
     (run_dir / "tasks").mkdir(parents=True)
-    migrate_file(run_dir / "bus.db", latest_version())
+    migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
 
-    tools = delegate_tools(roles, run_dir=run_dir, parent=1, clock=FakeClock())
+    tools = delegate_tools(roles, run_dir=run_dir, parent=1, clock=FakeClock(), fs=RealFileSystem())
 
     assert [t.name for t in tools] == ["delegate_analyst", "delegate_scout"]
     shown = tools[0].declaration.parameters.model_json_schema()
