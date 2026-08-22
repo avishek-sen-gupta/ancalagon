@@ -246,6 +246,13 @@ Pyright strict with no `Any`, no `object`, and no JSON-blob types — JSON is te
 until `model_validate_json` makes it a concrete model. One class per module.
 No comments beyond a one-line header. See `CLAUDE.md`.
 
+The architecture is machine-checked rather than reviewed. Seven `import-linter`
+contracts in `pyproject.toml` say which package may import which — layering, leaf
+independence, domain-must-not-import-adapters, SQL only in the two store adapters,
+`os` only in the two that own it. The file system is held by the type instead: the
+domain says `pathlib.PurePath`, which has no `read_text` to call, so `fs/real_file_system.py`
+is the only module in the package that can touch a file. Both fail the build, not a review.
+
 ## Testing
 
 ```bash
