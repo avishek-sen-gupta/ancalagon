@@ -117,18 +117,44 @@ again. Every scheduling rule reads that `Snapshot` and nothing else: `outstandin
 `task_of`, `is_news`, `has_news` and `depth_of` are pure functions in `ancalagon/schedule/`,
 none of which import `ancalagon.bus`.
 
-Three import-linter contracts hold that boundary at the build, not at review: layers point
-downward through the package list in `pyproject.toml`; the domain — `ancalagon.attempt` and
-`ancalagon.schedule` — may not import `ancalagon.bus`; and nothing outside the adapters may
-import `sqlite3` or `sqlalchemy` directly. `ancalagon.bus` is one of those adapters.
-`ancalagon.migrations` is the other, and its absence from the SQL contract's source list is a
-decision, not an oversight: it opens its own raw connection to run the `.sql` files, because
-it is the adapter that creates the schema the others assume already exists. That absence is
-worth stating in prose rather than leaving to the TOML alone — an earlier version of the
-contract listed only the package directories and missed every top-level orchestrator module
-entirely, `ancalagon.cli` among them, until a fresh proof of a real violation on `cli.py`
-caught the gap; `ancalagon.migrations` was considered and left out on purpose once that pass
-was made, not forgotten by the same kind of omission.
+Seven import-linter contracts in `pyproject.toml` hold the boundaries at the build rather than
+at review:
+
+| Contract | What it holds |
+|---|---|
+| Layers point downward | the package list, `cli` at the top and `env : fs` at the bottom |
+| Sibling leaves are independent | `contracts`, `clock`, `env`, `fs` know nothing of each other |
+| The sandbox knows the file system and nothing else of ours | `sandbox` ↛ `clock`, `contracts`, `env` |
+| Tools that take a model's path go through the workspace | seven tool packages ↛ `ancalagon.fs` |
+| Domain does not import adapters | `attempt`, `schedule` ↛ `bus` |
+| SQL stays in the adapters | everything but `bus` and `migrations` ↛ `sqlite3`, `sqlalchemy` |
+| The process is reached only by the adapters that own it | everything ↛ `os`, bar two named edges |
+
+Two settings are load-bearing and were checked against this repository rather than assumed.
+`include_external_packages` is what lets a contract forbid `sqlite3` or `os` at all; without it
+the contract passes silently. `allow_indirect_imports` restricts a contract to direct imports,
+which three of them need — without it `supervisor → bus → sqlalchemy` flags every orchestrator,
+and `tool → workspace → fs` flags the route the workspace contract exists to permit.
+
+`ancalagon.migrations`' absence from the SQL contract's source list is a decision, not an
+oversight: it opens its own raw connection to run the `.sql` files, because it is the adapter
+that creates the schema the others assume already exists. That absence is worth stating in
+prose rather than leaving to the TOML alone — an earlier version of the contract listed only
+the package directories and missed every top-level orchestrator module entirely,
+`ancalagon.cli` among them, until a fresh proof of a real violation on `cli.py` caught the gap.
+The same omission was later inherited by the `os` contract, drafted from the SQL contract's
+sources, and would have left `bus` and `migrations` free to read the environment; they are
+listed there.
+
+**The file system is enforced by the type checker, not by a contract.** An import contract can
+see that one module depends on another; it cannot see `path.read_text()`, which is a method
+call on a value a module already holds. Python splits the two things `pathlib` does —
+`PurePath` is string manipulation with no syscalls, and `Path` subclasses it and adds forty
+methods, every one a syscall. The domain says `PurePath`, so the attribute does not exist there
+and Pyright rejects the call at the line it is written. `pathlib.Path` appears in exactly one
+file, `ancalagon/fs/real_file_system.py`, which takes a `PurePath` and constructs the `Path`.
+`resolve` and `expanduser` are on the port for the same reason — both are syscalls — while
+`.parent`, `.name` and `/` stay on `PurePath`, where they cost nothing.
 
 `run_until_idle()` loops on `tick()`, which calls `snapshot()` exactly once, after starting
 and reaping, so waking idled parents costs the same three reads regardless of how many tasks
@@ -417,8 +443,17 @@ Each tool then:
    seeing a bare string, guessed wrong six times in one turn. It was called `output` then,
    which is most of why: it names the class a child must answer in, and a field called
    `output` invites a model to describe a kind of output instead. It answered `"text"`.
-2. Resolves paths through `workspace/workspace.py`, which `resolve()`s first and then checks
-   containment, so `..` and symlinks are handled by the same check.
+2. Reaches the file through `workspace/workspace.py`, which resolves first and then checks
+   containment, so `..` and symlinks are handled by the same check. `Workspace` used to be a
+   path *authority*: `resolve_read` answered "may I touch this" and handed back a path the
+   tool then read itself, which made scoping a convention each of the seventeen tools
+   re-enacted rather than an invariant. It now holds a `FileSystem` and exposes the operations
+   the tools use, each resolving before it delegates, so reading is only reachable through the
+   scoped method. `resolve_read` and `resolve_write` stay public because `ripgrep`, `ast_grep`,
+   `find_symbol` and `code_stats` need the resolved path as a string for a subprocess rather
+   than its contents. An import contract keeps the seven tool packages that act on
+   model-supplied paths from importing `ancalagon.fs` at all; the delegate tools and `idle`
+   hold the port directly, because they work on `run_dir` paths the harness built.
 3. Writes its full output to a file under the task's `tools/` directory and returns a
    `ToolResult` carrying that path and a **`Payload`** — a model, not a string. `TextAnswer`
    is the ordinary one and renders to exactly the text the tool produced, so a ripgrep result
@@ -513,7 +548,8 @@ sqlite3 ws/runs/r_20260822-121500/bus.db \
 rg '"agent": 1' ws/runs/r_20260822-121500/tasks/root/transcript.jsonl
 ```
 
-There is no `ancalagon usage` verb — `run` and `migrate` are the only commands. The schema is
+There is no `ancalagon usage` verb — `init`, `migrate`, `run` and `answer` are the only
+commands. The schema is
 the query surface, and `MeterStore.calls` and `MeterStore.tokens_by_agent` are the same two queries for
 callers already holding a bus.
 
@@ -527,3 +563,4 @@ callers already holding a bus.
 | What crosses a boundary? | `contracts/` |
 | How is a provider called? | `llm/adapters/litellm_client.py` |
 | What stops an agent escaping? | `workspace/workspace.py` |
+| What may touch a file at all? | `fs/real_file_system.py`, and the contracts in `pyproject.toml` |
