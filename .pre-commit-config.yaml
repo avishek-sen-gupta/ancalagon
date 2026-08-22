@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/avishek-sen-gupta/python-fp-lint
-    rev: main
+    rev: b285567abe86be23d9acd6e3a4d73bc5ad4dfce9
     hooks:
       - id: python-fp-lint
         args: [--config, fp.json]

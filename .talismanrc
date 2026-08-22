@@ -99,4 +99,6 @@ fileignoreconfig:
   checksum: 69e9d802246c4cadd979e02a2cf1ed17e4a9418a071a32ca1aa6290ae26076a7
 - filename: docs/superpowers/plans/2026-08-22-purepath-in-the-domain.md
   checksum: 4b97177211c68f590092d712da13869a07a29ea491a8acd6f72ddff8528a2874
+- filename: .pre-commit-config.yaml
+  checksum: c501d95b774001915d25d1b7770904a5fd7de2cf3b944ec890996b1aabd83c84
 version: "1.0"
