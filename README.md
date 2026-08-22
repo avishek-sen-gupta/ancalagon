@@ -1,6 +1,7 @@
 # Ancalagon
 
-An agent harness for reverse engineering.
+There are many agent harnesses, but this one is mine.
+**Ancalagon** is an agent harness with a typed contract-first approach.
 
 Give it a goal. An agent pursues it with tools — ripgrep, ast-grep, tree-sitter, stream-only
 `sed`, scoped file access — and delegates focused subtasks to isolated subagent processes, each
