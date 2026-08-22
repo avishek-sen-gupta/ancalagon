@@ -2,20 +2,23 @@
 
 An agent harness for reverse engineering.
 
-## What it does
+Give it a goal. An agent pursues it with tools — ripgrep, ast-grep, tree-sitter, stream-only
+`sed`, scoped file access — and delegates focused subtasks to isolated subagent processes, each
+with its own budget and its own typed answer contract.
 
-Give it a goal. An agent pursues it with tools — ripgrep, ast-grep, tree-sitter,
-stream-only sed, scoped file access — and delegates focused subtasks to isolated
-subagent processes, each with its own budget and its own typed output contract.
+```mermaid
+flowchart LR
+    goal["goal.md"] --> run
+    cfg["ancalagon.toml<br/>roles, roots, limits"] --> run
+    run(["ancalagon run"]) --> rd["run directory<br/>bus.db + tasks/"]
+    rd --> ans["outcome-N.json<br/>a validated model, not prose"]
+    roots[("read_roots<br/>repo · artifacts · one JSON file")] -.reads only inside.-> run
+```
 
-A goal is all it needs. Point `read_roots` at whatever the agent should be able to
-read — a repository, a directory of parsed artifacts, a single JSON file, or nothing
-at all — and it stays inside that boundary.
-
-Subagents return typed results. A child's shape is not invented by its parent at
-runtime — it comes from a role declared in the config before the run starts, so a
-fan-out produces structured data because the contract was decided up front, not
-guessed at mid-run.
+`read_roots` is the whole boundary: point it at a repository, a directory of parsed artifacts,
+a single file, or nothing at all, and the agent stays inside it. A child's answer shape comes
+from a role declared before the run starts, so a fan-out yields structured data because the
+contract was decided up front rather than guessed mid-run.
 
 ## Running
 
@@ -28,21 +31,64 @@ uv run ancalagon migrate --db "$RUN_DIR/bus.db"
 uv run ancalagon run --config ancalagon.toml --run-dir "$RUN_DIR"
 ```
 
-`scripts/ancrun.zsh <config.toml> [run-dir]` does all three; run it with no run directory to
-allocate a fresh one, or pass an existing one to continue that run. Those three steps are the
-startup script. `init` allocates `<write_root>/runs/r_YYYYMMDD-HHMMSS` from the UTC clock and
-prints it, or creates and prints the directory given to `--run-dir`. `migrate` brings that run's
-database to the latest schema, creating it on a fresh directory. `run` never creates or
-upgrades a database: it refuses one that is absent or out of date and names the command to
-fix it.
+Three separate commands, because a schema upgrade belongs to the startup script and not to a
+side effect of starting a run.
 
-Everything an agent is — its behaviour, what it is told, what shape it must answer in, its
-tools, its budget — is a **role**, declared under `[roles.*]` and never authored at runtime:
+| Command | Does | Refuses |
+|---|---|---|
+| `init` | allocates `<write_root>/runs/r_YYYYMMDD-HHMMSS` from the UTC clock and prints it, or creates the directory given to `--run-dir` | an allocated directory that already exists |
+| `migrate` | brings that run's database to the latest schema, creating it if absent | — |
+| `run` | starts or continues the run in `--run-dir` | a database that is absent or out of date, naming the command that fixes it |
+| `answer` | appends your answer to a stopped agent and re-queues its task | a task with no `needs_input` in its history, or one with a live agent |
+
+`scripts/ancrun.zsh <config.toml> [run-dir]` does the first three. With no run directory it
+allocates a fresh one; pass an existing one to continue that run.
+
+## How it works
+
+Three kinds of process. They share no memory and there is no IPC — every hand-off is a SQLite
+row or a file.
+
+```mermaid
+flowchart TB
+    subgraph cliproc["ancalagon run (process 1)"]
+        cli["cli.py<br/>writes root spec.json"]
+        sup["supervisor.py<br/>claim · spawn · reap · wake"]
+    end
+    subgraph w1["worker (process 2..N)"]
+        sess["session.py<br/>the agent loop"]
+        reg["registry<br/>tools this role may call"]
+        sess --- reg
+    end
+    bus[("bus.db<br/>tasks · agents · append-only events · model calls")]
+    disk[("tasks/&lt;id&gt;/<br/>spec.json · transcript.jsonl · outcome-N.json · tools/")]
+    prov(["model provider<br/>via litellm"])
+
+    cli -->|enqueue| bus
+    cli --> disk
+    sup <-->|claim, append status| bus
+    sup -->|spawn python -m ancalagon.worker| w1
+    sess -->|reads spec + transcript| disk
+    sess -->|writes outcome + transcript| disk
+    sess <--> prov
+    reg -->|delegate_x writes child spec, enqueues| bus
+    reg -->|read_file, ripgrep, ...| files[("read_roots / write_root")]
+```
+
+- **Supervisor** — spawns, reaps, kills on timeout. Never retries: a crash is reported and the
+  parent decides. The only module that constructs `Popen`.
+- **Worker** — one process, one agent, one attempt at one task.
+- **Session** — one turn at a time against the provider, with the tools its role named.
+
+## Roles
+
+Everything an agent *is* — behaviour, input shape, answer shape, tools, budget — is a role in
+the config. Nothing about an agent is authored at runtime.
 
 ```toml
 [roles.root]
 behaviour = "You investigate a codebase or a set of artifacts to answer the goal you are given."
-tools = ["read_file", "ripgrep", "ast_grep", "list_dir", "delegate_component_analyst"]
+tools = ["read_file", "ripgrep", "ast_grep", "list_dir", "delegate_component_analyst", "collect_task"]
 budget = { turns = 20, tool_calls = 60 }
 
 [roles.component_analyst]
@@ -51,207 +97,259 @@ input  = { module = "./shapes.py", name = "ComponentQuery" }
 answer = { module = "./shapes.py", name = "Component" }
 tools  = ["read_file", "ripgrep", "find_symbol"]
 budget = { turns = 12, tool_calls = 30 }
-```
 
-Omitting `input` or `answer` means `FreeText` — that is how a role opts into prose instead of
-naming a path. A role that names no contract gets none; there is no default global budget or
-tool list, only what each role states. A role a worker may spawn gets a `delegate_<role>` tool,
-built at worker startup from that role's own input contract, so a parent sees the child's real
-input schema rather than a string it has to guess the shape of. A worker builds those tools for
-the roles its own `tools` list names, so it never loads the contracts of roles it cannot spawn.
-A role name becomes a tool name, so it must be a Python identifier.
-
-The root is a role like any other. `[run] role` names which one it runs as, and its goal and
-input come from files rather than from a `delegate` call, since it has no parent to call one:
-
-```toml
 [run]
 goal_file = "./goal.md"
-input_file = ""                  # validated against the root role's input class; empty + FreeText means {"text": goal}
+input_file = ""      # validated against the root role's input class; empty + FreeText means {"text": goal}
 role = "root"
 ```
 
-A run directory is named on the command line, never in the TOML. Passing the same one to a
-second invocation continues that run rather than starting over. An unset, missing or empty `goal_file`
-exits 2 without starting a run, and so does `[run] role` naming a role `[roles.*]` does not
-declare. Every declared role's `input` and `answer` are resolved before the run starts too, so
-a contract module that does not parse or does not exist exits 2 naming the role and the path,
-rather than crashing a worker later.
+The root is a role like any other; `[run] role` names which one it runs as, and its goal comes
+from a file because it has no parent to call `delegate` on it.
 
-`tools` is per role, and it is a change of default from the version before roles existed: an
-empty list now means *no tools*, not all of them. Every tool a role may use must be named,
-except `submit_answer` and `idle`, which every role gets regardless of its `tools` list — the
-session decides per turn which of the two to offer, and forces `submit_answer` on the turn its
-budget runs out, so an author who forgot to list either would only produce a harness crash, or
-a delegating agent that can never wait for its own children, not a deliberately toolless agent.
-
-The harness does not check that a role graph makes sense. A role holding `delegate_x` but not
-`collect_task` can spawn children whose answers it can never read — and because `submit_answer`
-is withheld until every child is collected, such a role can never answer while turns remain
-either; it always runs its whole budget out and finishes `Exhausted`, never `Completed`. A role
-whose children call `need_input`, but which itself lacks `answer_task`, leaves them waiting
-until they time out. Getting the pairing right is the config author's job.
-
-A parent with children still working is not left polling to learn when they finish. Each turn
-it is offered `idle` in place of `submit_answer` while any child is outstanding; calling it
-ends the attempt with an `Idling` outcome and the process exits, its transcript and event log
-left on disk. The supervisor re-enqueues the task once a child settles after the parent idled,
-and the run resumes as a **new** agent against the same task — with a fresh copy of its role's
-`budget`, since a resumed agent starts fresh like any other. A parent that idles waiting on
-three children may spend four budgets across the run, not one; that cost lands on whichever
-role the parent is, so it belongs in the same place as any other budget decision. `check_task`
-still reports a child's status without waiting or spending a turn; `collect_task` reads its
-answer once the supervisor has closed the child, and records that the answer was read — a
-child whose process is still exiting is not yet collectable, and says so. A child the
-supervisor had to kill is collectable too: `collect_task` reads that outcome from the bus
-event that closed it rather than from a file that was never written. `submit_answer` stays
-withheld until every child
-is both settled and read, except on the turn the parent's own budget runs out, when it is
-offered regardless — being cut off is not a choice to skip reading what was commissioned.
-
-A `spec.json` embeds the whole role as it was when the task was queued, not a name pointing
-into the config, so an edit to `[roles.*]` affects only tasks queued afterwards — a config
-change mid-run cannot silently redefine a task already sitting in the bus. That freeze is not
-total: a frozen role naming `delegate_x` still fails on resume if role `x` is later removed
-from the config, and the contract *source* is never frozen, since `{module = "./shapes.py"}`
-is a path — editing that file changes the shape a resumed run works to, even though the role
-itself did not change.
-
-`load_config` reads every field it needs by name, so a config missing one fails loudly. It
-never validates the whole document, though, so a config left over from before roles existed —
-a stray `[agent]`, `[tools]` or `[budget]` section — loads silently and is simply ignored.
-Upgrading a config means deleting those sections yourself; nothing will tell you they are
-dead weight.
-
-Keep a named run directory under `<write_root>/runs/` as above: the watcher below only sees
-`<write_root>/runs/*/tasks/*` and `<write_root>/*/tasks/*`, and a run elsewhere is invisible to it.
-
-Watch a run as it happens, including subagents spawned mid-run:
-
-```bash
-./scripts/ancwatch.zsh ancalagon.toml    # start before or during a run
+```mermaid
+flowchart LR
+    role["[roles.component_analyst]"] --> spec["spec.json<br/>the whole role, frozen at enqueue"]
+    spec --> worker["worker startup"]
+    worker --> resolve["resolve ClassRef<br/>module path + class name"]
+    resolve --> inc["input class"]
+    resolve --> outc["answer class"]
+    inc --> agentspec["AgentSpec[InT]<br/>spec re-read as a model"]
+    outc --> submit["submit_answer<br/>schema the model must match"]
+    role --> tl["tools = [...]"]
+    tl --> registry["registry: exactly these,<br/>plus submit_answer and idle"]
+    role --> b["budget = turns, tool_calls"]
+    b --> registry
 ```
 
-Give it the same config the run uses and it watches that config's `write_root`, so
-the two cannot disagree about where runs live. A directory works too.
+Rules that follow from that wiring:
 
-On Bedrock with a bearer token, `scripts/ancrun.zsh` runs the same command with stale AWS
-credentials stripped from the environment — otherwise litellm signs with those instead and
-Bedrock rejects the request. It reads `AWS_BEARER_TOKEN_BEDROCK` from the environment and
-refuses to start without it.
+- Omitting `input` or `answer` means `FreeText` — that is how a role opts into prose.
+- A role a worker may spawn gets a `delegate_<role>` tool built from *that role's* input
+  contract, so a parent sees the child's real schema. A worker builds them only for the roles
+  its own `tools` list names. A role name becomes a tool name, so it must be a Python identifier.
+- `tools = []` means *no tools*, not all of them. `submit_answer` and `idle` arrive regardless.
+- There is no global default budget or tool list. Only what each role states.
+- A `spec.json` freezes the role at enqueue, so editing `[roles.*]` affects only tasks queued
+  afterwards. The freeze is not total: the contract *source* is a path, so editing
+  `shapes.py` changes the shape a resumed run works to.
 
-Runs are sandboxed by default: every worker process is wrapped with `fence`, so `fence` must
-be installed (`brew install fencesandbox/fence/fence` or see the project's own instructions).
-Set `[sandbox] strategy = "none"` in the config to run unsandboxed instead. The sandbox
-confines writes to `write_root`; it does not restrict reads, so a sandboxed agent can still
-read anything the user running it can. On macOS, fence also grants an implicit write
-carve-out for the whole `$TMPDIR` tree regardless of the policy — a known limitation, not
-enforced by us.
+Three things are checked before any agent starts, each exiting 2 with the reason: a missing or
+empty `goal_file`, a `[run] role` no `[roles.*]` declares, and a contract module that does not
+exist or does not parse — named with the role and the path, rather than crashing a worker later.
 
-`run` brings its own run database up to the latest schema before opening it, so an existing
-run directory keeps working after an upgrade. Nothing else migrates: opening a bus to read
-one requires it to be current already. To upgrade a database without starting a run:
+The harness does not check that a role graph makes sense:
 
-```bash
-ancalagon migrate --db ws/runs/r_20260822-121500/bus.db          # to the latest version
-ancalagon migrate --db ws/runs/r_20260822-121500/bus.db --to 0   # or back down to a given one
+| Role holds | But lacks | Consequence |
+|---|---|---|
+| `delegate_x` | `collect_task` | can spawn children it can never read, and `submit_answer` stays withheld — it always runs out its budget and finishes `Exhausted` |
+| — | `answer_task` | children that call `need_input` wait until they time out |
+
+`load_config` reads each field it needs by name, so a missing one fails loudly. It never
+validates the whole document, so a stale `[agent]`, `[tools]` or `[budget]` section from before
+roles existed loads silently and is ignored. Nothing will tell you it is dead weight.
+
+## Delegating, and what a parent does while it waits
+
+A parent does not poll. It idles, its process exits, and the supervisor brings it back once a
+child settles.
+
+```mermaid
+sequenceDiagram
+    participant P as parent worker
+    participant B as bus.db
+    participant S as supervisor
+    participant C as child worker
+
+    P->>B: delegate_x — write child spec.json, enqueue
+    P->>B: idle — outcome Idling, process exits
+    Note over P: transcript and events stay on disk
+    S->>B: claim, spawn
+    S->>C: python -m ancalagon.worker
+    C->>C: turns, tools, submit_answer
+    C->>B: outcome-N.json on disk
+    S->>B: append terminal row (Closed)
+    S->>B: task wakeable — re-enqueue parent
+    S->>P: spawn a NEW agent, same task
+    Note over P: same transcript, fresh copy of the role's budget
+    P->>B: collect_task — read the answer, append collected
+    P->>B: submit_answer
 ```
 
-`--to 0` drops every table the schema creates, not just what a later migration would have
-added — there is only the one migration. A parent's `idling` row and a child's `collected`
-row go with the rest of `agent_events`, so a downgraded database loses the record of why a
-parent stopped, along with everything else.
+- Resumption is a **new agent** against the same task. A parent that idles waiting on three
+  children may spend four budgets across the run, not one. That cost lands on the parent's
+  role, which is where every other budget decision lives.
+- `check_task` reports a child's status without waiting or spending a turn.
+- `collect_task` needs the child *closed by the supervisor*, not merely finished — a child
+  whose process is still exiting is not yet collectable, and says so. A child the supervisor
+  had to kill is still collectable: the outcome is read from the bus event that closed it,
+  since no file was ever written.
 
-Only the worker writes `outcome-<agent>.json`, and only the supervisor writes a row about what
-happened to an agent — one terminal row per agent, carrying the worker's own account when
-there is one on disk to read, or the supervisor's own observation when there is not. That
-single write is what an agent's rows mean: `Closed` if an answer exists, `Lost` if it does
-not, decided the same way every time rather than assumed from whichever row is newest.
-`LifecycleStore.record` enforces the order regardless, refusing to write a transition the lifecycle does
-not allow, so a sequence that could not have happened is caught where it is written rather
-than later, by whichever predicate first disagrees with it. `docs/architecture.md` has the
-states and the reasoning.
+Which of the two terminal tools the session offers is decided per turn:
 
-## How it works
+| Turns left? | Children outstanding | Children settled but uncollected | Offered |
+|---|---|---|---|
+| yes | none | none | `submit_answer`, no `idle` |
+| yes | some | — | `idle`, no `submit_answer` |
+| yes | none | some | neither — `collect_task` first |
+| no (final turn) | none | any | `submit_answer` only, forced |
+| no (final turn) | some | — | nothing is offered: the attempt ends `Idling` |
 
-Three kinds of process, communicating only through SQLite rows and files:
+## Asking a human
 
-- **Root agent** — reasons, uses tools, delegates.
-- **Supervisor** — spawns, reaps, kills on timeout. Never retries; a crash is
-  reported and the parent decides. The only module that constructs `Popen`.
-- **Worker** — one agent session per process, one attempt at one task.
+A subagent that needs input stops rather than blocking, so nothing is held open and a dead
+child cannot hang its parent. Questions bubble up; answers flow down.
 
-There is no IPC. A parent writes `spec.json` and enqueues a row; a worker writes
-`outcome-<agent>.json` and `transcript.jsonl`. A subagent that needs input returns
-`NeedsInput` and stops rather than asking mid-run, so nothing blocks and a dead
-child cannot hang its parent.
+```mermaid
+sequenceDiagram
+    participant H as you
+    participant R as root agent
+    participant C as child agent
 
-Stopping is not giving up. Answer it and it continues from where it left off, with
-everything it had already worked out:
+    C->>C: need_input — outcome NeedsInput, exits
+    R->>R: collect_task reads the question
+    alt root can answer
+        R->>C: answer_task — append + re-enqueue
+    else root cannot
+        R->>R: need_input — the question goes up
+        H->>R: ancalagon answer --task 1 --answer "..."
+    end
+    Note over R,C: an answer is one append and one enqueue,<br/>then the worker resumes from its own transcript
+```
 
 ```bash
 ancalagon answer --run-dir ws/runs/r_20260822-121500 --task 1 --answer "keep both captions"
 ancalagon run --config ancalagon.toml --run-dir ws/runs/r_20260822-121500   # same run dir; picks it up
 ```
 
-A parent can do the same to its own child mid-run with the `answer_task` tool, and a
-parent that cannot answer passes the question up by asking one itself. Meanwhile the
-other children keep working — so by the time you answer, their results are waiting.
+Meanwhile the other children keep working, so by the time you answer, their results are waiting.
+
+## The lifecycle of one attempt
+
+Nothing is ever updated. Every status is a new row, and the current state is a fold over an
+agent's whole history.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Nascent
+    Nascent --> Queued: enqueue
+    Queued --> Claimed: supervisor claims
+    Claimed --> Running: spawned, pid recorded
+    Running --> Closed: worker left outcome-N.json
+    Running --> Lost: killed on timeout, or gone before writing
+    Closed --> Collected: parent read the answer
+    Lost --> Collected: parent read the close reason
+    Collected --> [*]
+
+    note right of Closed
+        verdict is the worker's own word:
+        completed · exhausted · failed
+        needs_input · idling
+    end note
+    note right of Lost
+        verdict is the supervisor's observation:
+        crashed · timed_out
+    end note
+```
+
+- Only the worker writes `outcome-<agent>.json`; only the supervisor writes a row about what
+  happened to an agent, and exactly one terminal row per agent. `Closed` means an answer exists
+  on disk, `Lost` means it does not — decided by a check, never assumed from the newest row.
+- `LifecycleStore.record` refuses a transition this diagram does not allow, so an impossible
+  sequence fails where it is written rather than later, at whichever predicate first disagrees.
+- It never retries. A crash is reported; the parent decides.
+
+`docs/architecture.md` has the states in full, and the reasoning.
+
+## What a run leaves behind
+
+```
+ws/runs/r_20260822-121500/
+    bus.db                        tasks, agents, an append-only event log, model calls
+    tasks/<task_id>/
+        spec.json                 what was asked, with the whole role embedded
+        transcript.jsonl          every message, one per line, tagged by agent id
+        outcome-<agent>.json      the result of that attempt, kept even when superseded
+        stderr-<agent>.log        the worker's stderr
+        tools/0000-read_file.txt  every tool's full output
+```
+
+Resumption is not a mode: a worker loads whatever transcript is already in its directory. Point
+it at an existing directory to continue with history; give a new directory the same spec for a
+clean retry. Transcripts are flushed per message, so a killed agent still leaves a readable
+partial history — which is what makes resumption possible at all.
 
 ## Inspecting a run
 
-Everything is on disk and in one SQLite file:
+Everything is on disk and in one SQLite file. There is no `ancalagon usage` verb; the schema is
+the query surface.
 
 ```bash
 sqlite3 ws/runs/r_20260822-121500/bus.db \
   "select agent, status, source, summary from agent_events order by id"
-rg '"agent": 17' ws/runs/r_20260822-121500/tasks/*/transcript.jsonl
-```
 
-Every model call is recorded too, so a run can be asked what it consumed and
-which agent consumed it. That table has its own store, `MeterStore`, behind the
-`Meter` a session calls — a separate concern from the agent lifecycle rows above,
-sharing the run's one connection rather than a second database:
-
-```bash
 sqlite3 -json ws/runs/r_20260822-121500/bus.db \
   "select agent, model, sum(prompt_tokens), sum(completion_tokens),
           sum(cache_creation_tokens), sum(cache_read_tokens)
    from model_calls group by agent"
+
+rg '"agent": 17' ws/runs/r_20260822-121500/tasks/*/transcript.jsonl
+tail -f ws/runs/r_20260822-121500/tasks/root/transcript.jsonl
 ```
 
-Tokens are recorded; money is not. Cost needs a price list that changes without
-notice, and a figure computed at one week's prices is silently wrong the next.
-The counters are facts the provider reported; pricing them is the caller's job.
+Model calls have their own store, `MeterStore`, behind the `Meter` a session calls — a separate
+concern from the lifecycle rows, sharing the run's one connection rather than a second database.
+Tokens are recorded; money is not. A price list changes without notice, and a figure computed at
+one week's prices is silently wrong the next.
 
-Transcripts are appended and flushed per message, so a killed agent leaves a
-readable partial history — which is what makes resumption possible.
+Watch a whole run, subagents included:
 
-## Layout
-
-```
-ws/runs/<run>/
-    bus.db                        tasks, agents, an append-only event log, model calls
-    tasks/<task_id>/
-        spec.json  outcome-<agent>.json  transcript.jsonl  stderr-<agent>.log  tools/
+```bash
+./scripts/ancwatch.zsh ancalagon.toml    # start before or during a run
 ```
 
-Resumption is not a mode: a worker loads whatever transcript is already in its
-directory. Point it at an existing directory to continue with history; give it a
-new directory with the same spec for a clean retry.
+Give it the config the run uses, so the two cannot disagree about where runs live. It sees only
+`<write_root>/runs/*/tasks/*` and `<write_root>/*/tasks/*` — a run directory elsewhere is
+invisible to it.
+
+## Sandbox, credentials, migrations
+
+- Runs are sandboxed by default: every worker is wrapped with `fence`
+  (`brew install fencesandbox/fence/fence`). `[sandbox] strategy = "none"` opts out.
+- The sandbox confines **writes** to `write_root`. It does not restrict reads, so a sandboxed
+  agent can still read anything you can. On macOS, fence also grants an implicit write
+  carve-out for the whole `$TMPDIR` tree regardless of policy — a known limitation, not ours.
+- On Bedrock with a bearer token, `scripts/ancrun.zsh` strips stale AWS credentials from the
+  environment first — otherwise litellm signs with those and Bedrock rejects the request. It
+  requires `AWS_BEARER_TOKEN_BEDROCK`.
+- `ancalagon migrate --db <db> --to 0` drops every table the schema creates, not just what a
+  later migration added; there is only the one. A parent's `idling` row and a child's
+  `collected` row go with the rest of `agent_events`.
 
 ## Constraints
 
-Pyright strict with no `Any`, no `object`, and no JSON-blob types — JSON is text
-until `model_validate_json` makes it a concrete model. One class per module.
-No comments beyond a one-line header. See `CLAUDE.md`.
+Pyright strict, no `Any`, no `object`, no JSON-blob types — JSON is text until
+`model_validate_json` makes it a concrete model. One class per module. No comments beyond a
+one-line header. See `CLAUDE.md`.
 
-The architecture is machine-checked rather than reviewed. Seven `import-linter`
-contracts in `pyproject.toml` say which package may import which — layering, leaf
-independence, domain-must-not-import-adapters, SQL only in the two store adapters,
-`os` only in the two that own it. The file system is held by the type instead: the
-domain says `pathlib.PurePath`, which has no `read_text` to call, so `fs/real_file_system.py`
-is the only module in the package that can touch a file. Both fail the build, not a review.
+The architecture is machine-checked rather than reviewed, and both of these fail the build:
+
+```mermaid
+flowchart TB
+    subgraph il["7 import-linter contracts in pyproject.toml"]
+        c1["layers point downward: cli on top, env : fs at the bottom"]
+        c2["sibling leaves independent: contracts, clock, env, fs"]
+        c3["domain never imports adapters: attempt, schedule ↛ bus"]
+        c4["SQL only in bus and migrations"]
+        c5["os only in real_environment and os_liveness"]
+        c6["tools taking a model's path ↛ ancalagon.fs — go via workspace"]
+        c7["sandbox knows fs and nothing else of ours"]
+    end
+    subgraph py["Pyright, for what an import graph cannot see"]
+        p1["the domain says PurePath — no read_text to call"]
+        p2["fs/real_file_system.py is the only module that constructs Path"]
+    end
+```
 
 ## Testing
 
@@ -262,22 +360,21 @@ ANCALAGON_LIVE=1 uv run pytest tests/integration            # also calls a real 
 ANCALAGON_LOCAL_MODEL=ollama_chat/qwen2.5:14b uv run pytest tests/integration
 ```
 
-The integration suite's offline tests exercise the whole pipeline — CLI, bus,
-supervisor, worker subprocess, outcome and stderr capture — without a credential.
-`tests/integration/scripted_model.py` serves an OpenAI-shaped endpoint from a script
-keyed on each agent's goal, so real worker processes can be driven through an exact
-sequence: `test_scripted_escalation.py` runs a whole delegate-ask-escalate-answer-resume
-cycle in nine seconds, deterministically.
+The integration suite's offline tests exercise the whole pipeline — CLI, bus, supervisor, worker
+subprocess, outcome and stderr capture — without a credential.
+`tests/integration/scripted_model.py` serves an OpenAI-shaped endpoint from a script keyed on
+each agent's goal, so real worker processes run an exact sequence:
+`test_scripted_escalation.py` runs a whole delegate-ask-escalate-answer-resume cycle in nine
+seconds, deterministically.
 
-The two gated tests answer different questions. `ANCALAGON_LIVE` asks whether a funded
-model can do the work; `ANCALAGON_LOCAL_MODEL` asks whether a real provider accepts a
-resumed transcript — one that ends with an answer to a question the agent asked — and
-carries on from it. No fake can settle that, and a local model settles it for free.
+The two gated tests answer different questions. `ANCALAGON_LIVE` asks whether a funded model can
+do the work. `ANCALAGON_LOCAL_MODEL` asks whether a real provider accepts a resumed transcript —
+one ending in an answer to a question the agent asked — and carries on from it. No fake can
+settle that, and a local model settles it for free.
 
 ## Design
 
-`docs/architecture.md` follows a single run through every file it touches, in order --
-start there if you are reading the code.
-
-`docs/superpowers/specs/2026-08-02-ancalagon-agent-harness-design.md` is the design
-rationale: what was chosen, what was deliberately cut, and why.
+- `docs/architecture.md` — one run through every file it touches, in order. Start here to read
+  the code.
+- `docs/superpowers/specs/2026-08-02-ancalagon-agent-harness-design.md` — the rationale: what
+  was chosen, what was cut, and why.
