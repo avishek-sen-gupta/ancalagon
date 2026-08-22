@@ -7,7 +7,7 @@ import ancalagon.migrations
 
 def connect(path: pathlib.Path) -> sqlite3.Connection:
     if not path.exists():
-        raise ValueError(f"{path} does not exist")
+        raise ValueError(f"{path} does not exist; run: ancalagon migrate --db {path}")
     conn = sqlite3.connect(path, isolation_level=None)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout = 5000")

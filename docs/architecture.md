@@ -29,13 +29,25 @@ cli.py ──writes spec.json──▶ tasks/root/
 
 ### 1. Starting a run — `ancalagon/cli.py`
 
-`main(config_path)`:
+`main(config_path, run_dir)`. The run directory is created by `ancalagon init` and migrated by
+`ancalagon migrate` before this runs — three separate invocations, so that schema changes are
+applied by the startup script rather than as a side effect of starting a run:
+
+```bash
+RUN_DIR=$(ancalagon init --config ancalagon.toml)
+ancalagon migrate --db "$RUN_DIR/bus.db"
+ancalagon run --config ancalagon.toml --run-dir "$RUN_DIR"
+```
+
+`init` allocates `<write_root>/runs/r_YYYYMMDD-HHMMSS`, stamped from the injected clock in UTC,
+when `--run-dir` is absent, and creates the named
+directory when it is given. A named directory is reused if present, which is what makes a second
+invocation continue rather than start over; an allocated one must not already exist.
 
 1. `config/load.py` reads the TOML. Relative roots resolve against the **config file**, not
    the process cwd, so a worker started elsewhere sees the same paths.
-2. `run_dir_of` uses `[run] run_dir` when set and allocates `<write_root>/runs/r_NNNN` when not.
-   A named directory is created if absent and reused if present, which is what makes a second
-   invocation continue rather than start over; an allocated one must not already exist.
+2. `bus.db` is opened before anything is written, so a run against an absent or out-of-date
+   database refuses before creating a task directory.
 3. `root_spec` builds the root's `AgentSpec` from `[run] role`, looked up in `config.roles` and
    embedded whole — not copied to disk, since the path in a role's `input`/`answer` `ClassRef`
    already names where the config says the contract module lives, and the worker resolves it
@@ -45,8 +57,7 @@ cli.py ──writes spec.json──▶ tasks/root/
    is then just `root_spec(config).model_dump_json()`. An unset, missing or empty goal file, a
    role that `[run] role` names but `[roles.*]` does not declare, or an `input_file` that fails
    to validate against the role's input class, exits 2 before any spawn.
-4. `bus.db` is migrated to the latest schema — created if the run directory has none — and
-   then opened, and the task is enqueued with `parent_agent=0`. Enqueuing creates
+4. The task is enqueued with `parent_agent=0`. Enqueuing creates
    the task if new, adds an agent, and appends a `queued` event; a task retried later reuses
    the task row and adds another agent.
 5. Constructs the `Supervisor` and calls `run_until_idle()`, then `shutdown()` in a
@@ -59,13 +70,12 @@ The CLI never spawns anything and never speaks to a model.
 
 **Opening a bus never migrates it.** `LifecycleStore.open` requires a database that exists and is
 already at the latest version, and raises otherwise, naming the command to run. Migrating is
-`migrations.migrate_file`, called in exactly two places: `main` above, which brings the run's
-own database up before opening it, and the `migrate` command, which does it without starting
-a run:
+`migrations.migrate_file`, reached only through the `migrate` command. Starting a run never
+migrates anything:
 
 ```bash
-ancalagon migrate --db ws/runs/r_0001/bus.db          # to the latest version
-ancalagon migrate --db ws/runs/r_0001/bus.db --to 0   # or back down to a given one
+ancalagon migrate --db ws/runs/r_20260822-121500/bus.db          # to the latest version
+ancalagon migrate --db ws/runs/r_20260822-121500/bus.db --to 0   # or back down to a given one
 ```
 
 The split matters because the two acts have different blast radii. Starting a run is a
@@ -475,7 +485,7 @@ the only place third-party type gaps are tolerated.
 ## What a run leaves behind
 
 ```
-ws/runs/r_0001/
+ws/runs/r_20260822-121500/
     bus.db                        tasks, agents, every event about them, every model call
     tasks/root/
         spec.json                 what was asked, with the whole role embedded
@@ -489,18 +499,18 @@ ws/runs/r_0001/
 Because the transcript is flushed per message, a run is watchable while it happens:
 
 ```bash
-tail -f ws/runs/r_0001/tasks/root/transcript.jsonl
+tail -f ws/runs/r_20260822-121500/tasks/root/transcript.jsonl
 ```
 
 Everything is inspectable without ancalagon:
 
 ```bash
-sqlite3 ws/runs/r_0001/bus.db \
+sqlite3 ws/runs/r_20260822-121500/bus.db \
   "select agent, status, source, summary from agent_events order by id"
-sqlite3 ws/runs/r_0001/bus.db \
+sqlite3 ws/runs/r_20260822-121500/bus.db \
   "select agent, count(*), sum(prompt_tokens), sum(cache_read_tokens)
    from model_calls group by agent"
-rg '"agent": 1' ws/runs/r_0001/tasks/root/transcript.jsonl
+rg '"agent": 1' ws/runs/r_20260822-121500/tasks/root/transcript.jsonl
 ```
 
 There is no `ancalagon usage` verb — `run` and `migrate` are the only commands. The schema is

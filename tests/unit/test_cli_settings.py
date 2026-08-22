@@ -4,7 +4,8 @@ import pathlib
 import pytest
 
 from ancalagon import cli
-from ancalagon.cli import goal_of, root_spec, run_dir_of, sandbox_of
+from ancalagon.cli import created_run_dir, goal_of, root_spec, sandbox_of
+from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.config.config import Config
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
@@ -15,23 +16,24 @@ from ancalagon.sandbox.strategy import Strategy
 from ancalagon.sandbox.unsandboxed import Unsandboxed
 
 
-def test_a_named_run_dir_is_used_verbatim_and_an_unnamed_one_is_allocated(
+def test_a_named_run_dir_is_created_verbatim_and_an_unnamed_one_is_stamped(
     tmp_path: pathlib.Path,
 ):
     write_root = tmp_path / "ws"
     named = tmp_path / "units" / "abc123"
+    clock = FakeClock()
 
-    assert run_dir_of(RunSettings(run_dir=str(named)), write_root) == named
+    assert created_run_dir(str(named), write_root, clock) == named
     assert named.is_dir()
-    assert run_dir_of(RunSettings(run_dir=str(named)), write_root) == named
+    assert created_run_dir(str(named), write_root, clock) == named
 
-    (write_root / "runs").mkdir(parents=True)
-    (write_root / "runs" / "unrelated").mkdir()
-    (write_root / "runs" / "r_abc").mkdir()
-    (write_root / "runs" / "r_001x").mkdir()
+    assert created_run_dir("", write_root, clock) == write_root / "runs" / "r_20260101-000000"
+    clock.sleep(61)
+    assert created_run_dir("", write_root, clock) == write_root / "runs" / "r_20260101-000101"
 
-    assert run_dir_of(RunSettings(), write_root) == write_root / "runs" / "r_0001"
-    assert run_dir_of(RunSettings(), write_root) == write_root / "runs" / "r_0002"
+    clock.sleep(-61)
+    with pytest.raises(FileExistsError):
+        created_run_dir("", write_root, clock)
 
 
 def test_an_allocated_run_dir_refuses_a_directory_another_run_already_took(
@@ -41,13 +43,13 @@ def test_an_allocated_run_dir_refuses_a_directory_another_run_already_took(
     taken = write_root / "runs" / "r_0001"
     taken.mkdir(parents=True)
 
-    def race(_: pathlib.Path) -> pathlib.Path:
+    def race(_: pathlib.Path, __: FakeClock) -> pathlib.Path:
         return taken
 
     monkeypatch.setattr(cli, "_allocated_run_dir", race)
 
     with pytest.raises(FileExistsError):
-        run_dir_of(RunSettings(), write_root)
+        created_run_dir("", write_root, FakeClock())
 
 
 def test_a_goal_comes_from_the_file_and_from_nowhere_else(tmp_path: pathlib.Path):
