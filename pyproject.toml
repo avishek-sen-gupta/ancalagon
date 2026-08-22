@@ -85,6 +85,21 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "Tools that take a model's path go through the workspace"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = [
+    "ancalagon.tools.artifacts",
+    "ancalagon.tools.files",
+    "ancalagon.tools.history",
+    "ancalagon.tools.parse",
+    "ancalagon.tools.registry",
+    "ancalagon.tools.search",
+    "ancalagon.tools.survey",
+]
+forbidden_modules = ["ancalagon.fs"]
+
+[[tool.importlinter.contracts]]
 name = "Domain does not import adapters"
 type = "forbidden"
 source_modules = ["ancalagon.attempt", "ancalagon.schedule"]
