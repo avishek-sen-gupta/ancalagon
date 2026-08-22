@@ -23,11 +23,17 @@ uv run python -m black .                       # formatting
 uv run pyright                                 # strict, must be zero errors
 uv run pytest tests/unit                       # no network
 uv run pytest tests/integration                # real worker subprocesses
+uv run lint-imports                            # seven contracts, must all be kept
 ```
 
-The pre-commit hook runs Talisman, Black, the `Any`/`object` ban, Pyright and the unit suite,
-so a commit that passes has been through all of them. Two integration tests are gated and
-skipped by default:
+The pre-commit hook runs python-fp-lint, Talisman, the terminology guard, Black, the
+`Any`/`object` ban, the import contracts, Pyright and the unit suite, so a commit that passes
+has been through all of them. Two of those carry rules worth knowing before you write code:
+the contracts in `pyproject.toml` say which package may import which, and Pyright enforces the
+file-system rule through the type — the domain says `pathlib.PurePath`, which has no
+`read_text` to call, so only `fs/real_file_system.py` can touch a file.
+
+Two integration tests are gated and skipped by default:
 
 ```bash
 ANCALAGON_LIVE=1 uv run pytest tests/integration              # a funded model
