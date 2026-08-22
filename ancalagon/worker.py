@@ -55,6 +55,7 @@ from ancalagon.tools.search.ast_grep import AstGrep
 from ancalagon.tools.search.find_symbol import FindSymbol
 from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.search.sed import Sed
+from ancalagon.tools.shell.shell import Shell
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.transcript.history import load, repair
@@ -89,6 +90,7 @@ def available_tools(
         bind_tool(QueryJson()),
         bind_tool(GitHistory()),
         bind_tool(TreeSitter()),
+        bind_tool(Shell()),
         *delegate_tools(roles, run_dir=run_dir, parent=parent, clock=clock, fs=fs),
         bind_tool(CheckTask(run_dir=run_dir, clock=clock, fs=fs)),
         bind_tool(CollectTask(run_dir=run_dir, clock=clock, fs=fs)),

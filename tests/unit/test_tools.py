@@ -56,6 +56,8 @@ from ancalagon.tools.search.grep_args import GrepArgs
 from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.search.sed import Sed
 from ancalagon.tools.search.sed_args import SedArgs
+from ancalagon.tools.shell.shell import Shell
+from ancalagon.tools.shell.shell_args import ShellArgs
 from ancalagon.tools.search.symbol_args import SymbolArgs
 from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.tools.survey.stats_args import StatsArgs
@@ -296,6 +298,25 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
 
     assert "delegate_scout" in at_root.names()
     assert "delegate_unreachable" not in at_root.names()
+    assert (
+        "shell"
+        in build_registry(
+            config,
+            TaskSpec(
+                task_id="root",
+                role=Role(
+                    behaviour="Shell.", tools=("shell",), budget=Budget(turns=1, tool_calls=1)
+                ),
+                goal="g",
+            ),
+            tmp_path,
+            parent=root_agent,
+            depth=0,
+            output_class=FreeText,
+            clock=SystemClock(),
+            fs=RealFileSystem(),
+        ).names()
+    )
     assert "need_input" in at_root.names()
     assert "delegate_scout" not in at_limit.names()
     assert "need_input" in at_limit.names()
@@ -700,3 +721,28 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     with pytest.raises(pydantic.ValidationError, match="depth"):
         tools[0].invoke('{"task_id": "t2", "goal": "g", "input": {"area": "bus"}}', ctx)
     assert (run_dir / "tasks" / "t2").exists() is False
+
+
+def test_shell_executes_a_command_in_a_scoped_directory_and_bounds_a_hang(
+    tmp_path: pathlib.Path,
+):
+    ctx = _ctx(tmp_path)
+    root = pathlib.Path(ctx.workspace.write_root)
+    (root / "one.txt").write_text("alpha\nbeta\n")
+    (root / "two.txt").write_text("gamma\n")
+
+    piped = Shell().run(ShellArgs(command="cat *.txt | sort | tr -d '\\n'", cwd=root), ctx)
+    assert piped.ok is True
+    assert pathlib.Path(piped.path).read_text() == "alphabetagamma"
+
+    failed = Shell().run(ShellArgs(command="ls no_such_file_here", cwd=root), ctx)
+    assert failed.ok is False
+    assert "no_such_file_here" in failed.error
+
+    denied = Shell().run(ShellArgs(command="echo hello", cwd=tmp_path / "outside"), ctx)
+    assert denied.ok is False
+    assert "outside" in denied.error
+
+    hung = Shell(timeout_s=1).run(ShellArgs(command="sleep 5", cwd=root), ctx)
+    assert hung.ok is False
+    assert hung.error == "shell timed out after 1s: sleep 5"
