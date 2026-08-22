@@ -279,6 +279,20 @@ partial history — which is what makes resumption possible at all.
 Everything is on disk and in one SQLite file. There is no `ancalagon usage` verb; the schema is
 the query surface.
 
+A finished or running run can be read as a graph. `trace` emits `{nodes, edges}` JSON — tasks,
+agent attempts and tool calls, joined by `spawned`, `woke`, `called`, `delegated` and `collected`
+edges, each stamped with when it happened. `viz` turns that into a Mermaid sequence diagram with
+one lane per task. They are separate so the data outlives this one way of drawing it:
+
+```bash
+ancalagon trace --run-dir ws/runs/r_20260822-121500 | ancalagon viz > run.mmd
+ancalagon trace --run-dir ws/runs/r_20260822-121500 --output run.json   # or keep the graph
+ancalagon viz --input run.json --output run.mmd
+```
+
+Both write to stdout when no `--output` is given, and `viz` reads stdin when no `--input` is.
+Neither writes anything into the run directory.
+
 ```bash
 sqlite3 ws/runs/r_20260822-121500/bus.db \
   "select agent, status, source, summary from agent_events order by id"

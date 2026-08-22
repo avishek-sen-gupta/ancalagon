@@ -28,6 +28,8 @@ from ancalagon.sandbox.unsandboxed import Unsandboxed
 from ancalagon.schedule.newest_agent import newest_agent
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
+from ancalagon.trace_command import trace_command
+from ancalagon.viz_command import viz_command
 
 LOGGER = logging.getLogger(__name__)
 
@@ -195,6 +197,12 @@ def cli() -> int:
     answer.add_argument("--run-dir", type=pathlib.PurePath, required=True)
     answer.add_argument("--task", type=int, required=True)
     answer.add_argument("--answer", type=str, required=True)
+    trace = commands.add_parser("trace")
+    trace.add_argument("--run-dir", type=pathlib.PurePath, required=True)
+    trace.add_argument("--output", type=str, default="")
+    viz = commands.add_parser("viz")
+    viz.add_argument("--input", type=str, default="")
+    viz.add_argument("--output", type=str, default="")
     args = parser.parse_args()
     try:
         if args.command == "init":
@@ -203,6 +211,10 @@ def cli() -> int:
             return migrate_command(args.db, args.to, RealFileSystem())
         if args.command == "answer":
             return answer_command(args.run_dir, args.task, args.answer)
+        if args.command == "trace":
+            return trace_command(args.run_dir, args.output, RealFileSystem())
+        if args.command == "viz":
+            return viz_command(args.input, args.output, RealFileSystem())
         return main(args.config, args.run_dir)
     except ValueError as error:
         sys.stderr.write(f"{error}\n")

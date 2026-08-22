@@ -571,10 +571,21 @@ sqlite3 ws/runs/r_20260822-121500/bus.db \
 rg '"agent": 1' ws/runs/r_20260822-121500/tasks/root/transcript.jsonl
 ```
 
-There is no `ancalagon usage` verb — `init`, `migrate`, `run` and `answer` are the only
-commands. The schema is
-the query surface, and `MeterStore.calls` and `MeterStore.tokens_by_agent` are the same two queries for
-callers already holding a bus.
+There is no `ancalagon usage` verb — the schema is the query surface, and `MeterStore.calls` and
+`MeterStore.tokens_by_agent` are the same two queries for callers already holding a bus.
+
+Two commands do read a finished run, and they are split so that neither decides for the other.
+`trace` (`ancalagon/trace_command.py`) takes a `Snapshot` and each task's transcript and folds
+them into a `Trace` — `{nodes, edges}`, where a node is a task, an agent attempt or a tool call,
+and an edge is `spawned`, `woke`, `called`, `delegated` or `collected`, each carrying the
+timestamp it happened at. It emits that as JSON. `viz` (`ancalagon/viz_command.py`) parses the
+same JSON back into a `Trace` and renders a Mermaid sequence diagram, one lane per task. Neither
+writes into the run directory, and a different renderer reads the same file.
+
+`graph_of` is pure — a `Snapshot` and a mapping of messages in, a `Trace` out — which is why the
+whole fold is tested without a database. Delegation is read from `tasks.parent_agent` rather than
+from a tool's arguments, since the bus already records which agent enqueued a task; collection is
+the one edge that needs an argument, and `TaskArgs` parses it.
 
 ## Where to start reading
 

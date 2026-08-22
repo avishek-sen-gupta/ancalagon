@@ -48,6 +48,8 @@ name = "Layers point downward"
 type = "layers"
 layers = [
     "ancalagon.cli",
+    "ancalagon.viz",
+    "ancalagon.trace",
     "ancalagon.worker",
     "ancalagon.supervisor : ancalagon.session",
     "ancalagon.tools",
@@ -128,7 +130,10 @@ source_modules = [
     "ancalagon.session",
     "ancalagon.supervisor",
     "ancalagon.tools",
+    "ancalagon.trace",
     "ancalagon.transcript",
+    "ancalagon.viz",
+    "ancalagon.viz_command",
     "ancalagon.worker",
     "ancalagon.workspace",
 ]
@@ -158,7 +163,11 @@ source_modules = [
     "ancalagon.session",
     "ancalagon.supervisor",
     "ancalagon.tools",
+    "ancalagon.trace",
+    "ancalagon.trace_command",
     "ancalagon.transcript",
+    "ancalagon.viz",
+    "ancalagon.viz_command",
     "ancalagon.worker",
     "ancalagon.workspace",
 ]
