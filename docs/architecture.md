@@ -273,7 +273,10 @@ the summary on the event that closed it, and a `Closed` one is read from disk as
 It never retries. A crash is reported; the parent decides.
 
 `subprocess_spawner.py` is the only module that constructs a process. `process.py` and
-`spawner.py` are protocols so the supervisor can be tested without launching interpreters.
+`spawner.py` are protocols so the supervisor can be tested without launching interpreters. It
+holds three ports of its own — a `Sandbox`, an `Environment` and a `FileSystem` — and nothing it
+needs comes from the ambient process.
+
 It wraps the command it builds with an injected `Sandbox` (`ancalagon/sandbox/sandbox.py`)
 before spawning: `Fence` writes its policy as `fence.json` into the run directory, so a run
 records what it ran under, and prepends `fence -s <policy> --`; `Unsandboxed` returns the
@@ -290,7 +293,16 @@ so `Sandbox.environment()` cannot influence them and the project depends on `htt
 instead, which is what lets litellm use the SOCKS endpoint fence prefers. The spec's claim
 that clearing `no_proxy` from the parent fixes loopback does not hold for that reason.
 
-`clock/` holds the third: one `Clock`, with `now()` for the instant a row or a message is
+What a child inherits is a value the harness chose, not whatever the launching shell held.
+`inherited(environment, sandbox)` merges an `Environment` (`ancalagon/env/`) with the sandbox's
+overrides, and it is a plain function so a test can assert what a child would get without
+spawning one. `os.environ` is read in exactly one place, `env/real_environment.py`, and an
+import contract forbids `os` everywhere else bar `os_liveness`, which needs `os.kill`. The
+motivating case was narrow but real: with `GIT_DIR` exported — which is what `git` does when it
+runs a hook — `git -C <dir> log` inside a tool reads the wrong repository. Nothing launches the
+harness from a hook today, so this closes a propagation path rather than a live bug.
+
+`clock/` holds the last: one `Clock`, with `now()` for the instant a row or a message is
 stamped with and `time()`/`sleep()` for how long an agent has been running. The supervisor,
 the bus and the session all take one, defaulting to `SystemClock`, so no timestamp anywhere
 comes from calling `datetime.now` in place. `FakeClock` starts at a fixed instant and moves
