@@ -293,6 +293,42 @@ ancalagon viz --input run.json --output run.mmd
 Both write to stdout when no `--output` is given, and `viz` reads stdin when no `--input` is.
 Neither writes anything into the run directory.
 
+Abridged, that is what a fan-out actually looked like — three children, a parent that idles
+rather than polls, and two wakes to collect them:
+
+```mermaid
+sequenceDiagram
+    participant t1 as root
+    participant t2 as task_bus_investigation
+    participant t3 as tool_registry_investigation
+    participant t4 as agent_roles_investigation
+    Note over t1: agent 1 starts
+    t1->>t2: delegate
+    Note over t2: agent 2 starts
+    t1->>t3: delegate
+    Note over t3: agent 3 starts
+    t1->>t4: delegate
+    Note over t4: agent 4 starts
+    t1->>t1: check_task
+    t1->>t1: idle
+    Note over t1: agent 1 idling
+    t2->>t2: ripgrep (failed)
+    t4->>t4: shell (failed)
+    Note over t1,t4: 60 more tool calls
+    t2->>t2: submit_answer
+    Note over t1: agent 5 wakes
+    t3->>t3: submit_answer
+    t1->>t2: collect
+    t1->>t3: collect
+    t1->>t1: idle
+    Note over t1: agent 5 idling
+    t4->>t4: submit_answer
+    Note over t1: agent 6 wakes
+    t1->>t4: collect
+    t1->>t1: submit_answer
+    Note over t1: agent 6 completed
+```
+
 ```bash
 sqlite3 ws/runs/r_20260822-121500/bus.db \
   "select agent, status, source, summary from agent_events order by id"
