@@ -15,8 +15,8 @@
   "permissions": {
     "allow": [],
     "deny": [
-      "Bash(git commit:*--no-verify*)",
-      "Bash(git push:*--no-verify*)"
+      "Bash(git commit*--no-verify*)",
+      "Bash(git push*--no-verify*)"
     ]
   }
 }
