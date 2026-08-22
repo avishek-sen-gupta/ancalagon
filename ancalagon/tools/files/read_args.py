@@ -5,6 +5,6 @@ import pydantic
 
 
 class ReadArgs(pydantic.BaseModel, frozen=True):
-    path: pathlib.Path
+    path: pathlib.PurePath
     offset: int = 0
     limit: int = 0

@@ -9,7 +9,7 @@ from ancalagon.contracts.payload import Payload
 class ToolResult(pydantic.BaseModel, frozen=True):
     ok: bool
     summary: Payload
-    path: pathlib.Path
+    path: pathlib.PurePath
     byte_count: int = 0
     truncated: bool = False
     error: str = ""

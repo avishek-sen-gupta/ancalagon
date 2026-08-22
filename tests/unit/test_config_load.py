@@ -102,7 +102,9 @@ def test_the_sandbox_strategy_and_its_domains_come_from_the_config(tmp_path: pat
     assert config.allowed_domains == ("bedrock-runtime.us-east-1.amazonaws.com",)
 
 
-def test_roles_load_with_their_contracts_and_prose_is_the_absent_default(tmp_path: pathlib.Path):
+def test_roles_load_with_their_contracts_and_prose_is_the_absent_default(
+    tmp_path: pathlib.Path,
+):
     shapes = tmp_path / "shapes.py"
     shapes.write_text("import pydantic\n\n\nclass Component(pydantic.BaseModel):\n    name: str\n")
     config = _written(

@@ -7,5 +7,5 @@ from ancalagon.tools.artifacts.document_format import DocumentFormat
 
 
 class ConvertArgs(pydantic.BaseModel, frozen=True):
-    path: pathlib.Path
+    path: pathlib.PurePath
     to: DocumentFormat = DocumentFormat.MARKDOWN

@@ -5,5 +5,5 @@ import pydantic
 
 
 class StatsArgs(pydantic.BaseModel, frozen=True):
-    roots: list[pathlib.Path]
+    roots: list[pathlib.PurePath]
     by_file: bool = False

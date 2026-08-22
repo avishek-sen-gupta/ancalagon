@@ -16,7 +16,7 @@ class CheckTask(Tool[TaskArgs]):
     cost = 0
     args_model = TaskArgs
 
-    def __init__(self, run_dir: pathlib.Path, clock: Clock, fs: FileSystem):
+    def __init__(self, run_dir: pathlib.PurePath, clock: Clock, fs: FileSystem):
         self.run_dir = run_dir
         self.clock = clock
         self.fs = fs

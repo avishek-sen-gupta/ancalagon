@@ -4,5 +4,5 @@ import pydantic
 
 
 class WriteArgs(pydantic.BaseModel, frozen=True):
-    path: pathlib.Path
+    path: pathlib.PurePath
     content: str

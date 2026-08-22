@@ -101,7 +101,7 @@ class LifecycleStore:
         return self.clock.now().isoformat()
 
     @classmethod
-    def open(cls, path: pathlib.Path, clock: Clock, fs: FileSystem) -> "LifecycleStore":
+    def open(cls, path: pathlib.PurePath, clock: Clock, fs: FileSystem) -> "LifecycleStore":
         return cls(connect(path, fs), clock)
 
     def _exec(
@@ -155,7 +155,7 @@ class LifecycleStore:
             raise
         self.conn.execute("COMMIT")
 
-    def enqueue(self, dir: pathlib.Path, parent_agent: int) -> int:
+    def enqueue(self, dir: pathlib.PurePath, parent_agent: int) -> int:
         self.conn.execute("BEGIN IMMEDIATE")
         task = self._exec(
             _INSERT_TASK,
@@ -204,7 +204,7 @@ class LifecycleStore:
         rows = self._exec(_HISTORY, {"agent": agent}).fetchall()
         return [AgentEvent.model_validate(dict(r)) for r in rows]
 
-    def task(self, dir: pathlib.Path) -> HarnessTask:
+    def task(self, dir: pathlib.PurePath) -> HarnessTask:
         match self._exec(_TASK_BY_DIR, {"dir": str(dir)}).fetchone():
             case None:
                 raise KeyError(f"no task at {dir}")

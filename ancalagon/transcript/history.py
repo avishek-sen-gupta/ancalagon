@@ -11,7 +11,7 @@ from ancalagon.fs.file_system import FileSystem
 INTERRUPTED = "interrupted: agent terminated before this tool returned"
 
 
-def load(fs: FileSystem, path: pathlib.Path) -> list[Message]:
+def load(fs: FileSystem, path: pathlib.PurePath) -> list[Message]:
     lines = [line for line in fs.read_text(path).splitlines() if line.strip()]
     return [Message.model_validate_json(line) for line in lines]
 

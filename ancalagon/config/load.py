@@ -19,28 +19,30 @@ ROLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # Every key is read by bracket, never .get(), so a config file must be complete:
 # Config's defaults exist for callers building one in code, not to paper over a
 # missing key in a file someone believed they had written correctly.
-def _root(base: pathlib.Path, value: str) -> pathlib.Path:
-    given = pathlib.Path(value).expanduser()
-    return given.resolve() if given.is_absolute() else (base / given).resolve()
+def _root(base: pathlib.PurePath, value: str, fs: FileSystem) -> pathlib.PurePath:
+    given = fs.expanduser(pathlib.PurePath(value))
+    return fs.resolve(given if given.is_absolute() else base / given)
 
 
-def _optional_root(base: pathlib.Path, value: str) -> str:
-    return str(_root(base, value)) if value else ""
+def _optional_root(base: pathlib.PurePath, value: str, fs: FileSystem) -> str:
+    return str(_root(base, value, fs)) if value else ""
 
 
-def _run_settings(base: pathlib.Path, run: collections.abc.Mapping[str, str]) -> RunSettings:
+def _run_settings(
+    base: pathlib.PurePath, run: collections.abc.Mapping[str, str], fs: FileSystem
+) -> RunSettings:
     return RunSettings(
-        goal_file=_optional_root(base, run["goal_file"]),
-        input_file=_optional_root(base, run["input_file"]),
+        goal_file=_optional_root(base, run["goal_file"], fs),
+        input_file=_optional_root(base, run["input_file"], fs),
         role=run["role"],
     )
 
 
-def _class_ref(base: pathlib.Path, raw: RawClassRef) -> ClassRef:
-    return ClassRef(module=str(_root(base, raw.module)), name=raw.name)
+def _class_ref(base: pathlib.PurePath, raw: RawClassRef, fs: FileSystem) -> ClassRef:
+    return ClassRef(module=str(_root(base, raw.module, fs)), name=raw.name)
 
 
-def _role(base: pathlib.Path, name: str, raw: RawRole) -> Role:
+def _role(base: pathlib.PurePath, name: str, raw: RawRole, fs: FileSystem) -> Role:
     if not ROLE_NAME.match(name):
         raise ValueError(
             f"[roles.{name}]: a role name becomes the tool name delegate_{name}, "
@@ -48,24 +50,24 @@ def _role(base: pathlib.Path, name: str, raw: RawRole) -> Role:
         )
     return Role(
         behaviour=raw.behaviour,
-        input=_class_ref(base, raw.input) if raw.input.module else FREE_TEXT,
-        answer=_class_ref(base, raw.answer) if raw.answer.module else FREE_TEXT,
+        input=_class_ref(base, raw.input, fs) if raw.input.module else FREE_TEXT,
+        answer=_class_ref(base, raw.answer, fs) if raw.answer.module else FREE_TEXT,
         tools=tuple(raw.tools),
         budget=Budget(turns=raw.budget.turns, tool_calls=raw.budget.tool_calls),
     )
 
 
-def load_config(path: pathlib.Path, fs: FileSystem) -> Config:
-    base = path.resolve().parent
+def load_config(path: pathlib.PurePath, fs: FileSystem) -> Config:
+    base = fs.resolve(path).parent
     raw = tomllib.loads(fs.read_text(path))
     workspace = raw["workspace"]
     model = raw["model"]
     limits = raw["limits"]
     return Config(
-        write_root=_root(base, workspace["write_root"]),
-        read_roots=tuple(_root(base, p) for p in workspace["read_roots"]),
+        write_root=_root(base, workspace["write_root"], fs),
+        read_roots=tuple(_root(base, p, fs) for p in workspace["read_roots"]),
         roles={
-            name: _role(base, name, RawRole.model_validate(table))
+            name: _role(base, name, RawRole.model_validate(table), fs)
             for name, table in raw.get("roles", {}).items()
         },
         model=model["name"],
@@ -78,7 +80,7 @@ def load_config(path: pathlib.Path, fs: FileSystem) -> Config:
         summary_chars=limits["summary_chars"],
         compact_above_tokens=limits["compact_above_tokens"],
         keep_recent_messages=limits["keep_recent_messages"],
-        run=_run_settings(base, raw["run"]),
+        run=_run_settings(base, raw["run"], fs),
         allowed_domains=tuple(model["allowed_domains"]),
         sandbox=Strategy(raw["sandbox"]["strategy"]),
     )

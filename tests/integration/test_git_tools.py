@@ -35,7 +35,7 @@ def _ctx(tmp_path: pathlib.Path) -> ToolContext:
 
 def test_git_history_reports_intent_and_refuses_option_injection(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
-    repo = ctx.workspace.write_root
+    repo = pathlib.Path(ctx.workspace.write_root)
     tracked = repo / "thing.py"
     tracked.write_text("x = 1\n")
     for command in (
@@ -49,11 +49,11 @@ def test_git_history_reports_intent_and_refuses_option_injection(tmp_path: pathl
 
     log = GitHistory().run(HistoryArgs(path=tracked, operation=GitOperation.LOG), ctx)
     assert log.ok is True
-    assert "workaround for a vendor bug" in log.path.read_text()
+    assert "workaround for a vendor bug" in pathlib.Path(log.path).read_text()
 
     blame = GitHistory().run(HistoryArgs(path=tracked, operation=GitOperation.BLAME), ctx)
     assert blame.ok is True
-    assert "x = 1" in blame.path.read_text()
+    assert "x = 1" in pathlib.Path(blame.path).read_text()
 
     with pytest.raises(pydantic.ValidationError):
         HistoryArgs(path=tracked, operation=GitOperation.SHOW, rev="--upload-pack=x")
@@ -65,7 +65,7 @@ def test_git_history_reports_intent_and_refuses_option_injection(tmp_path: pathl
 
 def test_tree_walking_tools_all_honour_gitignore(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
-    root = ctx.workspace.write_root
+    root = pathlib.Path(ctx.workspace.write_root)
     (root / "src").mkdir()
     (root / "vendored").mkdir()
     (root / ".gitignore").write_text("vendored/\n")
@@ -73,20 +73,24 @@ def test_tree_walking_tools_all_honour_gitignore(tmp_path: pathlib.Path):
     (root / "src" / "real.py").write_text("def real_thing(): pass\n")
     (root / "vendored" / "dep.py").write_text("def vendored_thing(): pass\n")
 
-    symbols = FindSymbol().run(SymbolArgs(roots=[root]), ctx).path.read_text()
+    symbols = pathlib.Path(FindSymbol().run(SymbolArgs(roots=[root]), ctx).path).read_text()
     assert "real_thing" in symbols
     assert "vendored_thing" not in symbols
 
-    matches = Ripgrep().run(GrepArgs(pattern="thing", roots=[root]), ctx).path.read_text()
+    matches = pathlib.Path(
+        Ripgrep().run(GrepArgs(pattern="thing", roots=[root]), ctx).path
+    ).read_text()
     assert "real.py" in matches
     assert "dep.py" not in matches
 
-    counted = CodeStats().run(StatsArgs(roots=[root], by_file=True), ctx).path.read_text()
+    counted = pathlib.Path(
+        CodeStats().run(StatsArgs(roots=[root], by_file=True), ctx).path
+    ).read_text()
     assert "real.py" in counted
     assert "dep.py" not in counted
 
-    structural = (
-        AstGrep().run(GrepArgs(pattern="def $N(): pass", roots=[root]), ctx).path.read_text()
-    )
+    structural = pathlib.Path(
+        AstGrep().run(GrepArgs(pattern="def $N(): pass", roots=[root]), ctx).path
+    ).read_text()
     assert "real.py" in structural
     assert "dep.py" not in structural

@@ -10,7 +10,9 @@ from ancalagon.transcript.history import load, repair
 from ancalagon.transcript.transcript import Transcript
 
 
-def test_transcript_persists_per_message_and_repairs_interrupted_tool_calls(tmp_path: pathlib.Path):
+def test_transcript_persists_per_message_and_repairs_interrupted_tool_calls(
+    tmp_path: pathlib.Path,
+):
     path = tmp_path / "transcript.jsonl"
     log = Transcript(RealFileSystem(), path=path, agent_id=17)
 

@@ -8,7 +8,7 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.fs.real_file_system import RealFileSystem
 
 
-def answer_command(run_dir: pathlib.Path, agent: int, answer: str) -> int:
+def answer_command(run_dir: pathlib.PurePath, agent: int, answer: str) -> int:
     resumed = answer_task(
         run_dir, agent, answer, answered_by=HUMAN, clock=SystemClock(), fs=RealFileSystem()
     )

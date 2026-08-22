@@ -61,7 +61,7 @@ class Supervisor:
 
     def _spawn(self, state: AgentState) -> None:
         try:
-            process = self.spawner.spawn(pathlib.Path(state.dir), state.agent)
+            process = self.spawner.spawn(pathlib.PurePath(state.dir), state.agent)
         except OSError as exc:
             LOGGER.exception("spawn failed for agent %s", state.agent)
             self._finish(state.agent, AgentStatus.CRASHED, f"spawn failed: {exc}")
@@ -77,7 +77,7 @@ class Supervisor:
         self.started = {a: s for a, s in self.started.items() if a != agent}
 
     def _close(self, agent: int, close: AgentStatus, summary: str) -> None:
-        written = pathlib.Path(self.bus.dir_of(agent)) / f"outcome-{agent}.json"
+        written = pathlib.PurePath(self.bus.dir_of(agent)) / f"outcome-{agent}.json"
         if self.fs.exists(written):
             spoken = OutcomeHeader.model_validate_json(self.fs.read_text(written))
             self._finish(agent, AgentStatus(spoken.kind.value), spoken.summary)
@@ -107,7 +107,7 @@ class Supervisor:
             task for task in wakeable(snapshot) if newest_agent(snapshot, task.id) not in self.live
         ]
         for task in asleep:
-            self.bus.enqueue(pathlib.Path(task.dir), parent_agent=task.parent_agent)
+            self.bus.enqueue(pathlib.PurePath(task.dir), parent_agent=task.parent_agent)
 
     def tick(self) -> None:
         self._start_queued()

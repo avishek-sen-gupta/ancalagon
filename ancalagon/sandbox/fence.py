@@ -26,9 +26,9 @@ class Policy(pydantic.BaseModel, frozen=True):
 class Fence(Sandbox):
     def __init__(
         self,
-        write_root: pathlib.Path,
+        write_root: pathlib.PurePath,
         allowed_domains: collections.abc.Sequence[str],
-        run_dir: pathlib.Path,
+        run_dir: pathlib.PurePath,
         fs: FileSystem,
     ):
         self.policy = run_dir / POLICY

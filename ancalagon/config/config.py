@@ -11,8 +11,8 @@ from ancalagon.sandbox.strategy import Strategy
 
 
 class Config(pydantic.BaseModel, frozen=True):
-    write_root: pathlib.Path
-    read_roots: tuple[pathlib.Path, ...]
+    write_root: pathlib.PurePath
+    read_roots: tuple[pathlib.PurePath, ...]
     model: str
     roles: collections.abc.Mapping[str, Role] = {}
     max_tokens: int = 8000

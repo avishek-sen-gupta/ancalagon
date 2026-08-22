@@ -5,4 +5,4 @@ import pydantic
 
 
 class PathArg(pydantic.BaseModel, frozen=True):
-    path: pathlib.Path
+    path: pathlib.PurePath

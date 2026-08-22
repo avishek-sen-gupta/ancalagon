@@ -1,4 +1,5 @@
 # Imports a contract module by the path its ClassRef names.
+import functools
 import importlib.util
 import pathlib
 import sys
@@ -9,9 +10,9 @@ import pydantic
 from ancalagon.contracts.class_ref import ClassRef
 
 
-def _load_fresh(path: pathlib.Path) -> types.ModuleType:
-    name = str(path)
-    match importlib.util.spec_from_file_location(name, path):
+@functools.cache
+def _load_fresh(path: pathlib.PurePath) -> types.ModuleType:
+    match importlib.util.spec_from_file_location(str(path), path):
         case None:
             raise ImportError(f"cannot load {path}")
         case spec:
@@ -20,12 +21,11 @@ def _load_fresh(path: pathlib.Path) -> types.ModuleType:
                     raise ImportError(f"cannot load {path}")
                 case loader:
                     module = importlib.util.module_from_spec(spec)
-                    sys.modules[name] = module
                     loader.exec_module(module)
                     return module
 
 
-def _load(path: pathlib.Path) -> types.ModuleType:
+def _load(path: pathlib.PurePath) -> types.ModuleType:
     matches = [m for m in sys.modules.values() if getattr(m, "__file__", None) == str(path)]
     match matches:
         case [module]:
@@ -35,7 +35,7 @@ def _load(path: pathlib.Path) -> types.ModuleType:
 
 
 def resolve_class(ref: ClassRef) -> type[pydantic.BaseModel]:
-    path = pathlib.Path(ref.module).resolve()
+    path = pathlib.PurePath(ref.module)
     module = _load(path)
     resolved = getattr(module, ref.name)
     if not issubclass(resolved, pydantic.BaseModel):

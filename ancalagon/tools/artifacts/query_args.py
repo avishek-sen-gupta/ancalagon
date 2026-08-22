@@ -5,5 +5,5 @@ import pydantic
 
 
 class QueryArgs(pydantic.BaseModel, frozen=True):
-    path: pathlib.Path
+    path: pathlib.PurePath
     filter: str = "."
