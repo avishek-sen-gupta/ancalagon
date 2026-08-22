@@ -84,7 +84,7 @@ fileignoreconfig:
 - filename: ancalagon/tools/delegate/collect_task.py
   checksum: fad5b1429612d86ed08ebced31a6cba06cdf7a9a12c11293e262445f91d2ca85
 - filename: docs/superpowers/specs/2026-08-22-ports-for-filesystem-and-environment-design.md
-  checksum: a7210a774bfffc0462697b3aa2e0ea554a208ca9c3a5b72bc1dba19c56329fe0
+  checksum: 859f007d9bd7a674114997f005eb651652b8e281272b3be2d38d4854ce328834
 - filename: ancalagon/env/environment.py
   checksum: 1ee4251bff18861c64330c00f51b079f08984bb04a98750c909fe4c02d0fe250
 - filename: ancalagon/env/fake_environment.py
@@ -95,4 +95,6 @@ fileignoreconfig:
   checksum: a193fdb6c31b1269a014f6ff1ec2942306dfc8d94f0e41adc81951be62e631dd
 - filename: tests/unit/test_environment.py
   checksum: 4253b44588533e63153fc150ea3bda6574e30ca6ed729011022945178ebcaa71
+- filename: docs/superpowers/plans/2026-08-22-filesystem-port.md
+  checksum: 69e9d802246c4cadd979e02a2cf1ed17e4a9418a071a32ca1aa6290ae26076a7
 version: "1.0"
