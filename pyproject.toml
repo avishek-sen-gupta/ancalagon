@@ -61,6 +61,7 @@ layers = [
     "ancalagon.config",
     "ancalagon.contracts : ancalagon.clock : ancalagon.sandbox",
     "ancalagon.migrations",
+    "ancalagon.env",
 ]
 
 [[tool.importlinter.contracts]]
@@ -70,6 +71,7 @@ modules = [
     "ancalagon.contracts",
     "ancalagon.clock",
     "ancalagon.sandbox",
+    "ancalagon.env",
 ]
 
 [[tool.importlinter.contracts]]
@@ -91,6 +93,7 @@ source_modules = [
     "ancalagon.clock",
     "ancalagon.config",
     "ancalagon.contracts",
+    "ancalagon.env",
     "ancalagon.llm",
     "ancalagon.migrate_command",
     "ancalagon.sandbox",

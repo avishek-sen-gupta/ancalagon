@@ -13,6 +13,7 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
+from ancalagon.env.real_environment import RealEnvironment
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
@@ -143,6 +144,7 @@ def main(config_path: pathlib.Path, run_dir: pathlib.Path) -> int:
         spawner=SubprocessSpawner(
             run_dir=run_dir,
             config_path=config_path.resolve(),
+            environment=RealEnvironment(),
             sandbox=sandbox_of(config, run_dir),
         ),
         max_concurrent=config.max_concurrent_agents,
