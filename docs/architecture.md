@@ -491,6 +491,17 @@ outside every root the workspace declares.
 The session puts the summary and the path into the tool result the model sees. Large output
 never enters the context; the model reads it with `read_file` if it wants to.
 
+`shell/shell.py` is the one deliberate exception to that obligation. It takes a command line and
+hands it to `/bin/sh`, so pipes, globs and substitution work and nothing about the command is
+inspectable before it executes. What bounds it is not the argument but the sandbox — `Fence`
+allows writes only to `write_root` and `run_dir`, and network only to `allowed_domains` — and
+the directory it runs in, which is a **required** argument resolved through
+`Workspace.resolve_read` like any other path. Without it the command would inherit the worker's
+own `cwd`, which is the run directory, and an agent searching `.` would find its own
+transcripts. It is killed after `TIMEOUT_S` seconds and a hang comes back as an ordinary failed
+tool result, rather than blocking until `agent_timeout_s` takes the whole attempt down. Under
+`Unsandboxed` nothing bounds it at all.
+
 `submit/submit_answer.py` and `need_input/need_input.py` are the two tools whose results the
 session reads.
 

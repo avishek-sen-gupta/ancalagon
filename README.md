@@ -314,6 +314,11 @@ invisible to it.
 - The sandbox confines **writes** to `write_root`. It does not restrict reads, so a sandboxed
   agent can still read anything you can. On macOS, fence also grants an implicit write
   carve-out for the whole `$TMPDIR` tree regardless of policy — a known limitation, not ours.
+- The `shell` tool hands a command line to `/bin/sh`, pipes and globs included, so the sandbox is
+  what bounds it rather than the argument. Under fence it may read widely but cannot write
+  outside the run or reach an unlisted domain; under `strategy = "none"` an agent holding `run`
+  has whatever access you have. It runs in a directory the call must name, resolved against
+  `read_roots`, and is killed after 120 seconds.
 - On Bedrock with a bearer token, `scripts/ancrun.zsh` strips stale AWS credentials from the
   environment first — otherwise litellm signs with those and Bedrock rejects the request. It
   requires `AWS_BEARER_TOKEN_BEDROCK`.
