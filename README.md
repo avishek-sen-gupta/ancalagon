@@ -8,11 +8,11 @@ with its own budget and its own typed answer contract.
 
 ```mermaid
 flowchart LR
-    goal["goal.md"] --> run
+    goal["goal.md"] --> run["ancalagon run"]
     cfg["ancalagon.toml<br/>roles, roots, limits"] --> run
-    run(["ancalagon run"]) --> rd["run directory<br/>bus.db + tasks/"]
+    roots["read_roots<br/>a repo, parsed artifacts, one file, or nothing"] -->|the only thing readable| run
+    run --> rd["run directory<br/>bus.db and tasks"]
     rd --> ans["outcome-N.json<br/>a validated model, not prose"]
-    roots[("read_roots<br/>repo · artifacts · one JSON file")] -.reads only inside.-> run
 ```
 
 `read_roots` is the whole boundary: point it at a repository, a directory of parsed artifacts,
@@ -51,28 +51,28 @@ row or a file.
 
 ```mermaid
 flowchart TB
-    subgraph cliproc["ancalagon run (process 1)"]
-        cli["cli.py<br/>writes root spec.json"]
-        sup["supervisor.py<br/>claim · spawn · reap · wake"]
+    subgraph proc1["process 1 - ancalagon run"]
+        cli["cli.py<br/>writes the root spec.json"]
+        sup["supervisor.py<br/>claim, spawn, reap, wake"]
     end
-    subgraph w1["worker (process 2..N)"]
+    subgraph proc2["process 2..N - one worker per attempt"]
         sess["session.py<br/>the agent loop"]
-        reg["registry<br/>tools this role may call"]
+        reg["registry<br/>the tools this role may call"]
         sess --- reg
     end
-    bus[("bus.db<br/>tasks · agents · append-only events · model calls")]
-    disk[("tasks/&lt;id&gt;/<br/>spec.json · transcript.jsonl · outcome-N.json · tools/")]
-    prov(["model provider<br/>via litellm"])
-
+    bus["bus.db<br/>tasks, agents, append-only events, model calls"]
+    disk["task directory<br/>spec.json, transcript.jsonl, outcome-N.json, tools"]
+    prov["model provider, via litellm"]
+    files["read_roots and write_root"]
     cli -->|enqueue| bus
     cli --> disk
     sup <-->|claim, append status| bus
-    sup -->|spawn python -m ancalagon.worker| w1
-    sess -->|reads spec + transcript| disk
-    sess -->|writes outcome + transcript| disk
+    sup -->|spawn a worker| sess
+    sess -->|reads spec and transcript| disk
+    sess -->|writes outcome and transcript| disk
     sess <--> prov
-    reg -->|delegate_x writes child spec, enqueues| bus
-    reg -->|read_file, ripgrep, ...| files[("read_roots / write_root")]
+    reg -->|delegate_x writes a child spec, enqueues| bus
+    reg -->|read_file, ripgrep, and the rest| files
 ```
 
 - **Supervisor** — spawns, reaps, kills on timeout. Never retries: a crash is reported and the
@@ -109,16 +109,16 @@ from a file because it has no parent to call `delegate` on it.
 
 ```mermaid
 flowchart LR
-    role["[roles.component_analyst]"] --> spec["spec.json<br/>the whole role, frozen at enqueue"]
+    role["a role in the config"] --> spec["spec.json<br/>the whole role, frozen at enqueue"]
     spec --> worker["worker startup"]
-    worker --> resolve["resolve ClassRef<br/>module path + class name"]
+    worker --> resolve["resolve each ClassRef<br/>a module path and a class name"]
     resolve --> inc["input class"]
     resolve --> outc["answer class"]
-    inc --> agentspec["AgentSpec[InT]<br/>spec re-read as a model"]
-    outc --> submit["submit_answer<br/>schema the model must match"]
-    role --> tl["tools = [...]"]
-    tl --> registry["registry: exactly these,<br/>plus submit_answer and idle"]
-    role --> b["budget = turns, tool_calls"]
+    inc --> agentspec["the spec, re-read as a typed model"]
+    outc --> submit["submit_answer<br/>the schema an answer must match"]
+    role --> tl["the tools list"]
+    tl --> registry["registry - exactly these,<br/>plus submit_answer and idle"]
+    role --> b["budget - turns and tool calls"]
     b --> registry
 ```
 
@@ -161,18 +161,18 @@ sequenceDiagram
     participant S as supervisor
     participant C as child worker
 
-    P->>B: delegate_x — write child spec.json, enqueue
-    P->>B: idle — outcome Idling, process exits
+    P->>B: delegate_x - write child spec.json, enqueue
+    P->>B: idle - outcome Idling, process exits
     Note over P: transcript and events stay on disk
     S->>B: claim, spawn
     S->>C: python -m ancalagon.worker
     C->>C: turns, tools, submit_answer
     C->>B: outcome-N.json on disk
     S->>B: append terminal row (Closed)
-    S->>B: task wakeable — re-enqueue parent
+    S->>B: task wakeable - re-enqueue parent
     S->>P: spawn a NEW agent, same task
     Note over P: same transcript, fresh copy of the role's budget
-    P->>B: collect_task — read the answer, append collected
+    P->>B: collect_task - read the answer, append collected
     P->>B: submit_answer
 ```
 
@@ -206,12 +206,12 @@ sequenceDiagram
     participant R as root agent
     participant C as child agent
 
-    C->>C: need_input — outcome NeedsInput, exits
+    C->>C: need_input - outcome NeedsInput, exits
     R->>R: collect_task reads the question
     alt root can answer
-        R->>C: answer_task — append + re-enqueue
+        R->>C: answer_task - append + re-enqueue
     else root cannot
-        R->>R: need_input — the question goes up
+        R->>R: need_input - the question goes up
         H->>R: ancalagon answer --task 1 --answer "..."
     end
     Note over R,C: an answer is one append and one enqueue,<br/>then the worker resumes from its own transcript
@@ -235,22 +235,17 @@ stateDiagram-v2
     Nascent --> Queued: enqueue
     Queued --> Claimed: supervisor claims
     Claimed --> Running: spawned, pid recorded
-    Running --> Closed: worker left outcome-N.json
+    Running --> Closed: the worker left outcome-N.json
     Running --> Lost: killed on timeout, or gone before writing
-    Closed --> Collected: parent read the answer
-    Lost --> Collected: parent read the close reason
+    Closed --> Collected: the parent read the answer
+    Lost --> Collected: the parent read the close reason
     Collected --> [*]
-
-    note right of Closed
-        verdict is the worker's own word:
-        completed · exhausted · failed
-        needs_input · idling
-    end note
-    note right of Lost
-        verdict is the supervisor's observation:
-        crashed · timed_out
-    end note
 ```
+
+| Terminal state | Verdict recorded | Written by |
+|---|---|---|
+| `Closed` | `completed`, `exhausted`, `failed`, `needs_input`, `idling` | the worker's own word, carried into the row |
+| `Lost` | `crashed`, `timed_out` | the supervisor's own observation |
 
 - Only the worker writes `outcome-<agent>.json`; only the supervisor writes a row about what
   happened to an agent, and exactly one terminal row per agent. `Closed` means an answer exists
@@ -337,17 +332,17 @@ The architecture is machine-checked rather than reviewed, and both of these fail
 ```mermaid
 flowchart TB
     subgraph il["7 import-linter contracts in pyproject.toml"]
-        c1["layers point downward: cli on top, env : fs at the bottom"]
-        c2["sibling leaves independent: contracts, clock, env, fs"]
-        c3["domain never imports adapters: attempt, schedule ↛ bus"]
-        c4["SQL only in bus and migrations"]
-        c5["os only in real_environment and os_liveness"]
-        c6["tools taking a model's path ↛ ancalagon.fs — go via workspace"]
-        c7["sandbox knows fs and nothing else of ours"]
+        c1["layers point downward - cli on top, env and fs at the bottom"]
+        c2["sibling leaves stay independent - contracts, clock, env, fs"]
+        c3["the domain never imports adapters - attempt and schedule cannot see bus"]
+        c4["SQL lives only in bus and migrations"]
+        c5["os is reached only by real_environment and os_liveness"]
+        c6["a tool taking a path from the model cannot import fs - it goes via workspace"]
+        c7["the sandbox knows fs and nothing else of ours"]
     end
     subgraph py["Pyright, for what an import graph cannot see"]
-        p1["the domain says PurePath — no read_text to call"]
-        p2["fs/real_file_system.py is the only module that constructs Path"]
+        p1["the domain says PurePath, which has no read_text to call"]
+        p2["fs/real_file_system.py is the only module that constructs a Path"]
     end
 ```
 
