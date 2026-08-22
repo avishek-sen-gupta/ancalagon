@@ -132,3 +132,37 @@ source_modules = [
     "ancalagon.workspace",
 ]
 forbidden_modules = ["sqlite3", "sqlalchemy"]
+
+[[tool.importlinter.contracts]]
+name = "The process is reached only by the adapters that own it"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = [
+    "ancalagon.answer",
+    "ancalagon.answer_command",
+    "ancalagon.attempt",
+    "ancalagon.bus",
+    "ancalagon.children",
+    "ancalagon.cli",
+    "ancalagon.clock",
+    "ancalagon.config",
+    "ancalagon.contracts",
+    "ancalagon.env",
+    "ancalagon.fs",
+    "ancalagon.llm",
+    "ancalagon.migrations",
+    "ancalagon.migrate_command",
+    "ancalagon.sandbox",
+    "ancalagon.schedule",
+    "ancalagon.session",
+    "ancalagon.supervisor",
+    "ancalagon.tools",
+    "ancalagon.transcript",
+    "ancalagon.worker",
+    "ancalagon.workspace",
+]
+forbidden_modules = ["os"]
+ignore_imports = [
+    "ancalagon.env.real_environment -> os",
+    "ancalagon.supervisor.os_liveness -> os",
+]
