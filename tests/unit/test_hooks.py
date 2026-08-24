@@ -9,14 +9,20 @@ from ancalagon.config.load import load_config
 from ancalagon.contracts.accepted import Accepted
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.function_ref import FunctionRef
+from ancalagon.contracts.refused import Refused
+from ancalagon.contracts.reviewed import Reviewed
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.tools.registry.accepts import accepts
+from ancalagon.tools.registry.bind_tool import bind_tool
 from ancalagon.tools.registry.resolve_after import resolve_after
 from ancalagon.tools.registry.resolve_before import resolve_before
+from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.grep_args import GrepArgs
 from ancalagon.tools.search.sed_args import SedArgs
+from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.worker import build_registry
+from ancalagon.workspace.workspace import Workspace
 
 MODULE = """
 from __future__ import annotations
@@ -24,6 +30,7 @@ from __future__ import annotations
 import pydantic
 
 from ancalagon.contracts.accepted import Accepted
+from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.reviewed import Reviewed
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -195,3 +202,30 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
     )
     with pytest.raises(ValueError, match="names a hook for sed, which it does not use"):
         check_contracts(config.model_copy(update={"roles": {"root": unknown}}))
+
+
+def test_a_hook_sees_the_task_input_so_it_can_check_an_answer_against_what_was_asked(
+    tmp_path: pathlib.Path,
+):
+    write_root = tmp_path / "ws"
+    (write_root / "outputs").mkdir(parents=True)
+    ctx = ToolContext(
+        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
+        output_dir=write_root / "outputs",
+        summary_chars=200,
+        agent_id=7,
+        input=GrepArgs(pattern="bus", roots=[]),
+    )
+
+    def echoes_the_input(args: pydantic.BaseModel, given: ToolContext) -> Reviewed:
+        assert isinstance(given.input, GrepArgs)
+        if given.input.pattern not in str(args):
+            return Refused(reason=f"the answer never mentions {given.input.pattern}")
+        return Accepted(value=args)
+
+    wired = bind_tool(SubmitAnswer(FreeText), before=echoes_the_input)
+    assert wired.invoke('{"text": "the bus is append-only"}', ctx).ok is True
+
+    missed = wired.invoke('{"text": "unrelated"}', ctx)
+    assert missed.ok is False
+    assert missed.error == "the answer never mentions bus"
