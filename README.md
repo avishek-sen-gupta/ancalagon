@@ -144,10 +144,13 @@ runs, or its result after, and accepts it, rewrites it, or refuses it:
 
 ```toml
 [roles.component_analyst.before]
-submit_answer = { module = "./checks.py", name = "cites_real_files" }
+submit_answer = [
+  { module = "./checks.py", name = "cites_real_files" },
+  { module = "./checks.py", name = "no_absolute_paths" },
+]
 
 [roles.component_analyst.after]
-ripgrep = { module = "./checks.py", name = "must_have_found" }
+ripgrep = [{ module = "./checks.py", name = "must_have_found" }]
 ```
 
 ```python
@@ -157,6 +160,10 @@ def cites_real_files(answer: Component, ctx: ToolContext) -> Reviewed:
         return Refused(reason=f"these cited files do not exist: {missing}")
     return Accepted(value=answer)
 ```
+
+Every tool carries a composite of both kinds, empty unless the role names one. Hooks run in the
+order declared, each seeing what the one before it returned, and the first refusal stops the
+chain — so an empty composite is simply a passthrough and there is no separate no-hook case.
 
 A refusal is not a crash. The agent is told the reason on its next turn and tries again within
 its budget, on the same path a malformed argument already takes — so deterministic criteria an

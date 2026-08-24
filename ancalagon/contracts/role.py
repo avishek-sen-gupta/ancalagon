@@ -20,5 +20,5 @@ class Role(pydantic.BaseModel, frozen=True):
     answer: ClassRef = FREE_TEXT
     tools: tuple[str, ...]
     budget: Budget
-    before: collections.abc.Mapping[str, FunctionRef] = {}
-    after: collections.abc.Mapping[str, FunctionRef] = {}
+    before: collections.abc.Mapping[str, tuple[FunctionRef, ...]] = {}
+    after: collections.abc.Mapping[str, tuple[FunctionRef, ...]] = {}

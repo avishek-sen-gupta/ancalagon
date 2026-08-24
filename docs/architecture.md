@@ -499,10 +499,17 @@ caller wanting to cite a location rather than read one needs. `parse/languages.p
 place a grammar is named, so `treesitter` and `ast_query` support the same set: Python and Java.
 A query the grammar rejects comes back as a failed result carrying tree-sitter's own message.
 
-A role may wrap any tool it uses with **hooks**, declared under `[roles.*.before]` and
+A role may wrap any tool it uses with **hooks**, declared as a list under `[roles.*.before]` and
 `[roles.*.after]` and resolved by `registry/bound_for.py` where the tool's own `args_model` is in
 hand. A hook is a stateless function returning `Accepted` with the value to go on with — the same
-one or a modified one — or `Refused` with what the agent is told. `bind_tool` runs them around
+one or a modified one — or `Refused` with what the agent is told.
+
+Every tool is bound with a `CompositeBefore` and a `CompositeAfter`, holding whatever the role
+declared for it. They fold the list: each hook sees what the previous one returned, and the first
+`Refused` short-circuits the rest. An empty composite returns its argument unchanged, which is
+why there is no separate no-hook path — the passthrough is the empty case of the same object. A
+composite also checks each link against the type it was handed, so a hook that returns the wrong
+model is reported rather than fed to the next hook. `bind_tool` runs them around
 `run`, so a refusal becomes an ordinary failed `ToolResult` and the session's existing path
 applies unchanged: the agent reads the reason on its next turn and tries again, exactly as it
 does for a malformed argument.

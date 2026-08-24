@@ -154,10 +154,13 @@ tools = ["ripgrep"]
 budget = { turns = 2, tool_calls = 4 }
 
 [roles.root.before]
-ripgrep = { module = "./hooks.py", name = "narrow" }
+ripgrep = [
+  { module = "./hooks.py", name = "narrow" },
+  { module = "./hooks.py", name = "general" },
+]
 
 [roles.root.after]
-ripgrep = { module = "./hooks.py", name = "reviewing" }
+ripgrep = [{ module = "./hooks.py", name = "reviewing" }]
 
 [run]
 goal_file = "./goal.md"
@@ -175,8 +178,13 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
     config = load_config(tmp_path / "ancalagon.toml", fs)
 
     role = config.roles["root"]
-    assert role.before == {"ripgrep": FunctionRef(module=str(hooks), name="narrow")}
-    assert role.after == {"ripgrep": FunctionRef(module=str(hooks), name="reviewing")}
+    assert role.before == {
+        "ripgrep": (
+            FunctionRef(module=str(hooks), name="narrow"),
+            FunctionRef(module=str(hooks), name="general"),
+        )
+    }
+    assert role.after == {"ripgrep": (FunctionRef(module=str(hooks), name="reviewing"),)}
     check_contracts(config)
 
     registry = build_registry(
@@ -192,13 +200,13 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
     assert sorted(registry.names()) == ["idle", "ripgrep", "submit_answer"]
 
     mismatched = role.model_copy(
-        update={"before": {"ripgrep": FunctionRef(module=str(hooks), name="other_tool")}}
+        update={"before": {"ripgrep": (FunctionRef(module=str(hooks), name="other_tool"),)}}
     )
     with pytest.raises(ValueError, match="takes SedArgs, but the tool passes GrepArgs"):
         check_contracts(config.model_copy(update={"roles": {"root": mismatched}}))
 
     unknown = role.model_copy(
-        update={"before": {"sed": FunctionRef(module=str(hooks), name="narrow")}}
+        update={"before": {"sed": (FunctionRef(module=str(hooks), name="narrow"),)}}
     )
     with pytest.raises(ValueError, match="names a hook for sed, which it does not use"):
         check_contracts(config.model_copy(update={"roles": {"root": unknown}}))

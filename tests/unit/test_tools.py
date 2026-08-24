@@ -22,6 +22,7 @@ from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.accepted import Accepted
 from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.reviewed import Reviewed
+from ancalagon.contracts.text_answer import TextAnswer
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrations import latest_version, migrate_file
@@ -55,6 +56,8 @@ from ancalagon.tools.parse.capture import Capture
 from ancalagon.tools.parse.query_match import QueryMatch
 from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
 from ancalagon.tools.registry.bind_tool import bind_tool
+from ancalagon.tools.registry.composite_after import CompositeAfter
+from ancalagon.tools.registry.composite_before import CompositeBefore
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.ast_grep import AstGrep
@@ -903,3 +906,66 @@ def test_a_bound_tool_lets_its_hooks_refuse_modify_or_admit_a_call(tmp_path: pat
     confused = bind_tool(Ripgrep(), before=returns_the_wrong_model).invoke(call, ctx)
     assert confused.ok is False
     assert confused.error == "ripgrep's before hook returned SedArgs, not GrepArgs"
+
+
+def test_a_composite_chains_its_hooks_short_circuits_a_refusal_and_is_empty_by_default(
+    tmp_path: pathlib.Path,
+):
+    seen: list[str] = []
+
+    def trims(args: pydantic.BaseModel, ctx: ToolContext) -> Reviewed:
+        seen.append("trims")
+        assert isinstance(args, GrepArgs)
+        return Accepted(value=args.model_copy(update={"pattern": args.pattern.strip()}))
+
+    def widens(args: pydantic.BaseModel, ctx: ToolContext) -> Reviewed:
+        seen.append("widens")
+        assert isinstance(args, GrepArgs)
+        return Accepted(value=args.model_copy(update={"pattern": f"{args.pattern}|beta"}))
+
+    def refuses(args: pydantic.BaseModel, ctx: ToolContext) -> Reviewed:
+        seen.append("refuses")
+        return Refused(reason="never")
+
+    def wrong(args: pydantic.BaseModel, ctx: ToolContext) -> Reviewed:
+        seen.append("wrong")
+        return Accepted(value=SedArgs(script="s/a/b/", path=pathlib.PurePath("x")))
+
+    ctx = _ctx(tmp_path)
+    given = GrepArgs(pattern="  alpha  ", roots=[])
+
+    assert CompositeBefore(())(given, ctx) == Accepted(value=given)
+    assert seen == []
+
+    assert CompositeBefore((trims, widens))(given, ctx) == Accepted(
+        value=GrepArgs(pattern="alpha|beta", roots=[])
+    )
+    assert seen == ["trims", "widens"]
+
+    seen.clear()
+    assert CompositeBefore((trims, refuses, widens))(given, ctx) == Refused(reason="never")
+    assert seen == ["trims", "refuses"]
+
+    seen.clear()
+    assert CompositeBefore((wrong, widens))(given, ctx) == Refused(
+        reason="a before hook returned SedArgs, not GrepArgs"
+    )
+    assert seen == ["wrong"]
+
+    ran = ToolResult(ok=True, summary=TextAnswer(text="hit"), path=pathlib.PurePath("p"))
+
+    def marks(args: pydantic.BaseModel, result: ToolResult, ctx: ToolContext) -> Reviewed:
+        seen.append("marks")
+        return Accepted(value=result.model_copy(update={"truncated": True}))
+
+    def rejects(args: pydantic.BaseModel, result: ToolResult, ctx: ToolContext) -> Reviewed:
+        seen.append("rejects")
+        return Refused(reason="not enough")
+
+    seen.clear()
+    assert CompositeAfter(())(given, ran, ctx) == Accepted(value=ran)
+    assert CompositeAfter((marks,))(given, ran, ctx) == Accepted(
+        value=ran.model_copy(update={"truncated": True})
+    )
+    assert CompositeAfter((marks, rejects))(given, ran, ctx) == Refused(reason="not enough")
+    assert seen == ["marks", "marks", "rejects"]

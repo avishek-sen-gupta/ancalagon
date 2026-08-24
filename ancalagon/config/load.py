@@ -44,11 +44,15 @@ def _class_ref(base: pathlib.PurePath, raw: RawClassRef, fs: FileSystem) -> Clas
 
 
 def _hooks(
-    base: pathlib.PurePath, raw: collections.abc.Mapping[str, RawClassRef], fs: FileSystem
-) -> dict[str, FunctionRef]:
+    base: pathlib.PurePath,
+    raw: collections.abc.Mapping[str, collections.abc.Sequence[RawClassRef]],
+    fs: FileSystem,
+) -> dict[str, tuple[FunctionRef, ...]]:
     return {
-        tool: FunctionRef(module=str(_root(base, ref.module, fs)), name=ref.name)
-        for tool, ref in raw.items()
+        tool: tuple(
+            FunctionRef(module=str(_root(base, ref.module, fs)), name=ref.name) for ref in refs
+        )
+        for tool, refs in raw.items()
     }
 
 
