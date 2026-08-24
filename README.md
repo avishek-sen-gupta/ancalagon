@@ -139,6 +139,34 @@ Three things are checked before any agent starts, each exiting 2 with the reason
 empty `goal_file`, a `[run] role` no `[roles.*]` declares, and a contract module that does not
 exist or does not parse — named with the role and the path, rather than crashing a worker later.
 
+A role may also wrap any tool it uses with a **hook** — a function that sees a call before it
+runs, or its result after, and accepts it, rewrites it, or refuses it:
+
+```toml
+[roles.component_analyst.before]
+submit_answer = { module = "./checks.py", name = "cites_real_files" }
+
+[roles.component_analyst.after]
+ripgrep = { module = "./checks.py", name = "must_have_found" }
+```
+
+```python
+def cites_real_files(answer: Component, ctx: ToolContext) -> Reviewed:
+    missing = [f for f in answer.files if not ctx.workspace.exists(f)]
+    if missing:
+        return Refused(reason=f"these cited files do not exist: {missing}")
+    return Accepted(value=answer)
+```
+
+A refusal is not a crash. The agent is told the reason on its next turn and tries again within
+its budget, on the same path a malformed argument already takes — so deterministic criteria an
+answer must meet become part of the loop rather than a check after it. `ctx.input` is what the
+task was given, so a hook can compare an answer against the question. The two hooks are
+independent; declare either or both.
+
+Hooks are matched to their tools before the run starts. A function taking `SedArgs` cannot be
+attached to `ripgrep`, while one taking `BaseModel` can be attached to anything.
+
 The harness does not check that a role graph makes sense:
 
 | Role holds | But lacks | Consequence |

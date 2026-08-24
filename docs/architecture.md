@@ -499,6 +499,29 @@ caller wanting to cite a location rather than read one needs. `parse/languages.p
 place a grammar is named, so `treesitter` and `ast_query` support the same set: Python and Java.
 A query the grammar rejects comes back as a failed result carrying tree-sitter's own message.
 
+A role may wrap any tool it uses with **hooks**, declared under `[roles.*.before]` and
+`[roles.*.after]` and resolved by `registry/bound_for.py` where the tool's own `args_model` is in
+hand. A hook is a stateless function returning `Accepted` with the value to go on with — the same
+one or a modified one — or `Refused` with what the agent is told. `bind_tool` runs them around
+`run`, so a refusal becomes an ordinary failed `ToolResult` and the session's existing path
+applies unchanged: the agent reads the reason on its next turn and tries again, exactly as it
+does for a malformed argument.
+
+Two checks make that safe. `isinstance(given, tool.args_model)` narrows a `before` hook's output
+back to the tool's argument type, and catches a hook that returned some other model rather than
+handing it to `run`. And `registry/accepts.py` reads the declared type of a hook's first
+parameter and requires `issubclass(args_model, declared)`. A hook written for `sed` therefore
+cannot be attached to `ripgrep`, while one declared over `BaseModel` may be attached to anything,
+and either way the fault is found before any agent starts. `check_contracts`
+builds every role's registry for that reason, so a bad hook exits 2 naming the role.
+
+`ToolContext` carries the task's input, which is what lets a hook check an answer against what
+was asked. An `after` hook cannot undo a side effect — it runs after `run`, so prevention belongs
+in `before` — but `submit_answer` has none to undo: its hook runs long before the worker writes
+`outcome-<agent>.json`, so an answer can be refused or rewritten with nothing to reverse. A
+refusal on the forced final turn ends the attempt `Failed` naming the refusal, since a check is a
+hard gate and an answer that never satisfied it is not an answer.
+
 `shell/shell.py` is the one deliberate exception to that obligation. It takes a command line and
 hands it to `/bin/sh`, so pipes, globs and substitution work and nothing about the command is
 inspectable before it executes. What bounds it is not the argument but the sandbox — `Fence`
