@@ -153,24 +153,58 @@ that matters, and it is a startup check rather than a static one, because every 
 tool's argument model are both resolved by import — no type checker can see the pairing.
 
 ```python
-def accepts(fn: object, args_model: type[pydantic.BaseModel]) -> str:
-    hints = typing.get_type_hints(fn)
-    if ARGS not in hints:
-        return f"has no parameter named {ARGS}"
-    declared = hints[ARGS]
-    if not isinstance(declared, type) or not issubclass(declared, pydantic.BaseModel):
-        return f"declares {declared}, which is not a model class"
+def _declared(fn: object, arity: int) -> tuple[type[BaseModel] | None, str]:
+    params = list(inspect.signature(fn).parameters.values())
+    if len(params) != arity or any(p.kind is not POSITIONAL for p in params):
+        return None, f"must take {arity} positional parameters, not {[p.name for p in params]}"
+    try:
+        hints = typing.get_type_hints(fn)
+    except NameError as exc:
+        return None, f"has an annotation that cannot be resolved: {exc}"
+    first = params[0].name
+    if first not in hints:
+        return None, f"does not annotate its first parameter, {first}"
+    declared = hints[first]
+    if not isinstance(declared, type) or not issubclass(declared, BaseModel):
+        return None, f"annotates {first} as {declared}, which is not a model class"
+    return declared, ""
+
+
+def accepts(fn: object, args_model: type[BaseModel], arity: int) -> str:
+    declared, fault = _declared(fn, arity)
+    if declared is None:
+        return fault
     if not issubclass(args_model, declared):
         return f"takes {declared.__name__}, but the tool passes {args_model.__name__}"
     return ""
 ```
 
 ```
-non_empty_pattern    wired to a tool taking GrepArgs   accepted
-path_is_absolute     wired to a tool taking GrepArgs   REJECTED — takes ReadArgs, but the tool passes GrepArgs
-anything             wired to a tool taking GrepArgs   accepted
-non_empty_pattern    wired to a tool taking ReadArgs   REJECTED — takes GrepArgs, but the tool passes ReadArgs
+good           accepted                          def good(answer: GrepArgs, ctx)
+general        accepted                          def general(args: BaseModel, ctx)
+wrong_tool     REJECTED — takes ReadArgs, but the tool passes GrepArgs
+bare           REJECTED — does not annotate its first parameter, args
+half           REJECTED — does not annotate its first parameter, args
+unresolvable   REJECTED — has an annotation that cannot be resolved: name 'NoSuchClass' is not defined
+not_a_model    REJECTED — annotates args as <class 'int'>, which is not a model class
+starred        REJECTED — must take 2 positional parameters, not ['args', 'kwargs']
+too_many       REJECTED — must take 2 positional parameters, not ['args', 'ran', 'ctx']
 ```
+
+Four details that are easy to get wrong, and were, in an earlier draft of this section:
+
+- **The first parameter is identified by position, not by name.** A hook is free to call it
+  `answer` or `command`; only its place matters.
+- **`get_type_hints` returns only the annotations that exist.** An unannotated parameter is
+  simply absent from the mapping, which is a different fault from a missing parameter and must
+  say so.
+- **`get_type_hints` raises `NameError`** when an annotation names something the module cannot
+  resolve. Uncaught, that surfaces as a traceback instead of a clean exit 2.
+- **An annotation need not be a class.** `int`, a union, or `Any` would make `issubclass` raise,
+  so the shape is checked before the relation.
+
+`*args, **kwargs` is rejected by the positional-kind test, which is deliberate: a hook that
+declares nothing can be checked against nothing.
 
 `issubclass(args_model, declared)` rather than equality is deliberate: a hook declared over
 `BaseModel` is usable on any tool, which is contravariance applied at runtime and is the correct
@@ -183,13 +217,11 @@ class, and each `delegate_<role>`'s, which is that role's `input` class. `check_
 it too, so a mismatch anywhere in the config exits 2 before a single agent is spawned rather than
 failing one worker later.
 
-An arity check through `inspect.signature` covers what remains: a function of the wrong shape
-entirely.
-
-A hook **should** annotate its argument concretely — `def cites_real_files(args: Component, ctx)`
-— even though `Before` is declared over `BaseModel`. That annotation is not decoration: it is
-what `accepts` reads to decide whether the hook may be wired to that tool at all, and it is what
-lets the hook's own body use `args.files` without an `isinstance` first.
+A hook **must** annotate its first parameter, and should annotate it concretely —
+`def cites_real_files(answer: Component, ctx)` — even though `Before` is declared over
+`BaseModel`. That annotation is not decoration: it is what `accepts` reads to decide whether the
+hook may be wired to that tool at all, and it is what lets the body use `answer.files` without an
+`isinstance` first. A hook that genuinely applies to any tool annotates `BaseModel` and says so.
 
 ## What a refusal does
 
