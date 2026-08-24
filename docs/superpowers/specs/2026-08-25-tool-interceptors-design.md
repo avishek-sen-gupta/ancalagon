@@ -27,56 +27,63 @@ The alternatives were considered and are worse:
 
 ## The hooks
 
-Two stateless functions. Nothing is instantiated and nothing holds state between calls, so an
-interceptor is a pure function of what it is given.
+Two stateless functions, neither generic. Nothing is instantiated and nothing holds state between
+calls, so an interceptor is a pure function of what it is given.
 
 ```python
 # ancalagon/tools/registry/hooks.py
-type Before[T: BaseModel] = Callable[[T, ToolContext], Reviewed[T]]
-type After[T: BaseModel]  = Callable[[T, ToolResult, ToolContext], Reviewed[ToolResult]]
+type Before = Callable[[BaseModel, ToolContext], Reviewed]
+type After  = Callable[[BaseModel, ToolResult, ToolContext], Reviewed]
 ```
 
 ```python
 # ancalagon/contracts/reviewed.py — discriminated on kind, as Outcome and Payload already are
-Reviewed[T] = Accepted[T] | Refused
+Reviewed = Accepted | Refused
 
-class Accepted[T: pydantic.BaseModel]:   value: T      # the same one, or a modified one
-class Refused:                           reason: str   # what the agent is told, and must fix
+class Accepted:   value: pydantic.BaseModel   # the same one, or a modified one
+class Refused:    reason: str                 # what the agent is told, and must fix
 ```
 
-The null objects are identity functions, `unchecked_before` and `unchecked_after`, and they are
-the defaults, so a tool with no declared check pays one match arm.
+The null objects are identity functions, `unchecked_before` and `unchecked_after`.
 
-**The two hooks have different variance, and it changes how each is resolved.** In `Before`, the
-type variable appears in both the parameter and the return, so it is invariant: an erased
-`Before[BaseModel]` cannot be handed to a tool expecting `Before[GrepArgs]`. In `After` it
-appears only in a parameter, so it is contravariant: an erased `After[BaseModel]` slots in
-anywhere. Confirmed against Pyright strict.
+**There is deliberately no type variable.** An earlier draft made `Before` generic in the tool's
+argument type, on the theory that it would prove a hook matched the tool it was attached to. It
+cannot: every hook arrives from configuration and is resolved at runtime, so the pairing is never
+visible to the type checker, and the generic resolver's `cast` merely *asserted* the relationship
+instead of checking it. It bought static safety only at hand-written call sites, of which this
+design has none, and it cost a generic resolver, an `args_model` threaded through it, and an
+invariance conflict between `Tool[ArgsT]` and `Before[ArgsT]`. Removing the type variable removes
+all four, and `bind_tool` gets a real check in place of a cast.
 
 A function cannot inherit a protocol, so these are structural — the exception this codebase
 already makes for `Process`, which is the shape of `subprocess.Popen`.
 
-One interceptor per tool per role. There is no chain and therefore no ordering to specify.
+One `before` and one `after` per tool per role, each independent of the other. There is no chain
+and therefore no ordering to specify.
 
 ## Where it runs
 
 ```python
 def bind_tool(
-    tool: Tool[ArgsT],
-    before: Before[ArgsT] = unchecked_before,
-    after: After[pydantic.BaseModel] = unchecked_after,
+    tool: Tool[ArgsT], before: Before = unchecked_before, after: After = unchecked_after
 ) -> BoundTool:
     def invoke(arguments: str, ctx: ToolContext) -> ToolResult:
         args = tool.args_model.model_validate_json(arguments)
         match before(args, ctx):
             case Refused(reason=reason):
                 return ctx.failure(tool.name, reason)
-            case Accepted(value=reviewed):
+            case Accepted(value=reviewed) if isinstance(reviewed, tool.args_model):
                 return _after(after, reviewed, tool.run(reviewed, ctx), ctx)
+            case Accepted():
+                return ctx.failure(tool.name, f"{tool.name}'s before hook returned the wrong type")
 ```
 
-Split as shown, because the whole thing in one function is five branches against a ceiling of
-three.
+Split as shown, because the whole thing in one function is over the complexity ceiling of three.
+
+`isinstance(reviewed, tool.args_model)` is doing two jobs. It narrows `reviewed` back to the
+tool's argument type, so `tool.run` type-checks with no cast anywhere; and it is a genuine
+runtime check, so a hook that returns some other model is reported as a refused call rather than
+handed to the tool. The generic draft could only have asserted this.
 
 An interceptor reaching the filesystem does so through `ctx.workspace`, scoped exactly as a tool
 is. That is what makes "every file this answer cites exists" expressible without a new port.
@@ -99,17 +106,20 @@ answer = { module = "./shapes.py", name = "Component" }
 tools  = ["read_file", "ripgrep", "shell"]
 budget = { turns = 12, tool_calls = 30 }
 
-[roles.component_analyst.checks.submit_answer]
-before = { module = "./checks.py", name = "cites_real_files" }
+[roles.component_analyst.before]
+submit_answer = { module = "./checks.py", name = "cites_real_files" }
 
-[roles.component_analyst.checks.ripgrep]
-after = { module = "./checks.py", name = "must_have_found" }
+[roles.component_analyst.after]
+ripgrep = { module = "./checks.py", name = "must_have_found" }
 ```
 
-`Role.checks: Mapping[str, Hooks] = {}`, where `Hooks` holds a `before` and an `after`, each a
-`FunctionRef` defaulting to the matching identity — so a tool declares only the hook it needs.
-`FunctionRef` has the same two fields as `ClassRef` and is a separate type because the field
-should be named after what it holds: `ClassRef` names classes, and these are functions. It is part of the role, so it is frozen into
+`Role.before: Mapping[str, FunctionRef] = {}` and `Role.after: Mapping[str, FunctionRef] = {}`.
+Two flat maps rather than one map of pairs, because hooks are rarely paired: a tool usually wants
+one or the other, and declaring only what you need should be the ordinary shape rather than an
+omission filled by a default.
+
+`FunctionRef` has the same two fields as `ClassRef` and is a separate type because a field should
+be named after what it holds: `ClassRef` names classes, and these are functions. It is part of the role, so it is frozen into
 `spec.json` at enqueue like everything else about an agent, and a config edit mid-run cannot
 redefine what a queued task will be held to.
 
@@ -122,18 +132,12 @@ Two validations, both at the earliest point that can see the fault:
 - `build_registry` rejects a `checks` entry naming a tool the role does not have, as it already
   rejects an unknown name in `tools`. Without this a typo silently checks nothing.
 
-Two resolvers sit beside `resolve_class` in `contracts/resolve.py`, and they differ because the
-hooks differ in variance:
+Two resolvers sit beside `resolve_class` in `contracts/resolve.py`, and neither is generic:
 
 ```python
-def resolve_before(ref: FunctionRef, args_model: type[ArgsT]) -> Before[ArgsT]: ...
-def resolve_after(ref: FunctionRef) -> After[pydantic.BaseModel]: ...
+def resolve_before(ref: FunctionRef) -> Before: ...
+def resolve_after(ref: FunctionRef) -> After: ...
 ```
-
-`resolve_before` is generic in the tool's own `args_model`, which is what lets the call site stay
-honest — `bind_tool(Ripgrep(), resolve_before(ref, Ripgrep.args_model))` reports zero errors
-under Pyright strict, where handing it an erased function does not. `resolve_after` needs no such
-thing.
 
 **Startup validation is weaker than it would be for classes, and this is the cost of functions.**
 `resolve_class` can assert `issubclass(resolved, pydantic.BaseModel)`; a function cannot be
@@ -146,10 +150,15 @@ ArgsT is not callable
 ```
 
 That catches a misspelled name, a value that is not a function, and a wrong parameter count. It
-does **not** catch wrong parameter types — a `before` written against the wrong tool's arguments
-resolves cleanly and fails at call time, as an ordinary refused tool result rather than at
-startup. Each resolver ends in one `typing.cast`, at the boundary where the function is
-genuinely late-bound, guarded by those two checks one line above.
+does not catch a hook written against the wrong tool's arguments — that resolves cleanly, and
+fails at the first call as an ordinary refused result, either from the hook's own `isinstance` or
+from `bind_tool`'s narrowing. Each resolver ends in one `typing.cast`, because `getattr` yields
+something unknown and nothing else can bridge that.
+
+A hook may annotate its argument concretely — `def cites_real_files(answer: Component, ctx)` —
+even though `Before` is declared over `BaseModel`. Nothing verifies the pairing either way, so
+the concrete annotation costs nothing and reads better; `bind_tool` is what actually checks the
+type at the boundary.
 
 ## What a refusal does
 
@@ -186,18 +195,6 @@ So `_handle_uses` must carry the refusal reason forward rather than discard it. 
 change to `session.py` this design requires.
 
 ## Known limits, stated rather than glossed
-
-**Variance is settled, and the spike is what shaped the two resolvers.** Handing `bind_tool` an
-erased hook fails, and fails on the *tool* rather than the hook:
-
-```
-error: Argument of type "Ripgrep" cannot be assigned to parameter "tool" of type "Tool[ArgsT]"
-  Type parameter "ArgsT@Tool" is invariant, but "GrepArgs" is not the same as "BaseModel"
-```
-
-Threading `args_model` through `resolve_before` fixes it. `resolve_after` never had the problem.
-A concrete hook, an identity hook and a config-resolved one all bind at zero errors, and all four
-runtime paths behave as written: modify, accept unchanged, refuse in `before`, refuse in `after`.
 
 **`after` cannot undo a side effect.** It runs after `tool.run`, so refusing after `write_file`,
 `edit_file`, `delete_file` or `shell` leaves the mutation in place. Prevention belongs in
@@ -236,8 +233,8 @@ records.
 
 - Is one interceptor per tool per role enough, or does a role want to compose two? Composition is
   cheap to add later and impossible to remove, so it stays out until something needs it.
-- Should `check_contracts` verify that a `before` function's declared parameter type matches the
-  tool it is attached to? It is the one mistake the arity check cannot catch, and
-  `inspect.signature` already has the annotation in hand — but reading types off a resolved
-  function is something nothing else here does, and a wrong-typed hook fails safely as a refused
-  call rather than dangerously.
+- Should `check_contracts` verify that a hook's declared parameter type matches the tool it is
+  attached to? It is the one mistake the arity check cannot catch, and `inspect.signature` already
+  has the annotation in hand — but reading types off a resolved function is something nothing else
+  here does, and a wrong-typed hook already fails safely, as a refused call rather than a bad
+  one.
