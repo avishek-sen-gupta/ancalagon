@@ -28,6 +28,9 @@ from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.llm.fake_llm import FakeLLM
 from ancalagon.migrations import latest_version, migrate_file
+from ancalagon.contracts.failed import Failed
+from ancalagon.contracts.refused import Refused
+from ancalagon.contracts.reviewed import Reviewed
 from ancalagon.session import Session
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.files.read_file import ReadFile
@@ -617,3 +620,24 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
         ["submit_answer"],
     ]
     assert outcome.kind is OutcomeKind.EXHAUSTED
+
+
+def test_a_hook_refusing_on_the_forced_final_turn_fails_naming_the_refusal(
+    tmp_path: pathlib.Path,
+):
+    def always_refuses(args: pydantic.BaseModel, ctx: ToolContext) -> Reviewed:
+        return Refused(reason="every answer must cite a file")
+
+    submitting = Reply(
+        blocks=[ToolUse(id="s1", name="submit_answer", arguments='{"answer": "no citation"}')],
+        stop_reason="tool_calls",
+    )
+    session = _session(tmp_path, [submitting] * 4, Budget(turns=2, tool_calls=4))
+    session.registry = Registry([bind_tool(SubmitAnswer(Verdict), before=always_refuses)])
+
+    outcome = session.run()
+
+    assert isinstance(outcome, Failed)
+    assert outcome.error == "submit_answer refused: every answer must cite a file"
+    assert outcome.summary == '{"answer": "no citation"}'
+    assert outcome.spent == Budget(turns=2, tool_calls=0)

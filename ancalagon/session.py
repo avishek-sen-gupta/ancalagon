@@ -155,9 +155,11 @@ class Session:
     def _answer_of(self, reply: Reply) -> str:
         return json_payload(self._text_of(reply))
 
-    def _run_tools(self, uses: collections.abc.Sequence[ToolUse]) -> list[ToolResult]:
+    def _run_tools(
+        self, uses: collections.abc.Sequence[ToolUse]
+    ) -> list[tuple[ToolUse, ToolResult]]:
         blocks: list[Block] = []
-        results: list[ToolResult] = []
+        results: list[tuple[ToolUse, ToolResult]] = []
         for use in uses:
             try:
                 tool = self.registry.get(use.name)
@@ -180,7 +182,7 @@ class Session:
             except pydantic.ValidationError as exc:
                 LOGGER.info("tool %s was called with bad arguments: %s", use.name, exc)
                 result = self.ctx.failure(use.name, f"{type(exc).__name__}: {exc}")
-            results.append(result)
+            results.append((use, result))
             blocks.append(
                 ToolResultBlock(
                     tool_use_id=use.id,
@@ -236,12 +238,25 @@ class Session:
             )
         return PENDING
 
-    def _handle_uses(
-        self, uses: collections.abc.Sequence[ToolUse], final: bool
+    def _settled(
+        self, ran: collections.abc.Sequence[tuple[ToolUse, ToolResult]], final: bool
     ) -> Outcome | Pending:
-        outcomes = (self._outcome_of_use(result.summary, final) for result in self._run_tools(uses))
+        outcomes = (self._outcome_of_use(result.summary, final) for _, result in ran)
         settled = (outcome for outcome in outcomes if not isinstance(outcome, Pending))
         return next(settled, PENDING)
+
+    def _refused(
+        self, ran: collections.abc.Sequence[tuple[ToolUse, ToolResult]]
+    ) -> Outcome | Pending:
+        rejected = [(use, result) for use, result in ran if not result.ok]
+        if not rejected:
+            return PENDING
+        use, result = rejected[0]
+        return Failed(
+            error=f"{use.name} refused: {result.error}",
+            summary=use.arguments[:REJECTED_CHARS],
+            spent=self._spent(),
+        )
 
     def _finish_from_text(self, reply: Reply, final: bool, offered: str) -> Outcome | Pending:
         text = self._answer_of(reply)
@@ -268,12 +283,32 @@ class Session:
         uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
         if not uses:
             return self._finish_from_text(reply, final, "")
-        from_uses = self._handle_uses(uses, final)
+        ran = self._run_tools(uses)
+        from_uses = self._settled(ran, final)
         if not isinstance(from_uses, Pending):
             return from_uses
         if final:
-            return self._finish_from_text(reply, final, uses[0].arguments)
+            return self._ended(reply, ran, uses)
         return PENDING
+
+    def _ended(
+        self,
+        reply: Reply,
+        ran: collections.abc.Sequence[tuple[ToolUse, ToolResult]],
+        uses: collections.abc.Sequence[ToolUse],
+    ) -> Outcome:
+        match self._refused(ran):
+            case Pending():
+                return self._finished(reply, uses[0].arguments)
+            case failure:
+                return failure
+
+    def _finished(self, reply: Reply, offered: str) -> Outcome:
+        match self._finish_from_text(reply, True, offered):
+            case Pending():
+                return Failed(error="no final answer", summary=offered, spent=self._spent())
+            case outcome:
+                return outcome
 
     def run(self) -> Outcome:
         while True:
