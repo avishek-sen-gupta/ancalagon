@@ -12,7 +12,7 @@ fileignoreconfig:
 - filename: docs/superpowers/plans/2026-08-03-ancalagon-substrate.md
   checksum: dad56bb88ded3533244d7f16f43bd9ce526cacfaba1b511558af92bae52a611a
 - filename: uv.lock
-  checksum: 90c2b577bcf0dec7a24ac856a04227239f2a507903fc10e2d7ebb86c77b966d6
+  checksum: b62ccf69b07b0cd2b463f5764fb1335b2e13cc6b6c84873596d0c9f8d65be4e8
 - filename: tests/unit/test_workspace_scoping.py
   checksum: 1b71ea5dcdb64d0392e8a37d3cc240ab1ac3ee60c5002083e66c4afaa9681459
 - filename: tests/unit/test_config_load.py

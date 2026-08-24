@@ -1,16 +1,14 @@
 # Parses a source file to a flat list of AST nodes as JSON.
 import pydantic
 import tree_sitter
-import tree_sitter_python
 
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.parse.ast_node import AstNode
+from ancalagon.tools.parse.languages import GRAMMARS, language_of
 from ancalagon.tools.parse.parse_args import ParseArgs
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.scope_error import ScopeError
-
-LANGUAGES = {"python": tree_sitter_python.language}
 
 
 def _node_of(node: tree_sitter.Node) -> AstNode:
@@ -33,13 +31,13 @@ class TreeSitter(Tool[ParseArgs]):
     args_model = ParseArgs
 
     def run(self, args: ParseArgs, ctx: ToolContext) -> ToolResult:
-        if args.language not in LANGUAGES:
+        if args.language not in GRAMMARS:
             return ctx.failure(self.name, f"unsupported language {args.language}")
         try:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
-        language = tree_sitter.Language(LANGUAGES[args.language]())
+        language = language_of(args.language)
         parser = tree_sitter.Parser(language)
         tree = parser.parse(ctx.workspace.read_bytes(path))
         nodes = pydantic.TypeAdapter(list[AstNode]).dump_json(_walk(tree.root_node), indent=2)

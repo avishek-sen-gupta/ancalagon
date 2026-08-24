@@ -491,6 +491,14 @@ outside every root the workspace declares.
 The session puts the summary and the path into the tool result the model sees. Large output
 never enters the context; the model reads it with `read_file` if it wants to.
 
+`parse/ast_query.py` is the structural counterpart to `ripgrep`. It runs a tree-sitter query —
+an S-expression whose parts are named with `@` — and returns one record per match, each named
+capture carrying its node type, byte range, row and column, and its text. Where `ast_grep`
+answers *does this shape occur*, a query answers *where is each part of it*, which is what a
+caller wanting to cite a location rather than read one needs. `parse/languages.py` is the one
+place a grammar is named, so `treesitter` and `ast_query` support the same set: Python and Java.
+A query the grammar rejects comes back as a failed result carrying tree-sitter's own message.
+
 `shell/shell.py` is the one deliberate exception to that obligation. It takes a command line and
 hands it to `/bin/sh`, so pipes, globs and substitution work and nothing about the command is
 inspectable before it executes. What bounds it is not the argument but the sandbox — `Fence`
