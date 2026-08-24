@@ -25,17 +25,15 @@ The alternatives were considered and are worse:
 | `Session._run_tools` | Arguments are still text there; `bind_tool` parses them. Wrong layer. |
 | `worker.py`, after `session.run()` | The loop is over. You can downgrade an outcome but never give the agent another turn — an audit, not a gate. It would also write `outcome-<agent>.json` twice, which is the single-write property the supervisor's `Closed`/`Lost` decision rests on. |
 
-## The protocol
+## The hooks
 
-Mirrors `Tool` deliberately: same type variable, `ctx` last, and a class implementing it
-**inherits** it, so a broken implementation is an error on the class rather than on a distant
-list.
+Two stateless functions. Nothing is instantiated and nothing holds state between calls, so an
+interceptor is a pure function of what it is given.
 
 ```python
-# ancalagon/tools/registry/interceptor.py
-class Interceptor(typing.Protocol[ArgsT]):
-    def before(self, args: ArgsT, ctx: ToolContext) -> Reviewed[ArgsT]: ...
-    def after(self, args: ArgsT, result: ToolResult, ctx: ToolContext) -> Reviewed[ToolResult]: ...
+# ancalagon/tools/registry/hooks.py
+type Before[T: BaseModel] = Callable[[T, ToolContext], Reviewed[T]]
+type After[T: BaseModel]  = Callable[[T, ToolResult, ToolContext], Reviewed[ToolResult]]
 ```
 
 ```python
@@ -46,22 +44,35 @@ class Accepted[T: pydantic.BaseModel]:   value: T      # the same one, or a modi
 class Refused:                           reason: str   # what the agent is told, and must fix
 ```
 
-`UNCHECKED` is the null object — both hooks return `Accepted`, unchanged. It is the default, so
-a tool with no declared check pays one match arm.
+The null objects are identity functions, `unchecked_before` and `unchecked_after`, and they are
+the defaults, so a tool with no declared check pays one match arm.
+
+**The two hooks have different variance, and it changes how each is resolved.** In `Before`, the
+type variable appears in both the parameter and the return, so it is invariant: an erased
+`Before[BaseModel]` cannot be handed to a tool expecting `Before[GrepArgs]`. In `After` it
+appears only in a parameter, so it is contravariant: an erased `After[BaseModel]` slots in
+anywhere. Confirmed against Pyright strict.
+
+A function cannot inherit a protocol, so these are structural — the exception this codebase
+already makes for `Process`, which is the shape of `subprocess.Popen`.
 
 One interceptor per tool per role. There is no chain and therefore no ordering to specify.
 
 ## Where it runs
 
 ```python
-def bind_tool(tool: Tool[ArgsT], check: Interceptor[ArgsT] = UNCHECKED) -> BoundTool:
+def bind_tool(
+    tool: Tool[ArgsT],
+    before: Before[ArgsT] = unchecked_before,
+    after: After[pydantic.BaseModel] = unchecked_after,
+) -> BoundTool:
     def invoke(arguments: str, ctx: ToolContext) -> ToolResult:
         args = tool.args_model.model_validate_json(arguments)
-        match check.before(args, ctx):
+        match before(args, ctx):
             case Refused(reason=reason):
                 return ctx.failure(tool.name, reason)
             case Accepted(value=reviewed):
-                return _after(check, reviewed, tool.run(reviewed, ctx), ctx)
+                return _after(after, reviewed, tool.run(reviewed, ctx), ctx)
 ```
 
 Split as shown, because the whole thing in one function is five branches against a ceiling of
@@ -88,12 +99,17 @@ answer = { module = "./shapes.py", name = "Component" }
 tools  = ["read_file", "ripgrep", "shell"]
 budget = { turns = 12, tool_calls = 30 }
 
-[roles.component_analyst.checks]
-submit_answer = { module = "./shapes.py", name = "CitesRealFiles" }
-shell         = { module = "./shapes.py", name = "NoNetworkCalls" }
+[roles.component_analyst.checks.submit_answer]
+before = { module = "./checks.py", name = "cites_real_files" }
+
+[roles.component_analyst.checks.ripgrep]
+after = { module = "./checks.py", name = "must_have_found" }
 ```
 
-`Role.checks: Mapping[str, ClassRef] = {}`. It is part of the role, so it is frozen into
+`Role.checks: Mapping[str, Hooks] = {}`, where `Hooks` holds a `before` and an `after`, each a
+`FunctionRef` defaulting to the matching identity — so a tool declares only the hook it needs.
+`FunctionRef` has the same two fields as `ClassRef` and is a separate type because the field
+should be named after what it holds: `ClassRef` names classes, and these are functions. It is part of the role, so it is frozen into
 `spec.json` at enqueue like everything else about an agent, and a config edit mid-run cannot
 redefine what a queued task will be held to.
 
@@ -106,9 +122,34 @@ Two validations, both at the earliest point that can see the fault:
 - `build_registry` rejects a `checks` entry naming a tool the role does not have, as it already
   rejects an unknown name in `tools`. Without this a typo silently checks nothing.
 
-`resolve_interceptor` sits beside `resolve_class` in `contracts/resolve.py`. It cannot reuse it:
-`resolve_class` requires `issubclass(resolved, pydantic.BaseModel)`, and an interceptor inherits
-`Interceptor` instead.
+Two resolvers sit beside `resolve_class` in `contracts/resolve.py`, and they differ because the
+hooks differ in variance:
+
+```python
+def resolve_before(ref: FunctionRef, args_model: type[ArgsT]) -> Before[ArgsT]: ...
+def resolve_after(ref: FunctionRef) -> After[pydantic.BaseModel]: ...
+```
+
+`resolve_before` is generic in the tool's own `args_model`, which is what lets the call site stay
+honest — `bind_tool(Ripgrep(), resolve_before(ref, Ripgrep.args_model))` reports zero errors
+under Pyright strict, where handing it an erased function does not. `resolve_after` needs no such
+thing.
+
+**Startup validation is weaker than it would be for classes, and this is the cost of functions.**
+`resolve_class` can assert `issubclass(resolved, pydantic.BaseModel)`; a function cannot be
+`issubclass`-ed against anything. What is left is `callable()` and an arity check through
+`inspect.signature`:
+
+```
+must_have_found must take (args, ctx)
+ArgsT is not callable
+```
+
+That catches a misspelled name, a value that is not a function, and a wrong parameter count. It
+does **not** catch wrong parameter types — a `before` written against the wrong tool's arguments
+resolves cleanly and fails at call time, as an ordinary refused tool result rather than at
+startup. Each resolver ends in one `typing.cast`, at the boundary where the function is
+genuinely late-bound, guarded by those two checks one line above.
 
 ## What a refusal does
 
@@ -146,39 +187,17 @@ change to `session.py` this design requires.
 
 ## Known limits, stated rather than glossed
 
-**Variance was the main technical risk, and it is settled.** `ArgsT` appears in `before`'s
-return type as well as its parameter, so `Interceptor` is invariant in it — the same wall that
-stopped `Tool[ArgsT]` living in the registry. Handing `bind_tool` an erased
-`Interceptor[BaseModel]` fails, and fails exactly there:
+**Variance is settled, and the spike is what shaped the two resolvers.** Handing `bind_tool` an
+erased hook fails, and fails on the *tool* rather than the hook:
 
 ```
 error: Argument of type "Ripgrep" cannot be assigned to parameter "tool" of type "Tool[ArgsT]"
   Type parameter "ArgsT@Tool" is invariant, but "GrepArgs" is not the same as "BaseModel"
 ```
 
-A spike against Pyright strict found the shape that works, with **one** narrowing, at the
-boundary where the class is genuinely late-bound:
-
-```python
-@typing.runtime_checkable
-class Interceptor(typing.Protocol[ArgsT]): ...
-
-def resolve_interceptor(module: Module, name: str, args_model: type[ArgsT]) -> Interceptor[ArgsT]:
-    resolved = getattr(module, name)
-    if not issubclass(resolved, Interceptor):
-        raise TypeError(f"{name} does not inherit Interceptor")
-    return typing.cast(Interceptor[ArgsT], resolved())
-```
-
-Making the resolver generic in the tool's own `args_model` is what lets the call site stay
-honest: `bind_tool(Ripgrep(), resolve_interceptor(module, name, Ripgrep.args_model))` reports
-zero errors, as do a concrete `Interceptor[GrepArgs]` and a generic null object
-`Unchecked[GrepArgs]`. The `runtime_checkable` decorator is required for the `issubclass`
-narrowing, which is the same narrowing `resolve_class` already performs against
-`pydantic.BaseModel`.
-
-The single `cast` is the cost, and it is the same trade `resolve_class` makes: the type is not
-unknown, only late-bound, and the check that it is an `Interceptor` happens one line above.
+Threading `args_model` through `resolve_before` fixes it. `resolve_after` never had the problem.
+A concrete hook, an identity hook and a config-resolved one all bind at zero errors, and all four
+runtime paths behave as written: modify, accept unchanged, refuse in `before`, refuse in `after`.
 
 **`after` cannot undo a side effect.** It runs after `tool.run`, so refusing after `write_file`,
 `edit_file`, `delete_file` or `shell` leaves the mutation in place. Prevention belongs in
@@ -217,6 +236,8 @@ records.
 
 - Is one interceptor per tool per role enough, or does a role want to compose two? Composition is
   cheap to add later and impossible to remove, so it stays out until something needs it.
-- Should `check_contracts` also verify that an interceptor's declared `ArgsT` matches the tool it
-  is attached to? It would catch a real class of mistake at startup, but requires reading a type
-  annotation off a resolved class, which nothing else here does.
+- Should `check_contracts` verify that a `before` function's declared parameter type matches the
+  tool it is attached to? It is the one mistake the arity check cannot catch, and
+  `inspect.signature` already has the annotation in hand — but reading types off a resolved
+  function is something nothing else here does, and a wrong-typed hook fails safely as a refused
+  call rather than dangerously.
