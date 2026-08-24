@@ -32,9 +32,18 @@ calls, so an interceptor is a pure function of what it is given.
 
 ```python
 # ancalagon/tools/registry/hooks.py
-type Before = Callable[[BaseModel, ToolContext], Reviewed]
-type After  = Callable[[BaseModel, ToolResult, ToolContext], Reviewed]
+@typing.runtime_checkable
+class Before(typing.Protocol):
+    def __call__(self, args: BaseModel, ctx: ToolContext) -> Reviewed: ...
+
+@typing.runtime_checkable
+class After(typing.Protocol):
+    def __call__(self, args: BaseModel, ran: ToolResult, ctx: ToolContext) -> Reviewed: ...
 ```
+
+Callback protocols rather than `Callable` aliases, for one reason: `isinstance(found, Before)`
+**narrows**, so resolution needs no cast. It is the same move `resolve_class` makes with
+`issubclass`.
 
 ```python
 # ancalagon/contracts/reviewed.py — discriminated on kind, as Outcome and Payload already are
@@ -140,9 +149,9 @@ def resolve_after(ref: FunctionRef) -> After: ...
 ```
 
 **Startup validation is weaker than it would be for classes, and this is the cost of functions.**
-`resolve_class` can assert `issubclass(resolved, pydantic.BaseModel)`; a function cannot be
-`issubclass`-ed against anything. What is left is `callable()` and an arity check through
-`inspect.signature`:
+`resolve_class` asserts `issubclass(resolved, pydantic.BaseModel)`, which is a real structural
+check. A function admits no equivalent: the protocol check confirms only that it is callable, so
+an arity check through `inspect.signature` carries the rest.
 
 ```
 must_have_found must take (args, ctx)
@@ -152,8 +161,13 @@ ArgsT is not callable
 That catches a misspelled name, a value that is not a function, and a wrong parameter count. It
 does not catch a hook written against the wrong tool's arguments — that resolves cleanly, and
 fails at the first call as an ordinary refused result, either from the hook's own `isinstance` or
-from `bind_tool`'s narrowing. Each resolver ends in one `typing.cast`, because `getattr` yields
-something unknown and nothing else can bridge that.
+from `bind_tool`'s narrowing.
+
+**There is no cast anywhere in this design.** `isinstance(found, Before)` narrows `getattr`'s
+result the whole way, so each resolver ends by returning it. The runtime half of that check is
+weak — a `runtime_checkable` protocol whose only member is `__call__` admits any callable, which
+is why the arity check is there too — but it is no weaker than `callable()` and it narrows, which
+`callable()` does not. Verified at zero errors under Pyright strict, with both guards firing.
 
 A hook may annotate its argument concretely — `def cites_real_files(answer: Component, ctx)` —
 even though `Before` is declared over `BaseModel`. Nothing verifies the pairing either way, so
