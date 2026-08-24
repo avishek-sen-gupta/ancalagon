@@ -7,8 +7,11 @@ from ancalagon.tools.search.run_command import run_command
 ARG_BUDGET = 200_000
 
 
-def searchable_files(roots: collections.abc.Sequence[str]) -> tuple[int, list[str], str]:
-    code, out, err = run_command(["rg", "--files", "--no-require-git", *roots])
+def searchable_files(
+    roots: collections.abc.Sequence[str], globs: collections.abc.Sequence[str]
+) -> tuple[int, list[str], str]:
+    chosen = [flag for glob in globs for flag in ("-g", glob)]
+    code, out, err = run_command(["rg", "--files", "--no-require-git", *chosen, *roots])
     return code, out.splitlines(), err
 
 

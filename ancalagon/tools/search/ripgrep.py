@@ -22,7 +22,8 @@ class Ripgrep(Tool[GrepArgs]):
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
         chosen = ["--json"] if args.structured else ["--line-number", "--no-heading"]
-        flags = [*chosen, "--no-require-git"]
+        globs = [flag for glob in args.globs for flag in ("-g", glob)]
+        flags = [*chosen, "--no-require-git", *globs]
         code, out, err = run_command(["rg", *flags, "-e", args.pattern, "--", *roots])
         if code not in (0, 1):
             return ctx.failure(self.name, err)

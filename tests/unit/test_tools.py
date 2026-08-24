@@ -54,6 +54,7 @@ from ancalagon.tools.search.ast_grep import AstGrep
 from ancalagon.tools.search.find_symbol import FindSymbol
 from ancalagon.tools.search.grep_args import GrepArgs
 from ancalagon.tools.search.ripgrep import Ripgrep
+from ancalagon.tools.search.searchable_files import searchable_files
 from ancalagon.tools.search.sed import Sed
 from ancalagon.tools.search.sed_args import SedArgs
 from ancalagon.tools.shell.shell import Shell
@@ -238,6 +239,37 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     dashed = Sed().run(SedArgs(script="s/--files/--flags/", path=flags), ctx)
     assert dashed.ok is True
     assert pathlib.Path(dashed.path).read_text() == "a line mentioning --flags here\n"
+
+    tree = pathlib.Path(ctx.workspace.write_root) / "tree"
+    (tree / "nested").mkdir(parents=True, exist_ok=True)
+    (tree / "prose.md").write_text("def alpha(): mentioned in prose\n")
+    (tree / "top.py").write_text("def alpha():\n    return 1\n")
+    (tree / "nested" / "deep.py").write_text("def alpha():\n    return 3\n")
+
+    globbed = Ripgrep().run(GrepArgs(pattern="def alpha", roots=[tree], globs=["*.py"]), ctx)
+    assert globbed.ok is True
+    assert sorted(
+        l.split(":", 1)[0] for l in pathlib.Path(globbed.path).read_text().splitlines()
+    ) == [str(tree / "nested" / "deep.py"), str(tree / "top.py")]
+
+    negated = Ripgrep().run(
+        GrepArgs(pattern="def alpha", roots=[tree], globs=["*.py", "!**/nested/**"]), ctx
+    )
+    assert [l.split(":", 1)[0] for l in pathlib.Path(negated.path).read_text().splitlines()] == [
+        str(tree / "top.py")
+    ]
+
+    assert searchable_files([str(tree)], ["*.py"])[1] == sorted(
+        [str(tree / "nested" / "deep.py"), str(tree / "top.py")]
+    )
+
+    structural = AstGrep().run(
+        GrepArgs(pattern="def $NAME(): return $V", roots=[tree], globs=["*.py", "!**/nested/**"]),
+        ctx,
+    )
+    assert structural.ok is True
+    listed = pathlib.Path(structural.path).read_text()
+    assert "top.py" in listed and "deep.py" not in listed and "prose.md" not in listed
 
 
 def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names(
