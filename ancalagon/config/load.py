@@ -8,6 +8,7 @@ from ancalagon.config.config import Config
 from ancalagon.config.raw_role import RawClassRef, RawRole
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.role import FREE_TEXT, Role
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.fs.file_system import FileSystem
@@ -42,6 +43,15 @@ def _class_ref(base: pathlib.PurePath, raw: RawClassRef, fs: FileSystem) -> Clas
     return ClassRef(module=str(_root(base, raw.module, fs)), name=raw.name)
 
 
+def _hooks(
+    base: pathlib.PurePath, raw: collections.abc.Mapping[str, RawClassRef], fs: FileSystem
+) -> dict[str, FunctionRef]:
+    return {
+        tool: FunctionRef(module=str(_root(base, ref.module, fs)), name=ref.name)
+        for tool, ref in raw.items()
+    }
+
+
 def _role(base: pathlib.PurePath, name: str, raw: RawRole, fs: FileSystem) -> Role:
     if not ROLE_NAME.match(name):
         raise ValueError(
@@ -54,6 +64,8 @@ def _role(base: pathlib.PurePath, name: str, raw: RawRole, fs: FileSystem) -> Ro
         answer=_class_ref(base, raw.answer, fs) if raw.answer.module else FREE_TEXT,
         tools=tuple(raw.tools),
         budget=Budget(turns=raw.budget.turns, tool_calls=raw.budget.tool_calls),
+        before=_hooks(base, raw.before, fs),
+        after=_hooks(base, raw.after, fs),
     )
 
 

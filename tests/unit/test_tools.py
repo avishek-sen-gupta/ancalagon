@@ -730,7 +730,10 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     (run_dir / "tasks").mkdir(parents=True)
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
 
-    tools = delegate_tools(roles, run_dir=run_dir, parent=1, clock=FakeClock(), fs=RealFileSystem())
+    caller = Role(behaviour="Coordinate.", tools=(), budget=Budget(turns=1, tool_calls=1))
+    tools = delegate_tools(
+        roles, caller, run_dir=run_dir, parent=1, clock=FakeClock(), fs=RealFileSystem()
+    )
 
     assert [t.name for t in tools] == ["delegate_analyst", "delegate_scout"]
     shown = tools[0].declaration.parameters.model_json_schema()
