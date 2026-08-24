@@ -77,6 +77,7 @@ def _run(
             [
                 *delegate_tools(
                     {"investigate": INVESTIGATE},
+                    INVESTIGATE,
                     run_dir=run_dir,
                     parent=agent,
                     clock=SystemClock(),

@@ -27,8 +27,13 @@ from ancalagon.sandbox.strategy import Strategy
 from ancalagon.sandbox.unsandboxed import Unsandboxed
 from ancalagon.schedule.newest_agent import newest_agent
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
+from ancalagon.contracts.role import Role
+from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.supervisor.supervisor import Supervisor
+from ancalagon.tools.idle.idle import Idle
+from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.trace_command import trace_command
+from ancalagon.worker import build_registry
 from ancalagon.viz_command import viz_command
 
 LOGGER = logging.getLogger(__name__)
@@ -98,12 +103,37 @@ def _contract_fault(name: str, field: str, ref: ClassRef) -> str:
         )
 
 
-def check_contracts(config: Config) -> None:
+def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem) -> str:
+    named = set(role.before) | set(role.after)
+    unused = named - set(role.tools) - {SubmitAnswer.name, Idle.name}
+    if unused:
+        return f"[roles.{name}] names a hook for {sorted(unused)[0]}, which it does not use"
+    try:
+        build_registry(
+            config,
+            TaskSpec(task_id=name, role=role, goal=""),
+            config.write_root,
+            parent=0,
+            depth=0,
+            output_class=resolve_class(role.answer),
+            clock=SystemClock(),
+            fs=fs,
+        )
+        return ""
+    except Exception as error:
+        return f"[roles.{name}] {error}"
+
+
+def check_contracts(config: Config, fs: FileSystem = RealFileSystem()) -> None:
     faults = [
         fault
         for name, role in config.roles.items()
         for field, ref in (("input", role.input), ("answer", role.answer))
         if (fault := _contract_fault(name, field, ref))
+    ] or [
+        fault
+        for name, role in config.roles.items()
+        if (fault := _hook_fault(name, role, config, fs))
     ]
     if faults:
         raise ValueError("\n".join(faults))

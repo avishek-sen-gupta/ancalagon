@@ -48,7 +48,7 @@ from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.parse.ast_query import AstQuery
 from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
-from ancalagon.tools.registry.bind_tool import bind_tool
+from ancalagon.tools.registry.bound_for import bound_for
 from ancalagon.tools.registry.bound_tool import BoundTool
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -67,6 +67,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def available_tools(
+    role: Role,
     roles: collections.abc.Mapping[str, Role],
     run_dir: pathlib.PurePath,
     parent: int,
@@ -75,31 +76,31 @@ def available_tools(
     fs: FileSystem,
 ) -> list[BoundTool]:
     return [
-        bind_tool(ReadFile()),
-        bind_tool(WriteFile()),
-        bind_tool(EditFile()),
-        bind_tool(DeleteFile()),
-        bind_tool(ListDir()),
-        bind_tool(Ripgrep()),
-        bind_tool(AstGrep()),
-        bind_tool(Sed()),
-        bind_tool(FindSymbol()),
-        bind_tool(CodeStats()),
-        bind_tool(FileType()),
-        bind_tool(ExtractStrings()),
-        bind_tool(ConvertDocument()),
-        bind_tool(QueryJson()),
-        bind_tool(GitHistory()),
-        bind_tool(TreeSitter()),
-        bind_tool(AstQuery()),
-        bind_tool(Shell()),
-        *delegate_tools(roles, run_dir=run_dir, parent=parent, clock=clock, fs=fs),
-        bind_tool(CheckTask(run_dir=run_dir, clock=clock, fs=fs)),
-        bind_tool(CollectTask(run_dir=run_dir, clock=clock, fs=fs)),
-        bind_tool(AnswerTask(run_dir=run_dir, parent=parent, clock=clock, fs=fs)),
-        bind_tool(NeedInput()),
-        bind_tool(Idle(run_dir=run_dir, agent=parent, clock=clock, fs=fs)),
-        bind_tool(SubmitAnswer(output_class)),
+        bound_for(ReadFile(), role),
+        bound_for(WriteFile(), role),
+        bound_for(EditFile(), role),
+        bound_for(DeleteFile(), role),
+        bound_for(ListDir(), role),
+        bound_for(Ripgrep(), role),
+        bound_for(AstGrep(), role),
+        bound_for(Sed(), role),
+        bound_for(FindSymbol(), role),
+        bound_for(CodeStats(), role),
+        bound_for(FileType(), role),
+        bound_for(ExtractStrings(), role),
+        bound_for(ConvertDocument(), role),
+        bound_for(QueryJson(), role),
+        bound_for(GitHistory(), role),
+        bound_for(TreeSitter(), role),
+        bound_for(AstQuery(), role),
+        bound_for(Shell(), role),
+        *delegate_tools(roles, role, run_dir=run_dir, parent=parent, clock=clock, fs=fs),
+        bound_for(CheckTask(run_dir=run_dir, clock=clock, fs=fs), role),
+        bound_for(CollectTask(run_dir=run_dir, clock=clock, fs=fs), role),
+        bound_for(AnswerTask(run_dir=run_dir, parent=parent, clock=clock, fs=fs), role),
+        bound_for(NeedInput(), role),
+        bound_for(Idle(run_dir=run_dir, agent=parent, clock=clock, fs=fs), role),
+        bound_for(SubmitAnswer(output_class), role),
     ]
 
 
@@ -116,7 +117,7 @@ def build_registry(
     spawnable = {
         name: role for name, role in config.roles.items() if f"delegate_{name}" in spec.role.tools
     }
-    available = available_tools(spawnable, run_dir, parent, output_class, clock, fs)
+    available = available_tools(spec.role, spawnable, run_dir, parent, output_class, clock, fs)
     wanted = set(spec.role.tools) | {Idle.name, SubmitAnswer.name}
     unknown = wanted - {t.name for t in available}
     if unknown:

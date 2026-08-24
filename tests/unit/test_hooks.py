@@ -3,13 +3,20 @@ import pathlib
 import pydantic
 import pytest
 
+from ancalagon.cli import check_contracts
+from ancalagon.clock.system_clock import SystemClock
+from ancalagon.config.load import load_config
 from ancalagon.contracts.accepted import Accepted
+from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.function_ref import FunctionRef
+from ancalagon.contracts.task_spec import TaskSpec
+from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.tools.registry.accepts import accepts
 from ancalagon.tools.registry.resolve_after import resolve_after
 from ancalagon.tools.registry.resolve_before import resolve_before
 from ancalagon.tools.search.grep_args import GrepArgs
 from ancalagon.tools.search.sed_args import SedArgs
+from ancalagon.worker import build_registry
 
 MODULE = """
 from __future__ import annotations
@@ -109,3 +116,82 @@ def test_resolvers_return_a_usable_hook_and_refuse_one_of_the_wrong_shape(
 
     with pytest.raises(ValueError, match="must take 3 positional parameters"):
         resolve_after(FunctionRef(module=str(hooks), name="narrow"), GrepArgs)
+
+
+CONFIG = """
+[workspace]
+write_root = "./ws"
+read_roots = ["."]
+
+[model]
+name = "m"
+num_retries = 0
+request_timeout_s = 10
+max_tokens = 100
+allowed_domains = []
+
+[limits]
+max_concurrent_agents = 1
+agent_timeout_s = 10
+max_depth = 1
+compact_above_tokens = 0
+keep_recent_messages = 8
+summary_chars = 100
+
+[sandbox]
+strategy = "none"
+
+[roles.root]
+behaviour = "Look."
+tools = ["ripgrep"]
+budget = { turns = 2, tool_calls = 4 }
+
+[roles.root.before]
+ripgrep = { module = "./hooks.py", name = "narrow" }
+
+[roles.root.after]
+ripgrep = { module = "./hooks.py", name = "reviewing" }
+
+[run]
+goal_file = "./goal.md"
+input_file = ""
+role = "root"
+"""
+
+
+def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_names(
+    tmp_path: pathlib.Path, hooks: pathlib.Path
+):
+    fs = RealFileSystem()
+    (tmp_path / "goal.md").write_text("go")
+    (tmp_path / "ancalagon.toml").write_text(CONFIG)
+    config = load_config(tmp_path / "ancalagon.toml", fs)
+
+    role = config.roles["root"]
+    assert role.before == {"ripgrep": FunctionRef(module=str(hooks), name="narrow")}
+    assert role.after == {"ripgrep": FunctionRef(module=str(hooks), name="reviewing")}
+    check_contracts(config)
+
+    registry = build_registry(
+        config,
+        TaskSpec(task_id="root", role=role, goal="g"),
+        tmp_path,
+        parent=1,
+        depth=0,
+        output_class=FreeText,
+        clock=SystemClock(),
+        fs=fs,
+    )
+    assert sorted(registry.names()) == ["idle", "ripgrep", "submit_answer"]
+
+    mismatched = role.model_copy(
+        update={"before": {"ripgrep": FunctionRef(module=str(hooks), name="other_tool")}}
+    )
+    with pytest.raises(ValueError, match="takes SedArgs, but the tool passes GrepArgs"):
+        check_contracts(config.model_copy(update={"roles": {"root": mismatched}}))
+
+    unknown = role.model_copy(
+        update={"before": {"sed": FunctionRef(module=str(hooks), name="narrow")}}
+    )
+    with pytest.raises(ValueError, match="names a hook for sed, which it does not use"):
+        check_contracts(config.model_copy(update={"roles": {"root": unknown}}))
