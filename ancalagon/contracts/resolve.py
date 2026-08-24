@@ -25,7 +25,7 @@ def _load_fresh(path: pathlib.PurePath) -> types.ModuleType:
                     return module
 
 
-def _load(path: pathlib.PurePath) -> types.ModuleType:
+def module_of(path: pathlib.PurePath) -> types.ModuleType:
     matches = [m for m in sys.modules.values() if getattr(m, "__file__", None) == str(path)]
     match matches:
         case [module]:
@@ -36,7 +36,7 @@ def _load(path: pathlib.PurePath) -> types.ModuleType:
 
 def resolve_class(ref: ClassRef) -> type[pydantic.BaseModel]:
     path = pathlib.PurePath(ref.module)
-    module = _load(path)
+    module = module_of(path)
     resolved = getattr(module, ref.name)
     if not issubclass(resolved, pydantic.BaseModel):
         raise TypeError(f"{ref.name} in {ref.module} is not a pydantic model")
