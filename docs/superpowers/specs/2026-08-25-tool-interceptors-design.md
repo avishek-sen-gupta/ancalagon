@@ -148,31 +148,48 @@ def resolve_before(ref: FunctionRef) -> Before: ...
 def resolve_after(ref: FunctionRef) -> After: ...
 ```
 
-**Startup validation is weaker than it would be for classes, and this is the cost of functions.**
-`resolve_class` asserts `issubclass(resolved, pydantic.BaseModel)`, which is a real structural
-check. A function admits no equivalent: the protocol check confirms only that it is callable, so
-an arity check through `inspect.signature` carries the rest.
+**A hook is checked against the tool it is wired to, before any agent runs.** This is the part
+that matters, and it is a startup check rather than a static one, because every hook and one
+tool's argument model are both resolved by import — no type checker can see the pairing.
+
+```python
+def accepts(fn: object, args_model: type[pydantic.BaseModel]) -> str:
+    hints = typing.get_type_hints(fn)
+    if ARGS not in hints:
+        return f"has no parameter named {ARGS}"
+    declared = hints[ARGS]
+    if not isinstance(declared, type) or not issubclass(declared, pydantic.BaseModel):
+        return f"declares {declared}, which is not a model class"
+    if not issubclass(args_model, declared):
+        return f"takes {declared.__name__}, but the tool passes {args_model.__name__}"
+    return ""
+```
 
 ```
-must_have_found must take (args, ctx)
-ArgsT is not callable
+non_empty_pattern    wired to a tool taking GrepArgs   accepted
+path_is_absolute     wired to a tool taking GrepArgs   REJECTED — takes ReadArgs, but the tool passes GrepArgs
+anything             wired to a tool taking GrepArgs   accepted
+non_empty_pattern    wired to a tool taking ReadArgs   REJECTED — takes GrepArgs, but the tool passes ReadArgs
 ```
 
-That catches a misspelled name, a value that is not a function, and a wrong parameter count. It
-does not catch a hook written against the wrong tool's arguments — that resolves cleanly, and
-fails at the first call as an ordinary refused result, either from the hook's own `isinstance` or
-from `bind_tool`'s narrowing.
+`issubclass(args_model, declared)` rather than equality is deliberate: a hook declared over
+`BaseModel` is usable on any tool, which is contravariance applied at runtime and is the correct
+relation. `get_type_hints` resolves string annotations, so a check module written with
+`from __future__ import annotations` works unchanged.
 
-**There is no cast anywhere in this design.** `isinstance(found, Before)` narrows `getattr`'s
-result the whole way, so each resolver ends by returning it. The runtime half of that check is
-weak — a `runtime_checkable` protocol whose only member is `__call__` admits any callable, which
-is why the arity check is there too — but it is no weaker than `callable()` and it narrows, which
-`callable()` does not. Verified at zero errors under Pyright strict, with both guards firing.
+This lives in one function called from two places. `build_registry` calls it because that is
+where a tool's `args_model` is known — including `submit_answer`'s, which is the role's `answer`
+class, and each `delegate_<role>`'s, which is that role's `input` class. `check_contracts` calls
+it too, so a mismatch anywhere in the config exits 2 before a single agent is spawned rather than
+failing one worker later.
 
-A hook may annotate its argument concretely — `def cites_real_files(answer: Component, ctx)` —
-even though `Before` is declared over `BaseModel`. Nothing verifies the pairing either way, so
-the concrete annotation costs nothing and reads better; `bind_tool` is what actually checks the
-type at the boundary.
+An arity check through `inspect.signature` covers what remains: a function of the wrong shape
+entirely.
+
+A hook **should** annotate its argument concretely — `def cites_real_files(args: Component, ctx)`
+— even though `Before` is declared over `BaseModel`. That annotation is not decoration: it is
+what `accepts` reads to decide whether the hook may be wired to that tool at all, and it is what
+lets the hook's own body use `args.files` without an `isinstance` first.
 
 ## What a refusal does
 
@@ -247,8 +264,3 @@ records.
 
 - Is one interceptor per tool per role enough, or does a role want to compose two? Composition is
   cheap to add later and impossible to remove, so it stays out until something needs it.
-- Should `check_contracts` verify that a hook's declared parameter type matches the tool it is
-  attached to? It is the one mistake the arity check cannot catch, and `inspect.signature` already
-  has the annotation in hand — but reading types off a resolved function is something nothing else
-  here does, and a wrong-typed hook already fails safely, as a refused call rather than a bad
-  one.
