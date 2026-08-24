@@ -53,7 +53,12 @@ class Accepted:   value: pydantic.BaseModel   # the same one, or a modified one
 class Refused:    reason: str                 # what the agent is told, and must fix
 ```
 
-The null objects are identity functions, `unchecked_before` and `unchecked_after`.
+Every tool is bound with a `CompositeBefore` and a `CompositeAfter` holding whatever list the
+role declared for it. They fold it — each hook sees what the previous one returned, the first
+`Refused` short-circuits the rest — and an empty one returns its argument unchanged, so the
+passthrough is the empty case of the same object rather than a separate null object. A composite
+also checks each link against the type it was handed, so a hook returning the wrong model is
+reported there rather than fed to the next hook.
 
 **There is deliberately no type variable.** An earlier draft made `Before` generic in the tool's
 argument type, on the theory that it would prove a hook matched the tool it was attached to. It
@@ -67,14 +72,14 @@ all four, and `bind_tool` gets a real check in place of a cast.
 A function cannot inherit a protocol, so these are structural — the exception this codebase
 already makes for `Process`, which is the shape of `subprocess.Popen`.
 
-One `before` and one `after` per tool per role, each independent of the other. There is no chain
-and therefore no ordering to specify.
+A list of `before` hooks and a list of `after` hooks per tool per role, each list independent of
+the other. Order is the order declared.
 
 ## Where it runs
 
 ```python
 def bind_tool(
-    tool: Tool[ArgsT], before: Before = unchecked_before, after: After = unchecked_after
+    tool: Tool[ArgsT], before: Before = NO_BEFORE, after: After = NO_AFTER
 ) -> BoundTool:
     def invoke(arguments: str, ctx: ToolContext) -> ToolResult:
         args = tool.args_model.model_validate_json(arguments)
@@ -116,13 +121,16 @@ tools  = ["read_file", "ripgrep", "shell"]
 budget = { turns = 12, tool_calls = 30 }
 
 [roles.component_analyst.before]
-submit_answer = { module = "./checks.py", name = "cites_real_files" }
+submit_answer = [
+  { module = "./checks.py", name = "cites_real_files" },
+  { module = "./checks.py", name = "no_absolute_paths" },
+]
 
 [roles.component_analyst.after]
-ripgrep = { module = "./checks.py", name = "must_have_found" }
+ripgrep = [{ module = "./checks.py", name = "must_have_found" }]
 ```
 
-`Role.before: Mapping[str, FunctionRef] = {}` and `Role.after: Mapping[str, FunctionRef] = {}`.
+`Role.before: Mapping[str, tuple[FunctionRef, ...]]` and the same for `after`, both `{}`.
 Two flat maps rather than one map of pairs, because hooks are rarely paired: a tool usually wants
 one or the other, and declaring only what you need should be the ordinary shape rather than an
 omission filled by a default.
