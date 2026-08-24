@@ -8,10 +8,13 @@ from ancalagon.llm.schema_of import schema_of
 from ancalagon.tools.registry.after import After
 from ancalagon.tools.registry.before import Before
 from ancalagon.tools.registry.bound_tool import BoundTool
+from ancalagon.tools.registry.composite_after import CompositeAfter
+from ancalagon.tools.registry.composite_before import CompositeBefore
 from ancalagon.tools.registry.tool import ArgsT, Tool
 from ancalagon.tools.registry.tool_context import ToolContext
-from ancalagon.tools.registry.unchecked_after import unchecked_after
-from ancalagon.tools.registry.unchecked_before import unchecked_before
+
+NO_BEFORE = CompositeBefore(())
+NO_AFTER = CompositeAfter(())
 
 
 def _wrong(name: str, hook: str, got: pydantic.BaseModel, wanted: str) -> str:
@@ -54,9 +57,7 @@ def _invoked(
             return _ran(tool, after, accepted, ctx)
 
 
-def bind_tool(
-    tool: Tool[ArgsT], before: Before = unchecked_before, after: After = unchecked_after
-) -> BoundTool:
+def bind_tool(tool: Tool[ArgsT], before: Before = NO_BEFORE, after: After = NO_AFTER) -> BoundTool:
     return BoundTool(
         name=tool.name,
         cost=tool.cost,

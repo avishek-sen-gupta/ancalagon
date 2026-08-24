@@ -68,7 +68,7 @@ turns = 4
 tool_calls = 8
 
 [roles.root.before]
-submit_answer = {{ module = "{hooks}", name = "mentions_the_subject" }}
+submit_answer = [{{ module = "{hooks}", name = "mentions_the_subject" }}]
 
 [run]
 goal_file = "{goal_file}"
