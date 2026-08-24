@@ -46,6 +46,10 @@ from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.files.write_file import WriteFile
 from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.parse.parse_args import ParseArgs
+from ancalagon.tools.parse.ast_query import AstQuery
+from ancalagon.tools.parse.ast_query_args import AstQueryArgs
+from ancalagon.tools.parse.capture import Capture
+from ancalagon.tools.parse.query_match import QueryMatch
 from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
 from ancalagon.tools.registry.bind_tool import bind_tool
 from ancalagon.tools.registry.registry import Registry
@@ -330,14 +334,15 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
 
     assert "delegate_scout" in at_root.names()
     assert "delegate_unreachable" not in at_root.names()
-    assert (
-        "shell"
-        in build_registry(
+    assert sorted(
+        build_registry(
             config,
             TaskSpec(
                 task_id="root",
                 role=Role(
-                    behaviour="Shell.", tools=("shell",), budget=Budget(turns=1, tool_calls=1)
+                    behaviour="Shell.",
+                    tools=("shell", "ast_query"),
+                    budget=Budget(turns=1, tool_calls=1),
                 ),
                 goal="g",
             ),
@@ -348,7 +353,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
             clock=SystemClock(),
             fs=RealFileSystem(),
         ).names()
-    )
+    ) == ["ast_query", "idle", "shell", "submit_answer"]
     assert "need_input" in at_root.names()
     assert "delegate_scout" not in at_limit.names()
     assert "need_input" in at_limit.names()
@@ -778,3 +783,71 @@ def test_shell_executes_a_command_in_a_scoped_directory_and_bounds_a_hang(
     hung = Shell(timeout_s=1).run(ShellArgs(command="sleep 5", cwd=root), ctx)
     assert hung.ok is False
     assert hung.error == "shell timed out after 1s: sleep 5"
+
+
+def test_ast_query_returns_every_capture_of_every_match_with_its_location_and_text(
+    tmp_path: pathlib.Path,
+):
+    ctx = _ctx(tmp_path)
+    tree = pathlib.Path(ctx.workspace.write_root) / "q"
+    tree.mkdir(parents=True, exist_ok=True)
+    (tree / "mod.py").write_text("def alpha(x):\n    return x + 1\n\n\ndef beta():\n    return 2\n")
+    (tree / "notes.md").write_text("def alpha(): only prose\n")
+
+    found = AstQuery().run(
+        AstQueryArgs(
+            query="(function_definition name: (identifier) @fn body: (block) @body)",
+            roots=[tree],
+            language="python",
+            globs=["*.py"],
+        ),
+        ctx,
+    )
+    assert found.ok is True
+    matches = pydantic.TypeAdapter(list[QueryMatch]).validate_json(
+        pathlib.Path(found.path).read_text()
+    )
+    assert [m.file for m in matches] == [str(tree / "mod.py"), str(tree / "mod.py")]
+    assert [c.text for m in matches for c in m.captures["fn"]] == ["alpha", "beta"]
+    assert [c.text for m in matches for c in m.captures["body"]] == ["return x + 1", "return 2"]
+    assert matches[1].captures["fn"] == [
+        Capture(
+            type="identifier",
+            start_byte=37,
+            end_byte=41,
+            start_point=(4, 4),
+            end_point=(4, 8),
+            text="beta",
+        )
+    ]
+
+    malformed = AstQuery().run(
+        AstQueryArgs(query="(function_definition", roots=[tree], language="python"), ctx
+    )
+    assert malformed.ok is False
+    assert "Unexpected EOF" in malformed.error
+
+    unsupported = AstQuery().run(AstQueryArgs(query="(x) @a", roots=[tree], language="cobol"), ctx)
+    assert unsupported.ok is False
+    assert "unsupported language cobol" in unsupported.error
+
+    outside = AstQuery().run(
+        AstQueryArgs(query="(x) @a", roots=[tmp_path / "elsewhere"], language="python"), ctx
+    )
+    assert outside.ok is False
+
+    (tree / "Foo.java").write_text("class Foo {\n  int bar(int x) { return x + 1; }\n}\n")
+    java = AstQuery().run(
+        AstQueryArgs(
+            query="(method_declaration name: (identifier) @m)",
+            roots=[tree],
+            language="java",
+            globs=["*.java"],
+        ),
+        ctx,
+    )
+    assert java.ok is True
+    in_java = pydantic.TypeAdapter(list[QueryMatch]).validate_json(
+        pathlib.Path(java.path).read_text()
+    )
+    assert [c.text for m in in_java for c in m.captures["m"]] == ["bar"]

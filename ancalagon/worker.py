@@ -46,6 +46,7 @@ from ancalagon.tools.files.write_file import WriteFile
 from ancalagon.tools.history.git_history import GitHistory
 from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.need_input.need_input import NeedInput
+from ancalagon.tools.parse.ast_query import AstQuery
 from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
 from ancalagon.tools.registry.bind_tool import bind_tool
 from ancalagon.tools.registry.bound_tool import BoundTool
@@ -90,6 +91,7 @@ def available_tools(
         bind_tool(QueryJson()),
         bind_tool(GitHistory()),
         bind_tool(TreeSitter()),
+        bind_tool(AstQuery()),
         bind_tool(Shell()),
         *delegate_tools(roles, run_dir=run_dir, parent=parent, clock=clock, fs=fs),
         bind_tool(CheckTask(run_dir=run_dir, clock=clock, fs=fs)),

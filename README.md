@@ -3,9 +3,9 @@
 There are many agent harnesses, but this one is mine.
 **Ancalagon** is an agent harness with a typed contract-first approach.
 
-Give it a goal. An agent pursues it with tools — ripgrep, ast-grep, tree-sitter, stream-only
-`sed`, scoped file access — and delegates focused subtasks to isolated subagent processes, each
-with its own budget and its own typed answer contract.
+Give it a goal. An agent pursues it with tools — ripgrep, ast-grep, tree-sitter queries,
+stream-only `sed`, a shell, scoped file access — and delegates focused subtasks to isolated
+subagent processes, each with its own budget and its own typed answer contract.
 
 ```mermaid
 flowchart LR
