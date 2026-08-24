@@ -146,13 +146,39 @@ change to `session.py` this design requires.
 
 ## Known limits, stated rather than glossed
 
-**Variance is the main technical risk.** `ArgsT` appears in `before`'s return type as well as
-its parameter, so `Interceptor` is invariant in it — while the class itself arrives from
-configuration erased, as `type[Interceptor[BaseModel]]`. This is the same wall that stopped
-`Tool[ArgsT]` living in the registry. `bind_tool` being generic is half the answer; the
-narrowing at the resolution boundary is the part that needs working out, and it is where this
-design is most likely to get ugly. It should be settled with a spike against Pyright strict
-before the rest is built.
+**Variance was the main technical risk, and it is settled.** `ArgsT` appears in `before`'s
+return type as well as its parameter, so `Interceptor` is invariant in it — the same wall that
+stopped `Tool[ArgsT]` living in the registry. Handing `bind_tool` an erased
+`Interceptor[BaseModel]` fails, and fails exactly there:
+
+```
+error: Argument of type "Ripgrep" cannot be assigned to parameter "tool" of type "Tool[ArgsT]"
+  Type parameter "ArgsT@Tool" is invariant, but "GrepArgs" is not the same as "BaseModel"
+```
+
+A spike against Pyright strict found the shape that works, with **one** narrowing, at the
+boundary where the class is genuinely late-bound:
+
+```python
+@typing.runtime_checkable
+class Interceptor(typing.Protocol[ArgsT]): ...
+
+def resolve_interceptor(module: Module, name: str, args_model: type[ArgsT]) -> Interceptor[ArgsT]:
+    resolved = getattr(module, name)
+    if not issubclass(resolved, Interceptor):
+        raise TypeError(f"{name} does not inherit Interceptor")
+    return typing.cast(Interceptor[ArgsT], resolved())
+```
+
+Making the resolver generic in the tool's own `args_model` is what lets the call site stay
+honest: `bind_tool(Ripgrep(), resolve_interceptor(module, name, Ripgrep.args_model))` reports
+zero errors, as do a concrete `Interceptor[GrepArgs]` and a generic null object
+`Unchecked[GrepArgs]`. The `runtime_checkable` decorator is required for the `issubclass`
+narrowing, which is the same narrowing `resolve_class` already performs against
+`pydantic.BaseModel`.
+
+The single `cast` is the cost, and it is the same trade `resolve_class` makes: the type is not
+unknown, only late-bound, and the check that it is an `Interceptor` happens one line above.
 
 **`after` cannot undo a side effect.** It runs after `tool.run`, so refusing after `write_file`,
 `edit_file`, `delete_file` or `shell` leaves the mutation in place. Prevention belongs in
@@ -189,9 +215,6 @@ records.
 
 ## Open questions
 
-- Should the variance spike change the shape of `before`? If narrowing proves genuinely
-  unworkable, the fallback is for `before` to return `Reviewed[BaseModel]` and for `bind_tool` to
-  re-validate — a round trip this codebase otherwise forbids, and worth avoiding.
 - Is one interceptor per tool per role enough, or does a role want to compose two? Composition is
   cheap to add later and impossible to remove, so it stays out until something needs it.
 - Should `check_contracts` also verify that an interceptor's declared `ArgsT` matches the tool it
