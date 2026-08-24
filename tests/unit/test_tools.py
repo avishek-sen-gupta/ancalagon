@@ -19,6 +19,9 @@ from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
+from ancalagon.contracts.accepted import Accepted
+from ancalagon.contracts.refused import Refused
+from ancalagon.contracts.reviewed import Reviewed
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrations import latest_version, migrate_file
@@ -851,3 +854,49 @@ def test_ast_query_returns_every_capture_of_every_match_with_its_location_and_te
         pathlib.Path(java.path).read_text()
     )
     assert [c.text for m in in_java for c in m.captures["m"]] == ["bar"]
+
+
+def test_a_bound_tool_lets_its_hooks_refuse_modify_or_admit_a_call(tmp_path: pathlib.Path):
+    ctx = _ctx(tmp_path)
+    source = pathlib.Path(ctx.workspace.write_root) / "sample.py"
+    source.write_text("def alpha():\n    return 1\n")
+    call = f'{{"pattern": "  def alpha ", "roots": ["{source.parent}"]}}'
+
+    plain = bind_tool(Ripgrep()).invoke(call, ctx)
+    assert plain.ok is True
+    assert pathlib.Path(plain.path).read_text() == ""
+
+    def trims(args: pydantic.BaseModel, given: ToolContext) -> Reviewed:
+        assert isinstance(args, GrepArgs)
+        return Accepted(value=args.model_copy(update={"pattern": args.pattern.strip()}))
+
+    trimmed = bind_tool(Ripgrep(), before=trims).invoke(call, ctx)
+    assert trimmed.ok is True
+    assert "def alpha():" in pathlib.Path(trimmed.path).read_text()
+
+    def refuses(args: pydantic.BaseModel, given: ToolContext) -> Reviewed:
+        return Refused(reason="that pattern is too broad")
+
+    denied = bind_tool(Ripgrep(), before=refuses).invoke(call, ctx)
+    assert denied.ok is False
+    assert denied.error == "that pattern is too broad"
+
+    def demands_a_hit(args: pydantic.BaseModel, ran: ToolResult, given: ToolContext) -> Reviewed:
+        if not ran.byte_count:
+            return Refused(reason="the search found nothing; widen it")
+        return Accepted(value=ran.model_copy(update={"truncated": True}))
+
+    empty = bind_tool(Ripgrep(), after=demands_a_hit).invoke(call, ctx)
+    assert empty.ok is False
+    assert empty.error == "the search found nothing; widen it"
+
+    both = bind_tool(Ripgrep(), before=trims, after=demands_a_hit).invoke(call, ctx)
+    assert both.ok is True
+    assert both.truncated is True
+
+    def returns_the_wrong_model(args: pydantic.BaseModel, given: ToolContext) -> Reviewed:
+        return Accepted(value=SedArgs(script="s/a/b/", path=source))
+
+    confused = bind_tool(Ripgrep(), before=returns_the_wrong_model).invoke(call, ctx)
+    assert confused.ok is False
+    assert confused.error == "ripgrep's before hook returned SedArgs, not GrepArgs"
