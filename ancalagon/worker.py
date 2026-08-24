@@ -163,6 +163,7 @@ def main(
             output_dir=task_dir / "tools",
             summary_chars=config.summary_chars,
             agent_id=agent_id,
+            input=given,
         )
         session = Session(
             spec=spec,
