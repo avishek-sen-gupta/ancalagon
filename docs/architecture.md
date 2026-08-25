@@ -219,7 +219,10 @@ That holds for the whole schema, not just this table. There is no row anywhere i
 that is written twice: current state is *derived* by folding an agent's whole history, so
 `claim` appends a `claimed` event rather than setting a flag. A parent learns what happened
 to a child the same way everything else does — by reading its events and its
-`outcome-<agent>.json`, through `check_task` and `collect_task`. There is no notification to
+`outcome-<agent>.json`, through `check_task` and `collect_task`, which resolve
+which agent a task is addressed by through the same `schedule/addressed.py` — both take an agent
+id, and after a child has idled and been woken the interesting agent is a newer one than the
+caller holds. There is no notification to
 deliver and no cursor to advance. `collect_task` appends a `collected` event to a closed
 child's newest agent, so a parent reading its answer is itself a fact in the log, not
 something inferred from the parent's own behaviour afterwards. A `Collected` attempt is

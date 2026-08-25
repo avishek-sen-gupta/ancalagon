@@ -11,6 +11,7 @@ from ancalagon.contracts.role import Role
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.schedule.active_for import active_for
+from ancalagon.schedule.latest_event import latest_event
 from ancalagon.tools.delegate.delegate_args import DelegateArgs
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -53,7 +54,7 @@ class DelegateTo(Tool[DelegateArgs]):
         active = active_for(snapshot, str(task_dir))
         if active:
             agent = active[0]
-            status = max(snapshot.events[agent], key=lambda event: event.id).status
+            status = latest_event(snapshot, agent).status
             return ctx.failure(
                 self.name,
                 f"task {args.task_id} is already {status.value} as agent {agent}",

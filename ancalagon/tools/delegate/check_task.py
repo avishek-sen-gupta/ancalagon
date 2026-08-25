@@ -1,10 +1,12 @@
-# Reports a delegated task's status without waiting.
+# Reports a delegated task's status without waiting, as of the agent serving it now.
 import pathlib
 
 from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.fs.file_system import FileSystem
+from ancalagon.schedule.addressed import addressed
+from ancalagon.schedule.latest_event import latest_event
 from ancalagon.tools.delegate.task_args import TaskArgs
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -26,7 +28,9 @@ class CheckTask(Tool[TaskArgs]):
         snapshot = bus.snapshot()
         if args.task not in snapshot.task_by_agent:
             return ctx.failure(self.name, f"no agent {args.task}")
-        latest = max(snapshot.events[args.task], key=lambda event: event.id)
+        newest = addressed(snapshot, args.task)
+        latest = latest_event(snapshot, newest)
         return ctx.result(
-            self.name, f"agent {args.task} is {latest.status.value}: {latest.summary}"
+            self.name,
+            f"its newest agent is {newest}, which is {latest.status.value}: {latest.summary}",
         )

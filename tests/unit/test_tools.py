@@ -40,6 +40,7 @@ from ancalagon.tools.artifacts.path_arg import PathArg
 from ancalagon.tools.artifacts.query_args import QueryArgs
 from ancalagon.tools.artifacts.query_json import QueryJson
 from ancalagon.tools.artifacts.strings_args import StringsArgs
+from ancalagon.tools.delegate.check_task import CheckTask
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.delegate.delegate_to import DelegateTo
 from ancalagon.tools.delegate.delegate_tools import delegate_tools
@@ -673,6 +674,35 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert result.ok is False
     assert result.summary.text_for_model() == "agent 7 ended as timed_out: killed after 600s"
     assert AgentStatus.COLLECTED in [e.status for e in bus.history(lost)]
+
+
+def test_check_task_reports_the_newest_agent_not_the_one_it_was_named(
+    tmp_path: pathlib.Path,
+):
+    ctx = _ctx(tmp_path)
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
+    check = CheckTask(run_dir=run_dir, clock=SystemClock(), fs=RealFileSystem())
+
+    task_dir = run_dir / "tasks" / "waiter"
+    first = bus.enqueue(task_dir, parent_agent=1)
+    settle(bus, first, AgentStatus.IDLING)
+
+    # Idled and then woken: the interesting agent is the newer one.
+    second = bus.enqueue(task_dir, parent_agent=1)
+    settle(bus, second, AgentStatus.COMPLETED, summary="the line appeared")
+
+    asked = check.run(TaskArgs(task=first), ctx)
+
+    assert asked.ok is True
+    assert pathlib.Path(asked.path).read_text() == (
+        f"its newest agent is {second}, which is completed: the line appeared"
+    )
+    named = check.run(TaskArgs(task=second), ctx)
+    assert pathlib.Path(named.path).read_text() == pathlib.Path(asked.path).read_text()
+    assert check.run(TaskArgs(task=99), ctx).ok is False
 
 
 def test_collect_task_named_by_a_stale_agent_id_records_collected_on_the_newest_agent(
