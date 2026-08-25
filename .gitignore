@@ -43,4 +43,8 @@ blackboard_goal.md
 wake_goal.md
 wake/
 wake.toml
+pong_checks.py
+pong_goal.md
+pong/
+pong.toml
 goal.md
