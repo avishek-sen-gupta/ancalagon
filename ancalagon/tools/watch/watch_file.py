@@ -3,6 +3,7 @@ import pathlib
 
 from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.clock import Clock
+from ancalagon.contracts.access import Access
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.tool_result import ToolResult
@@ -13,6 +14,16 @@ from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.watch.watch_args import WatchArgs
 from ancalagon.workspace.scope_error import ScopeError
+
+
+# What the caller has already seen is what its own reads recorded, never the file as it is
+# now: measuring now would swallow every change that landed since it last read.
+def _last_seen(watched: pathlib.PurePath, ctx: ToolContext) -> float:
+    log = ctx.task_dir / "access.jsonl"
+    if not ctx.workspace.is_file(log):
+        return 0.0
+    seen = [Access.model_validate_json(line) for line in ctx.workspace.read_text(log).splitlines()]
+    return max((a.mtime for a in seen if a.path == str(watched)), default=0.0)
 
 
 class WatchFile(Tool[WatchArgs]):
@@ -38,11 +49,10 @@ class WatchFile(Tool[WatchArgs]):
             watched = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
-        seen = len(ctx.workspace.read_bytes(watched)) if ctx.workspace.is_file(watched) else 0
-        return self._queued(args, watched, seen, ctx)
+        return self._queued(args, watched, _last_seen(watched, ctx), ctx)
 
     def _queued(
-        self, args: WatchArgs, watched: pathlib.PurePath, seen: int, ctx: ToolContext
+        self, args: WatchArgs, watched: pathlib.PurePath, seen: float, ctx: ToolContext
     ) -> ToolResult:
         task_dir = self.run_dir / "tasks" / args.task_id
         bus = LifecycleStore.open(self.run_dir / "bus.db", self.clock, self.fs)
@@ -53,8 +63,8 @@ class WatchFile(Tool[WatchArgs]):
         spec = AgentSpec[WatchRequest](
             task_id=args.task_id,
             role=self.role,
-            goal=f"Wait until {watched} grows beyond {seen} bytes.",
-            input=WatchRequest(path=str(watched), seen_bytes=seen),
+            goal=f"Wait until {watched} changes after {seen}.",
+            input=WatchRequest(path=str(watched), since=seen),
         )
         self.fs.write_text(task_dir / "spec.json", spec.model_dump_json())
         agent = bus.enqueue(task_dir, parent_agent=self.parent)

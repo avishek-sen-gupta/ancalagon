@@ -59,7 +59,7 @@ def _session(
     write_root.mkdir(parents=True, exist_ok=True)
     ctx = ToolContext(
         workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
-        output_dir=write_root / "outputs",
+        task_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=17,
     )
@@ -81,7 +81,11 @@ def _session(
         agent_id=17,
         llm=FakeLLM(replies),
         registry=Registry(
-            [bind_tool(ReadFile()), bind_tool(NeedInput()), bind_tool(SubmitAnswer(Verdict))]
+            [
+                bind_tool(ReadFile(FakeClock())),
+                bind_tool(NeedInput()),
+                bind_tool(SubmitAnswer(Verdict)),
+            ]
         ),
         ctx=ctx,
         output_class=Verdict,
@@ -216,7 +220,7 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
     write_root.mkdir(parents=True, exist_ok=True)
     ctx = ToolContext(
         workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
-        output_dir=write_root / "outputs",
+        task_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=parent,
     )
@@ -275,7 +279,7 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
     write_root.mkdir(parents=True, exist_ok=True)
     ctx = ToolContext(
         workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
-        output_dir=write_root / "outputs",
+        task_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=parent,
     )
@@ -300,7 +304,7 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
         llm=FakeLLM([Reply(blocks=[Text(text="not json at all")], stop_reason="stop")]),
         registry=Registry(
             [
-                bind_tool(ReadFile()),
+                bind_tool(ReadFile(FakeClock())),
                 bind_tool(
                     Idle(run_dir=run_dir, agent=parent, clock=FakeClock(), fs=RealFileSystem())
                 ),
@@ -477,7 +481,7 @@ def test_a_session_takes_its_behaviour_and_budget_from_its_role(tmp_path: pathli
     write_root.mkdir(parents=True, exist_ok=True)
     ctx = ToolContext(
         workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
-        output_dir=write_root / "outputs",
+        task_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=17,
     )
@@ -549,7 +553,7 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
     children = ScriptedChildren([(2,), ()], [(), (2,)])
     ctx = ToolContext(
         workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
-        output_dir=write_root / "outputs",
+        task_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=17,
     )
@@ -600,7 +604,7 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
         llm=llm,
         registry=Registry(
             [
-                bind_tool(ReadFile()),
+                bind_tool(ReadFile(FakeClock())),
                 bind_tool(Idle(run_dir=tmp_path, agent=17, clock=FakeClock(), fs=RealFileSystem())),
                 bind_tool(SubmitAnswer(Verdict)),
                 bind_tool(CollectTask(run_dir=tmp_path, clock=FakeClock(), fs=RealFileSystem())),

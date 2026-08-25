@@ -19,6 +19,7 @@ from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
+from ancalagon.contracts.access import Access
 from ancalagon.contracts.accepted import Accepted
 from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.reviewed import Reviewed
@@ -46,6 +47,7 @@ from ancalagon.tools.delegate.task_args import TaskArgs
 from ancalagon.tools.files.delete_file import DeleteFile
 from ancalagon.tools.files.edit_file import EditFile
 from ancalagon.tools.files.list_dir import ListDir
+from ancalagon.tools.files.read_args import ReadArgs
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.files.write_file import WriteFile
 from ancalagon.tools.idle.idle import Idle
@@ -84,7 +86,7 @@ def _ctx(tmp_path: pathlib.Path) -> ToolContext:
     outputs.mkdir(exist_ok=True)
     return ToolContext(
         workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
-        output_dir=outputs,
+        task_dir=write_root,
         summary_chars=50,
         agent_id=17,
     )
@@ -94,7 +96,7 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
     ctx = _ctx(tmp_path)
     registry = Registry(
         [
-            bind_tool(ReadFile()),
+            bind_tool(ReadFile(FakeClock())),
             bind_tool(WriteFile()),
             bind_tool(EditFile()),
             bind_tool(DeleteFile()),
@@ -969,3 +971,30 @@ def test_a_composite_chains_its_hooks_short_circuits_a_refusal_and_is_empty_by_d
     )
     assert CompositeAfter((marks, rejects))(given, ran, ctx) == Refused(reason="not enough")
     assert seen == ["marks", "marks", "rejects"]
+
+
+def test_reading_a_file_records_what_was_read_and_when_it_last_changed(
+    tmp_path: pathlib.Path,
+):
+    ctx = _ctx(tmp_path)
+    root = pathlib.Path(ctx.workspace.write_root)
+    board = root / "board.md"
+    board.write_text("first claim\n")
+    log = pathlib.Path(ctx.task_dir) / "access.jsonl"
+
+    assert ReadFile(FakeClock()).run(ReadArgs(path=board), ctx).ok is True
+    first = [Access.model_validate_json(l) for l in log.read_text().splitlines()]
+    assert [(a.path, a.agent) for a in first] == [(str(board), 17)]
+    assert first[0].mtime == RealFileSystem().mtime(board)
+
+    denied = ReadFile(FakeClock()).run(ReadArgs(path=tmp_path / "outside.md"), ctx)
+    assert denied.ok is False
+    absent = ReadFile(FakeClock()).run(ReadArgs(path=root / "ghost.md"), ctx)
+    assert absent.ok is False
+    assert len(log.read_text().splitlines()) == 1
+
+    board.write_text("first claim\nsecond claim\n")
+    assert ReadFile(FakeClock()).run(ReadArgs(path=board), ctx).ok is True
+    after = [Access.model_validate_json(l) for l in log.read_text().splitlines()]
+    assert len(after) == 2
+    assert after[1].mtime > after[0].mtime

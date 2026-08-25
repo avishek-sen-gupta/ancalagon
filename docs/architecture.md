@@ -313,11 +313,25 @@ polls the named file until it is larger than the caller had already seen, and wr
 it runs no session. Its purpose is to turn "a file changed" into "a child settled", which is the
 one thing `has_news` already knows how to wake on, so a blackboard needs no scheduling change.
 
-The size the watcher waits past is measured by `tools/watch/watch_file.py`, at the moment it
-writes the child's `spec.json` — not by the watcher when it starts. That ordering is the point:
-a watcher that took its own baseline would fold in any write that landed while it was being
-claimed and forked, and then wait for the one after. The caller states what it has seen, so
-nothing in that gap is lost. An agent supplies only a path; it never counts anything itself.
+The moment a watcher waits past comes from the caller's own reading. **`read_file` appends an
+`Access` to `tasks/<id>/access.jsonl`** on every successful read, recording the path and the
+`mtime` that file had when it was opened, and `tools/watch/watch_file.py` takes the latest entry
+for the path it is asked to watch. With no entry the baseline is zero and the first watcher
+returns at once with everything, which is right: nothing has been read.
+
+Neither the file's state when the watch is queued nor the watcher's own start will do. Both
+record a moment the caller may never have seen. An agent that read the board, worked for several
+turns while others appended, and only then asked to wait would have those appends counted as
+already seen — and if the writers had stopped, it would wait for a change that never comes. A
+read is the only event that means the agent saw something.
+
+`mtime` rather than a size, because time moves one way and a size does not: a board rewritten
+shorter and then grown back to its old length has changed without looking like it. Only reads
+advance the mark. A write does not imply its author read what came before, so an agent's own
+append wakes it once — a wasted turn rather than a lost update.
+
+The log costs nothing to keep and is worth having on its own: every task directory now records
+which files that task actually opened.
 
 `SpawnByInput` chooses between flavours by reading the input contract a role declares, which is
 already in `spec.json` and already validated at startup. `Spawner` stays the protocol it was.

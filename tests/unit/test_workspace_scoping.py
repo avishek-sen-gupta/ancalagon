@@ -37,14 +37,12 @@ def test_scoping_rejects_every_escape_and_config_round_trips(tmp_path: pathlib.P
     with pytest.raises(ScopeError):
         ws.resolve_write(link / "secret.txt")
 
-    inside = ToolContext(
-        workspace=ws, output_dir=write_root / "tools", summary_chars=10, agent_id=1
-    )
+    inside = ToolContext(workspace=ws, task_dir=write_root, summary_chars=10, agent_id=1)
     written = inside.result("read_file", "hello")
     assert written.path == (write_root / "tools" / "0000-read_file.txt").resolve()
     assert pathlib.Path(written.path).read_text() == "hello"
 
-    escaping = ToolContext(workspace=ws, output_dir=outside / "tools", summary_chars=10, agent_id=1)
+    escaping = ToolContext(workspace=ws, task_dir=outside, summary_chars=10, agent_id=1)
     with pytest.raises(ScopeError):
         escaping.result("read_file", "hello")
     assert not (outside / "tools").exists()

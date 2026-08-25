@@ -76,7 +76,7 @@ def available_tools(
     fs: FileSystem,
 ) -> list[BoundTool]:
     return [
-        bound_for(ReadFile(), role),
+        bound_for(ReadFile(clock), role),
         bound_for(WriteFile(), role),
         bound_for(EditFile(), role),
         bound_for(DeleteFile(), role),
@@ -160,7 +160,7 @@ def main(
         )
         ctx = ToolContext(
             workspace=Workspace.from_config(config, fs),
-            output_dir=task_dir / "tools",
+            task_dir=task_dir,
             summary_chars=config.summary_chars,
             agent_id=agent_id,
             input=given,

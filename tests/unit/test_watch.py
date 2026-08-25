@@ -1,5 +1,6 @@
 import json
 import pathlib
+import time
 
 from ancalagon.clock.clock import Clock
 from ancalagon.clock.fake_clock import FakeClock
@@ -15,6 +16,8 @@ from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawn_by_input import SpawnByInput
 from ancalagon.supervisor.spawner import Spawner
 from ancalagon.tools.registry.tool_context import ToolContext
+from ancalagon.tools.files.read_args import ReadArgs
+from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.watch.watch_args import WatchArgs
 from ancalagon.tools.watch.watch_file import WatchFile
 from ancalagon.watch.watch import main, watch_for
@@ -59,14 +62,14 @@ def test_a_watcher_waits_until_the_file_it_was_given_changes(tmp_path: pathlib.P
     fs = RealFileSystem()
     board = tmp_path / "blackboard.md"
     board.write_text("first\n")
-    before = len(fs.read_bytes(board))
+    before = fs.mtime(board)
     clock = WritingClock(board, after=3)
 
-    watched = watch_for(WatchRequest(path=str(board), seen_bytes=before), fs, clock)
+    watched = watch_for(WatchRequest(path=str(board), since=before), fs, clock)
 
     assert clock.slept == 3
     assert watched.path == str(board)
-    assert watched.size > before
+    assert watched.at > before
 
 
 def test_a_watcher_leaves_the_outcome_a_supervisor_reads_and_nothing_else(
@@ -82,7 +85,7 @@ def test_a_watcher_leaves_the_outcome_a_supervisor_reads_and_nothing_else(
         task_id="watcher",
         role=ROLE,
         goal="Wake me when the blackboard changes.",
-        input=WatchRequest(path=str(board), seen_bytes=0),
+        input=WatchRequest(path=str(board), since=0.0),
     )
     fs.write_text(task_dir / "spec.json", spec.model_dump_json())
 
@@ -144,33 +147,49 @@ def test_a_dispatching_spawner_picks_the_watcher_by_the_contract_the_role_declar
     assert [label for label, _ in asked] == ["watcher", "worker"]
 
 
-def test_the_watch_tool_measures_the_file_itself_and_queues_a_watcher(tmp_path: pathlib.Path):
+def test_a_watch_resumes_from_the_read_the_agent_logged_not_from_the_file_now(
+    tmp_path: pathlib.Path,
+):
     fs = RealFileSystem()
-    run_dir = tmp_path / "ws" / "runs" / "r1"
+    run_dir = tmp_path / "ws" / "runs" / "r2"
     fs.mkdir(run_dir, parents=True, exist_ok=True)
     migrate_file(run_dir / "bus.db", latest_version(fs), fs)
     board = run_dir / "blackboard.md"
-    fs.write_text(board, "one claim\n")
+    fs.write_text(board, "a claim\n")
 
     ctx = ToolContext(
         workspace=Workspace(fs, write_root=run_dir, read_roots=(run_dir,)),
-        output_dir=run_dir / "outputs",
+        task_dir=run_dir,
         summary_chars=200,
         agent_id=1,
     )
     tool = WatchFile(role=ROLE, run_dir=run_dir, parent=1, clock=SystemClock(), fs=fs)
 
-    queued = tool.run(WatchArgs(task_id="w1", path=board), ctx)
+    # Never read, so nothing has been seen and the first watch returns everything.
+    assert tool.run(WatchArgs(task_id="w0", path=board), ctx).ok is True
+    assert json.loads((run_dir / "tasks" / "w0" / "spec.json").read_text())["input"]["since"] == 0.0
 
-    assert queued.ok is True
-    spec = json.loads((run_dir / "tasks" / "w1" / "spec.json").read_text())
-    assert spec["input"] == {"path": str(board), "seen_bytes": 10, "poll_s": 0.5}
+    assert ReadFile(FakeClock()).run(ReadArgs(path=board), ctx).ok is True
+    read_at = fs.mtime(board)
+
+    # A later read of some other file must not be mistaken for a read of the board.
+    time.sleep(0.01)
+    elsewhere = run_dir / "notes.md"
+    fs.write_text(elsewhere, "unrelated\n")
+    assert ReadFile(FakeClock()).run(ReadArgs(path=elsewhere), ctx).ok is True
+    assert fs.mtime(elsewhere) > read_at
+
+    # Others append while this agent works, and then stop.
+    time.sleep(0.01)
+    fs.write_text(board, "a claim\nanother claim\n")
+    assert fs.mtime(board) > read_at
+
+    # The baseline is the read, not the file as it is now, or those writes are never woken on.
+    assert tool.run(WatchArgs(task_id="w1", path=board), ctx).ok is True
+    assert json.loads((run_dir / "tasks" / "w1" / "spec.json").read_text())["input"]["since"] == (
+        read_at
+    )
 
     outside = tool.run(WatchArgs(task_id="w2", path=tmp_path / "elsewhere.md"), ctx)
     assert outside.ok is False
     assert "outside read_roots" in outside.error
-
-    absent = tool.run(WatchArgs(task_id="w3", path=run_dir / "not_yet.md"), ctx)
-    assert absent.ok is True
-    started = json.loads((run_dir / "tasks" / "w3" / "spec.json").read_text())
-    assert started["input"]["seen_bytes"] == 0

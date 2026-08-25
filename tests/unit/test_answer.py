@@ -25,7 +25,7 @@ def _ctx(tmp_path: pathlib.Path) -> ToolContext:
     write_root.mkdir(parents=True, exist_ok=True)
     return ToolContext(
         workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
-        output_dir=write_root / "tools",
+        task_dir=write_root,
         summary_chars=200,
         agent_id=7,
     )

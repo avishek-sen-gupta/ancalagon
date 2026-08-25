@@ -8,5 +8,5 @@ class WatchArgs(pydantic.BaseModel, frozen=True):
         description="A new id for the watching task. Reusing a finished one retries it."
     )
     path: pathlib.PurePath = pydantic.Field(
-        description="The file to wait on. You are woken once it grows beyond its size right now."
+        description="The file to wait on. You are woken once it changes after you last read it."
     )
