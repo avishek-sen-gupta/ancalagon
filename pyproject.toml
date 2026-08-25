@@ -51,7 +51,7 @@ layers = [
     "ancalagon.cli",
     "ancalagon.viz",
     "ancalagon.trace",
-    "ancalagon.worker",
+    "ancalagon.worker : ancalagon.watch",
     "ancalagon.supervisor : ancalagon.session",
     "ancalagon.tools",
     "ancalagon.children",
@@ -135,6 +135,7 @@ source_modules = [
     "ancalagon.transcript",
     "ancalagon.viz",
     "ancalagon.viz_command",
+    "ancalagon.watch",
     "ancalagon.worker",
     "ancalagon.workspace",
 ]
@@ -169,6 +170,7 @@ source_modules = [
     "ancalagon.transcript",
     "ancalagon.viz",
     "ancalagon.viz_command",
+    "ancalagon.watch",
     "ancalagon.worker",
     "ancalagon.workspace",
 ]
