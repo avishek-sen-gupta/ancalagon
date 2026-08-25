@@ -39,6 +39,7 @@ from ancalagon.tools.delegate.answer_task import AnswerTask
 from ancalagon.tools.delegate.check_task import CheckTask
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.delegate.delegate_tools import delegate_tools
+from ancalagon.tools.files.append_file import AppendFile
 from ancalagon.tools.files.delete_file import DeleteFile
 from ancalagon.tools.files.edit_file import EditFile
 from ancalagon.tools.files.list_dir import ListDir
@@ -80,6 +81,7 @@ def available_tools(
     return [
         bound_for(ReadFile(clock), role),
         bound_for(WriteFile(), role),
+        bound_for(AppendFile(), role),
         bound_for(EditFile(), role),
         bound_for(DeleteFile(), role),
         bound_for(ListDir(), role),

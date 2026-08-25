@@ -44,6 +44,8 @@ from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.delegate.delegate_to import DelegateTo
 from ancalagon.tools.delegate.delegate_tools import delegate_tools
 from ancalagon.tools.delegate.task_args import TaskArgs
+from ancalagon.tools.files.append_args import AppendArgs
+from ancalagon.tools.files.append_file import AppendFile
 from ancalagon.tools.files.delete_file import DeleteFile
 from ancalagon.tools.files.edit_file import EditFile
 from ancalagon.tools.files.list_dir import ListDir
@@ -998,3 +1000,26 @@ def test_reading_a_file_records_what_was_read_and_when_it_last_changed(
     after = [Access.model_validate_json(l) for l in log.read_text().splitlines()]
     assert len(after) == 2
     assert after[1].changed_at > after[0].changed_at
+
+
+def test_appending_keeps_what_arrived_after_the_caller_last_read(tmp_path: pathlib.Path):
+    ctx = _ctx(tmp_path)
+    board = pathlib.Path(ctx.workspace.write_root) / "board.md"
+
+    fresh = AppendFile().run(AppendArgs(path=board, content="first claim"), ctx)
+    assert fresh.ok is True
+    assert board.read_text() == "first claim\n"
+
+    # What this caller saw, before anyone else posted.
+    ReadFile(FakeClock()).run(ReadArgs(path=board), ctx)
+
+    # Another agent posts while this one is thinking.
+    AppendFile().run(AppendArgs(path=board, content="a rival claim"), ctx)
+
+    # Appending keeps it. Writing the whole file back from what was read would not.
+    AppendFile().run(AppendArgs(path=board, content="second claim"), ctx)
+    assert board.read_text() == "first claim\na rival claim\nsecond claim\n"
+
+    denied = AppendFile().run(AppendArgs(path=tmp_path / "outside.md", content="x"), ctx)
+    assert denied.ok is False
+    assert "outside write_root" in denied.error
