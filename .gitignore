@@ -36,4 +36,5 @@ specs/**/states/
 
 # Personal run config; contains local paths and a chosen model.
 ancalagon.toml
+checks.py
 goal.md
