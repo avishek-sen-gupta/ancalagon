@@ -183,6 +183,53 @@ A refusal on the forced last turn is the one case with no retry left. The attemp
 naming the refusal, with the rejected arguments kept as the summary, so a parent is told what
 actually happened rather than being handed an answer that never met its criteria.
 
+Every tool a role may name, and what it is for. `submit_answer` and `idle` arrive whatever
+the list says; `delegate_<role>` appears once per role the config declares. The two costing
+nothing do not spend the tool-call budget.
+
+| Reading | |
+|---|---|
+| `read_file` | a slice of a file, told which lines it showed of how many |
+| `list_dir` | what is in a directory |
+| `code_stats` | languages, file and line counts, before reading anything |
+| `file_type` | what a file is, before assuming it is text |
+| `transform_file` | a file read through a sed script, when it is hard to read as it stands |
+| `query_json` | a jq filter over JSON, so a large file need not enter the context |
+| `extract_strings` | printable text out of a binary |
+| `convert_document` | docx, odt, epub, rtf and others, into text |
+
+| Searching | |
+|---|---|
+| `ripgrep` | regular expression, `path:line:text` or JSON records |
+| `ast_grep` | structural pattern, not text |
+| `ast_query` | a tree-sitter query, returning each named capture with its exact range |
+| `treesitter` | a whole file's AST nodes |
+| `find_symbol` | where a symbol is defined, rather than every mention |
+| `git_history` | why a file looks the way it does |
+
+| Writing | |
+|---|---|
+| `write_file` | replace a file whole |
+| `append_file` | add one line without reading, so a concurrent writer is not lost |
+| `edit_file` | replace an exact substring |
+| `delete_file` | remove a file |
+| `shell` | a command line through `/bin/sh`, bounded by the sandbox and a timeout |
+
+| Working with other agents | |
+|---|---|
+| `delegate_<role>` | queue a task for that role and return its id, without waiting |
+| `check_task` | how a task is doing, free |
+| `collect_task` | its answer, once the supervisor has closed it |
+| `answer_task` | answer a child that stopped with a question |
+| `watch_file` | queue a watcher that ends when a file changes, so idling wakes you |
+| `need_input` | stop and hand a question upward, free |
+| `idle` | stop and wait for a child, free |
+| `submit_answer` | the final answer, free |
+
+`watch_file` is the one that needs something else declared: a role whose `input` contract is
+`WatchRequest`, since that is what it queues and what tells the supervisor to run a process
+rather than a session. Naming it without such a role fails at startup, as any unknown tool does.
+
 The harness does not check that a role graph makes sense:
 
 | Role holds | But lacks | Consequence |

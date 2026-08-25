@@ -637,6 +637,7 @@ ws/runs/r_20260822-121500/
         spec.json                 what was asked, with the whole role embedded
         transcript.jsonl          every message, one per line, tagged by agent id
         outcome-<agent>.json      the result of that attempt, kept even when superseded
+        access.jsonl              every file this task read, and when that file had changed
         stderr-1.log              the worker's stderr
         tools/0000-read_file.txt  every tool's full output
     tasks/<child>/                same shape, one per delegated task
