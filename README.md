@@ -387,6 +387,10 @@ rg '"agent": 17' ws/runs/r_20260822-121500/tasks/*/transcript.jsonl
 tail -f ws/runs/r_20260822-121500/tasks/root/transcript.jsonl
 ```
 
+`scripts/anccost.zsh <config.toml | dir> [--by-agent]` is that query rolled up per run, and
+per agent within a run when asked. It reads the config's `write_root` the same way
+`ancwatch.zsh` does, so the two cannot disagree about where runs live.
+
 Model calls have their own store, `MeterStore`, behind the `Meter` a session calls — a separate
 concern from the lifecycle rows, sharing the run's one connection rather than a second database.
 Tokens are recorded; money is not. A price list changes without notice, and a figure computed at
