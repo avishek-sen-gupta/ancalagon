@@ -26,7 +26,11 @@ from ancalagon.sandbox.sandbox import Sandbox
 from ancalagon.sandbox.strategy import Strategy
 from ancalagon.sandbox.unsandboxed import Unsandboxed
 from ancalagon.schedule.newest_agent import newest_agent
+from ancalagon.contracts.watch_request import WatchRequest
+from ancalagon.supervisor.spawn_by_input import SpawnByInput
+from ancalagon.supervisor.spawner import Spawner
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
+from ancalagon.supervisor.watch_spawner import WatchSpawner
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.supervisor.supervisor import Supervisor
@@ -168,6 +172,30 @@ def sandbox_of(config: Config, run_dir: pathlib.PurePath, fs: FileSystem) -> San
     )
 
 
+# A task whose role takes a WatchRequest is served by a process, not by a model, so the
+# supervisor is given a spawner that reads each spec and picks accordingly.
+def _spawner(
+    config: Config, run_dir: pathlib.PurePath, config_path: pathlib.PurePath, fs: FileSystem
+) -> Spawner:
+    made = fs.resolve(config_path)
+    sandbox = sandbox_of(config, run_dir, fs)
+    ordinary = SubprocessSpawner(
+        run_dir=run_dir,
+        config_path=made,
+        environment=RealEnvironment(),
+        fs=fs,
+        sandbox=sandbox,
+    )
+    watching = WatchSpawner(
+        run_dir=run_dir,
+        config_path=made,
+        environment=RealEnvironment(),
+        fs=fs,
+        sandbox=sandbox,
+    )
+    return SpawnByInput(default=ordinary, by_input={WatchRequest.__name__: watching}, fs=fs)
+
+
 def main(config_path: pathlib.PurePath, run_dir: pathlib.PurePath) -> int:
     logging.basicConfig(level=logging.INFO)
     fs = RealFileSystem()
@@ -184,13 +212,7 @@ def main(config_path: pathlib.PurePath, run_dir: pathlib.PurePath) -> int:
     bus.enqueue(task_dir, parent_agent=HUMAN)
     supervisor = Supervisor(
         bus=LifecycleStore.open(db, clock, fs),
-        spawner=SubprocessSpawner(
-            run_dir=run_dir,
-            config_path=fs.resolve(config_path),
-            environment=RealEnvironment(),
-            fs=fs,
-            sandbox=sandbox_of(config, run_dir, fs),
-        ),
+        spawner=_spawner(config, run_dir, config_path, fs),
         max_concurrent=config.max_concurrent_agents,
         timeout_s=config.agent_timeout_s,
         clock=clock,
