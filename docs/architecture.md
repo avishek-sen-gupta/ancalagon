@@ -661,6 +661,9 @@ rg '"agent": 1' ws/runs/r_20260822-121500/tasks/root/transcript.jsonl
 
 There is no `ancalagon usage` verb — the schema is the query surface, and `MeterStore.calls` and
 `MeterStore.tokens_by_agent` are the same two queries for callers already holding a bus.
+`scripts/anccost.zsh` is one rollup over that surface rather than the only one, which is why it
+is a script and not a verb: a verb would freeze a single way of slicing the table. It reports
+`cache_read` apart from `prompt` because a cached token is not billed as a fresh one.
 
 Two commands do read a finished run, and they are split so that neither decides for the other.
 `trace` (`ancalagon/trace_command.py`) takes a `Snapshot` and each task's transcript and folds
