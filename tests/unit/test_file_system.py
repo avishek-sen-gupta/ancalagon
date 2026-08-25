@@ -1,3 +1,4 @@
+import os
 import pathlib
 
 from ancalagon.fs.real_file_system import RealFileSystem
@@ -18,6 +19,11 @@ def test_the_real_file_system_reads_writes_lists_and_reports_what_is_there(
     fs.write_text(note, "hello é")
     assert fs.read_text(note) == "hello é"
     assert fs.read_bytes(note) == "hello é".encode("utf-8")
+
+    was = fs.mtime(note)
+    os.utime(note, (was + 10, was + 10))
+    assert fs.mtime(note) == was + 10
+    assert fs.mtime(nested / "absent.txt") == 0.0
     assert (fs.exists(note), fs.is_file(note), fs.is_dir(note)) == (True, True, False)
 
     fs.write_text(nested / "other.md", "x")

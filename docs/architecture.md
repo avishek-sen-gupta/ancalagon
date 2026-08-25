@@ -302,6 +302,20 @@ motivating case was narrow but real: with `GIT_DIR` exported — which is what `
 runs a hook — `git -C <dir> log` inside a tool reads the wrong repository. Nothing launches the
 harness from a hook today, so this closes a propagation path rather than a live bug.
 
+**A spawned child need not be an agent.** The supervisor's whole contract with one is
+`Spawner.spawn(task_dir, agent_id)` and an `outcome-<agent>.json` it reads back as an
+`OutcomeHeader` — two fields. Nothing in that says a model is involved, so any process honouring
+it is supervised, sandboxed, reaped and timed out identically.
+
+`watch/watch.py` is the first such child. It reads `spec.json` as an `AgentSpec[WatchRequest]`,
+polls the named file's `mtime` until it exceeds the moment the request was made, and writes a
+`Completed[Watched]`. It touches no bus row — no worker does; the supervisor writes those — and
+it runs no session. Its purpose is to turn "a file changed" into "a child settled", which is the
+one thing `has_news` already knows how to wake on, so a blackboard needs no scheduling change.
+
+`SpawnByInput` chooses between flavours by reading the input contract a role declares, which is
+already in `spec.json` and already validated at startup. `Spawner` stays the protocol it was.
+
 `clock/` holds the last: one `Clock`, with `now()` for the instant a row or a message is
 stamped with and `time()`/`sleep()` for how long an agent has been running. The supervisor,
 the bus and the session all take one, defaulting to `SystemClock`, so no timestamp anywhere
