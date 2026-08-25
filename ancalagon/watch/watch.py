@@ -22,9 +22,9 @@ NOTHING = Budget(turns=0, tool_calls=0)
 
 def watch_for(request: WatchRequest, fs: FileSystem, clock: Clock) -> Watched:
     watched = pathlib.PurePath(request.path)
-    while fs.mtime(watched) <= request.since:
+    while fs.changed_at(watched) <= request.since:
         clock.sleep(request.poll_s)
-    return Watched(path=request.path, at=fs.mtime(watched))
+    return Watched(path=request.path, at=fs.changed_at(watched))
 
 
 def _completed(task_dir: pathlib.PurePath, fs: FileSystem) -> Completed[Watched]:

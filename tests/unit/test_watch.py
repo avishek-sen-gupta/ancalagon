@@ -62,7 +62,7 @@ def test_a_watcher_waits_until_the_file_it_was_given_changes(tmp_path: pathlib.P
     fs = RealFileSystem()
     board = tmp_path / "blackboard.md"
     board.write_text("first\n")
-    before = fs.mtime(board)
+    before = fs.changed_at(board)
     clock = WritingClock(board, after=3)
 
     watched = watch_for(WatchRequest(path=str(board), since=before), fs, clock)
@@ -170,19 +170,19 @@ def test_a_watch_resumes_from_the_read_the_agent_logged_not_from_the_file_now(
     assert json.loads((run_dir / "tasks" / "w0" / "spec.json").read_text())["input"]["since"] == 0.0
 
     assert ReadFile(FakeClock()).run(ReadArgs(path=board), ctx).ok is True
-    read_at = fs.mtime(board)
+    read_at = fs.changed_at(board)
 
     # A later read of some other file must not be mistaken for a read of the board.
     time.sleep(0.01)
     elsewhere = run_dir / "notes.md"
     fs.write_text(elsewhere, "unrelated\n")
     assert ReadFile(FakeClock()).run(ReadArgs(path=elsewhere), ctx).ok is True
-    assert fs.mtime(elsewhere) > read_at
+    assert fs.changed_at(elsewhere) > read_at
 
     # Others append while this agent works, and then stop.
     time.sleep(0.01)
     fs.write_text(board, "a claim\nanother claim\n")
-    assert fs.mtime(board) > read_at
+    assert fs.changed_at(board) > read_at
 
     # The baseline is the read, not the file as it is now, or those writes are never woken on.
     assert tool.run(WatchArgs(task_id="w1", path=board), ctx).ok is True

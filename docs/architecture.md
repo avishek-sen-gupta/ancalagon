@@ -314,8 +314,8 @@ it runs no session. Its purpose is to turn "a file changed" into "a child settle
 one thing `has_news` already knows how to wake on, so a blackboard needs no scheduling change.
 
 The moment a watcher waits past comes from the caller's own reading. **`read_file` appends an
-`Access` to `tasks/<id>/access.jsonl`** on every successful read, recording the path and the
-`mtime` that file had when it was opened, and `tools/watch/watch_file.py` takes the latest entry
+`Access` to `tasks/<id>/access.jsonl`** on every successful read, recording the path and
+when that file had last changed, and `tools/watch/watch_file.py` takes the latest entry
 for the path it is asked to watch. With no entry the baseline is zero and the first watcher
 returns at once with everything, which is right: nothing has been read.
 
@@ -325,7 +325,7 @@ turns while others appended, and only then asked to wait would have those append
 already seen — and if the writers had stopped, it would wait for a change that never comes. A
 read is the only event that means the agent saw something.
 
-`mtime` rather than a size, because time moves one way and a size does not: a board rewritten
+A time rather than a size, because time moves one way and a size does not: a board rewritten
 shorter and then grown back to its old length has changed without looking like it. Only reads
 advance the mark. A write does not imply its author read what came before, so an agent's own
 append wakes it once — a wasted turn rather than a lost update.

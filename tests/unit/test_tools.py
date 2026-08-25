@@ -985,7 +985,7 @@ def test_reading_a_file_records_what_was_read_and_when_it_last_changed(
     assert ReadFile(FakeClock()).run(ReadArgs(path=board), ctx).ok is True
     first = [Access.model_validate_json(l) for l in log.read_text().splitlines()]
     assert [(a.path, a.agent) for a in first] == [(str(board), 17)]
-    assert first[0].mtime == RealFileSystem().mtime(board)
+    assert first[0].changed_at == RealFileSystem().changed_at(board)
 
     denied = ReadFile(FakeClock()).run(ReadArgs(path=tmp_path / "outside.md"), ctx)
     assert denied.ok is False
@@ -997,4 +997,4 @@ def test_reading_a_file_records_what_was_read_and_when_it_last_changed(
     assert ReadFile(FakeClock()).run(ReadArgs(path=board), ctx).ok is True
     after = [Access.model_validate_json(l) for l in log.read_text().splitlines()]
     assert len(after) == 2
-    assert after[1].mtime > after[0].mtime
+    assert after[1].changed_at > after[0].changed_at
