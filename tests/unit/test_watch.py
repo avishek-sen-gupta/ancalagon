@@ -5,6 +5,7 @@ import time
 import pytest
 
 from ancalagon.clock.clock import Clock
+from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_spec import AgentSpec
@@ -185,7 +186,9 @@ def test_a_watch_resumes_from_the_read_the_agent_logged_not_from_the_file_now(
 
     # Never read, so nothing has been seen and the first watch returns everything.
     assert tool.run(WatchArgs(task_id="w0", path=board), ctx).ok is True
-    assert json.loads((run_dir / "tasks" / "w0" / "spec.json").read_text())["input"]["since"] == 0.0
+    assert (
+        json.loads((run_dir / "tasks" / "w0-r2" / "spec.json").read_text())["input"]["since"] == 0.0
+    )
 
     assert ReadFile(FakeClock()).run(ReadArgs(path=board), ctx).ok is True
     read_at = fs.changed_at(board)
@@ -204,9 +207,9 @@ def test_a_watch_resumes_from_the_read_the_agent_logged_not_from_the_file_now(
 
     # The baseline is the read, not the file as it is now, or those writes are never woken on.
     assert tool.run(WatchArgs(task_id="w1", path=board), ctx).ok is True
-    assert json.loads((run_dir / "tasks" / "w1" / "spec.json").read_text())["input"]["since"] == (
-        read_at
-    )
+    assert json.loads((run_dir / "tasks" / "w1-r2" / "spec.json").read_text())["input"][
+        "since"
+    ] == (read_at)
 
     outside = tool.run(WatchArgs(task_id="w2", path=tmp_path / "elsewhere.md"), ctx)
     assert outside.ok is False
@@ -253,3 +256,34 @@ def test_watch_file_is_offered_only_where_a_role_declares_the_watch_contract(
 
     with pytest.raises(ValueError, match="watch_file"):
         names({"participant": participant})
+
+
+def test_two_agents_watching_the_same_file_get_a_watcher_each(tmp_path: pathlib.Path):
+    fs = RealFileSystem()
+    run_dir = tmp_path / "ws" / "runs" / "r3"
+    fs.mkdir(run_dir, parents=True, exist_ok=True)
+    migrate_file(run_dir / "bus.db", latest_version(fs), fs)
+    board = run_dir / "blackboard.md"
+    fs.write_text(board, "shared\n")
+    workspace = Workspace(fs, write_root=run_dir, read_roots=(run_dir,))
+
+    def watching(task: str, agent: int) -> ToolContext:
+        return ToolContext(
+            workspace=workspace,
+            task_dir=run_dir / "tasks" / task,
+            summary_chars=200,
+            agent_id=agent,
+        )
+
+    # Both analysts pick the same name for their waiting task, as three of them did.
+    for task, agent in (("registry_analyst", 2), ("session_analyst", 3)):
+        tool = WatchFile(role=ROLE, run_dir=run_dir, parent=agent, clock=SystemClock(), fs=fs)
+        assert tool.run(WatchArgs(task_id="wait", path=board), watching(task, agent)).ok is True
+
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), fs)
+    watchers = {
+        pathlib.PurePath(t.dir).name: t.parent_agent
+        for t in bus.snapshot().tasks
+        if "wait" in pathlib.PurePath(t.dir).name
+    }
+    assert watchers == {"wait-registry_analyst": 2, "wait-session_analyst": 3}
