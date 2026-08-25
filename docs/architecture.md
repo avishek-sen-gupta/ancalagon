@@ -563,6 +563,12 @@ in `before` — but `submit_answer` has none to undo: its hook runs long before 
 refusal on the forced final turn ends the attempt `Failed` naming the refusal, since a check is a
 hard gate and an answer that never satisfied it is not an answer.
 
+`files/append_file.py` exists because `write_file` replaces. Adding a line with it means
+reading the file and writing it back, which loses whatever arrived in between — two agents
+posting to the same file both succeed and one entry vanishes, with nothing to say so.
+`append_file` never reads: it opens for append and writes one line, so concurrent posters all
+land. Three threads writing fifty entries each leave a hundred and fifty intact.
+
 `shell/shell.py` is the one deliberate exception to that obligation. It takes a command line and
 hands it to `/bin/sh`, so pipes, globs and substitution work and nothing about the command is
 inspectable before it executes. What bounds it is not the argument but the sandbox — `Fence`
