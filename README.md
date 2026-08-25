@@ -41,6 +41,8 @@ side effect of starting a run.
 | `migrate` | brings that run's database to the latest schema, creating it if absent | — |
 | `run` | starts or continues the run in `--run-dir` | a database that is absent or out of date, naming the command that fixes it |
 | `answer` | appends your answer to a stopped agent and re-queues its task | a task with no `needs_input` in its history, or one with a live agent |
+| `trace` | emits a finished or running run as a graph of nodes and edges | — |
+| `viz` | renders that graph as a Mermaid sequence diagram | — |
 
 `scripts/ancrun.zsh <config.toml> [run-dir]` does the first three. With no run directory it
 allocates a fresh one; pass an existing one to continue that run.
@@ -135,9 +137,11 @@ Rules that follow from that wiring:
   afterwards. The freeze is not total: the contract *source* is a path, so editing
   `shapes.py` changes the shape a resumed run works to.
 
-Three things are checked before any agent starts, each exiting 2 with the reason: a missing or
-empty `goal_file`, a `[run] role` no `[roles.*]` declares, and a contract module that does not
-exist or does not parse — named with the role and the path, rather than crashing a worker later.
+Four things are checked before any agent starts, each exiting 2 with the reason — named with the
+role and the path, rather than crashing a worker later. A missing or empty `goal_file`. A
+`[run] role` no `[roles.*]` declares. A contract module that does not exist or does not parse.
+And every hook a role declares, including whether the tool it is attached to can hand it what it
+asks for.
 
 A role may also wrap any tool it uses with a **hook** — a function that sees a call before it
 runs, or its result after, and accepts it, rewrites it, or refuses it:
@@ -172,7 +176,12 @@ task was given, so a hook can compare an answer against the question. The two ho
 independent; declare either or both.
 
 Hooks are matched to their tools before the run starts. A function taking `SedArgs` cannot be
-attached to `ripgrep`, while one taking `BaseModel` can be attached to anything.
+attached to `ripgrep`, while one taking `BaseModel` can be attached to anything. A hook named for
+a tool the role does not use is rejected too, so a typo checks nothing quietly.
+
+A refusal on the forced last turn is the one case with no retry left. The attempt ends `Failed`
+naming the refusal, with the rejected arguments kept as the summary, so a parent is told what
+actually happened rather than being handed an answer that never met its criteria.
 
 The harness does not check that a role graph makes sense:
 

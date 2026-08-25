@@ -637,3 +637,4 @@ the one edge that needs an argument, and `TaskArgs` parses it.
 | What stops an agent escaping? | `workspace/workspace.py` |
 | What may touch a file at all? | `fs/real_file_system.py`, and the contracts in `pyproject.toml` |
 | What happened in a run I already have? | `trace/graph_of.py`, and `viz/mermaid.py` to draw it |
+| How is a tool call constrained? | `registry/bind_tool.py`, `registry/composite_before.py`, `registry/accepts.py` |
