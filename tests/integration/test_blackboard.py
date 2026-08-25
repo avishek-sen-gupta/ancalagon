@@ -19,7 +19,7 @@ from ancalagon.supervisor.spawn_by_input import SpawnByInput
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
 from ancalagon.supervisor.watch_spawner import WatchSpawner
-from ancalagon.watch.watch_request import WatchRequest
+from ancalagon.contracts.watch_request import WatchRequest
 from tests.integration.prepared_run import prepared_run_dir
 
 WATCHING = ClassRef(module=WatchRequest.__module__, name="WatchRequest")
@@ -44,7 +44,7 @@ def test_a_watcher_process_wakes_the_supervisor_the_way_any_child_does(
             budget=Budget(turns=0, tool_calls=0),
         ),
         goal="Wake me when the blackboard changes.",
-        input=WatchRequest(path=str(board), since=fs.mtime(board), poll_s=0.05),
+        input=WatchRequest(path=str(board), seen_bytes=len(fs.read_bytes(board)), poll_s=0.05),
     )
     fs.write_text(task_dir / "spec.json", spec.model_dump_json())
 

@@ -308,10 +308,16 @@ harness from a hook today, so this closes a propagation path rather than a live 
 it is supervised, sandboxed, reaped and timed out identically.
 
 `watch/watch.py` is the first such child. It reads `spec.json` as an `AgentSpec[WatchRequest]`,
-polls the named file's `mtime` until it exceeds the moment the request was made, and writes a
+polls the named file until it is larger than the caller had already seen, and writes a
 `Completed[Watched]`. It touches no bus row — no worker does; the supervisor writes those — and
 it runs no session. Its purpose is to turn "a file changed" into "a child settled", which is the
 one thing `has_news` already knows how to wake on, so a blackboard needs no scheduling change.
+
+The size the watcher waits past is measured by `tools/watch/watch_file.py`, at the moment it
+writes the child's `spec.json` — not by the watcher when it starts. That ordering is the point:
+a watcher that took its own baseline would fold in any write that landed while it was being
+claimed and forked, and then wait for the one after. The caller states what it has seen, so
+nothing in that gap is lost. An agent supplies only a path; it never counts anything itself.
 
 `SpawnByInput` chooses between flavours by reading the input contract a role declares, which is
 already in `spec.json` and already validated at startup. `Spawner` stays the protocol it was.
