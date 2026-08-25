@@ -54,14 +54,14 @@ class WatchFile(Tool[WatchArgs]):
     def _queued(
         self, args: WatchArgs, watched: pathlib.PurePath, seen: float, ctx: ToolContext
     ) -> ToolResult:
-        task_dir = self.run_dir / "tasks" / args.task_id
+        task_dir = self.run_dir / "tasks" / f"{args.task_id}-{ctx.task_dir.name}"
         bus = LifecycleStore.open(self.run_dir / "bus.db", self.clock, self.fs)
         active = active_for(bus.snapshot(), str(task_dir))
         if active:
-            return ctx.failure(self.name, f"task {args.task_id} is already running as {active[0]}")
+            return ctx.failure(self.name, f"{task_dir.name} is already running as {active[0]}")
         self.fs.mkdir(task_dir, parents=True, exist_ok=True)
         spec = AgentSpec[WatchRequest](
-            task_id=args.task_id,
+            task_id=task_dir.name,
             role=self.role,
             goal=f"Wait until {watched} changes after {seen}.",
             input=WatchRequest(path=str(watched), since=seen),

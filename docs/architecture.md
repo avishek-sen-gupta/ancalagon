@@ -313,6 +313,13 @@ polls the named file until it is larger than the caller had already seen, and wr
 it runs no session. Its purpose is to turn "a file changed" into "a child settled", which is the
 one thing `has_news` already knows how to wake on, so a blackboard needs no scheduling change.
 
+A watcher's task is named for the agent that asked, not only for the name the agent chose:
+`watch_file` appends the watching task's own name, so `wait` from two analysts becomes
+`wait-registry_analyst` and `wait-session_analyst`. Without that they collide, and a task's
+parent is fixed when it is created — so the second analyst's watcher would be a child of the
+first, and `has_news` would never wake the second. The task id carries no state, since the
+baseline comes from the access log, so discriminating it costs nothing.
+
 The moment a watcher waits past comes from the caller's own reading. **`read_file` appends an
 `Access` to `tasks/<id>/access.jsonl`** on every successful read, recording the path and
 when that file had last changed, and `tools/watch/watch_file.py` takes the latest entry
