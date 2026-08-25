@@ -1,5 +1,14 @@
 ## Design Principles
 
+- **Prefer a generic mechanism to specialised infrastructure.** When a use case arrives, ask
+  first which existing contract can express it, not which new table, status or subsystem it
+  needs. The supervisor's whole contract with a child is `Spawner.spawn(task_dir, agent_id)` and
+  an `outcome-<agent>.json` it reads as two fields — nothing in it says the child is an agent, so
+  a file watcher, a deterministic transform or a human gate that honours the same contract costs
+  the supervisor nothing. Widen what may sit behind an interface before adding another interface
+  beside it. A table, a status or a scheduling rule added for one use case is a commitment every
+  later one pays for, and the slightly worse fit of the generic route is usually the cheaper
+  trade.
 - **Use existing infrastructure before adding new abstractions.** Ask: "does the system already have something that solves this?" The answer is usually yes.
 - **Start from the simplest possible mechanism.** Begin with minimal intervention. Add complexity only when proven insufficient.
 - **No speculative code without tests.** Every code path must have a test that exercises it.
