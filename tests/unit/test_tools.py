@@ -69,8 +69,8 @@ from ancalagon.tools.search.find_symbol import FindSymbol
 from ancalagon.tools.search.grep_args import GrepArgs
 from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.search.searchable_files import searchable_files
-from ancalagon.tools.search.sed import Sed
-from ancalagon.tools.search.sed_args import SedArgs
+from ancalagon.tools.search.transform_file import TransformFile
+from ancalagon.tools.search.transform_args import TransformArgs
 from ancalagon.tools.shell.shell import Shell
 from ancalagon.tools.shell.shell_args import ShellArgs
 from ancalagon.tools.search.symbol_args import SymbolArgs
@@ -225,7 +225,7 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     assert missing.ok is True
     assert pathlib.Path(missing.path).read_text() == ""
 
-    streamed = Sed().run(SedArgs(script="s/alpha/gamma/", path=source), ctx)
+    streamed = TransformFile().run(TransformArgs(script="s/alpha/gamma/", path=source), ctx)
     assert streamed.ok is True
     assert "gamma" in pathlib.Path(streamed.path).read_text()
     assert source.read_text() == before
@@ -238,7 +238,7 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     assert unsupported.ok is False
     assert "unsupported language" in unsupported.error
 
-    denied = Sed().run(SedArgs(script="s/a/b/", path=tmp_path / "outside.txt"), ctx)
+    denied = TransformFile().run(TransformArgs(script="s/a/b/", path=tmp_path / "outside.txt"), ctx)
     assert denied.ok is False
 
     flags = pathlib.Path(ctx.workspace.write_root) / "flags.txt"
@@ -250,7 +250,7 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
         "a line mentioning --files here"
     ]
 
-    dashed = Sed().run(SedArgs(script="s/--files/--flags/", path=flags), ctx)
+    dashed = TransformFile().run(TransformArgs(script="s/--files/--flags/", path=flags), ctx)
     assert dashed.ok is True
     assert pathlib.Path(dashed.path).read_text() == "a line mentioning --flags here\n"
 
@@ -905,11 +905,11 @@ def test_a_bound_tool_lets_its_hooks_refuse_modify_or_admit_a_call(tmp_path: pat
     assert both.truncated is True
 
     def returns_the_wrong_model(args: pydantic.BaseModel, given: ToolContext) -> Reviewed:
-        return Accepted(value=SedArgs(script="s/a/b/", path=source))
+        return Accepted(value=TransformArgs(script="s/a/b/", path=source))
 
     confused = bind_tool(Ripgrep(), before=returns_the_wrong_model).invoke(call, ctx)
     assert confused.ok is False
-    assert confused.error == "ripgrep's before hook returned SedArgs, not GrepArgs"
+    assert confused.error == "ripgrep's before hook returned TransformArgs, not GrepArgs"
 
 
 def test_a_composite_chains_its_hooks_short_circuits_a_refusal_and_is_empty_by_default(
@@ -933,7 +933,7 @@ def test_a_composite_chains_its_hooks_short_circuits_a_refusal_and_is_empty_by_d
 
     def wrong(args: pydantic.BaseModel, ctx: ToolContext) -> Reviewed:
         seen.append("wrong")
-        return Accepted(value=SedArgs(script="s/a/b/", path=pathlib.PurePath("x")))
+        return Accepted(value=TransformArgs(script="s/a/b/", path=pathlib.PurePath("x")))
 
     ctx = _ctx(tmp_path)
     given = GrepArgs(pattern="  alpha  ", roots=[])
@@ -952,7 +952,7 @@ def test_a_composite_chains_its_hooks_short_circuits_a_refusal_and_is_empty_by_d
 
     seen.clear()
     assert CompositeBefore((wrong, widens))(given, ctx) == Refused(
-        reason="a before hook returned SedArgs, not GrepArgs"
+        reason="a before hook returned TransformArgs, not GrepArgs"
     )
     assert seen == ["wrong"]
 

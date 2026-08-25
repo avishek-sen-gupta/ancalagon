@@ -19,7 +19,7 @@ from ancalagon.tools.registry.resolve_after import resolve_after
 from ancalagon.tools.registry.resolve_before import resolve_before
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.grep_args import GrepArgs
-from ancalagon.tools.search.sed_args import SedArgs
+from ancalagon.tools.search.transform_args import TransformArgs
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
@@ -35,7 +35,7 @@ from ancalagon.contracts.reviewed import Reviewed
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.grep_args import GrepArgs
-from ancalagon.tools.search.sed_args import SedArgs
+from ancalagon.tools.search.transform_args import TransformArgs
 
 
 def narrow(query: GrepArgs, ctx: ToolContext) -> Reviewed:
@@ -46,7 +46,7 @@ def general(anything: pydantic.BaseModel, ctx: ToolContext) -> Reviewed:
     return Accepted(value=anything)
 
 
-def other_tool(edit: SedArgs, ctx: ToolContext) -> Reviewed:
+def other_tool(edit: TransformArgs, ctx: ToolContext) -> Reviewed:
     return Accepted(value=edit)
 
 
@@ -89,10 +89,10 @@ def test_a_hook_is_accepted_only_when_it_can_receive_what_the_tool_will_pass(
 
     assert fault("narrow", GrepArgs) == ""
     assert fault("general", GrepArgs) == ""
-    assert fault("general", SedArgs) == ""
+    assert fault("general", TransformArgs) == ""
     assert fault("reviewing", GrepArgs, arity=3) == ""
 
-    assert fault("other_tool", GrepArgs) == "takes SedArgs, but the tool passes GrepArgs"
+    assert fault("other_tool", GrepArgs) == "takes TransformArgs, but the tool passes GrepArgs"
     assert fault("bare", GrepArgs) == "does not annotate its first parameter, query"
     assert fault("not_a_model", GrepArgs) == (
         "annotates query as <class 'int'>, which is not a model class"
@@ -118,7 +118,7 @@ def test_resolvers_return_a_usable_hook_and_refuse_one_of_the_wrong_shape(
     after = resolve_after(FunctionRef(module=str(hooks), name="reviewing"), GrepArgs)
     assert isinstance(after, object)
 
-    with pytest.raises(ValueError, match="takes SedArgs, but the tool passes GrepArgs"):
+    with pytest.raises(ValueError, match="takes TransformArgs, but the tool passes GrepArgs"):
         resolve_before(FunctionRef(module=str(hooks), name="other_tool"), GrepArgs)
 
     with pytest.raises(ValueError, match="must take 3 positional parameters"):
@@ -202,13 +202,13 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
     mismatched = role.model_copy(
         update={"before": {"ripgrep": (FunctionRef(module=str(hooks), name="other_tool"),)}}
     )
-    with pytest.raises(ValueError, match="takes SedArgs, but the tool passes GrepArgs"):
+    with pytest.raises(ValueError, match="takes TransformArgs, but the tool passes GrepArgs"):
         check_contracts(config.model_copy(update={"roles": {"root": mismatched}}))
 
     unknown = role.model_copy(
-        update={"before": {"sed": (FunctionRef(module=str(hooks), name="narrow"),)}}
+        update={"before": {"transform_file": (FunctionRef(module=str(hooks), name="narrow"),)}}
     )
-    with pytest.raises(ValueError, match="names a hook for sed, which it does not use"):
+    with pytest.raises(ValueError, match="names a hook for transform_file, which it does not use"):
         check_contracts(config.model_copy(update={"roles": {"root": unknown}}))
 
 
