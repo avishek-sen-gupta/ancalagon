@@ -1,64 +1,69 @@
 #!/usr/bin/env zsh
-# What every run under an ancalagon workspace spent, read from each run's own bus.db.
-# Usage: anccost [config.toml | dir] [--by-agent]   default .
+# What every run under an ancalagon workspace spent, read from each run's own bus.db,
+# as JSON on stdout. Pipe it to anctable.zsh to read it, or to jq to slice it yourself.
+# Usage: anccost [config.toml | dir]   default .
 # Given a config it reads that config's write_root, so the run and the reckoning cannot
 # disagree. Given a directory it accepts either a workspace or a runs dir.
 #
 # There is no `ancalagon usage` verb on purpose: the schema is the query surface, and this
-# is one rollup over it rather than the only one. cache_read is shown apart from prompt
-# because a cached token is not billed as a fresh one.
+# is one rollup over it rather than the only one. It emits everything it found and decides
+# nothing about how to show it, which is the same split as `ancalagon trace` and `viz`.
 set -uo pipefail
 
-local given=${1:-.}
-local by_agent=""
-[[ ${2:-} == --by-agent || $given == --by-agent ]] && by_agent=1
-[[ $given == --by-agent ]] && given=.
+exec python3 -c '
+import json
+import pathlib
+import sqlite3
+import sys
+import tomllib
 
-local root=$given
-if [[ -f $given ]]; then
-  root=$(python3 -c '
-import pathlib, sys, tomllib
-cfg = pathlib.Path(sys.argv[1])
-value = pathlib.Path(tomllib.loads(cfg.read_text())["workspace"]["write_root"]).expanduser()
-print(value if value.is_absolute() else (cfg.resolve().parent / value).resolve())
-' "$given" 2>/dev/null) || {
-    print -u2 "\e[31m-- could not read write_root from $given --\e[0m"
-    exit 1
-  }
-fi
+TOTALS = """
+select count(*), coalesce(sum(prompt_tokens), 0), coalesce(sum(completion_tokens), 0),
+       coalesce(sum(cache_creation_tokens), 0), coalesce(sum(cache_read_tokens), 0)
+from model_calls
+"""
+BY_AGENT = """
+select m.agent, t.dir, count(*), sum(m.prompt_tokens), sum(m.completion_tokens),
+       sum(m.cache_creation_tokens), sum(m.cache_read_tokens)
+from model_calls m
+join agents a on a.id = m.agent
+join tasks t on t.id = a.task
+group by m.agent order by m.agent
+"""
+FIELDS = ("calls", "prompt", "completion", "cache_creation", "cache_read")
 
-local -a found
-found=(${~root}/runs/*/bus.db(N) ${~root}/*/bus.db(N))
-if (( ${#found} == 0 )); then
-  print -u2 "\e[31m-- no run databases under $root --\e[0m"
-  exit 1
-fi
 
-local db run calls sent got cached
-local -i all_calls=0 all_prompt=0 all_completion=0 all_cached=0
+def workspace(given: pathlib.Path) -> pathlib.Path:
+    if not given.is_file():
+        return given
+    value = pathlib.Path(tomllib.loads(given.read_text())["workspace"]["write_root"]).expanduser()
+    return value if value.is_absolute() else (given.resolve().parent / value).resolve()
 
-printf "%-24s %6s %11s %11s %11s\n" RUN CALLS PROMPT COMPLETION CACHE_READ
-for db in $found; do
-  run=${db:h:t}
-  IFS=' ' read -r calls sent got cached <<<"$(sqlite3 -separator ' ' "$db" "
-    select count(*), coalesce(sum(prompt_tokens), 0),
-           coalesce(sum(completion_tokens), 0), coalesce(sum(cache_read_tokens), 0)
-    from model_calls")"
-  printf "%-24s %6s %11s %11s %11s\n" "$run" "$calls" "$sent" "$got" "$cached"
-  (( all_calls += calls, all_prompt += sent, all_completion += got, all_cached += cached ))
 
-  if [[ -n $by_agent ]]; then
-    sqlite3 -separator '|' "$db" "
-      select m.agent, replace(t.dir, '${db:h}/tasks/', ''), count(*),
-             sum(m.prompt_tokens), sum(m.completion_tokens), sum(m.cache_read_tokens)
-      from model_calls m
-      join agents a on a.id = m.agent
-      join tasks t on t.id = a.task
-      group by m.agent order by m.agent" |
-      while IFS='|' read -r agent task n p c r; do
-        printf "  agent %-4s %-16s %5s %11s %11s %11s\n" "$agent" "$task" "$n" "$p" "$c" "$r"
-      done
-  fi
-done
+def spent(db: pathlib.Path) -> dict[str, object]:
+    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    try:
+        totals = dict(zip(FIELDS, conn.execute(TOTALS).fetchone()))
+        agents = [
+            {"agent": row[0], "task": pathlib.Path(row[1]).name, **dict(zip(FIELDS, row[2:]))}
+            for row in conn.execute(BY_AGENT).fetchall()
+        ]
+    finally:
+        conn.close()
+    return {"run": db.parent.name, "path": str(db.parent), **totals, "agents": agents}
 
-printf "%-24s %6s %11s %11s %11s\n" TOTAL "$all_calls" "$all_prompt" "$all_completion" "$all_cached"
+
+root = workspace(pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "."))
+found = sorted({*root.glob("runs/*/bus.db"), *root.glob("*/bus.db")})
+if not found:
+    sys.exit(f"-- no run databases under {root} --")
+
+runs = [spent(db) for db in found]
+report = {
+    "workspace": str(root),
+    "runs": runs,
+    "total": {f: sum(int(r[f]) for r in runs) for f in FIELDS},
+}
+json.dump(report, sys.stdout, indent=2)
+sys.stdout.write("\n")
+' "${1:-.}"
