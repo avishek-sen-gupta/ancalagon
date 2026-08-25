@@ -68,4 +68,6 @@ class WatchFile(Tool[WatchArgs]):
         )
         self.fs.write_text(task_dir / "spec.json", spec.model_dump_json())
         agent = bus.enqueue(task_dir, parent_agent=self.parent)
-        return ctx.result(self.name, f"queued agent {agent} watching {watched} from {seen} bytes")
+        return ctx.result(
+            self.name, f"queued agent {agent} watching {watched} for changes after {seen}"
+        )
