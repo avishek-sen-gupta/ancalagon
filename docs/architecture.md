@@ -313,21 +313,11 @@ polls the named file until it is larger than the caller had already seen, and wr
 it runs no session. Its purpose is to turn "a file changed" into "a child settled", which is the
 one thing `has_news` already knows how to wake on, so a blackboard needs no scheduling change.
 
-The size a watcher waits past is **what the previous watcher on that task reported**, which
-`tools/watch/watch_file.py` reads from that task's newest outcome, defaulting to zero when there
-is none. It is deliberately not the file's size now, and not a size the watcher takes when it
-starts. Both of those lose writes.
-
-A watcher taking its own baseline folds in whatever landed while it was being claimed and
-forked. Measuring at watch time is worse and less obvious: an agent that read the board, worked
-for several turns while others appended, and only then asked to wait would have those appends
-counted as already seen — and if the writers had since stopped, it would wait for a change that
-never comes. Anchoring to the last report cannot do that, because a report is the only thing the
-agent was ever told. Where the agent has been told nothing, the baseline is zero and the first
-watcher returns at once with everything.
-
-An agent supplies a path and a task id. It never counts anything itself, and reusing the task id
-is what carries the position forward.
+The size the watcher waits past is measured by `tools/watch/watch_file.py`, at the moment it
+writes the child's `spec.json` — not by the watcher when it starts. That ordering is the point:
+a watcher that took its own baseline would fold in any write that landed while it was being
+claimed and forked, and then wait for the one after. The caller states what it has seen, so
+nothing in that gap is lost. An agent supplies only a path; it never counts anything itself.
 
 `SpawnByInput` chooses between flavours by reading the input contract a role declares, which is
 already in `spec.json` and already validated at startup. `Spawner` stays the protocol it was.
