@@ -14,17 +14,21 @@ from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.outcome import SUMMARY_CHARS
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
-from ancalagon.watch.watch_request import WatchRequest
-from ancalagon.watch.watched import Watched
+from ancalagon.contracts.watch_request import WatchRequest
+from ancalagon.contracts.watched import Watched
 
 NOTHING = Budget(turns=0, tool_calls=0)
 
 
+def size_of(path: pathlib.PurePath, fs: FileSystem) -> int:
+    return len(fs.read_bytes(path)) if fs.is_file(path) else 0
+
+
 def watch_for(request: WatchRequest, fs: FileSystem, clock: Clock) -> Watched:
     watched = pathlib.PurePath(request.path)
-    while fs.mtime(watched) <= request.since:
+    while size_of(watched, fs) <= request.seen_bytes:
         clock.sleep(request.poll_s)
-    return Watched(path=request.path, at=fs.mtime(watched))
+    return Watched(path=request.path, size=size_of(watched, fs))
 
 
 def _completed(task_dir: pathlib.PurePath, fs: FileSystem) -> Completed[Watched]:
@@ -32,7 +36,7 @@ def _completed(task_dir: pathlib.PurePath, fs: FileSystem) -> Completed[Watched]
     request = AgentSpec[WatchRequest].model_validate_json(spec_text).input
     watched = watch_for(request, fs, SystemClock())
     return Completed(
-        value=watched, summary=f"{watched.path} changed at {watched.at}", spent=NOTHING
+        value=watched, summary=f"{watched.path} grew to {watched.size} bytes", spent=NOTHING
     )
 
 
