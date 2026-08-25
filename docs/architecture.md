@@ -516,7 +516,7 @@ Each tool then:
    reporting a failure is itself a write.
 
 A tool that shells out has a fourth obligation: **a model-supplied string never reaches
-argv where the child would read it as an option.** `ripgrep` and `sed` pass theirs behind
+argv where the child would read it as an option.** `ripgrep` and `transform_file` pass theirs behind
 `-e` and terminate options with `--`; `query_json` and `git_history` refuse a leading dash
 at the boundary instead, because a jq filter and a git rev have no legitimate reason to
 begin with one, while a regex does. Without this, `rg --pre=<cmd>` is arbitrary execution
@@ -551,7 +551,7 @@ does for a malformed argument.
 Two checks make that safe. `isinstance(given, tool.args_model)` narrows a `before` hook's output
 back to the tool's argument type, and catches a hook that returned some other model rather than
 handing it to `run`. And `registry/accepts.py` reads the declared type of a hook's first
-parameter and requires `issubclass(args_model, declared)`. A hook written for `sed` therefore
+parameter and requires `issubclass(args_model, declared)`. A hook written for `transform_file` therefore
 cannot be attached to `ripgrep`, while one declared over `BaseModel` may be attached to anything,
 and either way the fault is found before any agent starts. `check_contracts`
 builds every role's registry for that reason, so a bad hook exits 2 naming the role.

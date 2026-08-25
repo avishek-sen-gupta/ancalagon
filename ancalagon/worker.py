@@ -57,7 +57,7 @@ from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.ast_grep import AstGrep
 from ancalagon.tools.search.find_symbol import FindSymbol
 from ancalagon.tools.search.ripgrep import Ripgrep
-from ancalagon.tools.search.sed import Sed
+from ancalagon.tools.search.transform_file import TransformFile
 from ancalagon.tools.shell.shell import Shell
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.watch.watch_file import WatchFile
@@ -87,7 +87,7 @@ def available_tools(
         bound_for(ListDir(), role),
         bound_for(Ripgrep(), role),
         bound_for(AstGrep(), role),
-        bound_for(Sed(), role),
+        bound_for(TransformFile(), role),
         bound_for(FindSymbol(), role),
         bound_for(CodeStats(), role),
         bound_for(FileType(), role),
