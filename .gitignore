@@ -40,4 +40,7 @@ checks.py
 blackboard.toml
 bb/
 blackboard_goal.md
+wake_goal.md
+wake/
+wake.toml
 goal.md

@@ -4,7 +4,9 @@ from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
 
 
-def settle(bus: LifecycleStore, agent: int, verdict: AgentStatus, pid: int = 1) -> None:
+def settle(
+    bus: LifecycleStore, agent: int, verdict: AgentStatus, pid: int = 1, summary: str = ""
+) -> None:
     bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=pid)
-    bus.record(agent, verdict, EventSource.SUPERVISOR)
+    bus.record(agent, verdict, EventSource.SUPERVISOR, summary=summary)

@@ -1,6 +1,7 @@
 # Reads a finished task's answer, or says why there is not one.
 import pathlib
 
+from ancalagon.attempt.attempt import Attempt
 from ancalagon.attempt.closed import Closed
 from ancalagon.attempt.collected import Collected
 from ancalagon.attempt.lost import Lost
@@ -18,7 +19,7 @@ from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.fs.file_system import FileSystem
-from ancalagon.schedule.newest_agent import newest_agent
+from ancalagon.schedule.addressed import addressed
 from ancalagon.schedule.outstanding import outstanding
 from ancalagon.schedule.task_of import task_of
 from ancalagon.tools.delegate.task_args import TaskArgs
@@ -32,6 +33,14 @@ def _detail(outcome: Outcome) -> str:
     if isinstance(outcome, Failed):
         return outcome.error
     return outcome.summary
+
+
+def _unready(newest: int, attempt: Attempt) -> str:
+    match attempt:
+        case Collected(verdict=verdict):
+            return f"agent {newest} was already collected: ended as {verdict.value}"
+        case _:
+            return f"agent {newest} has not been closed yet"
 
 
 class CollectTask(Tool[TaskArgs]):
@@ -53,21 +62,20 @@ class CollectTask(Tool[TaskArgs]):
         snapshot = bus.snapshot()
         if args.task not in snapshot.task_by_agent:
             return ctx.failure(self.name, f"no agent {args.task}")
-        task = snapshot.task_by_agent[args.task]
-        newest = newest_agent(snapshot, task)
-        attempt = snapshot.attempts[newest]
-        match attempt:
-            case Collected(verdict=verdict):
-                return ctx.failure(
-                    self.name,
-                    f"agent {newest} was already collected: ended as {verdict.value}",
-                )
+        return self._answered(bus, ctx, snapshot, args.task)
+
+    def _answered(
+        self, bus: LifecycleStore, ctx: ToolContext, snapshot: Snapshot, asked: int
+    ) -> ToolResult:
+        task = snapshot.task_by_agent[asked]
+        newest = addressed(snapshot, asked)
+        match snapshot.attempts[newest]:
             case Closed():
                 return self._read_closed(bus, ctx, snapshot, task, newest)
             case Lost(close=close):
                 return self._read_lost(bus, ctx, snapshot, task, newest, close)
-            case _:
-                return ctx.failure(self.name, f"agent {newest} has not been closed yet")
+            case unsettled:
+                return ctx.failure(self.name, _unready(newest, unsettled))
 
     def _read_closed(
         self, bus: LifecycleStore, ctx: ToolContext, snapshot: Snapshot, task: int, newest: int
