@@ -27,6 +27,11 @@ class RealFileSystem(FileSystem):
     def glob(self, path: pathlib.PurePath, pattern: str) -> tuple[pathlib.PurePath, ...]:
         return tuple(sorted(pathlib.Path(path).glob(pattern)))
 
+    # A file that is not there has never changed, which is what a watcher wants to hear.
+    def mtime(self, path: pathlib.PurePath) -> float:
+        found = pathlib.Path(path)
+        return found.stat().st_mtime if found.exists() else 0.0
+
     def exists(self, path: pathlib.PurePath) -> bool:
         return pathlib.Path(path).exists()
 

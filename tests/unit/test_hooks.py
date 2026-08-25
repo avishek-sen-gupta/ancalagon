@@ -219,7 +219,7 @@ def test_a_hook_sees_the_task_input_so_it_can_check_an_answer_against_what_was_a
     (write_root / "outputs").mkdir(parents=True)
     ctx = ToolContext(
         workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
-        output_dir=write_root / "outputs",
+        task_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=7,
         input=GrepArgs(pattern="bus", roots=[]),

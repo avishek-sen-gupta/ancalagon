@@ -59,7 +59,7 @@ def _run(
     )
     ctx = ToolContext(
         workspace=Workspace(RealFileSystem(), write_root=run_dir, read_roots=(run_dir,)),
-        output_dir=task_dir / "tools",
+        task_dir=task_dir,
         summary_chars=400,
         agent_id=agent,
     )

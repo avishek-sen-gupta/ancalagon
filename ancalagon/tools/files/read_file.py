@@ -1,4 +1,5 @@
 # Reads a file, refusing anything outside the configured read roots.
+from ancalagon.clock.clock import Clock
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.files.read_args import ReadArgs
 from ancalagon.tools.registry.tool import Tool
@@ -17,6 +18,9 @@ class ReadFile(Tool[ReadArgs]):
     cost = 1
     args_model = ReadArgs
 
+    def __init__(self, clock: Clock):
+        self.clock = clock
+
     def run(self, args: ReadArgs, ctx: ToolContext) -> ToolResult:
         try:
             path = ctx.workspace.resolve_read(args.path)
@@ -24,6 +28,7 @@ class ReadFile(Tool[ReadArgs]):
             return ctx.failure(self.name, str(exc))
         if not ctx.workspace.is_file(path):
             return ctx.failure(self.name, missing_hint(path))
+        ctx.record(path, self.clock)
         lines = ctx.workspace.read_text(path).splitlines()
         end = len(lines) if args.limit <= 0 else min(len(lines), args.offset + args.limit)
         shown = lines[args.offset : end]

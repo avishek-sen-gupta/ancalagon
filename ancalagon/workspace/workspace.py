@@ -54,6 +54,16 @@ class Workspace:
     def iterdir(self, path: pathlib.PurePath) -> tuple[pathlib.PurePath, ...]:
         return self.fs.iterdir(self.resolve_read(path))
 
+    def mtime(self, path: pathlib.PurePath) -> float:
+        return self.fs.mtime(self.resolve_read(path))
+
+    def append_line(self, path: pathlib.PurePath, line: str) -> None:
+        resolved = self.resolve_write(path)
+        self.mkdir(resolved.parent, parents=True, exist_ok=True)
+        handle = self.fs.open_append(resolved)
+        handle.write(line + "\n")
+        handle.close()
+
     def exists(self, path: pathlib.PurePath) -> bool:
         return self.fs.exists(self.resolve_read(path))
 

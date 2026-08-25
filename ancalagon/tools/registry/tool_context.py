@@ -5,6 +5,8 @@ import pathlib
 
 import pydantic
 
+from ancalagon.clock.clock import Clock
+from ancalagon.contracts.access import Access
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.text_answer import TextAnswer
 from ancalagon.contracts.tool_result import ToolResult
@@ -18,17 +20,27 @@ class ToolContext:
     def __init__(
         self,
         workspace: Workspace,
-        output_dir: pathlib.PurePath,
+        task_dir: pathlib.PurePath,
         summary_chars: int,
         agent_id: int,
         input: pydantic.BaseModel = NO_INPUT,
     ):
         self.workspace = workspace
-        self.output_dir = output_dir
+        self.task_dir = task_dir
+        self.output_dir = task_dir / "tools"
         self.summary_chars = summary_chars
         self.agent_id = agent_id
         self.input = input
         self.counter = itertools.count()
+
+    def record(self, path: pathlib.PurePath, clock: Clock) -> None:
+        seen = Access(
+            ts=clock.now().isoformat(),
+            agent=self.agent_id,
+            path=str(path),
+            mtime=self.workspace.mtime(path),
+        )
+        self.workspace.append_line(self.task_dir / "access.jsonl", seen.model_dump_json())
 
     def write_output(self, tool_name: str, text: str, suffix: str) -> pathlib.PurePath:
         path = self.workspace.resolve_write(
