@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # What every run under an ancalagon workspace spent, read from each run's own bus.db,
-# as JSON on stdout. Pipe it to anctable.zsh to read it, or to jq to slice it yourself.
-# Usage: anccost [config.toml | dir]   default .
+# as JSON. Pipe it to anctable.zsh to read it, or to jq to slice it yourself.
+# Usage: anccost [config.toml | dir] [--output report.json]   default . and stdout
 # Given a config it reads that config's write_root, so the run and the reckoning cannot
 # disagree. Given a directory it accepts either a workspace or a runs dir.
 #
@@ -11,6 +11,7 @@
 set -uo pipefail
 
 exec python3 -c '
+import argparse
 import json
 import pathlib
 import sqlite3
@@ -53,7 +54,12 @@ def spent(db: pathlib.Path) -> dict[str, object]:
     return {"run": db.parent.name, "path": str(db.parent), **totals, "agents": agents}
 
 
-root = workspace(pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "."))
+parser = argparse.ArgumentParser(prog="anccost")
+parser.add_argument("workspace", nargs="?", default=".", help="a config.toml or a directory")
+parser.add_argument("--output", default="", help="write here instead of stdout")
+given = parser.parse_args()
+
+root = workspace(pathlib.Path(given.workspace))
 found = sorted({*root.glob("runs/*/bus.db"), *root.glob("*/bus.db")})
 if not found:
     sys.exit(f"-- no run databases under {root} --")
@@ -64,6 +70,9 @@ report = {
     "runs": runs,
     "total": {f: sum(int(r[f]) for r in runs) for f in FIELDS},
 }
-json.dump(report, sys.stdout, indent=2)
-sys.stdout.write("\n")
-' "${1:-.}"
+written = json.dumps(report, indent=2) + "\n"
+if given.output:
+    pathlib.Path(given.output).write_text(written)
+else:
+    sys.stdout.write(written)
+' "$@"

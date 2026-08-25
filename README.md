@@ -394,7 +394,13 @@ tail -f ws/runs/r_20260822-121500/tasks/root/transcript.jsonl
 ./scripts/anccost.zsh ancalagon.toml | ./scripts/anctable.zsh
 ./scripts/anccost.zsh ancalagon.toml | ./scripts/anctable.zsh --by-agent
 ./scripts/anccost.zsh ancalagon.toml | jq '.runs[].agents | max_by(.prompt)'
+
+./scripts/anccost.zsh ancalagon.toml --output cost.json    # or keep the report
+./scripts/anctable.zsh --input cost.json --output cost.txt
 ```
+
+Both write to stdout when no `--output` is given, and `anctable` reads stdin when no
+`--input` is — the same convention `trace` and `viz` follow.
 
 Split the way `trace` and `viz` are: one reports what was spent and decides nothing about
 how to show it, the other decides only that. `anccost` reads `write_root` from a config
