@@ -2,14 +2,18 @@ import json
 import pathlib
 import time
 
+import pytest
+
 from ancalagon.clock.clock import Clock
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.budget import Budget
+from ancalagon.config.config import Config
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.supervisor.process import Process
@@ -22,6 +26,7 @@ from ancalagon.tools.watch.watch_args import WatchArgs
 from ancalagon.tools.watch.watch_file import WatchFile
 from ancalagon.watch.watch import main, watch_for
 from ancalagon.contracts.watch_request import WatchRequest
+from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
 
 
@@ -33,6 +38,19 @@ class FakeProcess(Process):
 
     def kill(self) -> None:
         return None
+
+
+WATCHES = str(pathlib.Path(WatchRequest.__module__.replace(".", "/") + ".py"))
+
+
+def _config(tmp_path: pathlib.Path, roles: dict[str, Role]) -> Config:
+    return Config(
+        write_root=tmp_path,
+        read_roots=(tmp_path,),
+        model="m",
+        roles=roles,
+        max_depth=1,
+    )
 
 
 ROLE = Role(behaviour="Wait.", tools=(), budget=Budget(turns=0, tool_calls=0))
@@ -193,3 +211,45 @@ def test_a_watch_resumes_from_the_read_the_agent_logged_not_from_the_file_now(
     outside = tool.run(WatchArgs(task_id="w2", path=tmp_path / "elsewhere.md"), ctx)
     assert outside.ok is False
     assert "outside read_roots" in outside.error
+
+
+def test_watch_file_is_offered_only_where_a_role_declares_the_watch_contract(
+    tmp_path: pathlib.Path,
+):
+    fs = RealFileSystem()
+    migrate_file(tmp_path / "bus.db", latest_version(fs), fs)
+    watcher = Role(
+        behaviour="Wait.",
+        input=ClassRef(module=WATCHES, name="WatchRequest"),
+        tools=(),
+        budget=Budget(turns=0, tool_calls=0),
+    )
+    participant = Role(
+        behaviour="Collaborate.",
+        tools=("read_file", "watch_file"),
+        budget=Budget(turns=4, tool_calls=8),
+    )
+
+    def names(roles: dict[str, Role]) -> list[str]:
+        return sorted(
+            build_registry(
+                _config(tmp_path, roles),
+                TaskSpec(task_id="t", role=participant, goal="g"),
+                tmp_path,
+                parent=1,
+                depth=0,
+                output_class=FreeText,
+                clock=SystemClock(),
+                fs=fs,
+            ).names()
+        )
+
+    assert names({"watcher": watcher, "participant": participant}) == [
+        "idle",
+        "read_file",
+        "submit_answer",
+        "watch_file",
+    ]
+
+    with pytest.raises(ValueError, match="watch_file"):
+        names({"participant": participant})

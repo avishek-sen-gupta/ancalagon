@@ -24,6 +24,7 @@ from ancalagon.contracts.message import Message
 from ancalagon.contracts.outcome import SUMMARY_CHARS
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.watch_request import WatchRequest
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
@@ -58,6 +59,7 @@ from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.search.sed import Sed
 from ancalagon.tools.shell.shell import Shell
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
+from ancalagon.tools.watch.watch_file import WatchFile
 from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.transcript.history import load, repair
 from ancalagon.transcript.transcript import Transcript
@@ -104,6 +106,12 @@ def available_tools(
     ]
 
 
+# A role whose input is a WatchRequest is a watcher, and its existence is what makes
+# watch_file offerable: without one there is nothing for the tool to queue.
+def watcher_in(roles: collections.abc.Mapping[str, Role]) -> list[Role]:
+    return [role for role in roles.values() if role.input.name == WatchRequest.__name__]
+
+
 def build_registry(
     config: Config,
     spec: TaskSpec,
@@ -117,7 +125,10 @@ def build_registry(
     spawnable = {
         name: role for name, role in config.roles.items() if f"delegate_{name}" in spec.role.tools
     }
-    available = available_tools(spec.role, spawnable, run_dir, parent, output_class, clock, fs)
+    available = available_tools(spec.role, spawnable, run_dir, parent, output_class, clock, fs) + [
+        bound_for(WatchFile(watcher, run_dir, parent, clock, fs), spec.role)
+        for watcher in watcher_in(config.roles)[:1]
+    ]
     wanted = set(spec.role.tools) | {Idle.name, SubmitAnswer.name}
     unknown = wanted - {t.name for t in available}
     if unknown:
