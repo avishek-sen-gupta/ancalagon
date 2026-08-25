@@ -6,4 +6,4 @@ class Access(pydantic.BaseModel, frozen=True):
     ts: str
     agent: int
     path: str
-    mtime: float
+    changed_at: float

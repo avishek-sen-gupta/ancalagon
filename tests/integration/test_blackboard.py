@@ -44,7 +44,7 @@ def test_a_watcher_process_wakes_the_supervisor_the_way_any_child_does(
             budget=Budget(turns=0, tool_calls=0),
         ),
         goal="Wake me when the blackboard changes.",
-        input=WatchRequest(path=str(board), since=fs.mtime(board), poll_s=0.05),
+        input=WatchRequest(path=str(board), since=fs.changed_at(board), poll_s=0.05),
     )
     fs.write_text(task_dir / "spec.json", spec.model_dump_json())
 

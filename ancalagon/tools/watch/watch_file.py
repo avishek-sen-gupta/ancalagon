@@ -23,7 +23,7 @@ def _last_seen(watched: pathlib.PurePath, ctx: ToolContext) -> float:
     if not ctx.workspace.is_file(log):
         return 0.0
     seen = [Access.model_validate_json(line) for line in ctx.workspace.read_text(log).splitlines()]
-    return max((a.mtime for a in seen if a.path == str(watched)), default=0.0)
+    return max((a.changed_at for a in seen if a.path == str(watched)), default=0.0)
 
 
 class WatchFile(Tool[WatchArgs]):

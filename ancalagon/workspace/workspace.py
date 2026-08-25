@@ -54,8 +54,8 @@ class Workspace:
     def iterdir(self, path: pathlib.PurePath) -> tuple[pathlib.PurePath, ...]:
         return self.fs.iterdir(self.resolve_read(path))
 
-    def mtime(self, path: pathlib.PurePath) -> float:
-        return self.fs.mtime(self.resolve_read(path))
+    def changed_at(self, path: pathlib.PurePath) -> float:
+        return self.fs.changed_at(self.resolve_read(path))
 
     def append_line(self, path: pathlib.PurePath, line: str) -> None:
         resolved = self.resolve_write(path)

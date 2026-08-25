@@ -38,7 +38,7 @@ class ToolContext:
             ts=clock.now().isoformat(),
             agent=self.agent_id,
             path=str(path),
-            mtime=self.workspace.mtime(path),
+            changed_at=self.workspace.changed_at(path),
         )
         self.workspace.append_line(self.task_dir / "access.jsonl", seen.model_dump_json())
 
