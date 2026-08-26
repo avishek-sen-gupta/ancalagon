@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 # What every run under an ancalagon workspace spent, read from each run's own bus.db,
-# as JSON. Pipe it to anccostviz.zsh to read it, or to jq to slice it yourself.
+# as JSON. Pipe it to anccosttable.zsh to read it, or to jq to slice it yourself.
 # Usage: anccost [config.toml | dir] [--output report.json]   default . and stdout
 # Given a config it reads that config's write_root, so the run and the reckoning cannot
 # disagree. Given a directory it accepts either a workspace or a runs dir.
