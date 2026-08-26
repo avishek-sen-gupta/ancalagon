@@ -3,9 +3,10 @@
 There are many agent harnesses, but this one is mine.
 **Ancalagon** is an agent harness with a typed contract-first approach.
 
-Give it a goal. An agent pursues it with tools — ripgrep, ast-grep, tree-sitter queries,
-a shell, transformed reads, appendable and scoped file access — and delegates focused subtasks to isolated
-subagent processes, each with its own budget and its own typed answer contract.
+Give it a goal. An agent pursues it with [tools](#the-tools) — ripgrep, ast-grep,
+tree-sitter queries, a shell, transformed reads, appendable and scoped file access — and
+delegates focused subtasks to isolated subagent processes, each with its own budget and its
+own typed answer contract.
 
 ```mermaid
 flowchart LR
@@ -182,6 +183,8 @@ a tool the role does not use is rejected too, so a typo checks nothing quietly.
 A refusal on the forced last turn is the one case with no retry left. The attempt ends `Failed`
 naming the refusal, with the rejected arguments kept as the summary, so a parent is told what
 actually happened rather than being handed an answer that never met its criteria.
+
+### The tools
 
 Every tool a role may name, and what it is for. `submit_answer` and `idle` arrive whatever
 the list says; `delegate_<role>` appears once per role the config declares. The two costing
