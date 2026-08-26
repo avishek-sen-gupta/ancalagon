@@ -103,4 +103,6 @@ fileignoreconfig:
   checksum: 63c8f9f5439697eca836cf796fe5aa49aaae326007e69c56b00b1c861e7c5128
 - filename: tests/integration/test_scripted_hooks.py
   checksum: 734777a67b95f649d6cb07f6dfb18ddceed07e25fb5dc29502dc5e564809d876
+- filename: docs/superpowers/plans/2026-08-27-deterministic-agents.md
+  checksum: ca07cf45ac353c5e1b885ae82c0a0f047a3c9ad085726c0352bc5de88008e409
 version: "1.0"
