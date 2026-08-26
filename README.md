@@ -435,18 +435,18 @@ tail -f ws/runs/r_20260822-121500/tasks/root/transcript.jsonl
 ```
 
 `scripts/anccost.zsh <config.toml | dir>` is that query rolled up, as JSON, and
-`scripts/anccostviz.zsh` renders it:
+`scripts/anccosttable.zsh` renders it:
 
 ```bash
-./scripts/anccost.zsh ancalagon.toml | ./scripts/anccostviz.zsh
-./scripts/anccost.zsh ancalagon.toml | ./scripts/anccostviz.zsh --by-agent
+./scripts/anccost.zsh ancalagon.toml | ./scripts/anccosttable.zsh
+./scripts/anccost.zsh ancalagon.toml | ./scripts/anccosttable.zsh --by-agent
 ./scripts/anccost.zsh ancalagon.toml | jq '.runs[].agents | max_by(.prompt)'
 
 ./scripts/anccost.zsh ancalagon.toml --output cost.json    # or keep the report
-./scripts/anccostviz.zsh --input cost.json --output cost.txt
+./scripts/anccosttable.zsh --input cost.json --output cost.txt
 ```
 
-Both write to stdout when no `--output` is given, and `anccostviz` reads stdin when no
+Both write to stdout when no `--output` is given, and `anccosttable` reads stdin when no
 `--input` is — the same convention `trace` and `viz` follow.
 
 Split the way `trace` and `viz` are: one reports what was spent and decides nothing about
