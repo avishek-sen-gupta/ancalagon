@@ -664,7 +664,7 @@ There is no `ancalagon usage` verb — the schema is the query surface, and `Met
 `MeterStore.tokens_by_agent` are the same two queries for callers already holding a bus.
 `scripts/anccost.zsh` is one rollup over that surface rather than the only one, which is why it
 is a script and not a verb: a verb would freeze a single way of slicing the table. It emits JSON
-and `scripts/anctable.zsh` renders it, the same split as `trace` and `viz` — so a report can be
+and `scripts/anccostviz.zsh` renders it, the same split as `trace` and `viz` — so a report can be
 piped to `jq` as readily as to a table, and the columns size to whatever task names a run
 happens to have. Both report `cache_read` apart from `prompt` because a cached token is not
 billed as a fresh one.

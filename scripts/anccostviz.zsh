@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # Renders an anccost report as a table, sizing every column to what is actually in it.
-# Usage: anccost <config.toml | dir> | anctable [--by-agent]
-#        anctable --input report.json [--output table.txt] [--by-agent]
+# Usage: anccost <config.toml | dir> | anccostviz [--by-agent]
+#        anccostviz --input report.json [--output table.txt] [--by-agent]
 # Decides nothing about what was measured, only how to show it.
 set -uo pipefail
 
@@ -31,7 +31,7 @@ def line(name, row, size):
     return name.ljust(size["label"]) + "  " + cells
 
 
-parser = argparse.ArgumentParser(prog="anctable")
+parser = argparse.ArgumentParser(prog="anccostviz")
 parser.add_argument("--input", default="", help="read here instead of stdin")
 parser.add_argument("--output", default="", help="write here instead of stdout")
 parser.add_argument("--by-agent", action="store_true", help="show each agent within a run")
