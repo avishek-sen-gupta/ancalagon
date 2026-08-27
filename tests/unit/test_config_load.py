@@ -1,5 +1,7 @@
+import collections.abc
 import pathlib
 
+import pydantic
 import pytest
 
 from ancalagon.config.load import load_config
@@ -103,16 +105,21 @@ def test_the_sandbox_strategy_and_its_domains_come_from_the_config(tmp_path: pat
 
 
 def test_roles_load_with_their_contracts_and_prose_is_the_absent_default(
-    tmp_path: pathlib.Path,
+    tmp_path: pathlib.Path, importable: collections.abc.Callable[[pathlib.Path], None]
 ):
-    shapes = tmp_path / "shapes.py"
-    shapes.write_text("import pydantic\n\n\nclass Component(pydantic.BaseModel):\n    name: str\n")
+    package = tmp_path / "shapekit"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "shapes.py").write_text(
+        "import pydantic\n\n\nclass Component(pydantic.BaseModel):\n    name: str\n"
+    )
+    importable(tmp_path)
     config = _written(
         tmp_path,
         """
 [roles.analyst]
 behaviour = "Analyse."
-answer = { module = "./shapes.py", name = "Component" }
+answer = { module = "shapekit.shapes", name = "Component" }
 tools = ["read_file", "delegate_scout"]
 budget = { turns = 12, tool_calls = 30 }
 
@@ -127,19 +134,24 @@ budget = { turns = 4, tool_calls = 8 }
 
     assert sorted(roles) == ["analyst", "scout"]
     assert roles["analyst"].behaviour == "Analyse."
-    assert roles["analyst"].answer == ClassRef(module=str(shapes), name="Component")
+    assert roles["analyst"].answer == ClassRef(module="shapekit.shapes", name="Component")
     assert roles["analyst"].tools == ("read_file", "delegate_scout")
     assert roles["analyst"].budget == Budget(turns=12, tool_calls=30)
     assert roles["scout"].answer == FREE_TEXT
     assert roles["scout"].input == FREE_TEXT
 
-    spaced = tmp_path / "spaced.toml"
-    spaced.write_text(
-        TEMPLATE.format(
-            run=REQUIRED_RUN,
-            block='[roles."field scout"]\nbehaviour = "Look."\ntools = []\n'
-            "budget = { turns = 4, tool_calls = 8 }\n",
-        )
+
+def test_a_config_naming_a_file_path_is_refused_at_load(tmp_path: pathlib.Path):
+    config = _written(
+        tmp_path,
+        """
+[roles.analyst]
+behaviour = "Analyse."
+answer = { module = "./shapes.py", name = "Component" }
+tools = ["read_file"]
+budget = { turns = 12, tool_calls = 30 }
+""",
     )
-    with pytest.raises(ValueError, match=r"\[roles.field scout\]"):
-        load_config(spaced, RealFileSystem())
+
+    with pytest.raises(pydantic.ValidationError, match="module"):
+        load_config(config, RealFileSystem())

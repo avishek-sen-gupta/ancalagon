@@ -1,7 +1,9 @@
-# Names one contract class by the module path that defines it.
+# Names one contract class by the dotted module that defines it.
 import pydantic
+
+from ancalagon.contracts.dotted import DOTTED, IDENTIFIER
 
 
 class ClassRef(pydantic.BaseModel, frozen=True):
-    module: str
-    name: str = pydantic.Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    module: str = pydantic.Field(pattern=DOTTED)
+    name: str = pydantic.Field(pattern=IDENTIFIER)

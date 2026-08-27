@@ -1,13 +1,12 @@
 # Whether a hook can receive what the tool it is wired to will pass it.
 import collections.abc
+import importlib
 import inspect
-import pathlib
 import typing
 
 import pydantic
 
 from ancalagon.contracts.function_ref import FunctionRef
-from ancalagon.contracts.resolve import module_of
 
 POSITIONAL = inspect.Parameter.POSITIONAL_OR_KEYWORD
 
@@ -48,7 +47,7 @@ def _receives(
 
 
 def accepts(ref: FunctionRef, args_model: type[pydantic.BaseModel], arity: int) -> str:
-    module = module_of(pathlib.PurePath(ref.module))
+    module = importlib.import_module(ref.module)
     if not hasattr(module, ref.name):
         return f"is absent from {ref.module}"
     found = getattr(module, ref.name)
