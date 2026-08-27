@@ -10,7 +10,6 @@ from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
-from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.role import Role
 from ancalagon.env.real_environment import RealEnvironment
 from ancalagon.fs.real_file_system import RealFileSystem
@@ -20,6 +19,7 @@ from ancalagon.supervisor.spawn_by_run import SpawnByRun
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
 from ancalagon.contracts.watch_request import WatchRequest
+from ancalagon.watch.watch_for import WATCH_FOR
 from tests.integration.prepared_run import prepared_run_dir
 
 WATCHING = ClassRef(module=WatchRequest.__module__, name="WatchRequest")
@@ -39,7 +39,7 @@ def test_a_watcher_process_wakes_the_supervisor_the_way_any_child_does(
         task_id="watcher",
         role=Role(
             behaviour="Wait for the blackboard.",
-            run=FunctionRef(module="ancalagon.watch.watch_for", name="watch_for"),
+            run=WATCH_FOR,
             input=WATCHING,
             tools=(),
             budget=Budget(turns=0, tool_calls=0),
