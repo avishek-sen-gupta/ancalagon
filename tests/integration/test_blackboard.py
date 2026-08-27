@@ -56,6 +56,7 @@ def test_a_watcher_process_wakes_the_supervisor_the_way_any_child_does(
         config_path=tmp_path / "unused.toml",
         environment=RealEnvironment(),
         fs=fs,
+        module="ancalagon.worker",
         sandbox=Unsandboxed(),
     )
     watching = WatchSpawner(

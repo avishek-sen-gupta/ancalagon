@@ -184,6 +184,7 @@ def _spawner(
         config_path=made,
         environment=RealEnvironment(),
         fs=fs,
+        module="ancalagon.worker",
         sandbox=sandbox,
     )
     watching = WatchSpawner(
