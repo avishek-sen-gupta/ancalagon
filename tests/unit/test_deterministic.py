@@ -39,6 +39,12 @@ def waits(given: Given, ctx: RunContext) -> Outcome[Produced]:
 
 def explodes(given: Given, ctx: RunContext) -> Outcome[Produced]:
     raise RuntimeError("the transform gave up")
+
+
+def reports_its_agent(given: Given, ctx: RunContext) -> Outcome[Produced]:
+    return Completed(
+        value=Produced(seen=str(ctx.agent_id)), summary=f"agent {ctx.agent_id}", spent=NOTHING
+    )
 """
 
 CONFIG = """
@@ -145,3 +151,15 @@ def test_a_run_function_that_raises_records_a_failure_the_way_a_worker_does(
     assert written["summary"] == "the transform gave up"
     assert "RuntimeError: the transform gave up" in written["error"]
     assert written["spent"] == {"turns": 0, "tool_calls": 0}
+
+
+def test_a_run_function_is_told_which_agent_it_is(
+    tmp_path: pathlib.Path, importable: collections.abc.Callable[[pathlib.Path], None]
+):
+    config_path, task_dir = _prepared(tmp_path, importable, "reports_its_agent")
+
+    assert main(tmp_path, task_dir, 12, config_path) == 0
+
+    written = json.loads((task_dir / "outcome-12.json").read_text())
+    assert written["value"] == {"seen": "12"}
+    assert written["summary"] == "agent 12"
