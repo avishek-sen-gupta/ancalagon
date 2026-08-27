@@ -140,6 +140,17 @@ budget = { turns = 4, tool_calls = 8 }
     assert roles["scout"].answer == FREE_TEXT
     assert roles["scout"].input == FREE_TEXT
 
+    spaced = tmp_path / "spaced.toml"
+    spaced.write_text(
+        TEMPLATE.format(
+            run=REQUIRED_RUN,
+            block='[roles."field scout"]\nbehaviour = "Look."\ntools = []\n'
+            "budget = { turns = 4, tool_calls = 8 }\n",
+        )
+    )
+    with pytest.raises(ValueError, match=r"\[roles.field scout\]"):
+        load_config(spaced, RealFileSystem())
+
 
 def test_a_config_naming_a_file_path_is_refused_at_load(tmp_path: pathlib.Path):
     config = _written(
