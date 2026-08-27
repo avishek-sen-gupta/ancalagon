@@ -40,6 +40,7 @@ def resolve_run(ref: FunctionRef) -> Run:
 def _outcome(
     run_dir: pathlib.PurePath,
     task_dir: pathlib.PurePath,
+    agent_id: int,
     config_path: pathlib.PurePath,
     fs: FileSystem,
 ) -> Outcome[pydantic.BaseModel]:
@@ -48,7 +49,13 @@ def _outcome(
     spec = TaskSpec.model_validate_json(spec_text)
     input_class = resolve_class(spec.role.input)
     given = AgentSpec[input_class].model_validate_json(spec_text).input
-    ctx = RunContext(fs=fs, clock=SystemClock(), task_dir=task_dir, run_dir=run_dir)
+    ctx = RunContext(
+        fs=fs,
+        clock=SystemClock(),
+        task_dir=task_dir,
+        run_dir=run_dir,
+        agent_id=agent_id,
+    )
     return resolve_run(spec.role.run)(given, ctx)
 
 
@@ -61,7 +68,7 @@ def main(
     fs = RealFileSystem()
     outcome_path = task_dir / f"outcome-{agent_id}.json"
     try:
-        produced = _outcome(run_dir, task_dir, config_path, fs)
+        produced = _outcome(run_dir, task_dir, agent_id, config_path, fs)
         fs.write_text(outcome_path, produced.model_dump_json())
         return 0
     except Exception as exc:

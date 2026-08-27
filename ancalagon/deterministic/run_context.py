@@ -1,4 +1,5 @@
-# What a run function is given besides its input: the ports, and where this task lives.
+# What a run function is given besides its input: the ports, where this task lives,
+# and which agent it is.
 import dataclasses
 import pathlib
 
@@ -12,3 +13,4 @@ class RunContext:
     clock: Clock
     task_dir: pathlib.PurePath
     run_dir: pathlib.PurePath
+    agent_id: int

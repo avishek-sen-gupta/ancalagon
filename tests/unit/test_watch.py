@@ -84,7 +84,7 @@ def test_a_watcher_waits_until_the_file_it_was_given_changes(tmp_path: pathlib.P
     board.write_text("first\n")
     before = fs.changed_at(board)
     clock = WritingClock(board, after=3)
-    ctx = RunContext(fs=fs, clock=clock, task_dir=tmp_path, run_dir=tmp_path)
+    ctx = RunContext(fs=fs, clock=clock, task_dir=tmp_path, run_dir=tmp_path, agent_id=1)
 
     outcome = watch_for(WatchRequest(path=str(board), since=before), ctx)
 
