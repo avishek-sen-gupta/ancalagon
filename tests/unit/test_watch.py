@@ -41,9 +41,6 @@ class FakeProcess(Process):
         return None
 
 
-WATCHES = str(pathlib.Path(WatchRequest.__module__.replace(".", "/") + ".py"))
-
-
 def _config(tmp_path: pathlib.Path, roles: dict[str, Role]) -> Config:
     return Config(
         write_root=tmp_path,
@@ -223,7 +220,7 @@ def test_watch_file_is_offered_only_where_a_role_declares_the_watch_contract(
     migrate_file(tmp_path / "bus.db", latest_version(fs), fs)
     watcher = Role(
         behaviour="Wait.",
-        input=ClassRef(module=WATCHES, name="WatchRequest"),
+        input=ClassRef(module=WatchRequest.__module__, name="WatchRequest"),
         tools=(),
         budget=Budget(turns=0, tool_calls=0),
     )

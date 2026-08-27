@@ -1,3 +1,4 @@
+import collections.abc
 import pathlib
 
 import pydantic
@@ -37,8 +38,8 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
 
     role = Role(
         behaviour="You summarise.",
-        input=ClassRef(module="node_summary.py", name="NodeSummary"),
-        answer=ClassRef(module="node_summary.py", name="NodeSummary"),
+        input=ClassRef(module="node_summary", name="NodeSummary"),
+        answer=ClassRef(module="node_summary", name="NodeSummary"),
         tools=(),
         budget=budget,
     )
@@ -53,7 +54,7 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
 
     written = spec.model_dump_json()
     assert TaskSpec.model_validate_json(written).role.input == ClassRef(
-        module="node_summary.py", name="NodeSummary"
+        module="node_summary", name="NodeSummary"
     )
     assert AgentSpec[NodeSummary].model_validate_json(written).input.confidence == 1
 
@@ -84,14 +85,6 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
     failed = Failed(error="boom", summary="died", spent=Budget(turns=0, tool_calls=0))
     assert adapter.validate_json(failed.model_dump_json()) == failed
 
-    module = tmp_path / "verdict.py"
-    module.write_text("import pydantic\n\n\nclass Verdict(pydantic.BaseModel):\n    ok: bool\n")
-    resolved = resolve_class(ClassRef(module=str(module), name="Verdict"))
-    with pytest.raises(pydantic.ValidationError):
-        ClassRef(module=str(module), name="not a class")
-    assert resolved.__name__ == "Verdict"
-    assert resolved.model_validate_json('{"ok": true}').model_dump() == {"ok": True}
-
     assert FreeText(text="plain").text == "plain"
 
 
@@ -101,9 +94,16 @@ def test_run_settings_default_to_empty_and_carry_a_role_name():
     assert (RunSettings().input_file, RunSettings().role) == ("", "")
 
 
-def test_a_role_defaults_to_prose_and_resolves_the_contracts_it_names(tmp_path: pathlib.Path):
-    module = tmp_path / "shapes.py"
-    module.write_text("import pydantic\n\n\nclass Component(pydantic.BaseModel):\n    name: str\n")
+def test_a_role_defaults_to_prose_and_resolves_the_contracts_it_names(
+    tmp_path: pathlib.Path, importable: collections.abc.Callable[[pathlib.Path], None]
+):
+    package = tmp_path / "shapekit"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "shapes.py").write_text(
+        "import pydantic\n\n\nclass Component(pydantic.BaseModel):\n    name: str\n"
+    )
+    importable(tmp_path)
 
     prose = Role(
         behaviour="Investigate.", tools=("read_file",), budget=Budget(turns=4, tool_calls=8)
@@ -113,36 +113,27 @@ def test_a_role_defaults_to_prose_and_resolves_the_contracts_it_names(tmp_path: 
 
     named = Role(
         behaviour="Analyse.",
-        answer=ClassRef(module=str(module), name="Component"),
+        answer=ClassRef(module="shapekit.shapes", name="Component"),
         tools=("read_file",),
         budget=Budget(turns=4, tool_calls=8),
     )
-    assert resolve_class(named.answer).model_fields.keys() == {"name"}
+    component = resolve_class(named.answer)
+    fields = set(component.model_fields)
+    assert fields == {"name"}
+    assert resolve_class(named.answer) is component
     assert resolve_class(named.input) is FreeText
 
-    dir_a = tmp_path / "a"
-    dir_b = tmp_path / "b"
-    dir_a.mkdir()
-    dir_b.mkdir()
-    (dir_a / "shapes.py").write_text(
-        "import pydantic\n\n\nclass Shape(pydantic.BaseModel):\n    width: int\n"
-    )
-    (dir_b / "shapes.py").write_text(
-        "import pydantic\n\n\nclass Shape(pydantic.BaseModel):\n    height: int\n"
-    )
-    ref_a = ClassRef(module=str(dir_a / "shapes.py"), name="Shape")
-    ref_b = ClassRef(module=str(dir_b / "shapes.py"), name="Shape")
-
-    shape_a = resolve_class(ref_a)
-    shape_b = resolve_class(ref_b)
-    shape_a_again = resolve_class(ref_a)
-
-    assert shape_a.model_fields.keys() == {"width"}
-    assert shape_b.model_fields.keys() == {"height"}
-    assert shape_a_again is shape_a
+    with pytest.raises(pydantic.ValidationError):
+        ClassRef(module="shapekit.shapes", name="not a class")
+    with pytest.raises(pydantic.ValidationError):
+        ClassRef(module="./shapekit/shapes.py", name="Component")
+    with pytest.raises(pydantic.ValidationError):
+        ClassRef(module=str(tmp_path / "shapekit" / "shapes.py"), name="Component")
 
     with pytest.raises(AttributeError):
-        resolve_class(ClassRef(module=str(module), name="Absent"))
+        resolve_class(ClassRef(module="shapekit.shapes", name="Absent"))
+    with pytest.raises(ModuleNotFoundError):
+        resolve_class(ClassRef(module="shapekit.absent", name="Component"))
 
 
 def test_an_outcome_header_reads_the_kind_from_any_outcome():
