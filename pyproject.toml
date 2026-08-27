@@ -61,6 +61,7 @@ layers = [
     "ancalagon.attempt",
     "ancalagon.llm : ancalagon.transcript",
     "ancalagon.workspace",
+    "ancalagon.deterministic",
     "ancalagon.config",
     "ancalagon.contracts : ancalagon.clock : ancalagon.sandbox",
     "ancalagon.migrations",
