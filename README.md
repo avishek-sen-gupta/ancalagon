@@ -259,6 +259,21 @@ answer, `Idling` when it has spawned a child and wants to be woken once that chi
 than let escape. A deterministic agent spends no model turns, so it reports `spent=NOTHING`
 whichever ending it returns.
 
+There is no helper for spawning that child — a run function does what `DelegateTo.run` does:
+`ctx.fs.mkdir` the child's task directory, write an `AgentSpec` to `spec.json` there with
+`ctx.fs.write_text`, then open the bus at `ctx.run_dir / "bus.db"` and
+`enqueue(child_dir, parent_agent=ctx.agent_id)`. Use `ctx.agent_id` exactly, not any other
+value: waking matches a child to its parent by `parent_agent`, so a child enqueued under the
+wrong id can never wake the task that spawned it. See "What being woken means" in
+`docs/architecture.md` before relying on `Idling` — a woken run function is called again from
+scratch, not resumed, so it must guard its own re-enqueuing the way `DelegateTo.run` and
+`WatchFile._queued` guard theirs, with `active_for`.
+
+The child's role needs no entry in the config. Build one in Python from `Role`, `FunctionRef`,
+`ClassRef` and `Budget`, the way `tests/integration/test_blackboard.py` does. Contract
+derivation from a run function's signature is a config-loader concern, so a hand-built `Role`
+must state its `input` and `answer` itself.
+
 The harness does not check that a role graph makes sense:
 
 | Role holds | But lacks | Consequence |
