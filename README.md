@@ -249,9 +249,15 @@ budget = { turns = 0, tool_calls = 0 }
 ```
 
 A run function takes two positional parameters — the first annotated with the input contract,
-the second `RunContext` — and returns the answer contract by its return annotation. The loader
+the second `RunContext` — and returns `Outcome[X]`, where `X` is the answer contract. The loader
 reads the role's `input` and `answer` from that signature, so a role that declares `run` must not
 also declare `input` or `answer`.
+
+The function picks its own ending, the same way a session does: `Completed` when it has an
+answer, `Idling` when it has spawned a child and wants to be woken once that child settles,
+`NeedsInput` to ask its parent a question, `Failed` to report a failure it handled itself rather
+than let escape. A deterministic agent spends no model turns, so it reports `spent=NOTHING`
+whichever ending it returns.
 
 The harness does not check that a role graph makes sense:
 

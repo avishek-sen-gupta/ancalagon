@@ -6,9 +6,10 @@ import pydantic
 
 from ancalagon.contracts.arity import arity_fault
 from ancalagon.contracts.class_ref import ClassRef
-from ancalagon.contracts.declared import annotation_fault
+from ancalagon.contracts.declared import Declared, annotation_fault
 from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.named_callable import named_callable
+from ancalagon.contracts.outcome_arg import outcome_arg
 
 RUN_ARITY = 2
 
@@ -17,10 +18,8 @@ def _ref_of(cls: type[pydantic.BaseModel]) -> ClassRef:
     return ClassRef(module=cls.__module__, name=cls.__name__)
 
 
-def _must(
-    found: collections.abc.Callable[..., object], key: str, label: str, ref: FunctionRef
-) -> type[pydantic.BaseModel]:
-    match annotation_fault(found, key, label):
+def _must(pair: Declared, ref: FunctionRef) -> type[pydantic.BaseModel]:
+    match pair:
         case (None, fault):
             raise ValueError(f"{ref.name} in {ref.module} {fault}")
         case (declared, _):
@@ -40,6 +39,6 @@ def run_contracts(ref: FunctionRef) -> tuple[ClassRef, ClassRef]:
     if fault := arity_fault(found, RUN_ARITY):
         raise ValueError(f"{ref.name} in {ref.module} {fault}")
     first = next(iter(inspect.signature(found).parameters.values())).name
-    given = _must(found, first, f"its first parameter, {first}", ref)
-    produced = _must(found, "return", "its return", ref)
+    given = _must(annotation_fault(found, first, f"its first parameter, {first}"), ref)
+    produced = _must(outcome_arg(found), ref)
     return _ref_of(given), _ref_of(produced)

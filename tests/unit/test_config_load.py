@@ -171,9 +171,11 @@ budget = { turns = 12, tool_calls = 30 }
 
 
 RUNNERS = """
-from __future__ import annotations
-
 import pydantic
+
+from ancalagon.contracts.nothing import NOTHING
+from ancalagon.contracts.completed import Completed
+from ancalagon.contracts.outcome import Outcome
 
 
 class Given(pydantic.BaseModel, frozen=True):
@@ -184,32 +186,40 @@ class Produced(pydantic.BaseModel, frozen=True):
     at: float
 
 
-def good(given: Given, ctx: pydantic.BaseModel) -> Produced:
-    return Produced(at=1.0)
+def good(given: Given, ctx: pydantic.BaseModel) -> Outcome[Produced]:
+    return Completed(value=Produced(at=1.0), summary="done", spent=NOTHING)
 
 
-def one_parameter(given: Given) -> Produced:
-    return Produced(at=1.0)
+def one_parameter(given: Given) -> Outcome[Produced]:
+    return Completed(value=Produced(at=1.0), summary="done", spent=NOTHING)
 
 
-def bare(given, ctx) -> Produced:
-    return Produced(at=1.0)
+def bare(given, ctx) -> Outcome[Produced]:
+    return Completed(value=Produced(at=1.0), summary="done", spent=NOTHING)
 
 
-def not_a_model(given: int, ctx: pydantic.BaseModel) -> Produced:
-    return Produced(at=1.0)
+def not_a_model(given: int, ctx: pydantic.BaseModel) -> Outcome[Produced]:
+    return Completed(value=Produced(at=1.0), summary="done", spent=NOTHING)
 
 
 def no_return(given: Given, ctx: pydantic.BaseModel):
-    return Produced(at=1.0)
+    return Completed(value=Produced(at=1.0), summary="done", spent=NOTHING)
 
 
 def returns_a_scalar(given: Given, ctx: pydantic.BaseModel) -> int:
     return 1
 
 
-def unresolvable(given: NoSuchClass, ctx: pydantic.BaseModel) -> Produced:
+def returns_a_bare_model(given: Given, ctx: pydantic.BaseModel) -> Produced:
     return Produced(at=1.0)
+
+
+def returns_an_unparameterised_outcome(given: Given, ctx: pydantic.BaseModel) -> Outcome:
+    return Completed(value=Produced(at=1.0), summary="done", spent=NOTHING)
+
+
+def returns_a_bad_argument(given: Given, ctx: pydantic.BaseModel) -> Outcome[int]:
+    return Completed(value=Produced(at=1.0), summary="done", spent=NOTHING)
 """
 
 
@@ -257,10 +267,13 @@ def test_a_role_naming_a_run_function_takes_its_contracts_from_the_signature(
     assert "does not annotate its first parameter, given" in fault("bare")
     assert "annotates given as <class 'int'>, which is not a model class" in fault("not_a_model")
     assert "does not annotate its return" in fault("no_return")
-    assert "annotates return as <class 'int'>, which is not a model class" in fault(
-        "returns_a_scalar"
+    assert fault("returns_a_scalar") == (
+        "returns_a_scalar in runkit.runners annotates return as <class 'int'>, "
+        "which is not Outcome[...]"
     )
-    assert "has an annotation that cannot be resolved" in fault("unresolvable")
+    assert "which is not Outcome[...]" in fault("returns_a_bare_model")
+    assert "which is not Outcome[...]" in fault("returns_an_unparameterised_outcome")
+    assert "which is not one model class" in fault("returns_a_bad_argument")
     assert fault("absent") == "absent in runkit.runners is absent from runkit.runners"
 
     both = _with_run(

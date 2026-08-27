@@ -225,6 +225,9 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
 RUNKIT = """
 import pydantic
 
+from ancalagon.contracts.completed import Completed
+from ancalagon.contracts.nothing import NOTHING
+from ancalagon.contracts.outcome import Outcome
 from ancalagon.deterministic.run_context import RunContext
 
 
@@ -236,8 +239,8 @@ class Produced(pydantic.BaseModel, frozen=True):
     seen: str
 
 
-def echo(given: Given, ctx: RunContext) -> Produced:
-    return Produced(seen=given.path)
+def echo(given: Given, ctx: RunContext) -> Outcome[Produced]:
+    return Completed(value=Produced(seen=given.path), summary="done", spent=NOTHING)
 """
 
 
