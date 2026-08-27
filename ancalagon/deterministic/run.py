@@ -10,7 +10,7 @@ import typing
 import pydantic
 
 from ancalagon.clock.system_clock import SystemClock
-from ancalagon.config.importable import importable
+from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.completed import Completed
@@ -44,7 +44,7 @@ def _completed(
     config_path: pathlib.PurePath,
     fs: FileSystem,
 ) -> Completed[pydantic.BaseModel]:
-    importable(fs.resolve(config_path).parent)
+    load_config(config_path, fs)
     spec_text = fs.read_text(task_dir / "spec.json")
     spec = TaskSpec.model_validate_json(spec_text)
     input_class = resolve_class(spec.role.input)

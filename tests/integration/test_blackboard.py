@@ -52,7 +52,40 @@ def test_a_watcher_process_wakes_the_supervisor_the_way_any_child_does(
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), fs)
     agent = bus.enqueue(task_dir, parent_agent=HUMAN)
 
-    (tmp_path / "watcher.toml").write_text("")
+    (tmp_path / "watcher.toml").write_text("""
+[workspace]
+write_root = "./ws"
+read_roots = ["./ws"]
+
+[model]
+name = "some-provider/some-model"
+num_retries = 2
+request_timeout_s = 120
+max_tokens = 4000
+allowed_domains = []
+
+[limits]
+max_concurrent_agents = 1
+agent_timeout_s = 300
+max_depth = 1
+compact_above_tokens = 60000
+keep_recent_messages = 8
+summary_chars = 1000
+
+[sandbox]
+strategy = "fence"
+
+[roles.blackboard_watcher]
+behaviour = "Wait for the blackboard."
+run = { module = "ancalagon.watch.watch_for", name = "watch_for" }
+tools = []
+budget = { turns = 0, tool_calls = 0 }
+
+[run]
+goal_file = ""
+input_file = ""
+role = "blackboard_watcher"
+""")
     ordinary = SubprocessSpawner(
         run_dir=run_dir,
         config_path=tmp_path / "watcher.toml",
