@@ -12,6 +12,7 @@ from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.budget import Budget
 from ancalagon.config.config import Config
 from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.no_run import NO_RUN
@@ -85,11 +86,14 @@ def test_a_watcher_waits_until_the_file_it_was_given_changes(tmp_path: pathlib.P
     clock = WritingClock(board, after=3)
     ctx = RunContext(fs=fs, clock=clock, task_dir=tmp_path, run_dir=tmp_path)
 
-    watched = watch_for(WatchRequest(path=str(board), since=before), ctx)
+    outcome = watch_for(WatchRequest(path=str(board), since=before), ctx)
 
     assert clock.slept == 3
-    assert watched.path == str(board)
-    assert watched.at > before
+    assert isinstance(outcome, Completed)
+    assert outcome.value.path == str(board)
+    assert outcome.value.at > before
+    assert outcome.summary == f"{board} changed at {outcome.value.at}"
+    assert outcome.spent == Budget(turns=0, tool_calls=0)
 
 
 def test_a_dispatching_spawner_picks_the_runner_when_the_role_names_a_run_function(

@@ -13,6 +13,10 @@ from ancalagon.fs.real_file_system import RealFileSystem
 RUNNERS = """
 import pydantic
 
+from ancalagon.contracts.completed import Completed
+from ancalagon.contracts.idling import Idling
+from ancalagon.contracts.nothing import NOTHING
+from ancalagon.contracts.outcome import Outcome
 from ancalagon.deterministic.run_context import RunContext
 
 
@@ -24,11 +28,16 @@ class Produced(pydantic.BaseModel, frozen=True):
     seen: str
 
 
-def echo(given: Given, ctx: RunContext) -> Produced:
-    return Produced(seen=ctx.fs.read_text(ctx.task_dir / given.path))
+def echo(given: Given, ctx: RunContext) -> Outcome[Produced]:
+    seen = ctx.fs.read_text(ctx.task_dir / given.path)
+    return Completed(value=Produced(seen=seen), summary=f"read {given.path}", spent=NOTHING)
 
 
-def explodes(given: Given, ctx: RunContext) -> Produced:
+def waits(given: Given, ctx: RunContext) -> Outcome[Produced]:
+    return Idling(summary="waiting for a child", spent=NOTHING)
+
+
+def explodes(given: Given, ctx: RunContext) -> Outcome[Produced]:
     raise RuntimeError("the transform gave up")
 """
 
@@ -101,13 +110,27 @@ def test_a_run_function_produces_the_outcome_a_supervisor_reads(
     written = json.loads((task_dir / "outcome-4.json").read_text())
     assert written["kind"] == "completed"
     assert written["value"] == {"seen": "a claim appeared"}
-    assert written["summary"] == '{"seen":"a claim appeared"}'
+    assert written["summary"] == "read board.md"
     assert written["spent"] == {"turns": 0, "tool_calls": 0}
     assert sorted(p.name for p in task_dir.iterdir()) == [
         "board.md",
         "outcome-4.json",
         "spec.json",
     ]
+
+
+def test_a_run_function_may_idle_instead_of_completing(
+    tmp_path: pathlib.Path, importable: collections.abc.Callable[[pathlib.Path], None]
+):
+    config_path, task_dir = _prepared(tmp_path, importable, "waits")
+
+    assert main(tmp_path, task_dir, 7, config_path) == 0
+
+    written = json.loads((task_dir / "outcome-7.json").read_text())
+    assert written["kind"] == "idling"
+    assert written["summary"] == "waiting for a child"
+    assert written["spent"] == {"turns": 0, "tool_calls": 0}
+    assert "value" not in written
 
 
 def test_a_run_function_that_raises_records_a_failure_the_way_a_worker_does(

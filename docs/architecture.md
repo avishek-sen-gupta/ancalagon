@@ -313,13 +313,15 @@ is the general such child: a role names a Python function instead of describing 
 model, the function's signature is the single statement of its input and answer contracts, and
 `SpawnByRun` picks this child over the worker whenever a role's `run` is set. It reads `spec.json`
 as an `AgentSpec[Given]`, calls the named function with that input and a `RunContext`, and writes
-whatever it returns as a `Completed[Produced]` — no bus row, no session, and no knowledge of what
-any particular function does.
+whatever `Outcome[Produced]` the function returned — no bus row, no session, and no knowledge of
+what any particular function does. The function picks the same ending a session picks, which is
+what makes the two indistinguishable to a parent: `Completed` with an answer, `Idling` to be
+woken once a child it spawned settles, `NeedsInput`, or a `Failed` it caught itself.
 
 `ancalagon/watch/watch_for.py` is one run function among others: it polls the named file until it
-has changed past the moment the caller had already seen, and returns a `Watched`. Its purpose is
-to turn "a file changed" into "a child settled", which is the one thing `has_news` already knows
-how to wake on, so a blackboard needs no scheduling change.
+has changed past the moment the caller had already seen, and returns a `Completed[Watched]`. Its
+purpose is to turn "a file changed" into "a child settled", which is the one thing `has_news`
+already knows how to wake on, so a blackboard needs no scheduling change.
 
 A watcher's task is named for the agent that asked, not only for the name the agent chose:
 `watch_file` appends the watching task's own name, so `wait` from two analysts becomes
