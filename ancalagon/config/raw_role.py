@@ -16,6 +16,7 @@ class RawRole(pydantic.BaseModel, frozen=True):
     behaviour: str
     input: RawClassRef = RawClassRef()
     answer: RawClassRef = RawClassRef()
+    run: RawClassRef = RawClassRef()
     tools: list[str]
     budget: RawBudget
     before: dict[str, list[RawClassRef]] = {}

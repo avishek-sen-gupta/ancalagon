@@ -1,3 +1,4 @@
+import collections.abc
 import pathlib
 
 import pydantic
@@ -5,12 +6,16 @@ import pytest
 
 from ancalagon.cli import check_contracts
 from ancalagon.clock.system_clock import SystemClock
+from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.accepted import Accepted
+from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.reviewed import Reviewed
+from ancalagon.contracts.role import FREE_TEXT, Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.tools.registry.accepts import accepts
@@ -75,17 +80,22 @@ not_a_function = 3
 
 
 @pytest.fixture
-def hooks(tmp_path: pathlib.Path) -> pathlib.Path:
-    path = tmp_path / "hooks.py"
-    path.write_text(MODULE)
-    return path
+def hooks(
+    tmp_path: pathlib.Path, importable: collections.abc.Callable[[pathlib.Path], None]
+) -> str:
+    package = tmp_path / "hookkit"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "hooks.py").write_text(MODULE)
+    importable(tmp_path)
+    return "hookkit.hooks"
 
 
 def test_a_hook_is_accepted_only_when_it_can_receive_what_the_tool_will_pass(
-    hooks: pathlib.Path,
+    hooks: str,
 ):
     def fault(name: str, args_model: type[pydantic.BaseModel], arity: int = 2) -> str:
-        return accepts(FunctionRef(module=str(hooks), name=name), args_model, arity)
+        return accepts(FunctionRef(module=hooks, name=name), args_model, arity)
 
     assert fault("narrow", GrepArgs) == ""
     assert fault("general", GrepArgs) == ""
@@ -109,20 +119,20 @@ def test_a_hook_is_accepted_only_when_it_can_receive_what_the_tool_will_pass(
 
 
 def test_resolvers_return_a_usable_hook_and_refuse_one_of_the_wrong_shape(
-    hooks: pathlib.Path,
+    hooks: str,
 ):
     given = GrepArgs(pattern="x", roots=[])
-    before = resolve_before(FunctionRef(module=str(hooks), name="narrow"), GrepArgs)
+    before = resolve_before(FunctionRef(module=hooks, name="narrow"), GrepArgs)
     assert before(given, None) == Accepted(value=given)  # pyright: ignore[reportArgumentType]
 
-    after = resolve_after(FunctionRef(module=str(hooks), name="reviewing"), GrepArgs)
+    after = resolve_after(FunctionRef(module=hooks, name="reviewing"), GrepArgs)
     assert isinstance(after, object)
 
     with pytest.raises(ValueError, match="takes TransformArgs, but the tool passes GrepArgs"):
-        resolve_before(FunctionRef(module=str(hooks), name="other_tool"), GrepArgs)
+        resolve_before(FunctionRef(module=hooks, name="other_tool"), GrepArgs)
 
     with pytest.raises(ValueError, match="must take 3 positional parameters"):
-        resolve_after(FunctionRef(module=str(hooks), name="narrow"), GrepArgs)
+        resolve_after(FunctionRef(module=hooks, name="narrow"), GrepArgs)
 
 
 CONFIG = """
@@ -155,12 +165,12 @@ budget = { turns = 2, tool_calls = 4 }
 
 [roles.root.before]
 ripgrep = [
-  { module = "./hooks.py", name = "narrow" },
-  { module = "./hooks.py", name = "general" },
+  { module = "hookkit.hooks", name = "narrow" },
+  { module = "hookkit.hooks", name = "general" },
 ]
 
 [roles.root.after]
-ripgrep = [{ module = "./hooks.py", name = "reviewing" }]
+ripgrep = [{ module = "hookkit.hooks", name = "reviewing" }]
 
 [run]
 goal_file = "./goal.md"
@@ -170,7 +180,7 @@ role = "root"
 
 
 def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_names(
-    tmp_path: pathlib.Path, hooks: pathlib.Path
+    tmp_path: pathlib.Path, hooks: str
 ):
     fs = RealFileSystem()
     (tmp_path / "goal.md").write_text("go")
@@ -180,11 +190,11 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
     role = config.roles["root"]
     assert role.before == {
         "ripgrep": (
-            FunctionRef(module=str(hooks), name="narrow"),
-            FunctionRef(module=str(hooks), name="general"),
+            FunctionRef(module=hooks, name="narrow"),
+            FunctionRef(module=hooks, name="general"),
         )
     }
-    assert role.after == {"ripgrep": (FunctionRef(module=str(hooks), name="reviewing"),)}
+    assert role.after == {"ripgrep": (FunctionRef(module=hooks, name="reviewing"),)}
     check_contracts(config)
 
     registry = build_registry(
@@ -200,16 +210,66 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
     assert sorted(registry.names()) == ["idle", "ripgrep", "submit_answer"]
 
     mismatched = role.model_copy(
-        update={"before": {"ripgrep": (FunctionRef(module=str(hooks), name="other_tool"),)}}
+        update={"before": {"ripgrep": (FunctionRef(module=hooks, name="other_tool"),)}}
     )
     with pytest.raises(ValueError, match="takes TransformArgs, but the tool passes GrepArgs"):
         check_contracts(config.model_copy(update={"roles": {"root": mismatched}}))
 
     unknown = role.model_copy(
-        update={"before": {"transform_file": (FunctionRef(module=str(hooks), name="narrow"),)}}
+        update={"before": {"transform_file": (FunctionRef(module=hooks, name="narrow"),)}}
     )
     with pytest.raises(ValueError, match="names a hook for transform_file, which it does not use"):
         check_contracts(config.model_copy(update={"roles": {"root": unknown}}))
+
+
+RUNKIT = """
+import pydantic
+
+from ancalagon.deterministic.run_context import RunContext
+
+
+class Given(pydantic.BaseModel, frozen=True):
+    path: str
+
+
+class Produced(pydantic.BaseModel, frozen=True):
+    seen: str
+
+
+def echo(given: Given, ctx: RunContext) -> Produced:
+    return Produced(seen=given.path)
+"""
+
+
+def test_check_contracts_refuses_a_role_whose_answer_disagrees_with_its_run_function(
+    tmp_path: pathlib.Path, importable: collections.abc.Callable[[pathlib.Path], None]
+):
+    package = tmp_path / "runkit"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "runners.py").write_text(RUNKIT)
+    importable(tmp_path)
+
+    role = Role(
+        behaviour="Run it.",
+        run=FunctionRef(module="runkit.runners", name="echo"),
+        input=ClassRef(module="runkit.runners", name="Given"),
+        answer=FREE_TEXT,
+        tools=(),
+        budget=Budget(turns=0, tool_calls=0),
+    )
+    config = Config(
+        write_root=tmp_path,
+        read_roots=(tmp_path,),
+        model="m",
+        roles={"transformer": role},
+        max_depth=1,
+    )
+
+    with pytest.raises(ValueError, match="transformer") as raised:
+        check_contracts(config)
+    assert "echo" in str(raised.value)
+    assert "runkit.runners" in str(raised.value)
 
 
 def test_a_hook_sees_the_task_input_so_it_can_check_an_answer_against_what_was_asked(

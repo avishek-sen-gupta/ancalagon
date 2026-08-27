@@ -77,7 +77,7 @@ role = "root"
 """
 
 
-def _config(tmp_path: pathlib.Path, hooks: pathlib.Path) -> pathlib.Path:
+def _config(tmp_path: pathlib.Path, hooks: str) -> pathlib.Path:
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
     goal_file = tmp_path / "goal.md"
@@ -90,8 +90,11 @@ def _config(tmp_path: pathlib.Path, hooks: pathlib.Path) -> pathlib.Path:
 def test_a_declared_hook_refuses_an_answer_in_a_real_worker_until_the_agent_fixes_it(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ):
-    hooks = tmp_path / "hooks.py"
-    hooks.write_text(HOOKS)
+    package = tmp_path / "hookkit"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "hooks.py").write_text(HOOKS)
+    hooks = "hookkit.hooks"
     run_dir = tmp_path / "ws" / "runs" / "hooked"
     submitted: list[str] = []
 

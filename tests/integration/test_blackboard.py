@@ -15,14 +15,16 @@ from ancalagon.env.real_environment import RealEnvironment
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.sandbox.unsandboxed import Unsandboxed
 from ancalagon.schedule.newest_agent import newest_agent
-from ancalagon.supervisor.spawn_by_input import SpawnByInput
+from ancalagon.supervisor.spawn_by_run import SpawnByRun
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
-from ancalagon.supervisor.watch_spawner import WatchSpawner
 from ancalagon.contracts.watch_request import WatchRequest
+from ancalagon.contracts.watched import Watched
+from ancalagon.watch.watch_for import WATCH_FOR
 from tests.integration.prepared_run import prepared_run_dir
 
 WATCHING = ClassRef(module=WatchRequest.__module__, name="WatchRequest")
+WATCHED = ClassRef(module=Watched.__module__, name="Watched")
 
 
 def test_a_watcher_process_wakes_the_supervisor_the_way_any_child_does(
@@ -39,7 +41,9 @@ def test_a_watcher_process_wakes_the_supervisor_the_way_any_child_does(
         task_id="watcher",
         role=Role(
             behaviour="Wait for the blackboard.",
+            run=WATCH_FOR,
             input=WATCHING,
+            answer=WATCHED,
             tools=(),
             budget=Budget(turns=0, tool_calls=0),
         ),
@@ -51,23 +55,59 @@ def test_a_watcher_process_wakes_the_supervisor_the_way_any_child_does(
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), fs)
     agent = bus.enqueue(task_dir, parent_agent=HUMAN)
 
+    (tmp_path / "watcher.toml").write_text("""
+[workspace]
+write_root = "./ws"
+read_roots = ["./ws"]
+
+[model]
+name = "some-provider/some-model"
+num_retries = 2
+request_timeout_s = 120
+max_tokens = 4000
+allowed_domains = []
+
+[limits]
+max_concurrent_agents = 1
+agent_timeout_s = 300
+max_depth = 1
+compact_above_tokens = 60000
+keep_recent_messages = 8
+summary_chars = 1000
+
+[sandbox]
+strategy = "fence"
+
+[roles.blackboard_watcher]
+behaviour = "Wait for the blackboard."
+run = { module = "ancalagon.watch.watch_for", name = "watch_for" }
+tools = []
+budget = { turns = 0, tool_calls = 0 }
+
+[run]
+goal_file = ""
+input_file = ""
+role = "blackboard_watcher"
+""")
     ordinary = SubprocessSpawner(
         run_dir=run_dir,
-        config_path=tmp_path / "unused.toml",
+        config_path=tmp_path / "watcher.toml",
         environment=RealEnvironment(),
         fs=fs,
+        module="ancalagon.worker",
         sandbox=Unsandboxed(),
     )
-    watching = WatchSpawner(
+    watching = SubprocessSpawner(
         run_dir=run_dir,
-        config_path=tmp_path / "unused.toml",
+        config_path=tmp_path / "watcher.toml",
         environment=RealEnvironment(),
         fs=fs,
+        module="ancalagon.deterministic.run",
         sandbox=Unsandboxed(),
     )
     supervisor = Supervisor(
         bus=LifecycleStore.open(run_dir / "bus.db", SystemClock(), fs),
-        spawner=SpawnByInput(default=ordinary, by_input={"WatchRequest": watching}, fs=fs),
+        spawner=SpawnByRun(default=ordinary, deterministic=watching, fs=fs),
         max_concurrent=2,
         timeout_s=30,
         clock=SystemClock(),

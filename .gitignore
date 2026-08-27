@@ -36,14 +36,14 @@ specs/**/states/
 
 # Personal run config; contains local paths and a chosen model.
 ancalagon.toml
-checks.py
+checkkit/
 blackboard.toml
 bb/
 blackboard_goal.md
 wake_goal.md
 wake/
 wake.toml
-pong_checks.py
+pongkit/
 pong_goal.md
 pong/
 pong.toml
