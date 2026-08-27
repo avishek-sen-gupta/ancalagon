@@ -6,12 +6,16 @@ import pytest
 
 from ancalagon.cli import check_contracts
 from ancalagon.clock.system_clock import SystemClock
+from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.accepted import Accepted
+from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.reviewed import Reviewed
+from ancalagon.contracts.role import FREE_TEXT, Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.tools.registry.accepts import accepts
@@ -216,6 +220,56 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
     )
     with pytest.raises(ValueError, match="names a hook for transform_file, which it does not use"):
         check_contracts(config.model_copy(update={"roles": {"root": unknown}}))
+
+
+RUNKIT = """
+import pydantic
+
+from ancalagon.deterministic.run_context import RunContext
+
+
+class Given(pydantic.BaseModel, frozen=True):
+    path: str
+
+
+class Produced(pydantic.BaseModel, frozen=True):
+    seen: str
+
+
+def echo(given: Given, ctx: RunContext) -> Produced:
+    return Produced(seen=given.path)
+"""
+
+
+def test_check_contracts_refuses_a_role_whose_answer_disagrees_with_its_run_function(
+    tmp_path: pathlib.Path, importable: collections.abc.Callable[[pathlib.Path], None]
+):
+    package = tmp_path / "runkit"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "runners.py").write_text(RUNKIT)
+    importable(tmp_path)
+
+    role = Role(
+        behaviour="Run it.",
+        run=FunctionRef(module="runkit.runners", name="echo"),
+        input=ClassRef(module="runkit.runners", name="Given"),
+        answer=FREE_TEXT,
+        tools=(),
+        budget=Budget(turns=0, tool_calls=0),
+    )
+    config = Config(
+        write_root=tmp_path,
+        read_roots=(tmp_path,),
+        model="m",
+        roles={"transformer": role},
+        max_depth=1,
+    )
+
+    with pytest.raises(ValueError, match="transformer") as raised:
+        check_contracts(config)
+    assert "echo" in str(raised.value)
+    assert "runkit.runners" in str(raised.value)
 
 
 def test_a_hook_sees_the_task_input_so_it_can_check_an_answer_against_what_was_asked(
