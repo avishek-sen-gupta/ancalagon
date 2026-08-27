@@ -28,7 +28,7 @@ from ancalagon.tools.files.read_args import ReadArgs
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.watch.watch_args import WatchArgs
 from ancalagon.tools.watch.watch_file import WatchFile
-from ancalagon.watch.watch_for import watch_for
+from ancalagon.watch.watch_for import WATCH_FOR, watch_for
 from ancalagon.contracts.watch_request import WatchRequest
 from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
@@ -118,10 +118,9 @@ def test_a_dispatching_spawner_picks_the_runner_when_the_role_names_a_run_functi
         fs.write_text(made / "spec.json", spec.model_dump_json())
         return made
 
-    watching = FunctionRef(module="ancalagon.watch.watch_for", name="watch_for")
     dispatch = SpawnByRun(default=Noting("worker"), deterministic=Noting("runner"), fs=fs)
 
-    dispatch.spawn(task("a", watching), 1)
+    dispatch.spawn(task("a", WATCH_FOR), 1)
     dispatch.spawn(task("b", NO_RUN), 2)
 
     assert [label for label, _ in asked] == ["runner", "worker"]
@@ -185,6 +184,13 @@ def test_watch_file_is_offered_only_where_a_role_declares_the_watch_contract(
     watcher = Role(
         behaviour="Wait.",
         input=ClassRef(module=WatchRequest.__module__, name="WatchRequest"),
+        run=WATCH_FOR,
+        tools=(),
+        budget=Budget(turns=0, tool_calls=0),
+    )
+    undeclared_run = Role(
+        behaviour="Wait.",
+        input=ClassRef(module=WatchRequest.__module__, name="WatchRequest"),
         tools=(),
         budget=Budget(turns=0, tool_calls=0),
     )
@@ -217,6 +223,9 @@ def test_watch_file_is_offered_only_where_a_role_declares_the_watch_contract(
 
     with pytest.raises(ValueError, match="watch_file"):
         names({"participant": participant})
+
+    with pytest.raises(ValueError, match="watch_file"):
+        names({"undeclared_run": undeclared_run, "participant": participant})
 
 
 def test_two_agents_watching_the_same_file_get_a_watcher_each(tmp_path: pathlib.Path):
