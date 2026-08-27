@@ -250,10 +250,14 @@ def returns_a_bare_model(given: Given, ctx: pydantic.BaseModel) -> Produced:
 
 def returns_an_unparameterised_outcome(given: Given, ctx: pydantic.BaseModel) -> Outcome:
     return Completed(value=Produced(at=1.0), summary="done", spent=NOTHING)
+
+
+def returns_a_bad_argument(given: Given, ctx: pydantic.BaseModel) -> Outcome[int]:
+    return Completed(value=Produced(at=1.0), summary="done", spent=NOTHING)
 '''
 ```
 
-`returns_an_unparameterised_outcome` would be a Pyright error if written in a real module; `RUNNERS` is a string written to a temp file, so nothing type-checks it, and that is exactly the case the runtime check must catch.
+The last two would be Pyright errors if written in a real module; `RUNNERS` is a string written to a temp file, so nothing type-checks it, and those are exactly the cases the runtime check must catch. They fail differently, which was verified against the interpreter rather than assumed: a bare `Outcome` gives `typing.get_origin(...) is None`, so it never reaches the argument check, while `Outcome[int]` gives origin `Outcome` and args `(int,)` and does.
 
 Then extend the derivation test. The existing assertions for `one_parameter`, `bare`, `not_a_model` and `no_return` stay exactly as they are — the arity and first-parameter rules did not change. Add three:
 
@@ -263,7 +267,8 @@ Then extend the derivation test. The existing assertions for `one_parameter`, `b
         "which is not Outcome[...]"
     )
     assert "which is not Outcome[...]" in fault("returns_a_bare_model")
-    assert "which is not one model class" in fault("returns_an_unparameterised_outcome")
+    assert "which is not Outcome[...]" in fault("returns_an_unparameterised_outcome")
+    assert "which is not one model class" in fault("returns_a_bad_argument")
 ```
 
 and confirm the happy path still derives `answer=Produced` from `Outcome[Produced]` rather than from a bare annotation — the existing assertion `role.answer == ClassRef(module="runkit.runners", name="Produced")` already says this and must keep passing unchanged.
