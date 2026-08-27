@@ -26,11 +26,9 @@ from ancalagon.sandbox.sandbox import Sandbox
 from ancalagon.sandbox.strategy import Strategy
 from ancalagon.sandbox.unsandboxed import Unsandboxed
 from ancalagon.schedule.newest_agent import newest_agent
-from ancalagon.contracts.watch_request import WatchRequest
-from ancalagon.supervisor.spawn_by_input import SpawnByInput
+from ancalagon.supervisor.spawn_by_run import SpawnByRun
 from ancalagon.supervisor.spawner import Spawner
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
-from ancalagon.supervisor.watch_spawner import WatchSpawner
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.supervisor.supervisor import Supervisor
@@ -172,7 +170,7 @@ def sandbox_of(config: Config, run_dir: pathlib.PurePath, fs: FileSystem) -> San
     )
 
 
-# A task whose role takes a WatchRequest is served by a process, not by a model, so the
+# A task whose role names a run function is served by a process, not by a model, so the
 # supervisor is given a spawner that reads each spec and picks accordingly.
 def _spawner(
     config: Config, run_dir: pathlib.PurePath, config_path: pathlib.PurePath, fs: FileSystem
@@ -187,14 +185,15 @@ def _spawner(
         module="ancalagon.worker",
         sandbox=sandbox,
     )
-    watching = WatchSpawner(
+    deterministic = SubprocessSpawner(
         run_dir=run_dir,
         config_path=made,
         environment=RealEnvironment(),
         fs=fs,
+        module="ancalagon.deterministic.run",
         sandbox=sandbox,
     )
-    return SpawnByInput(default=ordinary, by_input={WatchRequest.__name__: watching}, fs=fs)
+    return SpawnByRun(default=ordinary, deterministic=deterministic, fs=fs)
 
 
 def main(config_path: pathlib.PurePath, run_dir: pathlib.PurePath) -> int:

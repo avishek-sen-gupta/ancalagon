@@ -343,8 +343,10 @@ append wakes it once — a wasted turn rather than a lost update.
 The log costs nothing to keep and is worth having on its own: every task directory now records
 which files that task actually opened.
 
-`SpawnByInput` chooses between flavours by reading the input contract a role declares, which is
-already in `spec.json` and already validated at startup. `Spawner` stays the protocol it was.
+`SpawnByRun` chooses between flavours by asking whether the role names a run function: the
+function itself states the input and answer contracts it works with, in its signature, and the
+loader fills the role's `input` and `answer` from that signature rather than the role stating
+them separately. `Spawner` stays the protocol it was.
 
 `clock/` holds the last: one `Clock`, with `now()` for the instant a row or a message is
 stamped with and `time()`/`sleep()` for how long an agent has been running. The supervisor,

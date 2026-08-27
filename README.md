@@ -229,9 +229,26 @@ nothing do not spend the tool-call budget.
 | `idle` | stop and wait for a child, free |
 | `submit_answer` | the final answer, free |
 
-`watch_file` is the one that needs something else declared: a role whose `input` contract is
-`WatchRequest`, since that is what it queues and what tells the supervisor to run a process
-rather than a session. Naming it without such a role fails at startup, as any unknown tool does.
+`watch_file` is the one that needs something else declared: a role that names `watch_for` as its
+`run` function, since that is what it queues and what tells the supervisor to run a process
+rather than a session. The role's input contract follows from `watch_for`'s own signature, rather
+than being stated separately. Naming `watch_file` without such a role fails at startup, as any
+unknown tool does.
+
+A deterministic role in full:
+
+```toml
+[roles.watcher]
+behaviour = "Wait for the blackboard to change."
+run = { module = "ancalagon.watch.watch_for", name = "watch_for" }
+tools = []
+budget = { turns = 0, tool_calls = 0 }
+```
+
+A run function takes two positional parameters — the first annotated with the input contract,
+the second `RunContext` — and returns the answer contract by its return annotation. The loader
+reads the role's `input` and `answer` from that signature, so a role that declares `run` must not
+also declare `input` or `answer`.
 
 The harness does not check that a role graph makes sense:
 
