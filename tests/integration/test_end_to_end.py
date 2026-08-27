@@ -247,37 +247,42 @@ def test_a_missing_or_unusable_input_exits_two_with_a_message_and_no_traceback(
     assert "Traceback" not in completed.stderr
     assert "no role named ghost" in completed.stderr
 
-    unparsable = tmp_path / "unparsable.py"
-    unparsable.write_text("import pydantic\n\n\nclass Query(pydantic.BaseModel\n    area: str\n")
     broken = _case(tmp_path, "unparsable-contract")
+    broken_package = broken / "brokenkit"
+    broken_package.mkdir()
+    (broken_package / "__init__.py").write_text("")
+    (broken_package / "unparsable.py").write_text(
+        "import pydantic\n\n\nclass Query(pydantic.BaseModel\n    area: str\n"
+    )
     refused = failed(
         broken,
         goal_file=str(broken / "goal.md"),
-        input_module=str(unparsable),
+        input_module="brokenkit.unparsable",
         input_class="Query",
     )
     assert "[roles.root] input" in refused.stderr
-    assert str(unparsable) in refused.stderr
+    assert "brokenkit.unparsable" in refused.stderr
     assert "SyntaxError" in refused.stderr
 
-    absent_module = tmp_path / "no-such-shapes.py"
     nowhere = _case(tmp_path, "absent-contract-module")
     unloadable = failed(
         nowhere,
         goal_file=str(nowhere / "goal.md"),
-        input_module=str(absent_module),
+        input_module="nokit.no_such_shapes",
         input_class="Query",
     )
     assert "[roles.root] input" in unloadable.stderr
-    assert str(absent_module) in unloadable.stderr
+    assert "nokit.no_such_shapes" in unloadable.stderr
 
-    shapes = tmp_path / "shapes.py"
-    shapes.write_text(QUERY_MODULE)
     structured = _case(tmp_path, "structured-without-input")
+    shapes_package = structured / "shapekit"
+    shapes_package.mkdir()
+    (shapes_package / "__init__.py").write_text("")
+    (shapes_package / "shapes.py").write_text(QUERY_MODULE)
     incomplete = failed(
         structured,
         goal_file=str(structured / "goal.md"),
-        input_module=str(shapes),
+        input_module="shapekit.shapes",
         input_class="Query",
     )
     assert "area" in incomplete.stderr
