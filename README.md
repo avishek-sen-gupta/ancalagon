@@ -97,8 +97,8 @@ budget = { turns = 20, tool_calls = 60 }
 
 [roles.component_analyst]
 behaviour = "Read before concluding. Cite the files you read."
-input  = { module = "./shapes.py", name = "ComponentQuery" }
-answer = { module = "./shapes.py", name = "Component" }
+input  = { module = "shapekit.shapes", name = "ComponentQuery" }
+answer = { module = "shapekit.shapes", name = "Component" }
 tools  = ["read_file", "ripgrep", "find_symbol"]
 budget = { turns = 12, tool_calls = 30 }
 
@@ -115,7 +115,7 @@ from a file because it has no parent to call `delegate` on it.
 flowchart LR
     role["a role in the config"] --> spec["spec.json<br/>the whole role, frozen at enqueue"]
     spec --> worker["worker startup"]
-    worker --> resolve["resolve each ClassRef<br/>a module path and a class name"]
+    worker --> resolve["resolve each ClassRef<br/>a dotted module and a class name"]
     resolve --> inc["input class"]
     resolve --> outc["answer class"]
     inc --> agentspec["the spec, re-read as a typed model"]
@@ -135,14 +135,17 @@ Rules that follow from that wiring:
 - `tools = []` means *no tools*, not all of them. `submit_answer` and `idle` arrive regardless.
 - There is no global default budget or tool list. Only what each role states.
 - A `spec.json` freezes the role at enqueue, so editing `[roles.*]` affects only tasks queued
-  afterwards. The freeze is not total: the contract *source* is a path, so editing
-  `shapes.py` changes the shape a resumed run works to.
+  afterwards. The freeze is not total: the contract *source* is a dotted module, resolved fresh
+  each time a worker starts, so editing `shapekit/shapes.py` changes the shape a resumed run
+  works to.
+- A config file's own directory goes on the import path when it loads, so a package sitting
+  beside the TOML — `shapekit/` next to this file — resolves by its dotted name, `shapekit.shapes`.
 
 Four things are checked before any agent starts, each exiting 2 with the reason — named with the
-role and the path, rather than crashing a worker later. A missing or empty `goal_file`. A
-`[run] role` no `[roles.*]` declares. A contract module that does not exist or does not parse.
-And every hook a role declares, including whether the tool it is attached to can hand it what it
-asks for.
+role and the module, rather than crashing a worker later. A missing or empty `goal_file`. A
+`[run] role` no `[roles.*]` declares. A contract or hook whose module and name do not match the
+dotted-reference pattern, or whose module fails to import. And every hook a role declares,
+including whether the tool it is attached to can hand it what it asks for.
 
 A role may also wrap any tool it uses with a **hook** — a function that sees a call before it
 runs, or its result after, and accepts it, rewrites it, or refuses it:
@@ -150,12 +153,12 @@ runs, or its result after, and accepts it, rewrites it, or refuses it:
 ```toml
 [roles.component_analyst.before]
 submit_answer = [
-  { module = "./checks.py", name = "cites_real_files" },
-  { module = "./checks.py", name = "no_absolute_paths" },
+  { module = "checkkit.checks", name = "cites_real_files" },
+  { module = "checkkit.checks", name = "no_absolute_paths" },
 ]
 
 [roles.component_analyst.after]
-ripgrep = [{ module = "./checks.py", name = "must_have_found" }]
+ripgrep = [{ module = "checkkit.checks", name = "must_have_found" }]
 ```
 
 ```python
@@ -229,9 +232,26 @@ nothing do not spend the tool-call budget.
 | `idle` | stop and wait for a child, free |
 | `submit_answer` | the final answer, free |
 
-`watch_file` is the one that needs something else declared: a role whose `input` contract is
-`WatchRequest`, since that is what it queues and what tells the supervisor to run a process
-rather than a session. Naming it without such a role fails at startup, as any unknown tool does.
+`watch_file` is the one that needs something else declared: a role that names `watch_for` as its
+`run` function, since that is what it queues and what tells the supervisor to run a process
+rather than a session. The role's input contract follows from `watch_for`'s own signature, rather
+than being stated separately. Naming `watch_file` without such a role fails at startup, as any
+unknown tool does.
+
+A deterministic role in full:
+
+```toml
+[roles.watcher]
+behaviour = "Wait for the blackboard to change."
+run = { module = "ancalagon.watch.watch_for", name = "watch_for" }
+tools = []
+budget = { turns = 0, tool_calls = 0 }
+```
+
+A run function takes two positional parameters — the first annotated with the input contract,
+the second `RunContext` — and returns the answer contract by its return annotation. The loader
+reads the role's `input` and `answer` from that signature, so a role that declares `run` must not
+also declare `input` or `answer`.
 
 The harness does not check that a role graph makes sense:
 

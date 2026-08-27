@@ -22,12 +22,14 @@ class SubprocessSpawner(Spawner):
         config_path: pathlib.PurePath,
         environment: Environment,
         fs: FileSystem,
+        module: str,
         sandbox: Sandbox = UNSANDBOXED,
     ):
         self.run_dir = run_dir
         self.config_path = config_path
         self.environment = environment
         self.fs = fs
+        self.module = module
         self.sandbox = sandbox
 
     def spawn(self, task_dir: pathlib.PurePath, agent_id: int) -> Process:
@@ -36,7 +38,7 @@ class SubprocessSpawner(Spawner):
         command = [
             sys.executable,
             "-m",
-            "ancalagon.worker",
+            self.module,
             "--run-dir",
             str(self.run_dir),
             "--dir",

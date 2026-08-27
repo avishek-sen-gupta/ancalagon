@@ -1,3 +1,4 @@
+import collections.abc
 import json
 import pathlib
 
@@ -298,7 +299,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
             "scout": Role(behaviour="Look.", tools=(), budget=Budget(turns=4, tool_calls=8)),
             "unreachable": Role(
                 behaviour="Never spawned.",
-                input=ClassRef(module=str(tmp_path / "no-such-shapes.py"), name="Query"),
+                input=ClassRef(module="no_such_shapes", name="Query"),
                 tools=(),
                 budget=Budget(turns=4, tool_calls=8),
             ),
@@ -746,16 +747,19 @@ def test_collect_task_named_by_a_stale_agent_id_records_collected_on_the_newest_
 
 
 def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
-    tmp_path: pathlib.Path,
+    tmp_path: pathlib.Path, importable: collections.abc.Callable[[pathlib.Path], None]
 ):
-    shapes = tmp_path / "shapes.py"
-    shapes.write_text(
+    package = tmp_path / "querykit"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "shapes.py").write_text(
         "import pydantic\n\n\nclass Query(pydantic.BaseModel):\n    area: str\n    depth: int\n"
     )
+    importable(tmp_path)
     roles = {
         "analyst": Role(
             behaviour="Analyse.",
-            input=ClassRef(module=str(shapes), name="Query"),
+            input=ClassRef(module="querykit.shapes", name="Query"),
             tools=("read_file",),
             budget=Budget(turns=12, tool_calls=30),
         ),

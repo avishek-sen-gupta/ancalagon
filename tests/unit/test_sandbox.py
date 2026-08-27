@@ -68,6 +68,7 @@ def test_the_spawner_wraps_the_worker_command_with_its_sandbox(tmp_path: pathlib
         environment=RealEnvironment(),
         sandbox=sandbox,
         fs=RealFileSystem(),
+        module="ancalagon.worker",
     )
 
     process = spawner.spawn(tmp_path / "tasks" / "root", agent_id=7)

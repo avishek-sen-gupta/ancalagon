@@ -308,13 +308,18 @@ harness from a hook today, so this closes a propagation path rather than a live 
 **A spawned child need not be an agent.** The supervisor's whole contract with one is
 `Spawner.spawn(task_dir, agent_id)` and an `outcome-<agent>.json` it reads back as an
 `OutcomeHeader` — two fields. Nothing in that says a model is involved, so any process honouring
-it is supervised, sandboxed, reaped and timed out identically.
+it is supervised, sandboxed, reaped and timed out identically. `ancalagon/deterministic/run.py`
+is the general such child: a role names a Python function instead of describing behaviour to a
+model, the function's signature is the single statement of its input and answer contracts, and
+`SpawnByRun` picks this child over the worker whenever a role's `run` is set. It reads `spec.json`
+as an `AgentSpec[Given]`, calls the named function with that input and a `RunContext`, and writes
+whatever it returns as a `Completed[Produced]` — no bus row, no session, and no knowledge of what
+any particular function does.
 
-`watch/watch.py` is the first such child. It reads `spec.json` as an `AgentSpec[WatchRequest]`,
-polls the named file until it is larger than the caller had already seen, and writes a
-`Completed[Watched]`. It touches no bus row — no worker does; the supervisor writes those — and
-it runs no session. Its purpose is to turn "a file changed" into "a child settled", which is the
-one thing `has_news` already knows how to wake on, so a blackboard needs no scheduling change.
+`ancalagon/watch/watch_for.py` is one run function among others: it polls the named file until it
+has changed past the moment the caller had already seen, and returns a `Watched`. Its purpose is
+to turn "a file changed" into "a child settled", which is the one thing `has_news` already knows
+how to wake on, so a blackboard needs no scheduling change.
 
 A watcher's task is named for the agent that asked, not only for the name the agent chose:
 `watch_file` appends the watching task's own name, so `wait` from two analysts becomes
@@ -343,8 +348,10 @@ append wakes it once — a wasted turn rather than a lost update.
 The log costs nothing to keep and is worth having on its own: every task directory now records
 which files that task actually opened.
 
-`SpawnByInput` chooses between flavours by reading the input contract a role declares, which is
-already in `spec.json` and already validated at startup. `Spawner` stays the protocol it was.
+`SpawnByRun` chooses between flavours by asking whether the role names a run function: the
+function itself states the input and answer contracts it works with, in its signature, and the
+loader fills the role's `input` and `answer` from that signature rather than the role stating
+them separately. `Spawner` stays the protocol it was.
 
 `clock/` holds the last: one `Clock`, with `now()` for the instant a row or a message is
 stamped with and `time()`/`sleep()` for how long an agent has been running. The supervisor,

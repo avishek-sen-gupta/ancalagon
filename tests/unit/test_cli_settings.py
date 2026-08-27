@@ -1,3 +1,4 @@
+import collections.abc
 import json
 import pathlib
 
@@ -77,14 +78,21 @@ def test_a_goal_comes_from_the_file_and_from_nowhere_else(tmp_path: pathlib.Path
         goal_of(RunSettings(goal_file=str(absent)), RealFileSystem())
 
 
-def test_the_root_spec_comes_from_its_role_and_its_two_files(tmp_path: pathlib.Path):
-    shapes = tmp_path / "shapes.py"
-    shapes.write_text("import pydantic\n\n\nclass Query(pydantic.BaseModel):\n    area: str\n")
+def test_the_root_spec_comes_from_its_role_and_its_two_files(
+    tmp_path: pathlib.Path, importable: collections.abc.Callable[[pathlib.Path], None]
+):
+    package = tmp_path / "querykit"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "shapes.py").write_text(
+        "import pydantic\n\n\nclass Query(pydantic.BaseModel):\n    area: str\n"
+    )
+    importable(tmp_path)
     (tmp_path / "goal.md").write_text("map it")
     (tmp_path / "input.json").write_text('{"area": "bus"}')
     role = Role(
         behaviour="Analyse.",
-        input=ClassRef(module=str(shapes), name="Query"),
+        input=ClassRef(module="querykit.shapes", name="Query"),
         tools=("read_file", "submit_answer"),
         budget=Budget(turns=3, tool_calls=6),
     )

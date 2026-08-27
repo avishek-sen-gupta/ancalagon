@@ -14,8 +14,10 @@ from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.run_contracts import run_contracts
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.env.real_environment import RealEnvironment
 from ancalagon.fs.file_system import FileSystem
@@ -26,11 +28,9 @@ from ancalagon.sandbox.sandbox import Sandbox
 from ancalagon.sandbox.strategy import Strategy
 from ancalagon.sandbox.unsandboxed import Unsandboxed
 from ancalagon.schedule.newest_agent import newest_agent
-from ancalagon.contracts.watch_request import WatchRequest
-from ancalagon.supervisor.spawn_by_input import SpawnByInput
+from ancalagon.supervisor.spawn_by_run import SpawnByRun
 from ancalagon.supervisor.spawner import Spawner
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
-from ancalagon.supervisor.watch_spawner import WatchSpawner
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.supervisor.supervisor import Supervisor
@@ -107,6 +107,28 @@ def _contract_fault(name: str, field: str, ref: ClassRef) -> str:
         )
 
 
+def _run_fault(name: str, role: Role) -> str:
+    if role.run == NO_RUN:
+        return ""
+    given, produced = run_contracts(role.run)
+    disagreements = [
+        (field, declared, derived)
+        for field, declared, derived in (
+            ("input", role.input, given),
+            ("answer", role.answer, produced),
+        )
+        if declared != derived
+    ]
+    if not disagreements:
+        return ""
+    field, declared, derived = disagreements[0]
+    return (
+        f"[roles.{name}] declares {field} as {declared.name} in {declared.module}, but its "
+        f"run function {role.run.name} in {role.run.module} states {field} as "
+        f"{derived.name} in {derived.module}"
+    )
+
+
 def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem) -> str:
     named = set(role.before) | set(role.after)
     unused = named - set(role.tools) - {SubmitAnswer.name, Idle.name}
@@ -129,16 +151,20 @@ def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem) -> str:
 
 
 def check_contracts(config: Config, fs: FileSystem = RealFileSystem()) -> None:
-    faults = [
-        fault
-        for name, role in config.roles.items()
-        for field, ref in (("input", role.input), ("answer", role.answer))
-        if (fault := _contract_fault(name, field, ref))
-    ] or [
-        fault
-        for name, role in config.roles.items()
-        if (fault := _hook_fault(name, role, config, fs))
-    ]
+    faults = (
+        [
+            fault
+            for name, role in config.roles.items()
+            for field, ref in (("input", role.input), ("answer", role.answer))
+            if (fault := _contract_fault(name, field, ref))
+        ]
+        or [fault for name, role in config.roles.items() if (fault := _run_fault(name, role))]
+        or [
+            fault
+            for name, role in config.roles.items()
+            if (fault := _hook_fault(name, role, config, fs))
+        ]
+    )
     if faults:
         raise ValueError("\n".join(faults))
 
@@ -172,7 +198,7 @@ def sandbox_of(config: Config, run_dir: pathlib.PurePath, fs: FileSystem) -> San
     )
 
 
-# A task whose role takes a WatchRequest is served by a process, not by a model, so the
+# A task whose role names a run function is served by a process, not by a model, so the
 # supervisor is given a spawner that reads each spec and picks accordingly.
 def _spawner(
     config: Config, run_dir: pathlib.PurePath, config_path: pathlib.PurePath, fs: FileSystem
@@ -184,16 +210,18 @@ def _spawner(
         config_path=made,
         environment=RealEnvironment(),
         fs=fs,
+        module="ancalagon.worker",
         sandbox=sandbox,
     )
-    watching = WatchSpawner(
+    deterministic = SubprocessSpawner(
         run_dir=run_dir,
         config_path=made,
         environment=RealEnvironment(),
         fs=fs,
+        module="ancalagon.deterministic.run",
         sandbox=sandbox,
     )
-    return SpawnByInput(default=ordinary, by_input={WatchRequest.__name__: watching}, fs=fs)
+    return SpawnByRun(default=ordinary, deterministic=deterministic, fs=fs)
 
 
 def main(config_path: pathlib.PurePath, run_dir: pathlib.PurePath) -> int:

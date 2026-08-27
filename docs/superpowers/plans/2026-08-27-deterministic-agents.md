@@ -470,8 +470,6 @@ Append to `tests/unit/test_config_load.py`. One test for the whole behaviour, pl
 RUNNERS = '''
 import pydantic
 
-from ancalagon.deterministic.run_context import RunContext
-
 
 class Given(pydantic.BaseModel, frozen=True):
     path: str
@@ -481,7 +479,7 @@ class Produced(pydantic.BaseModel, frozen=True):
     at: float
 
 
-def good(given: Given, ctx: RunContext) -> Produced:
+def good(given: Given, ctx: pydantic.BaseModel) -> Produced:
     return Produced(at=1.0)
 
 
@@ -493,15 +491,15 @@ def bare(given, ctx) -> Produced:
     return Produced(at=1.0)
 
 
-def not_a_model(given: int, ctx: RunContext) -> Produced:
+def not_a_model(given: int, ctx: pydantic.BaseModel) -> Produced:
     return Produced(at=1.0)
 
 
-def no_return(given: Given, ctx: RunContext):
+def no_return(given: Given, ctx: pydantic.BaseModel):
     return Produced(at=1.0)
 
 
-def returns_a_scalar(given: Given, ctx: RunContext) -> int:
+def returns_a_scalar(given: Given, ctx: pydantic.BaseModel) -> int:
     return 1
 '''
 
@@ -569,7 +567,7 @@ budget = { turns = 4, tool_calls = 8 }
 """
 ```
 
-Note that `RUNNERS` imports `ancalagon.deterministic.run_context`, which Task 3 creates. Until then, annotate the second parameter as `pydantic.BaseModel` instead and change it to `RunContext` in Task 3 — nothing checks the second parameter's type, so the test asserts the same thing either way, and this keeps Task 2 independently committable.
+`run_contracts` inspects the first parameter and the return annotation only, never the second, so `RUNNERS` annotates its second parameter `pydantic.BaseModel` and no task revisits it. `tests/unit/test_deterministic.py` in Task 3 is where the canonical `RunContext` signature is exercised. This keeps Task 2 independently committable with no forward reference to a package Task 3 creates.
 
 - [ ] **Step 2: Run it to verify it fails**
 

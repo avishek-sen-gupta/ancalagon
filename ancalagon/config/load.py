@@ -5,11 +5,14 @@ import re
 import tomllib
 
 from ancalagon.config.config import Config
+from ancalagon.config.importable import importable
 from ancalagon.config.raw_role import RawClassRef, RawRole
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.function_ref import FunctionRef
+from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.role import FREE_TEXT, Role
+from ancalagon.contracts.run_contracts import run_contracts
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.sandbox.strategy import Strategy
@@ -39,42 +42,58 @@ def _run_settings(
     )
 
 
-def _class_ref(base: pathlib.PurePath, raw: RawClassRef, fs: FileSystem) -> ClassRef:
-    return ClassRef(module=str(_root(base, raw.module, fs)), name=raw.name)
+def _class_ref(raw: RawClassRef) -> ClassRef:
+    return ClassRef(module=raw.module, name=raw.name)
 
 
 def _hooks(
-    base: pathlib.PurePath,
     raw: collections.abc.Mapping[str, collections.abc.Sequence[RawClassRef]],
-    fs: FileSystem,
 ) -> dict[str, tuple[FunctionRef, ...]]:
     return {
-        tool: tuple(
-            FunctionRef(module=str(_root(base, ref.module, fs)), name=ref.name) for ref in refs
-        )
+        tool: tuple(FunctionRef(module=ref.module, name=ref.name) for ref in refs)
         for tool, refs in raw.items()
     }
 
 
-def _role(base: pathlib.PurePath, name: str, raw: RawRole, fs: FileSystem) -> Role:
+def _contracts(name: str, raw: RawRole) -> tuple[FunctionRef, ClassRef, ClassRef]:
+    if not raw.run.module:
+        return (
+            NO_RUN,
+            _class_ref(raw.input) if raw.input.module else FREE_TEXT,
+            _class_ref(raw.answer) if raw.answer.module else FREE_TEXT,
+        )
+    if raw.input.module or raw.answer.module:
+        raise ValueError(
+            f"[roles.{name}]: a role that declares run states its contracts in that "
+            f"function's signature, so it must not also declare input or answer"
+        )
+    ref = FunctionRef(module=raw.run.module, name=raw.run.name)
+    given, produced = run_contracts(ref)
+    return ref, given, produced
+
+
+def _role(name: str, raw: RawRole) -> Role:
     if not ROLE_NAME.match(name):
         raise ValueError(
             f"[roles.{name}]: a role name becomes the tool name delegate_{name}, "
             f"so it must match {ROLE_NAME.pattern}"
         )
+    run, given, produced = _contracts(name, raw)
     return Role(
         behaviour=raw.behaviour,
-        input=_class_ref(base, raw.input, fs) if raw.input.module else FREE_TEXT,
-        answer=_class_ref(base, raw.answer, fs) if raw.answer.module else FREE_TEXT,
+        input=given,
+        answer=produced,
+        run=run,
         tools=tuple(raw.tools),
         budget=Budget(turns=raw.budget.turns, tool_calls=raw.budget.tool_calls),
-        before=_hooks(base, raw.before, fs),
-        after=_hooks(base, raw.after, fs),
+        before=_hooks(raw.before),
+        after=_hooks(raw.after),
     )
 
 
 def load_config(path: pathlib.PurePath, fs: FileSystem) -> Config:
     base = fs.resolve(path).parent
+    importable(base)
     raw = tomllib.loads(fs.read_text(path))
     workspace = raw["workspace"]
     model = raw["model"]
@@ -83,7 +102,7 @@ def load_config(path: pathlib.PurePath, fs: FileSystem) -> Config:
         write_root=_root(base, workspace["write_root"], fs),
         read_roots=tuple(_root(base, p, fs) for p in workspace["read_roots"]),
         roles={
-            name: _role(base, name, RawRole.model_validate(table), fs)
+            name: _role(name, RawRole.model_validate(table))
             for name, table in raw.get("roles", {}).items()
         },
         model=model["name"],
