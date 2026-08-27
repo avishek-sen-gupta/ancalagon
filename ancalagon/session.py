@@ -215,7 +215,9 @@ class Session:
             self._record(MessageRole.ASSISTANT, [Text(text="Understood.")])
         self._record(MessageRole.USER, [Text(text=FINAL_INSTRUCTION)])
 
-    def _outcome_of_use(self, summary: Payload, final: bool) -> Outcome | Pending:
+    def _outcome_of_use(
+        self, summary: Payload, final: bool
+    ) -> Outcome[pydantic.BaseModel] | Pending:
         if isinstance(summary, Asked):
             return NeedsInput(
                 question=summary.question,
@@ -240,14 +242,14 @@ class Session:
 
     def _settled(
         self, ran: collections.abc.Sequence[tuple[ToolUse, ToolResult]], final: bool
-    ) -> Outcome | Pending:
+    ) -> Outcome[pydantic.BaseModel] | Pending:
         outcomes = (self._outcome_of_use(result.summary, final) for _, result in ran)
         settled = (outcome for outcome in outcomes if not isinstance(outcome, Pending))
         return next(settled, PENDING)
 
     def _refused(
         self, ran: collections.abc.Sequence[tuple[ToolUse, ToolResult]]
-    ) -> Outcome | Pending:
+    ) -> Outcome[pydantic.BaseModel] | Pending:
         rejected = [(use, result) for use, result in ran if not result.ok]
         if not rejected:
             return PENDING
@@ -258,7 +260,9 @@ class Session:
             spent=self._spent(),
         )
 
-    def _finish_from_text(self, reply: Reply, final: bool, offered: str) -> Outcome | Pending:
+    def _finish_from_text(
+        self, reply: Reply, final: bool, offered: str
+    ) -> Outcome[pydantic.BaseModel] | Pending:
         text = self._answer_of(reply)
         try:
             value = self.output_class.model_validate_json(text)
@@ -279,7 +283,7 @@ class Session:
             return Exhausted(value=value, summary=text[:SUMMARY_CHARS], spent=self._spent())
         return Completed(value=value, summary=text[:SUMMARY_CHARS], spent=self._spent())
 
-    def _evaluate_turn(self, reply: Reply, final: bool) -> Outcome | Pending:
+    def _evaluate_turn(self, reply: Reply, final: bool) -> Outcome[pydantic.BaseModel] | Pending:
         uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
         if not uses:
             return self._finish_from_text(reply, final, "")
@@ -296,21 +300,21 @@ class Session:
         reply: Reply,
         ran: collections.abc.Sequence[tuple[ToolUse, ToolResult]],
         uses: collections.abc.Sequence[ToolUse],
-    ) -> Outcome:
+    ) -> Outcome[pydantic.BaseModel]:
         match self._refused(ran):
             case Pending():
                 return self._finished(reply, uses[0].arguments)
             case failure:
                 return failure
 
-    def _finished(self, reply: Reply, offered: str) -> Outcome:
+    def _finished(self, reply: Reply, offered: str) -> Outcome[pydantic.BaseModel]:
         match self._finish_from_text(reply, True, offered):
             case Pending():
                 return Failed(error="no final answer", summary=offered, spent=self._spent())
             case outcome:
                 return outcome
 
-    def run(self) -> Outcome:
+    def run(self) -> Outcome[pydantic.BaseModel]:
         while True:
             final = self.remaining.turns_exhausted
             outstanding = self.children.outstanding()
