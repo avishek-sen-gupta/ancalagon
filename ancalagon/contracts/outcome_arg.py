@@ -20,10 +20,7 @@ def _outcome_return(hints: collections.abc.Mapping[str, object]) -> Declared:
 
 
 def outcome_arg(found: collections.abc.Callable[..., object]) -> Declared:
-    try:
-        hints = typing.get_type_hints(found)
-    except NameError as exc:
-        return None, f"has an annotation that cannot be resolved: {exc}"
+    hints = typing.get_type_hints(found)
     if "return" not in hints:
         return None, "does not annotate its return"
     return _outcome_return(hints)
