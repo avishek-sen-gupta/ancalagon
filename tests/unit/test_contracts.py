@@ -10,9 +10,10 @@ from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.free_text import FreeText
+from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
-from ancalagon.contracts.outcome import outcome_adapter
+from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.outcome_header import OutcomeHeader
 from ancalagon.contracts.outcome_kind import OutcomeKind
 from ancalagon.contracts.resolve import resolve_class
@@ -75,7 +76,7 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
     assert isinstance(restored.blocks[1], ToolUse)
     assert restored.blocks[1].arguments == '{"pattern":"x"}'
 
-    adapter = outcome_adapter(NodeSummary)
+    adapter: pydantic.TypeAdapter[Outcome[NodeSummary]] = pydantic.TypeAdapter(Outcome[NodeSummary])
     completed = Completed[NodeSummary](
         value=NodeSummary(text="done", confidence=2),
         summary="finished",
@@ -84,6 +85,13 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
     assert adapter.validate_json(completed.model_dump_json()) == completed
     failed = Failed(error="boom", summary="died", spent=Budget(turns=0, tool_calls=0))
     assert adapter.validate_json(failed.model_dump_json()) == failed
+    idling = Idling(summary="waiting", spent=Budget(turns=0, tool_calls=0))
+    assert adapter.validate_json(idling.model_dump_json()) == idling
+    with pytest.raises(pydantic.ValidationError):
+        adapter.validate_json(
+            '{"kind":"completed","value":{"wrong":1},"summary":"s",'
+            '"spent":{"turns":0,"tool_calls":0}}'
+        )
 
     assert FreeText(text="plain").text == "plain"
 

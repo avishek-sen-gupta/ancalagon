@@ -2,6 +2,7 @@ import collections.abc
 import json
 import pathlib
 
+import pydantic
 import pytest
 
 from ancalagon.answer_command import answer_command
@@ -51,7 +52,7 @@ def _run(
     task_dir: pathlib.Path,
     agent: int,
     replies: list[Reply],
-) -> Outcome:
+) -> Outcome[pydantic.BaseModel]:
     spec = TaskSpec.model_validate_json((task_dir / "spec.json").read_text())
     transcript_path = task_dir / "transcript.jsonl"
     history: collections.abc.Sequence[Message] = (

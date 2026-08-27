@@ -1,6 +1,8 @@
 # Reads a finished task's answer, or says why there is not one.
 import pathlib
 
+import pydantic
+
 from ancalagon.attempt.attempt import Attempt
 from ancalagon.attempt.closed import Closed
 from ancalagon.attempt.collected import Collected
@@ -14,7 +16,7 @@ from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.exhausted import Exhausted
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.needs_input import NeedsInput
-from ancalagon.contracts.outcome import Outcome, outcome_adapter
+from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.tool_result import ToolResult
@@ -27,7 +29,7 @@ from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 
 
-def _detail(outcome: Outcome) -> str:
+def _detail(outcome: Outcome[pydantic.BaseModel]) -> str:
     if isinstance(outcome, NeedsInput):
         return outcome.question
     if isinstance(outcome, Failed):
@@ -85,9 +87,10 @@ class CollectTask(Tool[TaskArgs]):
         task_dir = pathlib.PurePath(task_of(snapshot, newest).dir)
         spec = TaskSpec.model_validate_json(self.fs.read_text(task_dir / "spec.json"))
         answer_class = resolve_class(spec.role.answer)
-        outcome = outcome_adapter(answer_class).validate_json(
-            self.fs.read_text(task_dir / f"outcome-{newest}.json")
+        adapter: pydantic.TypeAdapter[Outcome[pydantic.BaseModel]] = pydantic.TypeAdapter(
+            Outcome[answer_class]
         )
+        outcome = adapter.validate_json(self.fs.read_text(task_dir / f"outcome-{newest}.json"))
         if isinstance(outcome, (Completed, Exhausted)):
             return ctx.full_result(self.name, outcome.value.model_dump_json(), ".json")
         return ctx.failure(
