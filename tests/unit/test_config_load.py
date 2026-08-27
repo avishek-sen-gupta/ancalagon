@@ -171,6 +171,8 @@ budget = { turns = 12, tool_calls = 30 }
 
 
 RUNNERS = """
+from __future__ import annotations
+
 import pydantic
 
 
@@ -204,6 +206,10 @@ def no_return(given: Given, ctx: pydantic.BaseModel):
 
 def returns_a_scalar(given: Given, ctx: pydantic.BaseModel) -> int:
     return 1
+
+
+def unresolvable(given: NoSuchClass, ctx: pydantic.BaseModel) -> Produced:
+    return Produced(at=1.0)
 """
 
 
@@ -254,6 +260,8 @@ def test_a_role_naming_a_run_function_takes_its_contracts_from_the_signature(
     assert "annotates return as <class 'int'>, which is not a model class" in fault(
         "returns_a_scalar"
     )
+    assert "has an annotation that cannot be resolved" in fault("unresolvable")
+    assert fault("absent") == "absent in runkit.runners is absent from runkit.runners"
 
     both = _with_run(
         tmp_path, "good", extra='answer = { module = "runkit.runners", name = "Produced" }'

@@ -1,26 +1,30 @@
 # Whether a hook can receive what the tool it is wired to will pass it.
 import collections.abc
-import importlib
 import inspect
-import typing
 
 import pydantic
 
-from ancalagon.contracts.declared import Declared, declared
+from ancalagon.contracts.arity import arity_fault
+from ancalagon.contracts.declared import annotation_fault
 from ancalagon.contracts.function_ref import FunctionRef
+from ancalagon.contracts.named_callable import named_callable
 
-POSITIONAL = inspect.Parameter.POSITIONAL_OR_KEYWORD
+
+def _matches(declared: type[pydantic.BaseModel], args_model: type[pydantic.BaseModel]) -> str:
+    if issubclass(args_model, declared):
+        return ""
+    return f"takes {declared.__name__}, but the tool passes {args_model.__name__}"
 
 
-def _annotation(found: collections.abc.Callable[..., object], arity: int) -> Declared:
-    params = list(inspect.signature(found).parameters.values())
-    if len(params) != arity or any(p.kind is not POSITIONAL for p in params):
-        return None, f"must take {arity} positional parameters, not {[p.name for p in params]}"
-    try:
-        first = params[0].name
-        return declared(typing.get_type_hints(found), first, f"its first parameter, {first}")
-    except NameError as exc:
-        return None, f"has an annotation that cannot be resolved: {exc}"
+def _first_annotation_fault(
+    found: collections.abc.Callable[..., object], args_model: type[pydantic.BaseModel]
+) -> str:
+    first = next(iter(inspect.signature(found).parameters.values())).name
+    match annotation_fault(found, first, f"its first parameter, {first}"):
+        case (None, fault):
+            return fault
+        case (declared, _):
+            return _matches(declared, args_model)
 
 
 def _receives(
@@ -28,20 +32,14 @@ def _receives(
     args_model: type[pydantic.BaseModel],
     arity: int,
 ) -> str:
-    match _annotation(found, arity):
-        case (None, fault):
-            return fault
-        case (declared, _) if not issubclass(args_model, declared):
-            return f"takes {declared.__name__}, but the tool passes {args_model.__name__}"
-        case _:
-            return ""
+    if fault := arity_fault(found, arity):
+        return fault
+    return _first_annotation_fault(found, args_model)
 
 
 def accepts(ref: FunctionRef, args_model: type[pydantic.BaseModel], arity: int) -> str:
-    module = importlib.import_module(ref.module)
-    if not hasattr(module, ref.name):
-        return f"is absent from {ref.module}"
-    found = getattr(module, ref.name)
-    if not callable(found):
-        return "is not callable"
-    return _receives(found, args_model, arity)
+    match named_callable(ref):
+        case (None, fault):
+            return fault
+        case (found, _):
+            return _receives(found, args_model, arity)
