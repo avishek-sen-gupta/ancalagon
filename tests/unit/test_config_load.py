@@ -171,6 +171,8 @@ budget = { turns = 12, tool_calls = 30 }
 
 
 RUNNERS = """
+from __future__ import annotations
+
 import pydantic
 
 from ancalagon.contracts.nothing import NOTHING
@@ -219,6 +221,14 @@ def returns_an_unparameterised_outcome(given: Given, ctx: pydantic.BaseModel) ->
 
 
 def returns_a_bad_argument(given: Given, ctx: pydantic.BaseModel) -> Outcome[int]:
+    return Completed(value=Produced(at=1.0), summary="done", spent=NOTHING)
+
+
+def unresolvable(given: NoSuchClass, ctx: pydantic.BaseModel) -> Outcome[Produced]:
+    return Completed(value=Produced(at=1.0), summary="done", spent=NOTHING)
+
+
+def unresolvable_return(given: Given, ctx: pydantic.BaseModel) -> Outcome[NoSuchClass]:
     return Completed(value=Produced(at=1.0), summary="done", spent=NOTHING)
 """
 
@@ -274,6 +284,8 @@ def test_a_role_naming_a_run_function_takes_its_contracts_from_the_signature(
     assert "which is not Outcome[...]" in fault("returns_a_bare_model")
     assert "which is not Outcome[...]" in fault("returns_an_unparameterised_outcome")
     assert "which is not one model class" in fault("returns_a_bad_argument")
+    assert "has an annotation that cannot be resolved" in fault("unresolvable")
+    assert "has an annotation that cannot be resolved" in fault("unresolvable_return")
     assert fault("absent") == "absent in runkit.runners is absent from runkit.runners"
 
     both = _with_run(
