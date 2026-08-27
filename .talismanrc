@@ -109,4 +109,6 @@ fileignoreconfig:
   checksum: 828ce98f5835256d7529a01444be55af38517748e32a5148fa5321ce2eb6be20
 - filename: ancalagon/contracts/run_contracts.py
   checksum: e466d2a2a3b37d9be94dded090abff2a81ba05cda930cabbc29920e239ec30cc
+- filename: docs/superpowers/specs/2026-08-28-run-functions-choose-their-outcome-design.md
+  checksum: 064bf47cb49f6048da2511ac3d87ba95df7a0f50cf5cc27dc157b448e02d4b32
 version: "1.0"
