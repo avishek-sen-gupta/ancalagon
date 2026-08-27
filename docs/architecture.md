@@ -317,6 +317,19 @@ whatever `Outcome[Produced]` the function returned — no bus row, no session, a
 what any particular function does. The function picks the same ending a session picks, which is
 what makes the two indistinguishable to a parent: `Completed` with an answer, `Idling` to be
 woken once a child it spawned settles, `NeedsInput`, or a `Failed` it caught itself.
+`RunContext` carries the agent's own `agent_id` so the function can spawn that child itself —
+there is no tool and no other helper — the same way `DelegateTo.run` does: `mkdir` the task
+directory, write an `AgentSpec` to its `spec.json`, and `enqueue` it against the bus with
+`parent_agent=ctx.agent_id`. `has_news` matches a child to its parent through `parent_agent`
+alone, so that id is not optional decoration.
+
+**What being woken means.** `_wake_idling` does not resume the run function that returned
+`Idling` — it enqueues a *new* agent against the same task directory, so `SpawnByRun` calls the
+function again from the top, with the same `spec.json` input and a new `agent_id`. Nothing
+carries over from the idled call but whatever the function put on disk itself. A run function
+that idles must therefore be idempotent about re-enqueuing its child on each fresh call, the way
+`DelegateTo.run` and `WatchFile._queued` are: both check `active_for` before writing another
+`spec.json`, and a run function gets no such guard for free.
 
 `ancalagon/watch/watch_for.py` is one run function among others: it polls the named file until it
 has changed past the moment the caller had already seen, and returns a `Completed[Watched]`. Its
