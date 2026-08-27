@@ -14,8 +14,10 @@ from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.run_contracts import run_contracts
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.env.real_environment import RealEnvironment
 from ancalagon.fs.file_system import FileSystem
@@ -105,6 +107,28 @@ def _contract_fault(name: str, field: str, ref: ClassRef) -> str:
         )
 
 
+def _run_fault(name: str, role: Role) -> str:
+    if role.run == NO_RUN:
+        return ""
+    given, produced = run_contracts(role.run)
+    disagreements = [
+        (field, declared, derived)
+        for field, declared, derived in (
+            ("input", role.input, given),
+            ("answer", role.answer, produced),
+        )
+        if declared != derived
+    ]
+    if not disagreements:
+        return ""
+    field, declared, derived = disagreements[0]
+    return (
+        f"[roles.{name}] declares {field} as {declared.name} in {declared.module}, but its "
+        f"run function {role.run.name} in {role.run.module} states {field} as "
+        f"{derived.name} in {derived.module}"
+    )
+
+
 def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem) -> str:
     named = set(role.before) | set(role.after)
     unused = named - set(role.tools) - {SubmitAnswer.name, Idle.name}
@@ -127,16 +151,20 @@ def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem) -> str:
 
 
 def check_contracts(config: Config, fs: FileSystem = RealFileSystem()) -> None:
-    faults = [
-        fault
-        for name, role in config.roles.items()
-        for field, ref in (("input", role.input), ("answer", role.answer))
-        if (fault := _contract_fault(name, field, ref))
-    ] or [
-        fault
-        for name, role in config.roles.items()
-        if (fault := _hook_fault(name, role, config, fs))
-    ]
+    faults = (
+        [
+            fault
+            for name, role in config.roles.items()
+            for field, ref in (("input", role.input), ("answer", role.answer))
+            if (fault := _contract_fault(name, field, ref))
+        ]
+        or [fault for name, role in config.roles.items() if (fault := _run_fault(name, role))]
+        or [
+            fault
+            for name, role in config.roles.items()
+            if (fault := _hook_fault(name, role, config, fs))
+        ]
+    )
     if faults:
         raise ValueError("\n".join(faults))
 

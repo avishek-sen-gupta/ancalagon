@@ -19,10 +19,12 @@ from ancalagon.supervisor.spawn_by_run import SpawnByRun
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
 from ancalagon.contracts.watch_request import WatchRequest
+from ancalagon.contracts.watched import Watched
 from ancalagon.watch.watch_for import WATCH_FOR
 from tests.integration.prepared_run import prepared_run_dir
 
 WATCHING = ClassRef(module=WatchRequest.__module__, name="WatchRequest")
+WATCHED = ClassRef(module=Watched.__module__, name="Watched")
 
 
 def test_a_watcher_process_wakes_the_supervisor_the_way_any_child_does(
@@ -41,6 +43,7 @@ def test_a_watcher_process_wakes_the_supervisor_the_way_any_child_does(
             behaviour="Wait for the blackboard.",
             run=WATCH_FOR,
             input=WATCHING,
+            answer=WATCHED,
             tools=(),
             budget=Budget(turns=0, tool_calls=0),
         ),
