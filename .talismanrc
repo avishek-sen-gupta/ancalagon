@@ -105,4 +105,8 @@ fileignoreconfig:
   checksum: 734777a67b95f649d6cb07f6dfb18ddceed07e25fb5dc29502dc5e564809d876
 - filename: docs/superpowers/plans/2026-08-27-deterministic-agents.md
   checksum: ca07cf45ac353c5e1b885ae82c0a0f047a3c9ad085726c0352bc5de88008e409
+- filename: ancalagon/contracts/declared.py
+  checksum: 218c4167dc57b31571e7f2213f911a47af4b0719aa6b817503b3b019be23e971
+- filename: ancalagon/contracts/run_contracts.py
+  checksum: 1cf73c3aa07393957fde1ab48bac37643ab85e38a8720f46ac2a8b74dfa87a30
 version: "1.0"

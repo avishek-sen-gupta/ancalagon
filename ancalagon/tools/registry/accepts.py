@@ -6,20 +6,10 @@ import typing
 
 import pydantic
 
+from ancalagon.contracts.declared import Declared, declared
 from ancalagon.contracts.function_ref import FunctionRef
 
 POSITIONAL = inspect.Parameter.POSITIONAL_OR_KEYWORD
-
-Declared = tuple[type[pydantic.BaseModel] | None, str]
-
-
-def _declared(hints: collections.abc.Mapping[str, object], first: str) -> Declared:
-    if first not in hints:
-        return None, f"does not annotate its first parameter, {first}"
-    declared = hints[first]
-    if not isinstance(declared, type) or not issubclass(declared, pydantic.BaseModel):
-        return None, f"annotates {first} as {declared}, which is not a model class"
-    return declared, ""
 
 
 def _annotation(found: collections.abc.Callable[..., object], arity: int) -> Declared:
@@ -27,7 +17,8 @@ def _annotation(found: collections.abc.Callable[..., object], arity: int) -> Dec
     if len(params) != arity or any(p.kind is not POSITIONAL for p in params):
         return None, f"must take {arity} positional parameters, not {[p.name for p in params]}"
     try:
-        return _declared(typing.get_type_hints(found), params[0].name)
+        first = params[0].name
+        return declared(typing.get_type_hints(found), first, f"its first parameter, {first}")
     except NameError as exc:
         return None, f"has an annotation that cannot be resolved: {exc}"
 

@@ -7,6 +7,8 @@ import pytest
 from ancalagon.config.load import load_config
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.function_ref import FunctionRef
+from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.role import FREE_TEXT
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.sandbox.strategy import Strategy
@@ -166,3 +168,103 @@ budget = { turns = 12, tool_calls = 30 }
 
     with pytest.raises(pydantic.ValidationError, match="module"):
         load_config(config, RealFileSystem())
+
+
+RUNNERS = """
+import pydantic
+
+
+class Given(pydantic.BaseModel, frozen=True):
+    path: str
+
+
+class Produced(pydantic.BaseModel, frozen=True):
+    at: float
+
+
+def good(given: Given, ctx: pydantic.BaseModel) -> Produced:
+    return Produced(at=1.0)
+
+
+def one_parameter(given: Given) -> Produced:
+    return Produced(at=1.0)
+
+
+def bare(given, ctx) -> Produced:
+    return Produced(at=1.0)
+
+
+def not_a_model(given: int, ctx: pydantic.BaseModel) -> Produced:
+    return Produced(at=1.0)
+
+
+def no_return(given: Given, ctx: pydantic.BaseModel):
+    return Produced(at=1.0)
+
+
+def returns_a_scalar(given: Given, ctx: pydantic.BaseModel) -> int:
+    return 1
+"""
+
+
+def _with_run(tmp_path: pathlib.Path, name: str, extra: str = "") -> pathlib.Path:
+    return _written(
+        tmp_path,
+        f"""
+[roles.transformer]
+behaviour = "Transform it."
+run = {{ module = "runkit.runners", name = "{name}" }}
+tools = []
+budget = {{ turns = 0, tool_calls = 0 }}
+{extra}
+""",
+    )
+
+
+def test_a_role_naming_a_run_function_takes_its_contracts_from_the_signature(
+    tmp_path: pathlib.Path, importable: collections.abc.Callable[[pathlib.Path], None]
+):
+    package = tmp_path / "runkit"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "runners.py").write_text(RUNNERS)
+    importable(tmp_path)
+
+    role = load_config(_with_run(tmp_path, "good"), RealFileSystem()).roles["transformer"]
+
+    assert role.run == FunctionRef(module="runkit.runners", name="good")
+    assert role.input == ClassRef(module="runkit.runners", name="Given")
+    assert role.answer == ClassRef(module="runkit.runners", name="Produced")
+
+    prose = load_config(_written(tmp_path, PROSE_ROLE), RealFileSystem()).roles["scout"]
+    assert prose.run == NO_RUN
+    assert prose.input == FREE_TEXT
+
+    def fault(name: str) -> str:
+        with pytest.raises(ValueError) as raised:
+            load_config(_with_run(tmp_path, name), RealFileSystem())
+        return str(raised.value)
+
+    assert fault("one_parameter") == (
+        "one_parameter in runkit.runners must take 2 positional parameters, not ['given']"
+    )
+    assert "does not annotate its first parameter, given" in fault("bare")
+    assert "annotates given as <class 'int'>, which is not a model class" in fault("not_a_model")
+    assert "does not annotate its return" in fault("no_return")
+    assert "annotates return as <class 'int'>, which is not a model class" in fault(
+        "returns_a_scalar"
+    )
+
+    both = _with_run(
+        tmp_path, "good", extra='answer = { module = "runkit.runners", name = "Produced" }'
+    )
+    with pytest.raises(ValueError, match="declares run"):
+        load_config(both, RealFileSystem())
+
+
+PROSE_ROLE = """
+[roles.scout]
+behaviour = "Investigate."
+tools = ["read_file"]
+budget = { turns = 4, tool_calls = 8 }
+"""
