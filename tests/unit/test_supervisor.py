@@ -241,10 +241,13 @@ def test_a_tick_wakes_an_idling_parent_once_a_supervisor_has_reaped_its_child(
     assert bus.attempt(parent) == Running(pid=1000 + parent)
     assert list(supervisor.live) == [parent, child]
 
+    watermark = max(e.id for events in bus.snapshot().events.values() for e in events)
     parent_dir.mkdir(parents=True, exist_ok=True)
     (parent_dir / f"outcome-{parent}.json").write_text(
         Idling(
-            summary="waiting on children", spent=Budget(turns=1, tool_calls=1), seen_through=0
+            summary="waiting on children",
+            spent=Budget(turns=1, tool_calls=1),
+            seen_through=watermark,
         ).model_dump_json()
     )
     _write_completed(tmp_path / "tasks" / "child", child)

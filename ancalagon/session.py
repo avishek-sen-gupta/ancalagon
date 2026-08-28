@@ -321,7 +321,7 @@ class Session:
     def run(self) -> Outcome[pydantic.BaseModel]:
         while True:
             final = self.remaining.turns_exhausted
-            seen = self.children.seen_through()
+            seen = self.children.seen_through() if final else 0
             outstanding = self.children.outstanding()
             if final and outstanding:
                 return Idling(
