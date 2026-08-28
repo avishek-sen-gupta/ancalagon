@@ -263,6 +263,8 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
     assert outcome.kind is OutcomeKind.IDLING
     assert outcome.summary == f"idling until one of agents [{child}] finishes"
     assert outcome.spent == Budget(turns=1, tool_calls=0)
+    highest = max(e.id for events in bus.snapshot().events.values() for e in events)
+    assert outcome.seen_through == highest
 
 
 def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer(
@@ -319,6 +321,9 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
 
     assert outcome.kind is OutcomeKind.IDLING
     assert outcome.spent == Budget(turns=1, tool_calls=0)
+    highest = max(e.id for events in bus.snapshot().events.values() for e in events)
+    assert isinstance(outcome, Idling)
+    assert outcome.seen_through == highest
 
 
 def test_submit_answer_description_states_the_answer_shape():
