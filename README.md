@@ -527,9 +527,9 @@ invisible to it.
 - On Bedrock with a bearer token, `scripts/ancrun.zsh` strips stale AWS credentials from the
   environment first — otherwise litellm signs with those and Bedrock rejects the request. It
   requires `AWS_BEARER_TOKEN_BEDROCK`.
-- `ancalagon migrate --db <db> --to 0` drops every table the schema creates, not just what a
-  later migration added; there is only the one. A parent's `idling` row and a child's
-  `collected` row go with the rest of `agent_events`.
+- `ancalagon migrate --db <db> --to 0` unwinds every migration in reverse, down to dropping the
+  tables `001_init` created. A parent's `idling` row and a child's `collected` row go with the
+  rest of `agent_events`.
 
 ## Constraints
 
