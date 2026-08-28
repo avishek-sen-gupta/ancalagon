@@ -93,18 +93,17 @@ session already calls; recording what a call cost is a different concern from re
 an agent did, so it is a different table behind a different port, not a second set of methods
 on the same class.
 
-There is a single migration, `001_init`, describing the schema as it stands today. The
-project's answer to a schema change is to edit it in place, not to add a numbered migration
-on top: run directories are disposable and no compatibility with an older schema is promised,
-so there is nothing gained by preserving the steps that got here. Editing `001_init` breaks
-existing run databases outright — they are not upgraded, they stop opening — and that is a
-deliberate stance, not an oversight.
+Migrations are numbered and applied in order — `001_init` describes the schema as it first
+stood, `002_seen_through` is the second, adding the column the watermark needs. Run
+directories are disposable and no compatibility with an older schema is promised, so a schema
+change is a new numbered migration on top rather than an edit to one already applied: an old
+run database simply stops opening against a newer chain rather than being silently upgraded.
 
-The downgrade path is just as blunt. `--to 0` runs `001_init.down.sql`, which drops every
-table `001_init` created — `agent_events` among them — rather than removing only what a later
-migration would have added. A parent recorded `idling` mid-run, and any child recorded
-`collected`, lose those rows along with the rest of the log; there is nothing partial about
-going down a version when there is only one.
+The downgrade path unwinds the chain in reverse. `--to 0` runs each migration's down script
+from the latest applied back to the first, so `002_seen_through.down.sql` removes what it
+added before `001_init.down.sql` drops every table `001_init` created — `agent_events` among
+them. A parent recorded `idling` mid-run, and any child recorded `collected`, lose those rows
+along with the rest of the log.
 
 ### 2. Supervising — `ancalagon/supervisor/supervisor.py`
 
@@ -179,9 +178,8 @@ agents are claimed and how many processes are live.
   parent had reached at the moment it decided to idle, not the id of the `idling` row the
   supervisor writes once it reaps that parent, which lands later and would otherwise outrun a
   child that settles in between. `wakeable` evaluates that as a predicate over the tick's
-  `Snapshot`, not as an event fired when a child finishes, and skips a task whose newest agent is
-  still
-  one of this supervisor's own live processes. A child is news only once its newest agent
+  `Snapshot`, not as an event fired when a child finishes, and skips a task whose newest agent
+  is still one of this supervisor's own live processes. A child is news only once its newest agent
   reaches `Closed` or `Lost`, and only the supervisor writes either: the worker records
   nothing about its own lifecycle at all, only `outcome-<agent>.json`, so waking on the worker's own
   word is not an option — there is no word to wake on. The predicate therefore reads the
