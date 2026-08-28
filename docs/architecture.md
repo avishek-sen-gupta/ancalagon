@@ -175,8 +175,12 @@ agents are claimed and how many processes are live.
   supervisor had to kill — and if it does not, the row records the close the supervisor
   itself observed. The exit code decides nothing; no terminal row records one.
 - `_wake_idling` re-enqueues a task whose newest agent idled and has since had a child settle
-  — `wakeable` evaluates that as a predicate over the tick's `Snapshot`, not as an event fired
-  when a child finishes, and skips a task whose newest agent is still
+  with something it had not already seen — measured against `seen_through`, the event id the
+  parent had reached at the moment it decided to idle, not the id of the `idling` row the
+  supervisor writes once it reaps that parent, which lands later and would otherwise outrun a
+  child that settles in between. `wakeable` evaluates that as a predicate over the tick's
+  `Snapshot`, not as an event fired when a child finishes, and skips a task whose newest agent is
+  still
   one of this supervisor's own live processes. A child is news only once its newest agent
   reaches `Closed` or `Lost`, and only the supervisor writes either: the worker records
   nothing about its own lifecycle at all, only `outcome-<agent>.json`, so waking on the worker's own

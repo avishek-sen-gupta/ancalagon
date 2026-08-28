@@ -145,7 +145,8 @@ def test_a_task_is_wakeable_only_for_news_a_supervisor_has_marked(
 
     assert wakeable(bus.snapshot()) == ()
 
-    settle(bus, parent, AgentStatus.IDLING)
+    watermark = max(e.id for events in bus.snapshot().events.values() for e in events)
+    settle(bus, parent, AgentStatus.IDLING, seen_through=watermark)
     assert wakeable(bus.snapshot()) == ()
 
     bus.record(first, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
@@ -157,7 +158,8 @@ def test_a_task_is_wakeable_only_for_news_a_supervisor_has_marked(
     woken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
     assert wakeable(bus.snapshot()) == ()
 
-    settle(bus, woken, AgentStatus.IDLING)
+    watermark = max(e.id for events in bus.snapshot().events.values() for e in events)
+    settle(bus, woken, AgentStatus.IDLING, seen_through=watermark)
     assert wakeable(bus.snapshot()) == ()
 
     bus.record(second, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
@@ -171,10 +173,12 @@ def test_a_task_is_wakeable_only_for_news_a_supervisor_has_marked(
     reporting_child = bus.enqueue(tmp_path / "d", parent_agent=rewoken)
     assert wakeable(bus.snapshot()) == ()
 
-    settle(bus, rewoken, AgentStatus.IDLING)
+    watermark = max(e.id for events in bus.snapshot().events.values() for e in events)
+    settle(bus, rewoken, AgentStatus.IDLING, seen_through=watermark)
     assert wakeable(bus.snapshot()) == ()
 
-    settle(bus, idled_child, AgentStatus.IDLING, pid=3)
+    watermark = max(e.id for events in bus.snapshot().events.values() for e in events)
+    settle(bus, idled_child, AgentStatus.IDLING, pid=3, seen_through=watermark)
     assert wakeable(bus.snapshot()) == ()
 
     settle(bus, reporting_child, AgentStatus.COMPLETED, pid=4)
