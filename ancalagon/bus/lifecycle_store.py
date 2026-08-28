@@ -69,6 +69,7 @@ _INSERT_EVENT = sa.insert(agent_events).values(
     source=sa.bindparam("source"),
     pid=sa.bindparam("pid"),
     summary=sa.bindparam("summary"),
+    seen_through=sa.bindparam("seen_through"),
 )
 
 _ALL_TASKS = sa.select(tasks).order_by(tasks.c.id)
@@ -124,6 +125,7 @@ class LifecycleStore:
         source: EventSource,
         pid: int = 0,
         summary: str = "",
+        seen_through: int = 0,
     ) -> None:
         current = self.attempt(agent)
         next_state(current, status, source, pid)
@@ -136,6 +138,7 @@ class LifecycleStore:
                 "source": source.value,
                 "pid": pid,
                 "summary": summary[:SUMMARY_LIMIT],
+                "seen_through": seen_through,
             },
         )
 
@@ -146,10 +149,11 @@ class LifecycleStore:
         source: EventSource,
         pid: int = 0,
         summary: str = "",
+        seen_through: int = 0,
     ) -> None:
         self.conn.execute("BEGIN IMMEDIATE")
         try:
-            self._record(agent, status, source, pid, summary)
+            self._record(agent, status, source, pid, summary, seen_through)
         except Exception:
             self.conn.execute("ROLLBACK")
             raise

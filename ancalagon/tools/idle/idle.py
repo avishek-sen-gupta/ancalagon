@@ -34,6 +34,7 @@ class Idle(Tool[IdleArgs]):
         live = live_children(snapshot, self.agent)
         if not live:
             return ctx.failure(self.name, "nothing to wait for: no live children")
-        payload = Idled(waiting_for=live)
+        seen = max((e.id for events in snapshot.events.values() for e in events), default=0)
+        payload = Idled(waiting_for=live, seen_through=seen)
         path = ctx.write_output(self.name, payload.text_for_model(), ".txt")
         return ToolResult(ok=True, summary=payload, path=path)

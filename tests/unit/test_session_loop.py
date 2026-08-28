@@ -542,6 +542,9 @@ class ScriptedChildren(Children):
             self._uncollected = self._uncollected[1:]
         return self._last_uncollected
 
+    def seen_through(self) -> int:
+        return 0
+
 
 def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
     tmp_path: pathlib.Path,
