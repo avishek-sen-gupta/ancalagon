@@ -30,6 +30,7 @@ agent_events = sa.Table(
     sa.Column("source", sa.Text, nullable=False),
     sa.Column("pid", sa.Integer, nullable=False),
     sa.Column("summary", sa.Text, nullable=False),
+    sa.Column("seen_through", sa.Integer, nullable=False),
 )
 
 model_calls = sa.Table(

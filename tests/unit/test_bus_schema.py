@@ -30,6 +30,7 @@ def test_schema_py_tables_match_the_migrated_database_columns(tmp_path: pathlib.
         "source",
         "pid",
         "summary",
+        "seen_through",
     ]
     assert [c.name for c in schema.agent_events.columns] == [
         "id",
@@ -39,6 +40,7 @@ def test_schema_py_tables_match_the_migrated_database_columns(tmp_path: pathlib.
         "source",
         "pid",
         "summary",
+        "seen_through",
     ]
 
     assert _columns(conn, "model_calls") == [

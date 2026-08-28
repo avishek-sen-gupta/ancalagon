@@ -14,7 +14,7 @@ def test_migrations_round_trip_and_checks_reject_bad_rows(tmp_path: pathlib.Path
     conn = sqlite3.connect(tmp_path / "bus.db")
 
     assert user_version(conn) == 0
-    assert latest_version(RealFileSystem()) == 1
+    assert latest_version(RealFileSystem()) == 2
 
     migrate(conn, latest_version(RealFileSystem()), RealFileSystem())
     assert user_version(conn) == latest_version(RealFileSystem())
@@ -83,7 +83,7 @@ def test_a_bus_never_migrates_itself_and_the_command_does_it_offline(
 
     stale = tmp_path / "stale.db"
     migrate(sqlite3.connect(stale), 0, RealFileSystem())
-    with pytest.raises(ValueError, match="schema version 0, not 1"):
+    with pytest.raises(ValueError, match="schema version 0, not 2"):
         LifecycleStore.open(stale, SystemClock(), RealFileSystem())
 
     with pytest.raises(ValueError, match="does not exist"):
@@ -91,13 +91,13 @@ def test_a_bus_never_migrates_itself_and_the_command_does_it_offline(
 
     fresh = tmp_path / "fresh.db"
     assert migrate_command(fresh, -1, RealFileSystem()) == 0
-    assert capsys.readouterr().out.strip().endswith("0 -> 1")
+    assert capsys.readouterr().out.strip().endswith("0 -> 2")
     LifecycleStore.open(fresh, SystemClock(), RealFileSystem())
 
     assert migrate_command(stale, -1, RealFileSystem()) == 0
-    assert capsys.readouterr().out.strip().endswith("0 -> 1")
+    assert capsys.readouterr().out.strip().endswith("0 -> 2")
     LifecycleStore.open(stale, SystemClock(), RealFileSystem())
 
     assert migrate_command(stale, 0, RealFileSystem()) == 0
-    with pytest.raises(ValueError, match="schema version 0, not 1"):
+    with pytest.raises(ValueError, match="schema version 0, not 2"):
         LifecycleStore.open(stale, SystemClock(), RealFileSystem())

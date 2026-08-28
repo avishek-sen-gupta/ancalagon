@@ -85,7 +85,7 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
     assert adapter.validate_json(completed.model_dump_json()) == completed
     failed = Failed(error="boom", summary="died", spent=Budget(turns=0, tool_calls=0))
     assert adapter.validate_json(failed.model_dump_json()) == failed
-    idling = Idling(summary="waiting", spent=Budget(turns=0, tool_calls=0))
+    idling = Idling(summary="waiting", spent=Budget(turns=0, tool_calls=0), seen_through=0)
     assert adapter.validate_json(idling.model_dump_json()) == idling
     with pytest.raises(pydantic.ValidationError):
         adapter.validate_json(

@@ -9,5 +9,8 @@ class NoChildren(Children):
     def uncollected(self) -> tuple[int, ...]:
         return ()
 
+    def seen_through(self) -> int:
+        return 0
+
 
 NO_CHILDREN = NoChildren()

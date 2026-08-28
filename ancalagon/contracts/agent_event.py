@@ -13,3 +13,4 @@ class AgentEvent(pydantic.BaseModel, frozen=True):
     source: EventSource
     pid: int
     summary: str
+    seen_through: int = 0

@@ -11,3 +11,4 @@ class Idling(pydantic.BaseModel, frozen=True):
     kind: typing.Literal[OutcomeKind.IDLING] = OutcomeKind.IDLING
     summary: str
     spent: Budget
+    seen_through: int

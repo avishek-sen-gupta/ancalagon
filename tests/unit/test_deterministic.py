@@ -34,7 +34,7 @@ def echo(given: Given, ctx: RunContext) -> Outcome[Produced]:
 
 
 def waits(given: Given, ctx: RunContext) -> Outcome[Produced]:
-    return Idling(summary="waiting for a child", spent=NOTHING)
+    return Idling(summary="waiting for a child", spent=NOTHING, seen_through=0)
 
 
 def explodes(given: Given, ctx: RunContext) -> Outcome[Produced]:

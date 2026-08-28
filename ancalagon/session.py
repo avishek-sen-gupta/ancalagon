@@ -225,7 +225,11 @@ class Session:
                 spent=self._spent(),
             )
         if isinstance(summary, Idled):
-            return Idling(summary=summary.text_for_model()[:SUMMARY_CHARS], spent=self._spent())
+            return Idling(
+                summary=summary.text_for_model()[:SUMMARY_CHARS],
+                spent=self._spent(),
+                seen_through=summary.seen_through,
+            )
         if isinstance(summary, Submitted) and final:
             return Exhausted(
                 value=summary.answer,
@@ -317,9 +321,14 @@ class Session:
     def run(self) -> Outcome[pydantic.BaseModel]:
         while True:
             final = self.remaining.turns_exhausted
+            seen = self.children.seen_through()
             outstanding = self.children.outstanding()
             if final and outstanding:
-                return Idling(summary="turns exhausted while children ran", spent=self._spent())
+                return Idling(
+                    summary="turns exhausted while children ran",
+                    spent=self._spent(),
+                    seen_through=seen,
+                )
             declarations = self._declarations(final, outstanding)
             if final:
                 self._prepare_final_turn()

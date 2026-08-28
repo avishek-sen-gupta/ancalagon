@@ -71,8 +71,10 @@ class Supervisor:
         self.live = {**self.live, state.agent: process}
         self.started = {**self.started, state.agent: self.clock.time()}
 
-    def _finish(self, agent: int, status: AgentStatus, summary: str) -> None:
-        self.bus.record(agent, status, EventSource.SUPERVISOR, summary=summary)
+    def _finish(self, agent: int, status: AgentStatus, summary: str, seen_through: int = 0) -> None:
+        self.bus.record(
+            agent, status, EventSource.SUPERVISOR, summary=summary, seen_through=seen_through
+        )
         self.live = {a: p for a, p in self.live.items() if a != agent}
         self.started = {a: s for a, s in self.started.items() if a != agent}
 
@@ -80,7 +82,12 @@ class Supervisor:
         written = pathlib.PurePath(self.bus.dir_of(agent)) / f"outcome-{agent}.json"
         if self.fs.exists(written):
             spoken = OutcomeHeader.model_validate_json(self.fs.read_text(written))
-            self._finish(agent, AgentStatus(spoken.kind.value), spoken.summary)
+            self._finish(
+                agent,
+                AgentStatus(spoken.kind.value),
+                spoken.summary,
+                seen_through=spoken.seen_through,
+            )
             return
         self._finish(agent, close, summary)
 
@@ -137,16 +144,20 @@ class Supervisor:
         self.liveness.kill(running.pid)
         self._close(agent, AgentStatus.TIMED_OUT, f"killed after {self.timeout_s}s at startup")
 
+    def _idle_step(self) -> bool:
+        self.tick()
+        if self.live:
+            self.clock.sleep(self.poll_s)
+            return True
+        if self.bus.queued_count() == 0:
+            return False
+        self.clock.sleep(self.poll_s)
+        return True
+
     def run_until_idle(self) -> None:
         self.resolve_stale()
-        while True:
-            self.tick()
-            if self.live:
-                self.clock.sleep(self.poll_s)
-                continue
-            if self.bus.queued_count() == 0:
-                return
-            self.clock.sleep(self.poll_s)
+        while self._idle_step():
+            pass
 
     def shutdown(self) -> None:
         self.live = {}

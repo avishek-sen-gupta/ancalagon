@@ -13,6 +13,7 @@ from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.free_text import FreeText
+from ancalagon.contracts.idled import Idled
 from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.role import Role
 from ancalagon.fs.real_file_system import RealFileSystem
@@ -24,6 +25,8 @@ from ancalagon.supervisor.fake_liveness import FakeLiveness
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
 from ancalagon.supervisor.supervisor import Supervisor
+from ancalagon.tools.idle.idle import Idle
+from ancalagon.tools.idle.idle_args import IdleArgs
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.delegate.delegate_to import DelegateTo
 from ancalagon.tools.delegate.task_args import TaskArgs
@@ -239,7 +242,9 @@ def test_a_tick_wakes_an_idling_parent_once_a_supervisor_has_reaped_its_child(
 
     parent_dir.mkdir(parents=True, exist_ok=True)
     (parent_dir / f"outcome-{parent}.json").write_text(
-        Idling(summary="waiting on children", spent=Budget(turns=1, tool_calls=1)).model_dump_json()
+        Idling(
+            summary="waiting on children", spent=Budget(turns=1, tool_calls=1), seen_through=0
+        ).model_dump_json()
     )
     _write_completed(tmp_path / "tasks" / "child", child)
 
@@ -561,3 +566,46 @@ def test_waking_reads_the_database_a_fixed_number_of_times_whatever_the_child_co
 
     selects = [s for s in statements if s.lstrip().upper().startswith("SELECT")]
     assert len(selects) == 3
+
+
+def test_an_idle_records_how_much_of_the_log_the_parent_had_seen(tmp_path: pathlib.Path):
+    migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
+    bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
+    parent_dir = tmp_path / "tasks" / "parent"
+    parent = bus.enqueue(parent_dir, parent_agent=0)
+    child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=parent)
+    bus.record(parent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(parent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
+    bus.record(child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=2)
+
+    highest = max(e.id for events in bus.snapshot().events.values() for e in events)
+    tool = Idle(run_dir=tmp_path, agent=parent, clock=SystemClock(), fs=RealFileSystem())
+    result = tool.run(IdleArgs(), _ctx(tmp_path))
+
+    assert result.ok is True
+    assert isinstance(result.summary, Idled)
+    assert result.summary.waiting_for == (child,)
+    assert result.summary.seen_through == highest
+
+    parent_dir.mkdir(parents=True, exist_ok=True)
+    (parent_dir / f"outcome-{parent}.json").write_text(
+        Idling(
+            summary=result.summary.text_for_model(),
+            spent=Budget(turns=1, tool_calls=1),
+            seen_through=result.summary.seen_through,
+        ).model_dump_json()
+    )
+    supervisor = Supervisor(
+        bus=bus,
+        spawner=FakeSpawner([]),
+        max_concurrent=1,
+        timeout_s=5,
+        poll_s=1.0,
+        clock=FakeClock(),
+        fs=RealFileSystem(),
+    )
+    supervisor._close(parent, AgentStatus.CRASHED, "unused")  # pyright: ignore[reportPrivateUsage]
+
+    idled = [e for e in bus.snapshot().events[parent] if e.status is AgentStatus.IDLING]
+    assert [e.seen_through for e in idled] == [highest]
