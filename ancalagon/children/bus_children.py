@@ -17,7 +17,3 @@ class BusChildren(Children):
     def uncollected(self) -> tuple[int, ...]:
         snapshot = self.bus.snapshot()
         return uncollected(snapshot, snapshot.task_by_agent[self.agent])
-
-    def seen_through(self) -> int:
-        snapshot = self.bus.snapshot()
-        return max((e.id for events in snapshot.events.values() for e in events), default=0)

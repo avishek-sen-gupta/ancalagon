@@ -18,6 +18,7 @@ from ancalagon.contracts.exhausted import Exhausted
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.idling import Idling
+from ancalagon.contracts.no_watermark import NO_WATERMARK
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.outcome_kind import OutcomeKind
 from ancalagon.contracts.reply import Reply
@@ -321,9 +322,8 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
 
     assert outcome.kind is OutcomeKind.IDLING
     assert outcome.spent == Budget(turns=1, tool_calls=0)
-    highest = max(e.id for events in bus.snapshot().events.values() for e in events)
     assert isinstance(outcome, Idling)
-    assert outcome.seen_through == highest
+    assert outcome.seen_through == NO_WATERMARK
 
 
 def test_submit_answer_description_states_the_answer_shape():
@@ -546,9 +546,6 @@ class ScriptedChildren(Children):
             self._last_uncollected = self._uncollected[0]
             self._uncollected = self._uncollected[1:]
         return self._last_uncollected
-
-    def seen_through(self) -> int:
-        return 0
 
 
 def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
