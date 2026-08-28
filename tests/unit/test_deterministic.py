@@ -15,6 +15,7 @@ import pydantic
 
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.idling import Idling
+from ancalagon.contracts.no_watermark import NO_WATERMARK
 from ancalagon.contracts.nothing import NOTHING
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.deterministic.run_context import RunContext
@@ -34,7 +35,7 @@ def echo(given: Given, ctx: RunContext) -> Outcome[Produced]:
 
 
 def waits(given: Given, ctx: RunContext) -> Outcome[Produced]:
-    return Idling(summary="waiting for a child", spent=NOTHING, seen_through=0)
+    return Idling(summary="waiting for a child", spent=NOTHING, seen_through=NO_WATERMARK)
 
 
 def explodes(given: Given, ctx: RunContext) -> Outcome[Produced]:

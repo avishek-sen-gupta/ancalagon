@@ -432,8 +432,7 @@ much smaller toolset than its author expects, silently, unless `tools` is filled
 
 Which of `idle` and `submit_answer` the model actually sees changes every turn. `Session`
 learns the facts it needs through an injected `Children` port (`ancalagon/children/`) —
-`outstanding()` and `uncollected()`, both tuples of agent ids, and `seen_through()`, the
-largest event id a child of this agent has reached — rather than deciding once at
+`outstanding()` and `uncollected()`, both tuples of agent ids — rather than deciding once at
 registry build time: `_declarations` offers `idle` while `outstanding()` is non-empty, and
 `submit_answer` once both `outstanding()` and `uncollected()` are empty, or unconditionally on
 the turn the budget runs out. `BusChildren` answers both from the bus; `NoChildren` /
@@ -447,7 +446,6 @@ check costs nothing where it can never apply.
 ```
 while True:
     final = out of turns
-    seen = children.seen_through()
     outstanding = children.outstanding()
     final and outstanding? ─────────▶ Idling  (turns ran out while children were still working)
     declare idle / submit_answer per outstanding() and uncollected(), or submit_answer only if final
@@ -489,11 +487,12 @@ flags set, `final` and `force_tool`. Five things worth knowing:
   `force_tool="submit_answer"`. `_declarations` also collapses to `submit_answer` alone on
   that turn, offered regardless of whether every child has been collected: being cut off by
   the budget is not the same as choosing to skip reading a child's answer.
-- **`seen` is read before `outstanding()`, not after.** A watermark taken earlier than the
-  decision to idle can only over-wake a parent later — it never misses a child that had already
-  settled — while one taken after `outstanding()` risks reading past a child that settles in
-  the gap, which is exactly the bug this branch fixed. That ordering is what makes the
-  exhausted-turns idling path above safe to take without a turn.
+- **The exhausted-turns idle records `NO_WATERMARK`, not a measured one.** It never called
+  `idle`, so it has no snapshot to take a watermark from, and `-1` says that rather than
+  claiming it had seen nothing. The cost is that such a parent also wakes for a child that had
+  already settled and was never collected — which is a wake it can act on, and which stops once
+  that child is collected or the last live child settles. Measuring it properly would take a
+  bus snapshot per turn to avoid a wake that is not wrong, so it is not measured.
 - **`_system()` returns two halves**, `SystemPrompt(static, per_item)`: behaviour and answer
   instructions, identical for every item in a population, then this item's goal, input and
   scopes. Only the static half is cache-marked, so the cached prefix is shared across items.

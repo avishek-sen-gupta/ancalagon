@@ -19,6 +19,7 @@ from ancalagon.contracts.json_payload import json_payload
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.needs_input import NeedsInput
+from ancalagon.contracts.no_watermark import NO_WATERMARK
 from ancalagon.contracts.outcome import SUMMARY_CHARS, Outcome
 from ancalagon.contracts.payload import Payload
 from ancalagon.contracts.pending import PENDING, Pending
@@ -321,13 +322,12 @@ class Session:
     def run(self) -> Outcome[pydantic.BaseModel]:
         while True:
             final = self.remaining.turns_exhausted
-            seen = self.children.seen_through() if final else 0
             outstanding = self.children.outstanding()
             if final and outstanding:
                 return Idling(
                     summary="turns exhausted while children ran",
                     spent=self._spent(),
-                    seen_through=seen,
+                    seen_through=NO_WATERMARK,
                 )
             declarations = self._declarations(final, outstanding)
             if final:
