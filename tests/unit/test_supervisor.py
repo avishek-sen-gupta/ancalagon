@@ -19,6 +19,7 @@ from ancalagon.contracts.role import Role
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.schedule.active_for import active_for
+from ancalagon.schedule.has_news import has_news
 from ancalagon.schedule.task_of import task_of
 from ancalagon.schedule.unreaped import unreaped
 from ancalagon.supervisor.fake_liveness import FakeLiveness
@@ -609,3 +610,85 @@ def test_an_idle_records_how_much_of_the_log_the_parent_had_seen(tmp_path: pathl
 
     idled = [e for e in bus.snapshot().events[parent] if e.status is AgentStatus.IDLING]
     assert [e.seen_through for e in idled] == [highest]
+
+
+def _settle(bus: LifecycleStore, agent: int, verdict: AgentStatus) -> None:
+    bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
+    bus.record(agent, verdict, EventSource.SUPERVISOR)
+
+
+def _idled(bus: LifecycleStore, agent: int, seen_through: int) -> None:
+    bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
+    bus.record(agent, AgentStatus.IDLING, EventSource.SUPERVISOR, seen_through=seen_through)
+
+
+def test_a_parent_wakes_whichever_order_it_and_its_child_are_reaped_in(
+    tmp_path: pathlib.Path,
+):
+    for name, child_first in (("child_first", True), ("parent_first", False)):
+        root = tmp_path / name
+        root.mkdir()
+        migrate_file(root / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
+        bus = LifecycleStore.open(root / "bus.db", SystemClock(), RealFileSystem())
+        parent = bus.enqueue(root / "tasks" / "parent", parent_agent=0)
+        child = bus.enqueue(root / "tasks" / "child", parent_agent=parent)
+        watermark = max(e.id for events in bus.snapshot().events.values() for e in events)
+
+        if child_first:
+            _settle(bus, child, AgentStatus.COMPLETED)
+            _idled(bus, parent, watermark)
+        else:
+            _idled(bus, parent, watermark)
+            _settle(bus, child, AgentStatus.COMPLETED)
+
+        snapshot = bus.snapshot()
+        assert has_news(snapshot, task_of(snapshot, parent).id) is True, name
+
+
+def test_a_child_that_settled_before_the_parent_idled_does_not_wake_it(
+    tmp_path: pathlib.Path,
+):
+    migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
+    bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
+    parent = bus.enqueue(tmp_path / "tasks" / "parent", parent_agent=0)
+    stale = bus.enqueue(tmp_path / "tasks" / "stale", parent_agent=parent)
+    live = bus.enqueue(tmp_path / "tasks" / "live", parent_agent=parent)
+
+    _settle(bus, stale, AgentStatus.COMPLETED)
+    bus.record(live, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(live, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=2)
+    watermark = max(e.id for events in bus.snapshot().events.values() for e in events)
+    _idled(bus, parent, watermark)
+
+    snapshot = bus.snapshot()
+    task = task_of(snapshot, parent).id
+    assert has_news(snapshot, task) is False
+
+    bus.record(live, AgentStatus.COMPLETED, EventSource.SUPERVISOR)
+    assert has_news(bus.snapshot(), task) is True
+
+
+def test_a_child_that_idles_and_is_woken_still_wakes_its_own_parent(
+    tmp_path: pathlib.Path,
+):
+    migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
+    bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
+    top = bus.enqueue(tmp_path / "tasks" / "top", parent_agent=0)
+    middle_dir = tmp_path / "tasks" / "middle"
+    middle = bus.enqueue(middle_dir, parent_agent=top)
+    bottom = bus.enqueue(tmp_path / "tasks" / "bottom", parent_agent=middle)
+
+    bus.record(middle, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(middle, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=2)
+    watermark = max(e.id for events in bus.snapshot().events.values() for e in events)
+    _idled(bus, top, watermark)
+
+    _settle(bus, bottom, AgentStatus.COMPLETED)
+    bus.record(middle, AgentStatus.IDLING, EventSource.SUPERVISOR, seen_through=watermark)
+    resumed = bus.enqueue(middle_dir, parent_agent=top)
+    _settle(bus, resumed, AgentStatus.COMPLETED)
+
+    snapshot = bus.snapshot()
+    assert has_news(snapshot, task_of(snapshot, top).id) is True
