@@ -113,4 +113,6 @@ fileignoreconfig:
   checksum: 064bf47cb49f6048da2511ac3d87ba95df7a0f50cf5cc27dc157b448e02d4b32
 - filename: docs/superpowers/plans/2026-08-28-run-functions-choose-their-outcome.md
   checksum: 2a69a8ac07ce1ac6f243eedbcbe43d6f0c8f2f2c6c27cda6be32455114c2216b
+- filename: docs/superpowers/specs/2026-08-28-waking-an-idling-parent-design.md
+  checksum: d3dd99a2bd2abae43152e37a1e9e2ed5cb9517280450e1c9bab9f296ec80f1f8
 version: "1.0"
