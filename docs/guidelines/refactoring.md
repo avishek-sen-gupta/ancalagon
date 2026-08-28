@@ -51,3 +51,8 @@ starting and find every construction site structurally with `ast-grep` rather th
 - **Mutation-check a new test before trusting it.** Break the code it covers in the two most
   obvious ways and confirm the test fails. A test written after the code is a hypothesis until
   it has failed at least once.
+- **A plan's verification step runs the whole integration suite, not the file you expect to
+  break.** Two plans in a row narrowed it to the one integration test their change was about,
+  and both let a regression reach the final review: refs that stopped being file paths broke
+  two tests nobody ran, and a second migration broke an assertion naming the schema version.
+  `tests/integration` takes about forty seconds. Neither miss would have survived it.

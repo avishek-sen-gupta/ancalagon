@@ -10,19 +10,24 @@ not the reasoning.
 
 ## The shape in one paragraph
 
-Three kinds of process share no memory. A **CLI** writes a task to disk and hands it to a
-**supervisor**, which spawns a **worker** per attempt. The worker runs one `Session` — the
-agent loop — and writes its result back to disk. Nothing talks to anything else directly:
-every hand-off is a SQLite row or a file.
+Processes share no memory. A **CLI** writes a task to disk and hands it to a **supervisor**,
+which spawns one child per attempt. Nothing talks to anything else directly: every hand-off is
+a SQLite row or a file.
+
+A child comes in two kinds, and the supervisor cannot tell them apart. A **worker** runs one
+`Session` — the agent loop, with a model in it. A **runner** calls one Python function. Both
+read the same `spec.json` and write the same `outcome-<agent>.json`, so a parent that delegated
+the work cannot tell which produced its answer either. Which one a task gets is decided by
+whether its role names a run function.
 
 ```
 cli.py ──writes spec.json──▶ tasks/root/
    │                              ▲
    │ enqueue                      │ outcome-<agent>.json
-   ▼                              │
- bus.db ◀──claim──── supervisor ──┴──spawn──▶ worker ──▶ Session ──▶ llm ──▶ provider
-                                                            │
-                                                            └──▶ tools ──▶ files
+   ▼                              │             ┌──▶ worker ──▶ Session ──▶ llm ──▶ provider
+ bus.db ◀──claim──── supervisor ──┴──spawn──────┤                  │
+                                                │                  └──▶ tools ──▶ files
+                                                └──▶ runner ──▶ a Python function
 ```
 
 ## The trace
