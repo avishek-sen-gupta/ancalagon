@@ -44,7 +44,8 @@ Copied from `CLAUDE.md` and the project guidelines. Every task's requirements in
 | Modify `ancalagon/contracts/idled.py`, `ancalagon/contracts/idling.py` | The tool payload and the outcome carry it |
 | Modify `ancalagon/contracts/outcome_header.py` | `seen_through: int = 0`, so `_close` can read it |
 | Modify `ancalagon/tools/idle/idle.py` | Reads the watermark from the snapshot it already takes |
-| Modify `ancalagon/session.py:228` | Passes it through instead of discarding it |
+| Modify `ancalagon/children/children.py`, `ancalagon/children/bus_children.py` | `seen_through()`, for the idling path that never calls the tool |
+| Modify `ancalagon/session.py:228,320-322` | Both idling paths carry a watermark |
 | Modify `ancalagon/supervisor/supervisor.py` | `_close` threads it onto the event |
 | Test `tests/unit/test_supervisor.py` | The watermark survives the round trip |
 
@@ -239,6 +240,52 @@ In `ancalagon/session.py:228`, stop discarding it:
                 seen_through=summary.seen_through,
             )
 ```
+
+**There is a second idling path, and it never calls the tool.** `session.py:322` returns
+`Idling(summary="turns exhausted while children ran", ...)` when a session runs out of turns with
+children still working. It has no `Idled` payload, so it needs its own watermark, and the session
+reaches the bus only through `Children`. That protocol gains one method:
+
+```python
+# ancalagon/children/children.py
+class Children(typing.Protocol):
+    def outstanding(self) -> tuple[int, ...]: ...
+
+    def uncollected(self) -> tuple[int, ...]: ...
+
+    def seen_through(self) -> int: ...
+```
+
+```python
+# ancalagon/children/bus_children.py
+    def seen_through(self) -> int:
+        snapshot = self.bus.snapshot()
+        return max((e.id for events in snapshot.events.values() for e in events), default=0)
+```
+
+and `run` reads it **before** it asks what is outstanding:
+
+```python
+    def run(self) -> Outcome[pydantic.BaseModel]:
+        while True:
+            final = self.remaining.turns_exhausted
+            seen = self.children.seen_through()
+            outstanding = self.children.outstanding()
+            if final and outstanding:
+                return Idling(
+                    summary="turns exhausted while children ran",
+                    spent=self._spent(),
+                    seen_through=seen,
+                )
+```
+
+The order matters and is not stylistic. A watermark taken *earlier* than the decision is always
+safe: a child settling in between lands above it and wakes the parent, which then finds nothing
+new and carries on. A watermark taken *later* can swallow that child, which is the bug this whole
+spec is about. Read it first.
+
+Any other `Children` implementation in the test suite needs the method too —
+`grep -rn 'Children)' tests` finds them.
 
 In `ancalagon/supervisor/supervisor.py`, `_close` reads it from the header it already parses and `_finish` passes it on:
 
