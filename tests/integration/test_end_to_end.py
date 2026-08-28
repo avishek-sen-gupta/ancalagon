@@ -355,7 +355,7 @@ def test_a_run_refuses_a_database_the_startup_script_has_not_migrated(tmp_path: 
     assert (named / "bus.db").exists() is False
 
     migrate_file(named / "bus.db", 0, RealFileSystem())
-    with pytest.raises(ValueError, match="schema version 0, not 1"):
+    with pytest.raises(ValueError, match="schema version 0, not 2"):
         main(config, named)
 
     migrate_file(named / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
