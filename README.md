@@ -269,6 +269,12 @@ wrong id can never wake the task that spawned it. See "What being woken means" i
 scratch, not resumed, so it must guard its own re-enqueuing the way `DelegateTo.run` and
 `WatchFile._queued` guard theirs, with `active_for`.
 
+An `Idling` a run function returns must carry `seen_through`: the bus's largest event id,
+read from `ctx.run_dir / "bus.db"` before the function decides to idle. There is no session
+here to fill it in. `0` means "wake me for anything", which with a settled-but-uncollected
+child wakes the task every tick, re-runs the function, and returns `Idling(0)` again — a spin,
+where the same situation used to stall.
+
 The child's role needs no entry in the config. Build one in Python from `Role`, `FunctionRef`,
 `ClassRef` and `Budget`, the way `tests/integration/test_blackboard.py` does. Contract
 derivation from a run function's signature is a config-loader concern, so a hand-built `Role`
