@@ -48,7 +48,9 @@ fileignoreconfig:
 - filename: tests/integration/test_scripted_escalation.py
   checksum: 8536de326942b09961ed8f3deb9e70de51292899cf3171285e4fd328f8f615f1
 - filename: README.md
-  checksum: 9847348c66319b18c1a81fc76feefe6645e86cfe69288f3030ef4299286280de
+  checksum: ec5d5f1e5d72fb1e21d22a68151a3f13495b6117cccfc601ce4bd0ec897717a6
+- filename: scripts/ancrun.zsh
+  checksum: 3712acd42152df7dd1ff0abd50f242a85abba311c4fcf3f41b5074dd367b0273
 - filename: docs/guidelines/code-review.md
   checksum: 5256f2878a5cfa74c80e2e86e9c4a0dfa7c9696e8349d0f362416086a8a8531b
 - filename: docs/guidelines/tools-skills.md
