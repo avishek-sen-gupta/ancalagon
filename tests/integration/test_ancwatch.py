@@ -10,6 +10,8 @@ from ancalagon.contracts.tool_use import ToolUse
 
 FILTER = pathlib.Path(__file__).parents[2] / "scripts" / "ancwatch.jq"
 CYAN = "\x1b[36m"
+YELLOW = "\x1b[1;33m"
+RED = "\x1b[31m"
 PLAIN = "\x1b[0m"
 
 
@@ -48,7 +50,8 @@ def test_a_watched_line_cuts_prose_to_the_width_and_keeps_tool_arguments_whole()
         ],
     )
     assert render(spoken, 26) == (
-        f"{CYAN}[r_1/root/3]{PLAIN} A reading the copybook to fi" f" | → read_file {arguments}\n"
+        f"{CYAN}[r_1/root/3]{PLAIN} A reading the copybook to fi"
+        f" | → {YELLOW}read_file{PLAIN} {arguments}\n"
     )
 
     refused = Message(
@@ -64,4 +67,6 @@ def test_a_watched_line_cuts_prose_to_the_width_and_keeps_tool_arguments_whole()
             )
         ],
     )
-    assert render(refused, 20) == (f"{CYAN}[r_1/root/3]{PLAIN} U ← ERR these citations do n\n")
+    assert render(refused, 20) == (
+        f"{CYAN}[r_1/root/3]{PLAIN} U ← {RED}ERR{PLAIN} these citations do n\n"
+    )
