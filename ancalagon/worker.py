@@ -34,6 +34,7 @@ from ancalagon.tools.artifacts.convert_document import ConvertDocument
 from ancalagon.tools.artifacts.extract_strings import ExtractStrings
 from ancalagon.tools.artifacts.file_type import FileType
 from ancalagon.tools.artifacts.query_json import QueryJson
+from ancalagon.tools.compare.diff_regions import DiffRegions
 from ancalagon.tools.delegate.answer_task import AnswerTask
 from ancalagon.tools.delegate.check_task import CheckTask
 from ancalagon.tools.delegate.collect_task import CollectTask
@@ -85,6 +86,7 @@ def available_tools(
         bound_for(EditFile(), role),
         bound_for(DeleteFile(), role),
         bound_for(ListDir(), role),
+        bound_for(DiffRegions(clock), role),
         bound_for(Ripgrep(), role),
         bound_for(AstGrep(), role),
         bound_for(TransformFile(), role),

@@ -197,6 +197,7 @@ nothing do not spend the tool-call budget.
 |---|---|
 | `read_file` | a slice of a file, told which lines it showed of how many |
 | `list_dir` | what is in a directory |
+| `diff_regions` | two line ranges aligned row by row, with both files' line numbers |
 | `code_stats` | languages, file and line counts, before reading anything |
 | `file_type` | what a file is, before assuming it is text |
 | `transform_file` | a file read through a sed script, when it is hard to read as it stands |

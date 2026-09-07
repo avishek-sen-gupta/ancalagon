@@ -94,6 +94,7 @@ type = "forbidden"
 allow_indirect_imports = true
 source_modules = [
     "ancalagon.tools.artifacts",
+    "ancalagon.tools.compare",
     "ancalagon.tools.files",
     "ancalagon.tools.history",
     "ancalagon.tools.parse",

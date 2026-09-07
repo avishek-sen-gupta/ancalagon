@@ -41,6 +41,9 @@ from ancalagon.tools.artifacts.path_arg import PathArg
 from ancalagon.tools.artifacts.query_args import QueryArgs
 from ancalagon.tools.artifacts.query_json import QueryJson
 from ancalagon.tools.artifacts.strings_args import StringsArgs
+from ancalagon.tools.compare.diff_args import DiffArgs
+from ancalagon.tools.compare.diff_regions import DiffRegions
+from ancalagon.tools.compare.region import Region
 from ancalagon.tools.delegate.check_task import CheckTask
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.delegate.delegate_to import DelegateTo
@@ -507,6 +510,85 @@ def test_survey_and_symbol_tools_report_structure_not_mentions(tmp_path: pathlib
 
     denied = CodeStats().run(StatsArgs(roots=[tmp_path / "elsewhere"]), ctx)
     assert denied.ok is False
+
+
+def test_diff_regions_aligns_two_ranges_and_reports_bad_ranges_as_values(tmp_path: pathlib.Path):
+    ctx = _ctx(tmp_path)
+    root = pathlib.Path(ctx.workspace.write_root)
+    left = root / "left.cpy"
+    right = root / "right.cpy"
+    shared = "               88  FLAG-YES  VALUE 'Y'."
+    left_flag = "           05  L-CDE-FLAG    PIC X(01)."
+    right_flag = "           05  R-CDE-FLAG    PIC X(01)."
+    left_only = "               88  FLAG-NO   VALUE 'N'."
+    right_only = "               88  FLAG-MOOT VALUE 'M'."
+    left.write_text(f"       01  LEFT-RECORD.\n{left_flag}\n{shared}\n{left_only}\n")
+    right.write_text(
+        f"       01  RIGHT-RECORD.\n      *    a comment\n{right_flag}   \n{shared}\n{right_only}\n"
+    )
+    tool = DiffRegions(FakeClock())
+
+    aligned = tool.run(
+        DiffArgs(
+            left=Region(path=left, start_line=2, end_line=4),
+            right=Region(path=right, start_line=3, end_line=5),
+        ),
+        ctx,
+    )
+    assert aligned.ok is True
+    assert pathlib.Path(aligned.path).read_text() == (
+        f"== {left} 2-4  vs  {right} 3-5\n"
+        f"- 2:- {left_flag}\n"
+        f"+ -:3 {right_flag}\n"
+        f"= 3:4 {shared}\n"
+        f"- 4:- {left_only}\n"
+        f"+ -:5 {right_only}\n"
+        "5 rows: 1 matching, 2 only left, 2 only right\n"
+    )
+
+    same = tool.run(
+        DiffArgs(
+            left=Region(path=left, start_line=3, end_line=3),
+            right=Region(path=right, start_line=4, end_line=4),
+        ),
+        ctx,
+    )
+    assert pathlib.Path(same.path).read_text().splitlines()[1:] == [
+        f"= 3:4 {shared}",
+        "1 rows: 1 matching, 0 only left, 0 only right",
+    ]
+
+    past_end = tool.run(
+        DiffArgs(
+            left=Region(path=left, start_line=2, end_line=9),
+            right=Region(path=right, start_line=3, end_line=5),
+        ),
+        ctx,
+    )
+    assert past_end.ok is False
+    assert past_end.error == f"{left}: lines 2-9 but the file has 4"
+
+    reversed_range = tool.run(
+        DiffArgs(
+            left=Region(path=left, start_line=2, end_line=4),
+            right=Region(path=right, start_line=5, end_line=3),
+        ),
+        ctx,
+    )
+    assert reversed_range.ok is False
+    assert reversed_range.error == f"{right}: end_line 3 is before start_line 5"
+
+    outside = tmp_path / "outside.cpy"
+    outside.write_text("       01  ELSEWHERE.\n")
+    denied = tool.run(
+        DiffArgs(
+            left=Region(path=left, start_line=1, end_line=1),
+            right=Region(path=outside, start_line=1, end_line=1),
+        ),
+        ctx,
+    )
+    assert denied.ok is False
+    assert "outside" in denied.error
 
 
 def test_artifact_and_history_tools_read_what_read_file_cannot(tmp_path: pathlib.Path):
