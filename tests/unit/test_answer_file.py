@@ -100,7 +100,9 @@ def test_submitting_a_file_ends_the_run_and_refuses_a_file_that_is_not_there(
     assert missing.error == f"no answer file at {tmp_path / 'ws' / 'absent.json'}"
 
 
-def test_the_schema_hook_accepts_a_conforming_file_and_names_every_fault(tmp_path: pathlib.Path):
+def test_the_schema_hook_accepts_a_conforming_file_names_every_fault_and_refuses_what_it_cannot_read(
+    tmp_path: pathlib.Path,
+):
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
     schema = write_root / "record.schema.json"
@@ -136,6 +138,31 @@ def test_the_schema_hook_accepts_a_conforming_file_and_names_every_fault(tmp_pat
     assert isinstance(refusal, Refused)
     assert "/values/1" in refusal.reason
     assert "'name' is a required property" in refusal.reason
+
+    answer.unlink()
+    assert adheres_to_schema(submitted, ctx) == Refused(
+        reason=f"the answer file you submitted, {answer}, does not exist"
+    )
+
+    answer.write_text("{oops")
+    unparsable = adheres_to_schema(submitted, ctx)
+    assert isinstance(unparsable, Refused)
+    assert unparsable.reason.startswith(
+        f"the answer file you submitted, {answer}, is not valid JSON: "
+    )
+
+    answer.write_text(json.dumps({"name": "a", "values": [1, 2]}))
+    schema.write_text("{oops")
+    unparsable_schema = adheres_to_schema(submitted, ctx)
+    assert isinstance(unparsable_schema, Refused)
+    assert unparsable_schema.reason.startswith(
+        f"the schema this task named, {schema}, is not valid JSON: "
+    )
+
+    schema.unlink()
+    assert adheres_to_schema(submitted, ctx) == Refused(
+        reason=f"the schema this task named, {schema}, does not exist"
+    )
 
     unguided = ToolContext(
         workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),

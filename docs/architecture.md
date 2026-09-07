@@ -662,11 +662,19 @@ pointer fields (`status`, `summary`, `path`) upward, and the parent decides what
 A hook that validates the file's contents runs before `submit_answer_as_file`, not after, and
 the schema it enforces is declared in the task's input contract rather than hard-coded anywhere.
 That hook, `submit/adheres_to_schema.py`, is the one place a parsed JSON value exists in this
-codebase without immediately becoming a Pydantic model: `json.loads` appears twice, both inside
-that function, validating the schema and the answer file against `jsonschema.Draft202012Validator`.
-Neither value is annotated, returned, or passed anywhere. The structure being validated is never a
-Python value, which is the entire reason this route exists — schemas that large would not fit in a
-model class, and JSON Schema is what the parent already has when it builds the subtask.
+codebase without immediately becoming a Pydantic model: every `json.loads` in it sits inside a
+module-private helper — `_unreadable`, which reports a file it could not parse, and `_mismatch`,
+which checks the answer against the schema through `jsonschema.Draft202012Validator`. Both return
+a string, so no parsed value is annotated, returned, or passed anywhere. The structure being
+validated is never a Python value, which is the entire reason this route exists — schemas that
+large would not fit in a model class, and JSON Schema is what the parent already has when it
+builds the subtask.
+
+A hook runs inside the tool call, so anything it raises ends the whole run as `Failed` and the
+agent never sees it. `_refusal` therefore treats an absent or unparsable file as a refusal like
+any other, naming which of the two files it was and why: a missing answer file is a retry the
+agent can make, and a missing or malformed schema is the parent's fault, which the agent can
+report.
 
 A differing quote comes back as an alignment from `compare/alignment.py`, the same `=`/`-`/`+`
 vocabulary `diff_regions` uses, with the quote on the left numbered from 1 and the cited lines on
