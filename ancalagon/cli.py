@@ -13,6 +13,7 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
+from ancalagon.contracts.answer_file import AnswerFile
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.resolve import resolve_class
@@ -35,7 +36,7 @@ from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
 from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
-from ancalagon.tools.submit.submitting import TERMINAL_TOOLS
+from ancalagon.tools.submit.submitting import TERMINAL_TOOLS, submitting
 from ancalagon.trace_command import trace_command
 from ancalagon.viz_command import viz_command
 from ancalagon.worker import build_registry
@@ -129,7 +130,7 @@ def _run_fault(name: str, role: Role) -> str:
     )
 
 
-ANSWER_FILE = ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile")
+ANSWER_FILE = ClassRef(module=AnswerFile.__module__, name=AnswerFile.__name__)
 
 
 def _submit_fault(name: str, role: Role) -> str:
@@ -152,9 +153,18 @@ def _answer_file_fault(name: str, role: Role) -> str:
 
 def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem) -> str:
     named = set(role.before) | set(role.after)
-    unused = named - set(role.tools) - {Idle.name}
-    if unused:
-        return f"[roles.{name}] names a hook for {sorted(unused)[0]}, which it does not use"
+    withheld = TERMINAL_TOOLS - {submitting(role.tools)}
+    in_role_but_withheld = named & set(role.tools) & withheld
+    not_in_role = named - set(role.tools) - {Idle.name}
+    if in_role_but_withheld:
+        tool = sorted(in_role_but_withheld)[0]
+        chosen = submitting(role.tools)
+        return (
+            f"[roles.{name}] names a hook for {tool}, but that tool is not among its tools "
+            f"because it named {chosen}"
+        )
+    if not_in_role:
+        return f"[roles.{name}] names a hook for {sorted(not_in_role)[0]}, which it does not use"
     try:
         build_registry(
             config,
