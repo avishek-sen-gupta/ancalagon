@@ -1,19 +1,28 @@
 import json
 import pathlib
 
+from ancalagon.clock.system_clock import SystemClock
+from ancalagon.config.config import Config
 from ancalagon.contracts.accepted import Accepted
 from ancalagon.contracts.answer_file import AnswerFile
 from ancalagon.contracts.answer_status import AnswerStatus
+from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.refused import Refused
+from ancalagon.contracts.role import Role
 from ancalagon.contracts.schema_guided import SchemaGuided
 from ancalagon.contracts.submitted import Submitted
+from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.adheres_to_schema import adheres_to_schema
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.tools.submit.submitting import submitting
+from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
+
+ANSWER_FILE = ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile")
 
 
 class Guided(SchemaGuided, frozen=True):
@@ -31,10 +40,28 @@ def _ctx(tmp_path: pathlib.Path) -> ToolContext:
     )
 
 
-def test_the_role_chooses_which_terminal_tool_it_submits_with():
+def test_the_role_chooses_which_terminal_tool_it_submits_with(tmp_path: pathlib.Path):
     assert submitting(("read_file", "submit_answer")) == SubmitAnswer.name
     assert submitting(("read_file", "submit_answer_as_file")) == SubmitAnswerAsFile.name
     assert submitting(("submit_answer", "submit_answer_as_file")) == SubmitAnswerAsFile.name
+
+    role = Role(
+        behaviour="You answer.",
+        answer=ANSWER_FILE,
+        tools=("read_file", "submit_answer", "submit_answer_as_file"),
+        budget=Budget(turns=1, tool_calls=1),
+    )
+    registry = build_registry(
+        Config(write_root=tmp_path, read_roots=(tmp_path,), model="m", roles={"root": role}),
+        TaskSpec(task_id="root", role=role, goal="g"),
+        tmp_path,
+        parent=1,
+        depth=0,
+        output_class=AnswerFile,
+        clock=SystemClock(),
+        fs=RealFileSystem(),
+    )
+    assert sorted(registry.names()) == ["idle", "read_file", "submit_answer_as_file"]
 
 
 def test_submitting_a_file_ends_the_run_and_refuses_a_file_that_is_not_there(
