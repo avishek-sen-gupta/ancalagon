@@ -531,9 +531,10 @@ invisible to it.
   outside the run or reach an unlisted domain; under `strategy = "none"` an agent holding `run`
   has whatever access you have. It runs in a directory the call must name, resolved against
   `read_roots`, and is killed after 120 seconds.
-- On Bedrock with a bearer token, `scripts/ancrun.zsh` strips stale AWS credentials from the
-  environment first — otherwise litellm signs with those and Bedrock rejects the request. It
-  requires `AWS_BEARER_TOKEN_BEDROCK`.
+- On Bedrock, `scripts/ancrun.zsh` takes either `AWS_BEARER_TOKEN_BEDROCK` or the pair
+  `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, and strips whichever form it is not using
+  from the environment — otherwise litellm signs with the stale one and Bedrock rejects the
+  request. The bearer token wins when both are set.
 - `ancalagon migrate --db <db> --to 0` unwinds every migration in reverse, down to dropping the
   tables `001_init` created. A parent's `idling` row and a child's `collected` row go with the
   rest of `agent_events`.
