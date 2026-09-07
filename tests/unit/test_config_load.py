@@ -10,7 +10,7 @@ from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.no_run import NO_RUN
-from ancalagon.contracts.role import FREE_TEXT
+from ancalagon.contracts.role import FREE_TEXT, Role
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.sandbox.strategy import Strategy
 
@@ -362,3 +362,16 @@ role = "analyst"
     assert "[roles.analyst]" in str(raised.value)
     assert "submit_answer" in str(raised.value)
     assert "[roles.transformer]" not in str(raised.value)
+
+    filer = Role(
+        behaviour="You file.",
+        tools=("submit_answer_as_file",),
+        budget=Budget(turns=1, tool_calls=1),
+    )
+    with pytest.raises(ValueError) as wrong_answer:
+        check_contracts(config.model_copy(update={"roles": {"filer": filer}}), RealFileSystem())
+
+    assert str(wrong_answer.value) == (
+        "[roles.filer] declares answer as FreeText in ancalagon.contracts.free_text, but "
+        "submit_answer_as_file submits AnswerFile in ancalagon.contracts.answer_file"
+    )
