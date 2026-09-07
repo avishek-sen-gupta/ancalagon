@@ -114,8 +114,10 @@ def test_session_runs_tools_completes_and_forces_a_final_answer_when_exhausted(
                 stop_reason="tool_calls",
             ),
             Reply(
-                blocks=[Text(text='Here is my answer.\n\n```json\n{"answer": "payload"}\n```')],
-                stop_reason="stop",
+                blocks=[
+                    ToolUse(id="tu_2", name="submit_answer", arguments='{"answer": "payload"}')
+                ],
+                stop_reason="tool_calls",
             ),
         ],
         Budget(turns=5, tool_calls=5),
@@ -132,8 +134,9 @@ def test_session_runs_tools_completes_and_forces_a_final_answer_when_exhausted(
         "assistant",
         "user",
         "assistant",
+        "user",
     ]
-    assert [json.loads(line)["seq"] for line in lines] == [0, 1, 2, 3]
+    assert [json.loads(line)["seq"] for line in lines] == [0, 1, 2, 3, 4]
     assert all(json.loads(line)["agent"] == 17 for line in lines)
     assert all(json.loads(line)["ts"] == "2026-01-01T00:00:00+00:00" for line in lines)
     assert "Answer it." in lines[0]
@@ -151,7 +154,12 @@ def test_session_runs_tools_completes_and_forces_a_final_answer_when_exhausted(
                 blocks=[ToolUse(id="tu_1", name="read_file", arguments='{"path": "/nope"}')],
                 stop_reason="tool_calls",
             ),
-            Reply(blocks=[Text(text='{"answer": "best effort"}')], stop_reason="stop"),
+            Reply(
+                blocks=[
+                    ToolUse(id="tu_2", name="submit_answer", arguments='{"answer": "best effort"}')
+                ],
+                stop_reason="tool_calls",
+            ),
         ],
         Budget(turns=1, tool_calls=5),
     )
@@ -160,7 +168,9 @@ def test_session_runs_tools_completes_and_forces_a_final_answer_when_exhausted(
     assert forced.value.model_dump() == {"answer": "best effort"}
 
 
-def test_session_returns_tool_failures_and_invalid_output_to_the_agent(tmp_path: pathlib.Path):
+def test_session_returns_tool_failures_and_nudges_a_reply_that_called_nothing(
+    tmp_path: pathlib.Path,
+):
     session = _session(
         tmp_path,
         [
@@ -168,18 +178,22 @@ def test_session_returns_tool_failures_and_invalid_output_to_the_agent(tmp_path:
                 blocks=[ToolUse(id="tu_1", name="read_file", arguments='{"path": "/etc/passwd"}')],
                 stop_reason="tool_calls",
             ),
-            Reply(blocks=[Text(text="not json at all")], stop_reason="stop"),
-            Reply(blocks=[Text(text='{"answer": "denied"}')], stop_reason="stop"),
+            Reply(blocks=[Text(text='Here it is: {"answer": "denied"}')], stop_reason="stop"),
+            Reply(
+                blocks=[ToolUse(id="tu_2", name="submit_answer", arguments='{"answer": "denied"}')],
+                stop_reason="tool_calls",
+            ),
         ],
         Budget(turns=5, tool_calls=5),
     )
     outcome = session.run()
     assert isinstance(outcome, Completed)
     assert outcome.value.model_dump() == {"answer": "denied"}
+    assert outcome.spent.turns == 3
 
     transcript = (tmp_path / "transcript.jsonl").read_text()
     assert "outside" in transcript
-    assert "did not match the schema" in transcript
+    assert "Answers are only accepted through the submit_answer tool" in transcript
 
 
 def test_session_stops_and_returns_the_question_when_an_agent_needs_input(
@@ -441,8 +455,10 @@ def test_the_static_system_half_is_shared_across_items_and_the_per_item_half_is_
             tmp_path / item,
             [
                 Reply(
-                    blocks=[Text(text='{"answer": "done"}')],
-                    stop_reason="stop",
+                    blocks=[
+                        ToolUse(id="tu_1", name="submit_answer", arguments='{"answer": "done"}')
+                    ],
+                    stop_reason="tool_calls",
                     usage=CallUsage(cache_creation_tokens=2048, cache_read_tokens=1024),
                 )
             ],
@@ -630,9 +646,7 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
     assert outcome.kind is OutcomeKind.EXHAUSTED
 
 
-def test_a_hook_refusing_on_the_forced_final_turn_fails_naming_the_refusal(
-    tmp_path: pathlib.Path,
-):
+def test_a_hook_gates_every_answer_and_prose_cannot_evade_it(tmp_path: pathlib.Path):
     def always_refuses(args: pydantic.BaseModel, ctx: ToolContext) -> Reviewed:
         return Refused(reason="every answer must cite a file")
 
@@ -649,3 +663,17 @@ def test_a_hook_refusing_on_the_forced_final_turn_fails_naming_the_refusal(
     assert outcome.error == "submit_answer refused: every answer must cite a file"
     assert outcome.summary == '{"answer": "no citation"}'
     assert outcome.spent == Budget(turns=2, tool_calls=0)
+
+    prose = Reply(blocks=[Text(text='{"answer": "no citation"}')], stop_reason="stop")
+    evading = _session(tmp_path / "prose", [prose] * 3, Budget(turns=2, tool_calls=4))
+    evading.registry = Registry([bind_tool(SubmitAnswer(Verdict), before=always_refuses)])
+
+    evaded = evading.run()
+
+    assert isinstance(evaded, Failed)
+    assert evaded.error == "no final answer"
+    assert evaded.summary == '{"answer": "no citation"}'
+    assert evaded.spent == Budget(turns=2, tool_calls=0)
+
+    nudged = (tmp_path / "prose" / "transcript.jsonl").read_text()
+    assert "Answers are only accepted through the submit_answer tool" in nudged

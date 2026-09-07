@@ -472,21 +472,25 @@ while True:
                need_input.question set?  ──▶ NeedsInput
                submit.answer set?        ──▶ Completed, or Exhausted if final
                loop
-        no  ─▶ parse the text as the output class
-               valid?   ──▶ Completed, or Exhausted if final
-               invalid? ──▶ tell it so and loop, or Failed if final
+        no  ─▶ tell it to call submit_answer and loop, or Failed if final
 ```
 
 There is no separate final-turn code path any more — the last turn is this same loop with two
-flags set, `final` and `force_tool`. Five things worth knowing:
+flags set, `final` and `force_tool`. Seven things worth knowing:
 
-- **The run ends in one of four places.** Before the model is even called, if the turn budget
+- **The run ends in one of three places.** Before the model is even called, if the turn budget
   is exhausted while a child is still outstanding (`Idling`, spending no turn at all). Through
   a tool result — `idle`, `need_input` or `submit_answer` — whose `ToolResult` carries an
   `Idled`, an `Asked` or a `Submitted` payload that `_run_tools` hands back for `run` to read.
   No tool holds state, and the session holds no second reference to one — the ending travels
-  along the call it came from. Or by parsing the reply's raw text as the output class, when it
-  called no tool at all.
+  along the call it came from. Or `Failed` on the forced final turn, when the reply produced no
+  such payload.
+- **`submit_answer` is the only way to answer.** A reply that calls no tool has not finished:
+  `_uncalled` records `CONTINUE_INSTRUCTION` and the loop goes round, and on the forced final
+  turn the attempt is `Failed`. The session does not parse a reply's raw text as the output
+  class, because a completion reached that way never passes through `bind_tool` and so never
+  meets the role's `before submit_answer` hooks. Two ways in would mean a contract whose hook
+  gates one of them, which is not a gate.
 - **`_run_tools` refuses calls past the budget** rather than letting it go negative, and
   returns the refusal to the model as an error result.
 - **A tool called with bad arguments is caught** and becomes an error result, so the model

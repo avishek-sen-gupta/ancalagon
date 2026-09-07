@@ -257,7 +257,7 @@ nothing do not spend the tool-call budget.
 | `watch_file` | queue a watcher that ends when a file changes, so idling wakes you |
 | `need_input` | stop and hand a question upward, free |
 | `idle` | stop and wait for a child, free |
-| `submit_answer` | the final answer, free |
+| `submit_answer` | the final answer, free — and the only way to give one |
 
 `watch_file` is the one that needs something else declared: a role that names `watch_for` as its
 `run` function, since that is what it queues and what tells the supervisor to run a process
@@ -364,6 +364,11 @@ Which of the two terminal tools the session offers is decided per turn:
 | yes | none | some | neither — `collect_task` first |
 | no (final turn) | none | any | `submit_answer` only, forced |
 | no (final turn) | some | — | nothing is offered: the attempt ends `Idling` |
+
+Whichever row applies, a reply that calls no tool at all is not an answer. The session tells the
+agent that answers arrive only through `submit_answer` and goes round again, and on the forced
+final turn the attempt ends `Failed`. There is no route to a completed run that skips the tool,
+which is what makes a hook attached to it a gate rather than one of two doors.
 
 ## Asking a human
 
