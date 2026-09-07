@@ -71,21 +71,29 @@ def test_a_citation_is_accepted_only_when_it_quotes_the_lines_it_names(tmp_path:
             Evidence(path=str(tmp_path / "elsewhere.txt"), start_line=1, end_line=1, quote="x"),
             Evidence(path=cited, start_line=2, end_line=9, quote="x"),
             Evidence(path=cited, start_line=3, end_line=2, quote="x"),
-            Evidence(path=cited, start_line=3, end_line=3, quote="05  INVENTED  PIC X."),
+            Evidence(
+                path=cited,
+                start_line=2,
+                end_line=3,
+                quote="05  FIRST-FIELD    PIC X(01).\n05  INVENTED  PIC X.",
+            ),
         ),
     )
     refusal = evidence_resolves(faulty, ctx)
     assert isinstance(refusal, Refused)
-    assert refusal.reason.startswith("these citations do not resolve: ")
-    faults = refusal.reason.removeprefix("these citations do not resolve: ").split("; ")
-    assert len(faults) == 5
-    assert faults[0].startswith(f"{tmp_path / 'scope' / 'gone.txt'}: not readable")
-    assert faults[1].startswith(f"{tmp_path / 'elsewhere.txt'}: not readable")
-    assert faults[2] == f"{cited}: lines 2-9 but the file has 3"
-    assert faults[3] == f"{cited}: end_line 2 is before start_line 3"
-    assert faults[4] == (
-        f"{cited}: quote does not match lines 3-3, which read: 05  SECOND-FIELD   PIC X(1)."
-    )
+    reported = refusal.reason.splitlines()
+    assert reported[0] == "these citations do not resolve:"
+    assert reported[1].startswith(f"{tmp_path / 'scope' / 'gone.txt'}: not readable")
+    assert reported[2].startswith(f"{tmp_path / 'elsewhere.txt'}: not readable")
+    assert reported[3] == f"{cited}: lines 2-9 but the file has 3"
+    assert reported[4] == f"{cited}: end_line 2 is before start_line 3"
+    assert reported[5:] == [
+        f"{cited}: quote does not match lines 2-3. Rows are = same, - only in your quote, "
+        "+ only in the file, numbered quote:file.",
+        "= 1:2 05  FIRST-FIELD    PIC X(01).",
+        "- 2:- 05  INVENTED  PIC X.",
+        "+ -:3 05  SECOND-FIELD   PIC X(1).",
+    ]
 
     nested = Report(
         findings=(
@@ -98,9 +106,14 @@ def test_a_citation_is_accepted_only_when_it_quotes_the_lines_it_names(tmp_path:
     )
     buried = evidence_resolves(nested, ctx)
     assert isinstance(buried, Refused)
-    assert buried.reason == (
-        f"these citations do not resolve: {cited}: quote does not match lines 1-1, "
-        "which read: 01  RECORD."
+    assert buried.reason == "\n".join(
+        (
+            "these citations do not resolve:",
+            f"{cited}: quote does not match lines 1-1. Rows are = same, - only in your quote, "
+            "+ only in the file, numbered quote:file.",
+            "- 1:- not line one",
+            "+ -:1 01  RECORD.",
+        )
     )
 
     with pytest.raises(pydantic.ValidationError, match="path"):
