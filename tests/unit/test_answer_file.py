@@ -1,14 +1,23 @@
+import json
 import pathlib
 
+from ancalagon.contracts.accepted import Accepted
 from ancalagon.contracts.answer_file import AnswerFile
 from ancalagon.contracts.answer_status import AnswerStatus
+from ancalagon.contracts.refused import Refused
+from ancalagon.contracts.schema_guided import SchemaGuided
 from ancalagon.contracts.submitted import Submitted
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.tools.registry.tool_context import ToolContext
+from ancalagon.tools.submit.adheres_to_schema import adheres_to_schema
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.tools.submit.submitting import submitting
 from ancalagon.workspace.workspace import Workspace
+
+
+class Guided(SchemaGuided, frozen=True):
+    pass
 
 
 def _ctx(tmp_path: pathlib.Path) -> ToolContext:
@@ -62,3 +71,49 @@ def test_submitting_a_file_ends_the_run_and_refuses_a_file_that_is_not_there(
     )
     assert not missing.ok
     assert missing.error == f"no answer file at {tmp_path / 'ws' / 'absent.json'}"
+
+
+def test_the_schema_hook_accepts_a_conforming_file_and_names_every_fault(tmp_path: pathlib.Path):
+    write_root = tmp_path / "ws"
+    write_root.mkdir(parents=True, exist_ok=True)
+    schema = write_root / "record.schema.json"
+    schema.write_text(
+        json.dumps(
+            {
+                "type": "object",
+                "required": ["name", "values"],
+                "properties": {
+                    "name": {"type": "string"},
+                    "values": {"type": "array", "items": {"type": "integer"}},
+                },
+            }
+        )
+    )
+    answer = write_root / "record.json"
+    ctx = ToolContext(
+        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
+        task_dir=write_root / "outputs",
+        summary_chars=200,
+        agent_id=1,
+        input=Guided(output_schema=pathlib.PurePath(schema)),
+    )
+    submitted = AnswerFile(
+        status=AnswerStatus.COMPLETE, summary="a record", path=pathlib.PurePath(answer)
+    )
+
+    answer.write_text(json.dumps({"name": "a", "values": [1, 2]}))
+    assert adheres_to_schema(submitted, ctx) == Accepted(value=submitted)
+
+    answer.write_text(json.dumps({"values": [1, "two"]}))
+    refusal = adheres_to_schema(submitted, ctx)
+    assert isinstance(refusal, Refused)
+    assert "/values/1" in refusal.reason
+    assert "'name' is a required property" in refusal.reason
+
+    unguided = ToolContext(
+        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
+        task_dir=write_root / "outputs",
+        summary_chars=200,
+        agent_id=1,
+    )
+    assert isinstance(adheres_to_schema(submitted, unguided), Refused)

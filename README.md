@@ -215,6 +215,22 @@ like one it read. A quote that differs is shown as an alignment rather than desc
 + -:3 05  SECOND-FIELD   PIC X(1).
 ```
 
+A role whose input contract inherits `ancalagon.contracts.schema_guided.SchemaGuided` names an
+output schema file in its input, describing the structure its answer must satisfy. Attaching
+`adheres_to_schema` to `submit_answer_as_file` reads the answer file and checks it against the
+schema, reporting every fault at once:
+
+```toml
+[roles.record_analyst.before]
+submit_answer_as_file = [
+  { module = "ancalagon.tools.submit.adheres_to_schema", name = "adheres_to_schema" },
+]
+```
+
+Hooks compose in order, so a role can follow this one with its own check of a property the schema
+cannot express. A role wiring no hook submits an unchecked file — the check is opt-in by
+declaration like every other hook.
+
 ### The tools
 
 Every tool a role may name, and what it is for. `idle` arrives whatever the list says;
