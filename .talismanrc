@@ -123,4 +123,6 @@ fileignoreconfig:
   checksum: 1381d134474b3599e19484363b391343142f17013a483fcdcc8600e2f33077ca
 - filename: ancalagon/migrations/002_seen_through.up.sql
   checksum: 22ca063b19c152956f0b85e5a4239e759cf001a18bef0eb12c14ef052efc5019
+- filename: docs/superpowers/plans/2026-09-08-an-answer-too-large-to-emit.md
+  checksum: 3c7db05a75172489fa4366c5439ee9b86d472a36b32b3ca6d456fc052a6198c0
 version: "1.0"
