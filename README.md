@@ -230,6 +230,7 @@ the tool-call budget.
 | `file_type` | what a file is, before assuming it is text |
 | `transform_file` | a file read through a sed script, when it is hard to read as it stands |
 | `query_json` | a jq filter over JSON, so a large file need not enter the context |
+| `edit_json` | change one place in a JSON file in the write root, so a large answer is built across many calls |
 | `extract_strings` | printable text out of a binary |
 | `convert_document` | docx, odt, epub, rtf and others, into text |
 
