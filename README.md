@@ -119,7 +119,7 @@ flowchart LR
     resolve --> inc["input class"]
     resolve --> outc["answer class"]
     inc --> agentspec["the spec, re-read as a typed model"]
-    outc --> submit["submit_answer<br/>the schema an answer must match"]
+    outc --> submit["the terminal submit tool the role named<br/>submit_answer takes the answer class as its schema;<br/>submit_answer_as_file takes AnswerFile and the answer class must be it"]
     role --> tl["the tools list"]
     tl --> registry["registry - exactly these,<br/>plus idle"]
     role --> b["budget - turns and tool calls"]
