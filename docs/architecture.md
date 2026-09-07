@@ -632,6 +632,31 @@ in `before` — but `submit_answer` has none to undo: its hook runs long before 
 refusal on the forced final turn ends the attempt `Failed` naming the refusal, since a check is a
 hard gate and an answer that never satisfied it is not an answer.
 
+One hook ships with the harness: `submit/evidence_resolves.py`, because every analysis wants the
+same guarantee and none of it is specific to one. An answer contract inherits
+`contracts/cited.py`'s `Cited` and implements `citations()`, returning the `contracts/evidence.py`
+values it rests on — an absolute path, an inclusive line range, and those lines quoted verbatim.
+The hook reads each cited file through the `Workspace`, so a citation outside the read roots is a
+refusal on the same terms as any other scope violation, and it reports **every** fault in one
+refusal rather than the first: an unreadable path, an `end_line` before its `start_line`, a range
+past the end of the file, or a quote whose text differs. Aggregating matters more here than
+elsewhere — the agent pays a turn per refusal, and a fifteen-citation answer corrected one fault
+at a time would spend its budget on round trips.
+
+`citations()` is hand-written rather than derived, and gathers a nested contract's citations by
+calling theirs, so a claim buried three levels down is checked exactly like a top-level one. The
+alternative — walking the model tree for anything that looks like `Evidence` — would decide by
+inspection what the contract can simply state.
+
+A differing quote comes back as an alignment from `compare/alignment.py`, the same `=`/`-`/`+`
+vocabulary `diff_regions` uses, with the quote on the left numbered from 1 and the cited lines on
+the right numbered from `start_line`. Naming the range and stopping there tells the agent it was
+wrong without telling it where, which is a retry spent guessing; four refusals in one run went
+that way, one on a twenty-five line quote. The comparison strips both ends of every line, not just
+the trailing blanks `diff_regions` ignores, because a quote is retyped by a model and its leading
+column padding is an artifact of the copy, where two ranges of two real files differ in leading
+whitespace only if the files do.
+
 `files/append_file.py` exists because `write_file` replaces. Adding a line with it means
 reading the file and writing it back, which loses whatever arrived in between — two agents
 posting to the same file both succeed and one entry vanishes, with nothing to say so.
@@ -754,3 +779,4 @@ the one edge that needs an argument, and `TaskArgs` parses it.
 | What may touch a file at all? | `fs/real_file_system.py`, and the contracts in `pyproject.toml` |
 | What happened in a run I already have? | `trace/graph_of.py`, and `viz/mermaid.py` to draw it |
 | How is a tool call constrained? | `registry/bind_tool.py`, `registry/composite_before.py`, `registry/accepts.py` |
+| What keeps a claim honest? | `contracts/cited.py`, `submit/evidence_resolves.py` |
