@@ -102,6 +102,7 @@ source_modules = [
     "ancalagon.tools.registry",
     "ancalagon.tools.search",
     "ancalagon.tools.shell",
+    "ancalagon.tools.submit",
     "ancalagon.tools.survey",
 ]
 forbidden_modules = ["ancalagon.fs"]
