@@ -126,10 +126,10 @@ at review:
 
 | Contract | What it holds |
 |---|---|
-| Layers point downward | the package list, `cli` at the top and `env : fs` at the bottom |
+| Layers point downward | the package list, `cli` at the top and `text` at the bottom |
 | Sibling leaves are independent | `contracts`, `clock`, `env`, `fs` know nothing of each other |
 | The sandbox knows the file system and nothing else of ours | `sandbox` ↛ `clock`, `contracts`, `env` |
-| Tools that take a model's path go through the workspace | seven tool packages ↛ `ancalagon.fs` |
+| Tools that take a model's path go through the workspace | nine tool packages ↛ `ancalagon.fs` |
 | Domain does not import adapters | `attempt`, `schedule` ↛ `bus` |
 | SQL stays in the adapters | everything but `bus` and `migrations` ↛ `sqlite3`, `sqlalchemy` |
 | The process is reached only by the adapters that own it | everything ↛ `os`, bar two named edges |
@@ -160,13 +160,19 @@ file, `ancalagon/fs/real_file_system.py`, which takes a `PurePath` and construct
 `resolve` and `expanduser` are on the port for the same reason — both are syscalls — while
 `.parent`, `.name` and `/` stay on `PurePath`, where they cost nothing.
 
-Being the only reader, it is also the only place that decides how bytes become text: UTF-8
-first, then Latin-1, which maps all 256 byte values and so cannot fail. A corpus written on a
-mainframe is full of files that are text everywhere except one byte in a comment banner, and
-`UnicodeDecodeError` does not stop at the tool — it leaves `read_file`, leaves the session and
-kills the worker, which is how three agents died in one run before the fallback existed. The
-cost is that a genuinely binary file now decodes to nonsense instead of raising; nonsense is a
-value the model can react to, and a dead worker is not.
+**Bytes from outside become text in one place.** `ancalagon/text/decoded.py` is a single
+function: UTF-8 first, then Latin-1, which maps all 256 byte values and so cannot fail. A corpus
+written on a mainframe is full of files that are text everywhere except one byte in a comment
+banner, and `UnicodeDecodeError` does not stop at the tool — it leaves `read_file`, leaves the
+session and kills the worker, which is how three agents died in one run before the fallback
+existed. Three doors let those bytes in and all three now use the same function: the file system,
+`run_shell`, and `run_command`, which is how `rg`, `sed`, `strings` and `git` reach a subprocess.
+The last two no longer ask `subprocess` for text at all — capturing bytes and decoding them here
+is what keeps `shell` and `read_file` rendering the same file the same way, which matters because
+a citation quoted from one is checked against the other. `ancalagon.text` is the bottom layer,
+below `ancalagon.fs`, so the tool packages forbidden to import the file system can still reach
+it. The cost is that a genuinely binary file now decodes to nonsense instead of raising; nonsense
+is a value the model can react to, and a dead worker is not.
 
 `run_until_idle()` loops on `tick()`, which calls `snapshot()` exactly once, after starting
 and reaping, so waking idled parents costs the same three reads regardless of how many tasks

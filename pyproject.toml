@@ -66,6 +66,7 @@ layers = [
     "ancalagon.contracts : ancalagon.clock : ancalagon.sandbox",
     "ancalagon.migrations",
     "ancalagon.env : ancalagon.fs",
+    "ancalagon.text",
 ]
 
 [[tool.importlinter.contracts]]
@@ -133,6 +134,7 @@ source_modules = [
     "ancalagon.schedule",
     "ancalagon.session",
     "ancalagon.supervisor",
+    "ancalagon.text",
     "ancalagon.tools",
     "ancalagon.trace",
     "ancalagon.transcript",
@@ -168,6 +170,7 @@ source_modules = [
     "ancalagon.schedule",
     "ancalagon.session",
     "ancalagon.supervisor",
+    "ancalagon.text",
     "ancalagon.tools",
     "ancalagon.trace",
     "ancalagon.trace_command",
