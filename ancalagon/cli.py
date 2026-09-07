@@ -128,6 +128,15 @@ def _run_fault(name: str, role: Role) -> str:
     )
 
 
+def _submit_fault(name: str, role: Role) -> str:
+    if role.run != NO_RUN or SubmitAnswer.name in role.tools:
+        return ""
+    return (
+        f"[roles.{name}] tools: a role that runs a session must name {SubmitAnswer.name}; "
+        f"named: {sorted(role.tools)}"
+    )
+
+
 def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem) -> str:
     named = set(role.before) | set(role.after)
     unused = named - set(role.tools) - {SubmitAnswer.name, Idle.name}
@@ -158,6 +167,7 @@ def check_contracts(config: Config, fs: FileSystem = RealFileSystem()) -> None:
             if (fault := _contract_fault(name, field, ref))
         ]
         or [fault for name, role in config.roles.items() if (fault := _run_fault(name, role))]
+        or [fault for name, role in config.roles.items() if (fault := _submit_fault(name, role))]
         or [
             fault
             for name, role in config.roles.items()

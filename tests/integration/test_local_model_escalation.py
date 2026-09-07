@@ -47,7 +47,7 @@ strategy = "none"
 
 [roles.root]
 behaviour = "You investigate and answer the goal you are given."
-tools = ["need_input"]
+tools = ["need_input", "submit_answer"]
 
 [roles.root.budget]
 turns = 4

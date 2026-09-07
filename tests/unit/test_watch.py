@@ -200,7 +200,7 @@ def test_watch_file_is_offered_only_where_a_role_declares_the_watch_contract(
     )
     participant = Role(
         behaviour="Collaborate.",
-        tools=("read_file", "watch_file"),
+        tools=("read_file", "watch_file", "submit_answer"),
         budget=Budget(turns=4, tool_calls=8),
     )
 

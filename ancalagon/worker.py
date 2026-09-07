@@ -133,7 +133,7 @@ def build_registry(
         bound_for(WatchFile(watcher, run_dir, parent, clock, fs), spec.role)
         for watcher in watcher_in(config.roles)[:1]
     ]
-    wanted = set(spec.role.tools) | {Idle.name, SubmitAnswer.name}
+    wanted = set(spec.role.tools) | {Idle.name}
     unknown = wanted - {t.name for t in available}
     if unknown:
         raise ValueError(
