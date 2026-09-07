@@ -3,15 +3,12 @@ import pathlib
 import typing
 
 from ancalagon.fs.file_system import FileSystem
+from ancalagon.text.decoded import decoded
 
 
 class RealFileSystem(FileSystem):
     def read_text(self, path: pathlib.PurePath) -> str:
-        found = pathlib.Path(path)
-        try:
-            return found.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            return found.read_text(encoding="latin-1")
+        return decoded(pathlib.Path(path).read_bytes())
 
     def write_text(self, path: pathlib.PurePath, text: str) -> None:
         pathlib.Path(path).write_text(text, encoding="utf-8")

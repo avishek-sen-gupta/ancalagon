@@ -237,6 +237,12 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     assert missing.ok is True
     assert pathlib.Path(missing.path).read_text() == ""
 
+    legacy = pathlib.Path(ctx.workspace.write_root) / "legacy.txt"
+    legacy.write_bytes(b"FOR SA-TP \xa6 CA=N\n")
+    matched = Ripgrep().run(GrepArgs(pattern="SA-TP", roots=[legacy]), ctx)
+    assert matched.ok is True
+    assert pathlib.Path(matched.path).read_text() == "1:FOR SA-TP ¦ CA=N\n"
+
     streamed = TransformFile().run(TransformArgs(script="s/alpha/gamma/", path=source), ctx)
     assert streamed.ok is True
     assert "gamma" in pathlib.Path(streamed.path).read_text()
@@ -915,6 +921,11 @@ def test_shell_executes_a_command_in_a_scoped_directory_and_bounds_a_hang(
     piped = Shell().run(ShellArgs(command="cat *.txt | sort | tr -d '\\n'", cwd=root), ctx)
     assert piped.ok is True
     assert pathlib.Path(piped.path).read_text() == "alphabetagamma"
+
+    (root / "legacy.txt").write_bytes(b"FOR SA-TP \xa6 CA=N\n")
+    legacy = Shell().run(ShellArgs(command="cat legacy.txt", cwd=root), ctx)
+    assert legacy.ok is True
+    assert pathlib.Path(legacy.path).read_text() == "FOR SA-TP ¦ CA=N\n"
 
     failed = Shell().run(ShellArgs(command="ls no_such_file_here", cwd=root), ctx)
     assert failed.ok is False
