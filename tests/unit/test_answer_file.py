@@ -170,4 +170,6 @@ def test_the_schema_hook_accepts_a_conforming_file_names_every_fault_and_refuses
         summary_chars=200,
         agent_id=1,
     )
-    assert isinstance(adheres_to_schema(submitted, unguided), Refused)
+    assert adheres_to_schema(submitted, unguided) == Refused(
+        reason="this role's input contract does not name an output schema: FreeText"
+    )
