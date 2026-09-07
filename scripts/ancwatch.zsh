@@ -9,6 +9,9 @@ ancwatch() {
   local root=$given
   local -A pids
   local f label from
+  local filter=${${(%):-%x}:A:h}/ancwatch.jq
+  local -i cols=${COLUMNS:-$(tput cols 2>/dev/null || print 110)}
+  local -i frame=9 floor=20
 
   # Mirrors load_config: absolute stays absolute, ~ goes home, else relative to the file.
   if [[ -f $given ]]; then
@@ -38,21 +41,16 @@ print(value if value.is_absolute() else (cfg.resolve().parent / value).resolve()
     print -u2 "\e[33m-- no runs under $root; is this the write_root from your config? --\e[0m"
   fi
 
-  print -u2 "\e[2m-- watching $root, ${#pids} existing agent(s) skipped --\e[0m"
+  print -u2 "\e[2m-- watching $root at $cols columns, ${#pids} existing agent(s) skipped --\e[0m"
   while :; do
     for f in $(transcripts); do
       label=${${f:h:h:h}:t}/${${f:h}:t}
       [[ -n ${pids[$label]} && ${pids[$label]} != 0 ]] && continue
       if [[ ${pids[$label]} == 0 ]]; then from="-n 0"; else from="-n +1"; fi
-      tail ${=from} -f "$f" | jq -rj --unbuffered --arg n "$label" '
-        "[36m[\($n)/\(.agent)][0m ",
-        (.role[0:1] | ascii_upcase), " ",
-        ([.blocks[] |
-           if   .kind == "text"     then (.text | gsub("\n"; " ") | .[0:110])
-           elif .kind == "tool_use" then "→ \(.name) \(.arguments[0:70])"
-           else "← \(if .is_error then "ERR " else "" end)\(.content | gsub("\n"; " ") | .[0:80])"
-           end] | join(" | ")),
-        "\n"' &
+      local -i width=$(( cols - ${#label} - frame ))
+      (( width < floor )) && width=$floor
+      tail ${=from} -f "$f" |
+        jq -rj --unbuffered --arg n "$label" --argjson width $width -f $filter &
       pids[$label]=$!
       [[ $from == "-n +1" ]] && print -u2 "\e[2m-- $label --\e[0m"
     done
