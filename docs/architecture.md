@@ -445,11 +445,11 @@ that no tool answers to raises, naming both the unknown entries and the availabl
 which meant every tool — a role written against the old default gets a much smaller toolset than
 its author expects, silently, unless `tools` is filled in.
 
-Which of `idle` and `submit_answer` the model actually sees changes every turn. `Session`
+Which of `idle` and the terminal submit tool the model actually sees changes every turn. `Session`
 learns the facts it needs through an injected `Children` port (`ancalagon/children/`) —
 `outstanding()` and `uncollected()`, both tuples of agent ids — rather than deciding once at
 registry build time: `_declarations` offers `idle` while `outstanding()` is non-empty, and
-`submit_answer` once both `outstanding()` and `uncollected()` are empty, or unconditionally on
+the terminal submit tool once both `outstanding()` and `uncollected()` are empty, or unconditionally on
 the turn the budget runs out. `BusChildren` answers both from the bus; `NoChildren` /
 `NO_CHILDREN` is the null object for an agent with no `delegate_<role>` tool at all, so the
 check costs nothing where it can never apply.
@@ -463,9 +463,9 @@ while True:
     final = out of turns
     outstanding = children.outstanding()
     final and outstanding? ─────────▶ Idling  (turns ran out while children were still working)
-    declare idle / submit_answer per outstanding() and uncollected(), or submit_answer only if final
-    final? record FINAL_INSTRUCTION
-    reply = llm.complete(_system(), messages, schemas, forcing submit_answer if final)
+    declare idle / terminal submit tool per outstanding() and uncollected(), or terminal submit tool only if final
+    final? record _final_instruction()
+    reply = llm.complete(_system(), messages, schemas, forcing self.submit if final)
     record it
     did it call tools?
         yes ─▶ _run_tools()
@@ -473,7 +473,7 @@ while True:
                need_input.question set?  ──▶ NeedsInput
                submit.answer set?        ──▶ Completed, or Exhausted if final
                loop
-        no  ─▶ tell it to call submit_answer and loop, or Failed if final
+        no  ─▶ tell it to call the terminal submit tool and loop, or Failed if final
 ```
 
 There is no separate final-turn code path any more — the last turn is this same loop with two
@@ -481,16 +481,16 @@ flags set, `final` and `force_tool`. Seven things worth knowing:
 
 - **The run ends in one of three places.** Before the model is even called, if the turn budget
   is exhausted while a child is still outstanding (`Idling`, spending no turn at all). Through
-  a tool result — `idle`, `need_input` or `submit_answer` — whose `ToolResult` carries an
+  a tool result — `idle`, `need_input` or a terminal submit tool — whose `ToolResult` carries an
   `Idled`, an `Asked` or a `Submitted` payload that `_run_tools` hands back for `run` to read.
   No tool holds state, and the session holds no second reference to one — the ending travels
   along the call it came from. Or `Failed` on the forced final turn, when the reply produced no
   such payload.
-- **`submit_answer` is the only way to answer.** A reply that calls no tool has not finished:
-  `_uncalled` records `CONTINUE_INSTRUCTION` and the loop goes round, and on the forced final
+- **The terminal submit tool is the only way to answer.** A reply that calls no tool has not finished:
+  `_uncalled` records `_continue_instruction()` and the loop goes round, and on the forced final
   turn the attempt is `Failed`. The session does not parse a reply's raw text as the output
   class, because a completion reached that way never passes through `bind_tool` and so never
-  meets the role's `before submit_answer` hooks. Two ways in would mean a contract whose hook
+  meets the role's `before` hooks on the terminal submit tool. Two ways in would mean a contract whose hook
   gates one of them, which is not a gate.
 - **`_run_tools` refuses calls past the budget** rather than letting it go negative, and
   returns the refusal to the model as an error result.

@@ -61,4 +61,4 @@ def test_submitting_a_file_ends_the_run_and_refuses_a_file_that_is_not_there(
         ctx,
     )
     assert not missing.ok
-    assert "absent.json" in missing.error
+    assert missing.error == f"no answer file at {tmp_path / 'ws' / 'absent.json'}"

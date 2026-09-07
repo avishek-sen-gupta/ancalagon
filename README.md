@@ -260,7 +260,7 @@ the tool-call budget.
 | `watch_file` | queue a watcher that ends when a file changes, so idling wakes you |
 | `need_input` | stop and hand a question upward, free |
 | `idle` | stop and wait for a child, free |
-| `submit_answer` | the final answer, free — and the only way to give one |
+| `submit_answer` | the final answer, free |
 | `submit_answer_as_file` | the final answer as a file you already wrote, free — for a contract too large to emit in one reply |
 
 ### Two ways to submit
@@ -373,18 +373,18 @@ sequenceDiagram
   had to kill is still collectable: the outcome is read from the bus event that closed it,
   since no file was ever written.
 
-Which of the two terminal tools the session offers is decided per turn:
+Which tools the session offers is decided per turn:
 
 | Turns left? | Children outstanding | Children settled but uncollected | Offered |
 |---|---|---|---|
-| yes | none | none | `submit_answer`, no `idle` |
-| yes | some | — | `idle`, no `submit_answer` |
+| yes | none | none | the terminal submit tool, no `idle` |
+| yes | some | — | `idle`, not the terminal submit tool |
 | yes | none | some | neither — `collect_task` first |
-| no (final turn) | none | any | `submit_answer` only, forced |
+| no (final turn) | none | any | the terminal submit tool only, forced |
 | no (final turn) | some | — | nothing is offered: the attempt ends `Idling` |
 
 Whichever row applies, a reply that calls no tool at all is not an answer. The session tells the
-agent that answers arrive only through `submit_answer` and goes round again, and on the forced
+agent that answers arrive only through the terminal submit tool and goes round again, and on the forced
 final turn the attempt ends `Failed`. There is no route to a completed run that skips the tool,
 which is what makes a hook attached to it a gate rather than one of two doors.
 

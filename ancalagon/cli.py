@@ -133,7 +133,7 @@ SUBMITTING = (SubmitAnswer.name, SubmitAnswerAsFile.name)
 
 
 def _submit_fault(name: str, role: Role) -> str:
-    if role.run is not NO_RUN or set(role.tools) & set(SUBMITTING):
+    if role.run != NO_RUN or set(role.tools) & set(SUBMITTING):
         return ""
     return (
         f"[roles.{name}] tools: a role that runs a session must name one of "

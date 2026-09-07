@@ -733,3 +733,54 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
     assert outcome.value == AnswerFile(
         status=AnswerStatus.COMPLETE, summary="one record", path=pathlib.PurePath(answer)
     )
+
+    both = tmp_path / "both"
+    both.mkdir(parents=True, exist_ok=True)
+    answer_both = both / "record.json"
+    answer_both.write_text('{"values": []}')
+    ctx_both = ToolContext(
+        workspace=Workspace(RealFileSystem(), write_root=both, read_roots=(both,)),
+        task_dir=both / "outputs",
+        summary_chars=200,
+        agent_id=18,
+    )
+    spec_both = TaskSpec(
+        task_id="t2",
+        role=Role(
+            behaviour="You answer questions.",
+            answer=ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile"),
+            tools=("submit_answer", "submit_answer_as_file"),
+            budget=Budget(turns=2, tool_calls=4),
+        ),
+        goal="Answer it.",
+    )
+    arguments_both = json.dumps(
+        {"status": "complete", "summary": "one record", "path": str(answer_both)}
+    )
+    llm_both = FakeLLM(
+        [
+            Reply(
+                blocks=[ToolUse(id="s1", name="submit_answer_as_file", arguments=arguments_both)],
+                stop_reason="tool_calls",
+            )
+        ]
+    )
+    session_both = Session(
+        spec=spec_both,
+        input=Verdict(answer="seed"),
+        messages=[],
+        transcript=Transcript(RealFileSystem(), path=both / "transcript.jsonl", agent_id=18),
+        agent_id=18,
+        llm=llm_both,
+        registry=Registry([bind_tool(SubmitAnswer(AnswerFile)), bind_tool(SubmitAnswerAsFile())]),
+        ctx=ctx_both,
+        output_class=AnswerFile,
+        clock=FakeClock(),
+    )
+
+    outcome_both = session_both.run()
+
+    offered_names = [sorted(s.name for s in seen) for seen in llm_both.offered]
+    assert offered_names == [["submit_answer_as_file"]]
+    assert "submit_answer" not in offered_names[0]
+    assert isinstance(outcome_both, Completed)
