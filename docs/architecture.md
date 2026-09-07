@@ -129,7 +129,7 @@ at review:
 | Layers point downward | the package list, `cli` at the top and `text` at the bottom |
 | Sibling leaves are independent | `contracts`, `clock`, `env`, `fs` know nothing of each other |
 | The sandbox knows the file system and nothing else of ours | `sandbox` ↛ `clock`, `contracts`, `env` |
-| Tools that take a model's path go through the workspace | nine tool packages ↛ `ancalagon.fs` |
+| Tools that take a model's path go through the workspace | ten tool packages ↛ `ancalagon.fs` |
 | Domain does not import adapters | `attempt`, `schedule` ↛ `bus` |
 | SQL stays in the adapters | everything but `bus` and `migrations` ↛ `sqlite3`, `sqlalchemy` |
 | The process is reached only by the adapters that own it | everything ↛ `os`, bar two named edges |

@@ -187,6 +187,24 @@ A refusal on the forced last turn is the one case with no retry left. The attemp
 naming the refusal, with the rejected arguments kept as the summary, so a parent is told what
 actually happened rather than being handed an answer that never met its criteria.
 
+One hook ships with the harness, because every analysis wants it. An answer contract that
+inherits `ancalagon.contracts.cited.Cited` implements `citations()`, returning the
+`ancalagon.contracts.evidence.Evidence` values it rests on — a path, a line range, and those
+lines quoted verbatim. Attaching `evidence_resolves` to `submit_answer` reads each cited file
+through the workspace and refuses the answer unless every quote matches the lines it names,
+listing all the faults at once:
+
+```toml
+[roles.component_analyst.before]
+submit_answer = [
+  { module = "ancalagon.tools.submit.evidence_resolves", name = "evidence_resolves" },
+]
+```
+
+A citation that names an unreadable path, an inverted range, a range past the end of the file, or
+lines whose text differs is a refusal, so a claim the model invented cannot leave the loop looking
+like one it read.
+
 ### The tools
 
 Every tool a role may name, and what it is for. `submit_answer` and `idle` arrive whatever
