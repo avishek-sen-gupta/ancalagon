@@ -382,7 +382,9 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     answer_shape = at_root.get("submit_answer").declaration.parameters.model_json_schema()
     assert set(answer_shape["properties"]) == {"text"}
 
-    narrow_role = Role(behaviour="Search.", tools=("read_file", "ripgrep"), budget=full_role.budget)
+    narrow_role = Role(
+        behaviour="Search.", tools=("read_file", "ripgrep", "diff_regions"), budget=full_role.budget
+    )
     narrowed = build_registry(
         config,
         TaskSpec(task_id="root", role=narrow_role, goal="g"),
@@ -393,7 +395,13 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         clock=SystemClock(),
         fs=RealFileSystem(),
     )
-    assert set(narrowed.names()) == {"read_file", "ripgrep", "idle", "submit_answer"}
+    assert set(narrowed.names()) == {
+        "read_file",
+        "ripgrep",
+        "diff_regions",
+        "idle",
+        "submit_answer",
+    }
 
     unknown_role = Role(
         behaviour="Search.",
