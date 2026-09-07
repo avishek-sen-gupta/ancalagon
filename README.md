@@ -521,7 +521,9 @@ invisible to it.
 
 One line per message, rendered by `scripts/ancwatch.jq`. Prose and tool output are cut to the
 terminal's width less the label; a tool call's arguments are shown whole, because a path cut in
-half says less than the width saves. Widen the window to see more.
+half says less than the width saves. Widen the window to see more. The tool's name is bold yellow
+and a failed result's `ERR` is red, so a scan finds what was called and what broke without reading
+the line.
 
 ## Sandbox, credentials, migrations
 
