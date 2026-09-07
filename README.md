@@ -293,6 +293,13 @@ answer = { module = "ancalagon.contracts.answer_file", name = "AnswerFile" }
 tools = ["read_file", "write_file", "edit_json", "submit_answer_as_file"]
 ```
 
+The `answer` line is not decoration: `submit_answer_as_file` submits an `AnswerFile` whatever the
+role says, so a role naming that tool must declare `AnswerFile` as its `answer`, and startup
+rejects one that declares something else. Naming both tools is legal and means the file route
+replaces the other; only the named one is in the registry, so there is no second way out. A hook
+declared for a tool the role does not name is rejected too, because a gate that never runs reads
+as a gate that does.
+
 `watch_file` is the one that needs something else declared: a role that names `watch_for` as its
 `run` function, since that is what it queues and what tells the supervisor to run a process
 rather than a session. The role's input contract follows from `watch_for`'s own signature, rather

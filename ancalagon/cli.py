@@ -34,7 +34,7 @@ from ancalagon.supervisor.spawner import Spawner
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
 from ancalagon.tools.idle.idle import Idle
-from ancalagon.tools.submit.submit_answer import SubmitAnswer
+from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.tools.submit.submitting import TERMINAL_TOOLS
 from ancalagon.trace_command import trace_command
 from ancalagon.viz_command import viz_command
@@ -129,6 +129,9 @@ def _run_fault(name: str, role: Role) -> str:
     )
 
 
+ANSWER_FILE = ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile")
+
+
 def _submit_fault(name: str, role: Role) -> str:
     if role.run != NO_RUN or set(role.tools) & TERMINAL_TOOLS:
         return ""
@@ -138,9 +141,18 @@ def _submit_fault(name: str, role: Role) -> str:
     )
 
 
+def _answer_file_fault(name: str, role: Role) -> str:
+    if SubmitAnswerAsFile.name not in role.tools or role.answer == ANSWER_FILE:
+        return ""
+    return (
+        f"[roles.{name}] declares answer as {role.answer.name} in {role.answer.module}, but "
+        f"{SubmitAnswerAsFile.name} submits {ANSWER_FILE.name} in {ANSWER_FILE.module}"
+    )
+
+
 def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem) -> str:
     named = set(role.before) | set(role.after)
-    unused = named - set(role.tools) - {SubmitAnswer.name, Idle.name}
+    unused = named - set(role.tools) - {Idle.name}
     if unused:
         return f"[roles.{name}] names a hook for {sorted(unused)[0]}, which it does not use"
     try:
@@ -169,6 +181,11 @@ def check_contracts(config: Config, fs: FileSystem = RealFileSystem()) -> None:
         ]
         or [fault for name, role in config.roles.items() if (fault := _run_fault(name, role))]
         or [fault for name, role in config.roles.items() if (fault := _submit_fault(name, role))]
+        or [
+            fault
+            for name, role in config.roles.items()
+            if (fault := _answer_file_fault(name, role))
+        ]
         or [
             fault
             for name, role in config.roles.items()
