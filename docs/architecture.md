@@ -160,6 +160,14 @@ file, `ancalagon/fs/real_file_system.py`, which takes a `PurePath` and construct
 `resolve` and `expanduser` are on the port for the same reason — both are syscalls — while
 `.parent`, `.name` and `/` stay on `PurePath`, where they cost nothing.
 
+Being the only reader, it is also the only place that decides how bytes become text: UTF-8
+first, then Latin-1, which maps all 256 byte values and so cannot fail. A corpus written on a
+mainframe is full of files that are text everywhere except one byte in a comment banner, and
+`UnicodeDecodeError` does not stop at the tool — it leaves `read_file`, leaves the session and
+kills the worker, which is how three agents died in one run before the fallback existed. The
+cost is that a genuinely binary file now decodes to nonsense instead of raising; nonsense is a
+value the model can react to, and a dead worker is not.
+
 `run_until_idle()` loops on `tick()`, which calls `snapshot()` exactly once, after starting
 and reaping, so waking idled parents costs the same three reads regardless of how many tasks
 or children exist — the cost that used to grow with both. A test pins that count with
