@@ -542,7 +542,7 @@ Each tool then:
    the tools use, each resolving before it delegates, so reading is only reachable through the
    scoped method. `resolve_read` and `resolve_write` stay public because `ripgrep`, `ast_grep`,
    `find_symbol` and `code_stats` need the resolved path as a string for a subprocess rather
-   than its contents. An import contract keeps the seven tool packages that act on
+   than its contents. An import contract keeps the eight tool packages that act on
    model-supplied paths from importing `ancalagon.fs` at all; the delegate tools and `idle`
    hold the port directly, because they work on `run_dir` paths the harness built.
 3. Writes its full output to a file under the task's `tools/` directory and returns a
@@ -577,6 +577,16 @@ answers *does this shape occur*, a query answers *where is each part of it*, whi
 caller wanting to cite a location rather than read one needs. `parse/languages.py` is the one
 place a grammar is named, so `treesitter` and `ast_query` support the same set: Python and Java.
 A query the grammar rejects comes back as a failed result carrying tree-sitter's own message.
+
+`compare/diff_regions.py` answers *are these two the same*, which an agent otherwise answers by
+reading both ranges and comparing them from memory. It takes two `Region`s — a path and an
+inclusive line range each — and returns one row per line: `=` where the two match, `-` for a line
+only on the left, `+` for one only on the right, each row carrying the line's number **in its own
+file**, so a row can be cited without counting back from a hunk header. Only trailing blanks are
+ignored, because a column-padded record is padded by its format and never by its meaning. A range
+past the end of the file or an `end_line` before its `start_line` comes back as a failed result
+naming which side was wrong, for the same reason a scope violation does: the model gave a bad
+argument and can give a better one.
 
 A role may wrap any tool it uses with **hooks**, declared as a list under `[roles.*.before]` and
 `[roles.*.after]` and resolved by `registry/bound_for.py` where the tool's own `args_model` is in
