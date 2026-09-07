@@ -33,6 +33,7 @@ from ancalagon.session import Session
 from ancalagon.tools.artifacts.convert_document import ConvertDocument
 from ancalagon.tools.artifacts.extract_strings import ExtractStrings
 from ancalagon.tools.artifacts.file_type import FileType
+from ancalagon.tools.artifacts.edit_json import EditJson
 from ancalagon.tools.artifacts.query_json import QueryJson
 from ancalagon.tools.compare.diff_regions import DiffRegions
 from ancalagon.tools.delegate.answer_task import AnswerTask
@@ -96,6 +97,7 @@ def available_tools(
         bound_for(ExtractStrings(), role),
         bound_for(ConvertDocument(), role),
         bound_for(QueryJson(), role),
+        bound_for(EditJson(), role),
         bound_for(GitHistory(), role),
         bound_for(TreeSitter(), role),
         bound_for(AstQuery(), role),
