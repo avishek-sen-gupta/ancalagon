@@ -15,7 +15,6 @@ from ancalagon.contracts.exhausted import Exhausted
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.idled import Idled
 from ancalagon.contracts.idling import Idling
-from ancalagon.contracts.json_payload import json_payload
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.needs_input import NeedsInput
@@ -49,6 +48,13 @@ FINAL_INSTRUCTION = (
     "Your budget is exhausted. Answer now from what you already know, "
     "using the submit_answer tool. No other tools are available."
 )
+
+CONTINUE_INSTRUCTION = (
+    "Answers are only accepted through the submit_answer tool. Keep working, and call it "
+    "when you have your answer."
+)
+
+NO_ANSWER = "no final answer"
 
 SUBMIT = "submit_answer"
 IDLE = "idle"
@@ -110,9 +116,9 @@ class Session:
         return SystemPrompt(
             static=(
                 f"{self.spec.role.behaviour}\n\n"
-                f"When you have the answer, call the submit_answer tool with it. "
-                f"If that tool is unavailable, reply with a single JSON object and nothing "
-                f"else -- no prose, no markdown fences -- matching this schema: {schema}"
+                f"When you have the answer, call the submit_answer tool with it. That tool is "
+                f"the only way to answer; a reply without it is taken as more work to do. "
+                f"Your answer must match this schema: {schema}"
             ),
             per_item=(
                 f"Goal: {self.spec.goal}\n\nInput: {self.input.model_dump_json()}\n\n"
@@ -152,9 +158,6 @@ class Session:
 
     def _text_of(self, reply: Reply) -> str:
         return "".join(b.text for b in reply.blocks if isinstance(b, Text))
-
-    def _answer_of(self, reply: Reply) -> str:
-        return json_payload(self._text_of(reply))
 
     def _run_tools(
         self, uses: collections.abc.Sequence[ToolUse]
@@ -265,59 +268,43 @@ class Session:
             spent=self._spent(),
         )
 
-    def _finish_from_text(
-        self, reply: Reply, final: bool, offered: str
-    ) -> Outcome[pydantic.BaseModel] | Pending:
-        text = self._answer_of(reply)
-        try:
-            value = self.output_class.model_validate_json(text)
-        except pydantic.ValidationError as exc:
-            if final:
-                return Failed(
-                    error=f"final answer did not validate: {exc}",
-                    summary=offered[:REJECTED_CHARS] or text[:REJECTED_CHARS],
-                    spent=self._spent(),
-                )
-            LOGGER.info("output did not validate, asking again: %s", exc)
-            self._record(
-                MessageRole.USER,
-                [Text(text=f"That did not match the schema: {exc}. Reply with JSON only.")],
-            )
-            return PENDING
+    def _uncalled(self, reply: Reply, final: bool) -> Outcome[pydantic.BaseModel] | Pending:
         if final:
-            return Exhausted(value=value, summary=text[:SUMMARY_CHARS], spent=self._spent())
-        return Completed(value=value, summary=text[:SUMMARY_CHARS], spent=self._spent())
+            return Failed(
+                error=NO_ANSWER,
+                summary=self._text_of(reply)[:REJECTED_CHARS],
+                spent=self._spent(),
+            )
+        LOGGER.info("the reply called no tool, asking again")
+        self._record(MessageRole.USER, [Text(text=CONTINUE_INSTRUCTION)])
+        return PENDING
 
     def _evaluate_turn(self, reply: Reply, final: bool) -> Outcome[pydantic.BaseModel] | Pending:
         uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
         if not uses:
-            return self._finish_from_text(reply, final, "")
+            return self._uncalled(reply, final)
         ran = self._run_tools(uses)
         from_uses = self._settled(ran, final)
         if not isinstance(from_uses, Pending):
             return from_uses
         if final:
-            return self._ended(reply, ran, uses)
+            return self._ended(ran, uses)
         return PENDING
 
     def _ended(
         self,
-        reply: Reply,
         ran: collections.abc.Sequence[tuple[ToolUse, ToolResult]],
         uses: collections.abc.Sequence[ToolUse],
     ) -> Outcome[pydantic.BaseModel]:
         match self._refused(ran):
             case Pending():
-                return self._finished(reply, uses[0].arguments)
+                return Failed(
+                    error=NO_ANSWER,
+                    summary=uses[0].arguments[:REJECTED_CHARS],
+                    spent=self._spent(),
+                )
             case failure:
                 return failure
-
-    def _finished(self, reply: Reply, offered: str) -> Outcome[pydantic.BaseModel]:
-        match self._finish_from_text(reply, True, offered):
-            case Pending():
-                return Failed(error="no final answer", summary=offered, spent=self._spent())
-            case outcome:
-                return outcome
 
     def run(self) -> Outcome[pydantic.BaseModel]:
         while True:
