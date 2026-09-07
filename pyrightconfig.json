@@ -9,6 +9,10 @@
     {
       "root": "ancalagon/llm/adapters",
       "reportUnknownMemberType": "none"
+    },
+    {
+      "root": "ancalagon/tools/submit/adheres_to_schema.py",
+      "reportUnknownMemberType": "none"
     }
   ]
 }

@@ -661,6 +661,12 @@ Schema because it is never a Python value. The harness never opens that file; it
 pointer fields (`status`, `summary`, `path`) upward, and the parent decides what to do with them.
 A hook that validates the file's contents runs before `submit_answer_as_file`, not after, and
 the schema it enforces is declared in the task's input contract rather than hard-coded anywhere.
+That hook, `submit/adheres_to_schema.py`, is the one place a parsed JSON value exists in this
+codebase without immediately becoming a Pydantic model: `json.loads` appears twice, both inside
+that function, validating the schema and the answer file against `jsonschema.Draft202012Validator`.
+Neither value is annotated, returned, or passed anywhere. The structure being validated is never a
+Python value, which is the entire reason this route exists — schemas that large would not fit in a
+model class, and JSON Schema is what the parent already has when it builds the subtask.
 
 A differing quote comes back as an alignment from `compare/alignment.py`, the same `=`/`-`/`+`
 vocabulary `diff_regions` uses, with the quote on the left numbered from 1 and the cited lines on
