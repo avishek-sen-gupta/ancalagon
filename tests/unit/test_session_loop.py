@@ -10,6 +10,8 @@ from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
 from ancalagon.children.bus_children import BusChildren
 from ancalagon.children.children import Children
 from ancalagon.clock.fake_clock import FakeClock
+from ancalagon.contracts.answer_file import AnswerFile
+from ancalagon.contracts.answer_status import AnswerStatus
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.class_ref import ClassRef
@@ -40,6 +42,7 @@ from ancalagon.tools.registry.bind_tool import bind_tool
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
+from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.workspace.workspace import Workspace
 
@@ -677,3 +680,56 @@ def test_a_hook_gates_every_answer_and_prose_cannot_evade_it(tmp_path: pathlib.P
 
     nudged = (tmp_path / "prose" / "transcript.jsonl").read_text()
     assert "Answers are only accepted through the submit_answer tool" in nudged
+
+
+def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pathlib.Path):
+    answer = tmp_path / "ws" / "record.json"
+    write_root = tmp_path / "ws"
+    write_root.mkdir(parents=True, exist_ok=True)
+    answer.write_text('{"values": []}')
+    ctx = ToolContext(
+        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
+        task_dir=write_root / "outputs",
+        summary_chars=200,
+        agent_id=17,
+    )
+    spec = TaskSpec(
+        task_id="t1",
+        role=Role(
+            behaviour="You answer questions.",
+            answer=ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile"),
+            tools=("submit_answer_as_file",),
+            budget=Budget(turns=0, tool_calls=4),
+        ),
+        goal="Answer it.",
+    )
+    arguments = json.dumps({"status": "complete", "summary": "one record", "path": str(answer)})
+    llm = FakeLLM(
+        [
+            Reply(
+                blocks=[ToolUse(id="s1", name="submit_answer_as_file", arguments=arguments)],
+                stop_reason="tool_calls",
+            )
+        ]
+    )
+    session = Session(
+        spec=spec,
+        input=Verdict(answer="seed"),
+        messages=[],
+        transcript=Transcript(RealFileSystem(), path=tmp_path / "transcript.jsonl", agent_id=17),
+        agent_id=17,
+        llm=llm,
+        registry=Registry([bind_tool(SubmitAnswerAsFile())]),
+        ctx=ctx,
+        output_class=AnswerFile,
+        clock=FakeClock(),
+    )
+
+    outcome = session.run()
+
+    assert llm.forced == ["submit_answer_as_file"]
+    assert [sorted(s.name for s in seen) for seen in llm.offered] == [["submit_answer_as_file"]]
+    assert isinstance(outcome, Exhausted)
+    assert outcome.value == AnswerFile(
+        status=AnswerStatus.COMPLETE, summary="one record", path=pathlib.PurePath(answer)
+    )

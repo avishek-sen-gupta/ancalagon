@@ -61,6 +61,7 @@ from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.search.transform_file import TransformFile
 from ancalagon.tools.shell.shell import Shell
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
+from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.tools.watch.watch_file import WatchFile
 from ancalagon.transcript.history import load, repair
@@ -109,6 +110,7 @@ def available_tools(
         bound_for(NeedInput(), role),
         bound_for(Idle(run_dir=run_dir, agent=parent, clock=clock, fs=fs), role),
         bound_for(SubmitAnswer(output_class), role),
+        bound_for(SubmitAnswerAsFile(), role),
     ]
 
 
