@@ -126,7 +126,7 @@ fileignoreconfig:
 - filename: docs/superpowers/plans/2026-09-08-an-answer-too-large-to-emit.md
   checksum: 3c7db05a75172489fa4366c5439ee9b86d472a36b32b3ca6d456fc052a6198c0
 - filename: tests/unit/test_json_edit.py
-  checksum: 35c842f3ca9d00c0920af6aa6f7123618b6d3495127ac0d9d4cfd0029e4f4314
+  checksum: 826401845deeeee239eeb68b81e863af05ccf2b64f59cc7f6d1db94de8b4d0bb
 - filename: tests/integration/test_answer_as_file.py
   checksum: 54e1a0785f2889964da576acb52bdfb347a73b0bff7aa8a7e2d8c01a87a55ffd
 version: "1.0"
