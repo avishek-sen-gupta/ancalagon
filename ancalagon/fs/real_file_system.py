@@ -7,7 +7,11 @@ from ancalagon.fs.file_system import FileSystem
 
 class RealFileSystem(FileSystem):
     def read_text(self, path: pathlib.PurePath) -> str:
-        return pathlib.Path(path).read_text(encoding="utf-8")
+        found = pathlib.Path(path)
+        try:
+            return found.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return found.read_text(encoding="latin-1")
 
     def write_text(self, path: pathlib.PurePath, text: str) -> None:
         pathlib.Path(path).write_text(text, encoding="utf-8")

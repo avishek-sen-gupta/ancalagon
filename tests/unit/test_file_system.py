@@ -20,6 +20,10 @@ def test_the_real_file_system_reads_writes_lists_and_reports_what_is_there(
     assert fs.read_bytes(note) == "hello é".encode("utf-8")
     assert (fs.exists(note), fs.is_file(note), fs.is_dir(note)) == (True, True, False)
 
+    legacy = tmp_path / "legacy.txt"
+    legacy.write_bytes(b"FOR SA-TP \xa6 CA=N")
+    assert fs.read_text(legacy) == "FOR SA-TP ¦ CA=N"
+
     fs.write_text(nested / "other.md", "x")
     assert fs.iterdir(nested) == (nested / "note.txt", nested / "other.md")
     assert fs.glob(nested, "*.md") == (nested / "other.md",)
