@@ -519,6 +519,10 @@ Give it the config the run uses, so the two cannot disagree about where runs liv
 `<write_root>/runs/*/tasks/*` and `<write_root>/*/tasks/*` — a run directory elsewhere is
 invisible to it.
 
+One line per message, rendered by `scripts/ancwatch.jq`. Prose and tool output are cut to the
+terminal's width less the label; a tool call's arguments are shown whole, because a path cut in
+half says less than the width saves. Widen the window to see more.
+
 ## Sandbox, credentials, migrations
 
 - Runs are sandboxed by default: every worker is wrapped with `fence`
