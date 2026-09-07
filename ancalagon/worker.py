@@ -62,6 +62,7 @@ from ancalagon.tools.search.transform_file import TransformFile
 from ancalagon.tools.shell.shell import Shell
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
+from ancalagon.tools.submit.submitting import TERMINAL_TOOLS, submitting
 from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.tools.watch.watch_file import WatchFile
 from ancalagon.transcript.history import load, repair
@@ -145,10 +146,13 @@ def build_registry(
             f"available: {sorted(t.name for t in available)}"
         )
     depth_capped = depth >= config.max_depth
+    withheld = TERMINAL_TOOLS - {submitting(spec.role.tools)}
     permitted = [
         t
         for t in available
-        if t.name in wanted and not (depth_capped and t.name.startswith("delegate_"))
+        if t.name in wanted
+        and not (depth_capped and t.name.startswith("delegate_"))
+        and t.name not in withheld
     ]
     return Registry(permitted)
 
