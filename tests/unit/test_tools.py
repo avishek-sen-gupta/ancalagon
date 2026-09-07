@@ -176,9 +176,16 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
     rest = registry.get("read_file").invoke(f'{{"path": "{big}", "offset": {shown}}}', ctx)
     assert f"line {shown}" in rest.summary.text_for_model()
 
+    assert "[lines 1-" in first.summary.text_for_model()
+
+    window = registry.get("read_file").invoke(f'{{"path": "{big}", "offset": 10, "limit": 5}}', ctx)
+    shown_lines = window.summary.text_for_model().splitlines()
+    assert shown_lines[:5] == [f"line {i}" for i in range(10, 15)]
+    assert shown_lines[5] == "[lines 11-15 of 60; call again with offset=15 for more]"
+
     tail = registry.get("read_file").invoke(f'{{"path": "{big}", "offset": 58}}', ctx)
     assert "line 59" in tail.summary.text_for_model()
-    assert "end of file" in tail.summary.text_for_model()
+    assert "[lines 59-60 of 60; end of file]" in tail.summary.text_for_model()
     assert tail.truncated is False
 
     relative = registry.get("read_file").invoke('{"path": "nope.txt"}', ctx)

@@ -84,7 +84,7 @@ class ToolContext:
         kept = fitting if fitting or not lines else [lines[0][: self.summary_chars]]
         last = offset + len(kept)
         body = "\n".join(kept)
-        note = f"[lines {offset}-{last} of {total}" + (
+        note = f"[lines {offset + 1}-{last} of {total}" + (
             f"; call again with offset={last} for more]" if last < total else "; end of file]"
         )
         path = self.write_output(tool_name, "\n".join(lines), ".txt")
