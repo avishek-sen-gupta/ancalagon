@@ -1,6 +1,7 @@
 import importlib
 import sys
 import types
+import typing
 
 import pytest
 
@@ -51,14 +52,14 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
 
     class FakeMessage:
         content = "done"
-        tool_calls: list[str] = []
+        tool_calls: typing.ClassVar[list[str]] = []
 
     class FakeChoice:
         message = FakeMessage()
         finish_reason = "stop"
 
     class FakeResponse:
-        choices = [FakeChoice()]
+        choices: typing.ClassVar[list[FakeChoice]] = [FakeChoice()]
 
     def fake_completion(
         model: str,
@@ -123,7 +124,7 @@ def test_only_the_static_system_half_is_cache_marked_and_usage_counters_reach_th
 
     class FakeMessage:
         content = "done"
-        tool_calls: list[str] = []
+        tool_calls: typing.ClassVar[list[str]] = []
 
     class FakeChoice:
         message = FakeMessage()
@@ -134,7 +135,7 @@ def test_only_the_static_system_half_is_cache_marked_and_usage_counters_reach_th
         cache_read_input_tokens = 1024
 
     class FakeResponse:
-        choices = [FakeChoice()]
+        choices: typing.ClassVar[list[FakeChoice]] = [FakeChoice()]
         usage = FakeUsage()
 
     def fake_completion(

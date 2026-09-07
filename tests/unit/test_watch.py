@@ -4,13 +4,13 @@ import time
 
 import pytest
 
-from ancalagon.clock.clock import Clock
 from ancalagon.bus.lifecycle_store import LifecycleStore
+from ancalagon.clock.clock import Clock
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
+from ancalagon.config.config import Config
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.budget import Budget
-from ancalagon.config.config import Config
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.free_text import FreeText
@@ -18,19 +18,19 @@ from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
+from ancalagon.contracts.watch_request import WatchRequest
 from ancalagon.deterministic.run_context import RunContext
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawn_by_run import SpawnByRun
 from ancalagon.supervisor.spawner import Spawner
-from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.files.read_args import ReadArgs
 from ancalagon.tools.files.read_file import ReadFile
+from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.watch.watch_args import WatchArgs
 from ancalagon.tools.watch.watch_file import WatchFile
 from ancalagon.watch.watch_for import WATCH_FOR, watch_for
-from ancalagon.contracts.watch_request import WatchRequest
 from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
 

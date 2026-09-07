@@ -18,10 +18,12 @@ from ancalagon.contracts.exhausted import Exhausted
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.idling import Idling
-from ancalagon.contracts.no_watermark import NO_WATERMARK
 from ancalagon.contracts.needs_input import NeedsInput
+from ancalagon.contracts.no_watermark import NO_WATERMARK
 from ancalagon.contracts.outcome_kind import OutcomeKind
+from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.reply import Reply
+from ancalagon.contracts.reviewed import Reviewed
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
@@ -29,9 +31,6 @@ from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.llm.fake_llm import FakeLLM
 from ancalagon.migrations import latest_version, migrate_file
-from ancalagon.contracts.failed import Failed
-from ancalagon.contracts.refused import Refused
-from ancalagon.contracts.reviewed import Reviewed
 from ancalagon.session import Session
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.files.read_file import ReadFile

@@ -19,6 +19,7 @@ from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.run_contracts import run_contracts
 from ancalagon.contracts.run_settings import RunSettings
+from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.env.real_environment import RealEnvironment
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
@@ -31,14 +32,12 @@ from ancalagon.schedule.newest_agent import newest_agent
 from ancalagon.supervisor.spawn_by_run import SpawnByRun
 from ancalagon.supervisor.spawner import Spawner
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
-from ancalagon.contracts.role import Role
-from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.supervisor.supervisor import Supervisor
 from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.trace_command import trace_command
-from ancalagon.worker import build_registry
 from ancalagon.viz_command import viz_command
+from ancalagon.worker import build_registry
 
 LOGGER = logging.getLogger(__name__)
 

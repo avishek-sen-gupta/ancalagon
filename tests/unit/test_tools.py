@@ -10,6 +10,8 @@ from ancalagon.attempt.lost import Lost
 from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
+from ancalagon.contracts.accepted import Accepted
+from ancalagon.contracts.access import Access
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
@@ -18,12 +20,10 @@ from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.needs_input import NeedsInput
-from ancalagon.contracts.role import Role
-from ancalagon.contracts.task_spec import TaskSpec
-from ancalagon.contracts.access import Access
-from ancalagon.contracts.accepted import Accepted
 from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.reviewed import Reviewed
+from ancalagon.contracts.role import Role
+from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text_answer import TextAnswer
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.fs.real_file_system import RealFileSystem
@@ -58,10 +58,10 @@ from ancalagon.tools.files.read_args import ReadArgs
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.files.write_file import WriteFile
 from ancalagon.tools.idle.idle import Idle
-from ancalagon.tools.parse.parse_args import ParseArgs
 from ancalagon.tools.parse.ast_query import AstQuery
 from ancalagon.tools.parse.ast_query_args import AstQueryArgs
 from ancalagon.tools.parse.capture import Capture
+from ancalagon.tools.parse.parse_args import ParseArgs
 from ancalagon.tools.parse.query_match import QueryMatch
 from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
 from ancalagon.tools.registry.bind_tool import bind_tool
@@ -74,11 +74,11 @@ from ancalagon.tools.search.find_symbol import FindSymbol
 from ancalagon.tools.search.grep_args import GrepArgs
 from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.search.searchable_files import searchable_files
-from ancalagon.tools.search.transform_file import TransformFile
+from ancalagon.tools.search.symbol_args import SymbolArgs
 from ancalagon.tools.search.transform_args import TransformArgs
+from ancalagon.tools.search.transform_file import TransformFile
 from ancalagon.tools.shell.shell import Shell
 from ancalagon.tools.shell.shell_args import ShellArgs
-from ancalagon.tools.search.symbol_args import SymbolArgs
 from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.tools.survey.stats_args import StatsArgs
 from ancalagon.worker import build_registry
@@ -215,7 +215,7 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     )
     assert found.ok is True
     assert [
-        l.split(":", 2)[2].strip() for l in pathlib.Path(found.path).read_text().splitlines()
+        line.split(":", 2)[2].strip() for line in pathlib.Path(found.path).read_text().splitlines()
     ] == [
         "def alpha():",
         "def beta():",
@@ -264,9 +264,9 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
 
     literal = Ripgrep().run(GrepArgs(pattern="--files", roots=[ctx.workspace.write_root]), ctx)
     assert literal.ok is True
-    assert [l.split(":", 2)[2] for l in pathlib.Path(literal.path).read_text().splitlines()] == [
-        "a line mentioning --files here"
-    ]
+    assert [
+        line.split(":", 2)[2] for line in pathlib.Path(literal.path).read_text().splitlines()
+    ] == ["a line mentioning --files here"]
 
     dashed = TransformFile().run(TransformArgs(script="s/--files/--flags/", path=flags), ctx)
     assert dashed.ok is True
@@ -281,15 +281,15 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     globbed = Ripgrep().run(GrepArgs(pattern="def alpha", roots=[tree], globs=["*.py"]), ctx)
     assert globbed.ok is True
     assert sorted(
-        l.split(":", 1)[0] for l in pathlib.Path(globbed.path).read_text().splitlines()
+        line.split(":", 1)[0] for line in pathlib.Path(globbed.path).read_text().splitlines()
     ) == [str(tree / "nested" / "deep.py"), str(tree / "top.py")]
 
     negated = Ripgrep().run(
         GrepArgs(pattern="def alpha", roots=[tree], globs=["*.py", "!**/nested/**"]), ctx
     )
-    assert [l.split(":", 1)[0] for l in pathlib.Path(negated.path).read_text().splitlines()] == [
-        str(tree / "top.py")
-    ]
+    assert [
+        line.split(":", 1)[0] for line in pathlib.Path(negated.path).read_text().splitlines()
+    ] == [str(tree / "top.py")]
 
     assert searchable_files([str(tree)], ["*.py"])[1] == sorted(
         [str(tree / "nested" / "deep.py"), str(tree / "top.py")]
@@ -507,7 +507,7 @@ def test_survey_and_symbol_tools_report_structure_not_mentions(tmp_path: pathlib
 
     defined = FindSymbol().run(SymbolArgs(roots=[root], name="Widget"), ctx)
     assert defined.ok is True
-    lines = [l for l in pathlib.Path(defined.path).read_text().splitlines() if l.strip()]
+    lines = [line for line in pathlib.Path(defined.path).read_text().splitlines() if line.strip()]
     assert len(lines) == 1
     assert "class" in lines[0]
     assert "widget.py" in lines[0]
@@ -515,7 +515,9 @@ def test_survey_and_symbol_tools_report_structure_not_mentions(tmp_path: pathlib
 
     everything = FindSymbol().run(SymbolArgs(roots=[root]), ctx)
     assert {
-        l.split()[0] for l in pathlib.Path(everything.path).read_text().splitlines() if l.strip()
+        line.split()[0]
+        for line in pathlib.Path(everything.path).read_text().splitlines()
+        if line.strip()
     } >= {
         "Widget",
         "spin",
@@ -1127,7 +1129,7 @@ def test_reading_a_file_records_what_was_read_and_when_it_last_changed(
     log = pathlib.Path(ctx.task_dir) / "access.jsonl"
 
     assert ReadFile(FakeClock()).run(ReadArgs(path=board), ctx).ok is True
-    first = [Access.model_validate_json(l) for l in log.read_text().splitlines()]
+    first = [Access.model_validate_json(line) for line in log.read_text().splitlines()]
     assert [(a.path, a.agent) for a in first] == [(str(board), 17)]
     assert first[0].changed_at == RealFileSystem().changed_at(board)
 
@@ -1139,7 +1141,7 @@ def test_reading_a_file_records_what_was_read_and_when_it_last_changed(
 
     board.write_text("first claim\nsecond claim\n")
     assert ReadFile(FakeClock()).run(ReadArgs(path=board), ctx).ok is True
-    after = [Access.model_validate_json(l) for l in log.read_text().splitlines()]
+    after = [Access.model_validate_json(line) for line in log.read_text().splitlines()]
     assert len(after) == 2
     assert after[1].changed_at > after[0].changed_at
 

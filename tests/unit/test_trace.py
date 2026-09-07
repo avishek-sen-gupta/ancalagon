@@ -3,7 +3,6 @@ from collections.abc import Mapping, Sequence
 
 import pytest
 
-
 from ancalagon.attempt.attempt_of import attempt_of
 from ancalagon.attempt.snapshot import Snapshot
 from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore

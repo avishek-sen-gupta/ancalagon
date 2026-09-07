@@ -140,11 +140,17 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
         assert answered["value"]["text"] == "both halves handled"
 
         child_dir = run_dir / "tasks" / "child-a"
-        lines = [json.loads(l) for l in (child_dir / "transcript.jsonl").read_text().splitlines()]
-        answered_at = [i for i, l in enumerate(lines) if l["blocks"][0].get("text") == "keep both"]
+        lines = [
+            json.loads(line) for line in (child_dir / "transcript.jsonl").read_text().splitlines()
+        ]
+        answered_at = [
+            i for i, line in enumerate(lines) if line["blocks"][0].get("text") == "keep both"
+        ]
         assert len(answered_at) == 1
         assert any(
-            b.get("name") == "need_input" for l in lines[: answered_at[0]] for b in l["blocks"]
+            b.get("name") == "need_input"
+            for line in lines[: answered_at[0]]
+            for b in line["blocks"]
         )
         child_task = bus.task(child_dir)
         newest_child = newest_agent(bus.snapshot(), child_task.id)
