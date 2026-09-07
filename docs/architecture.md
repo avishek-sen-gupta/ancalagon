@@ -501,11 +501,13 @@ flags set, `final` and `force_tool`. Seven things worth knowing:
   worker, where it becomes a `Failed` outcome carrying the traceback — visible, rather than
   handed back as a tool error the agent burns turns retrying against.
 - **The final turn is forced, not merely offered.** `_prepare_final_turn` records
-  `FINAL_INSTRUCTION`, injecting a synthetic assistant turn first if the last message was a
+  `_final_instruction()`, injecting a synthetic assistant turn first if the last message was a
   user turn — providers reject two consecutive user turns — and `_complete` is called with
-  `force_tool="submit_answer"`. `_declarations` also collapses to `submit_answer` alone on
-  that turn, offered regardless of whether every child has been collected: being cut off by
-  the budget is not the same as choosing to skip reading a child's answer.
+  `force_tool=self.submit`. `_declarations` also collapses to `self.submit` alone on that turn,
+  and `self.submit` is the name `submitting(role.tools)` returned rather than a constant, so the
+  role's choice reaches the forced final turn. The tool is offered regardless of whether every
+  child has been collected: being cut off by the budget is not the same as choosing to skip
+  reading a child's answer.
 - **The exhausted-turns idle records `NO_WATERMARK`, not a measured one.** It never called
   `idle`, so it has no snapshot to take a watermark from, and `-1` says that rather than
   claiming it had seen nothing. The cost is that such a parent also wakes for a child that had
@@ -652,6 +654,13 @@ at a time would spend its budget on round trips.
 calling theirs, so a claim buried three levels down is checked exactly like a top-level one. The
 alternative — walking the model tree for anything that looks like `Evidence` — would decide by
 inspection what the contract can simply state.
+
+`AnswerFile` is an answer contract like any other: a Pydantic model assigned to `role.answer`.
+The file it names is outside Pydantic's reach on purpose — the structure is described by a JSON
+Schema because it is never a Python value. The harness never opens that file; it ships the three
+pointer fields (`status`, `summary`, `path`) upward, and the parent decides what to do with them.
+A hook that validates the file's contents runs before `submit_answer_as_file`, not after, and
+the schema it enforces is declared in the task's input contract rather than hard-coded anywhere.
 
 A differing quote comes back as an alignment from `compare/alignment.py`, the same `=`/`-`/`+`
 vocabulary `diff_regions` uses, with the quote on the left numbered from 1 and the cited lines on

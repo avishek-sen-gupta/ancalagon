@@ -261,6 +261,21 @@ the tool-call budget.
 | `need_input` | stop and hand a question upward, free |
 | `idle` | stop and wait for a child, free |
 | `submit_answer` | the final answer, free — and the only way to give one |
+| `submit_answer_as_file` | the final answer as a file you already wrote, free — for a contract too large to emit in one reply |
+
+### Two ways to submit
+
+A role names one of two terminal tools: `submit_answer` carries the answer in its arguments, so
+its parameter schema is the answer contract and the whole answer must fit in one completion;
+`submit_answer_as_file` carries a status, a sentence and a path, so the answer is built on disk
+across many `edit_json` calls and a parent collecting it pays three fields instead of the whole
+record.
+
+```toml
+[roles.record_analyst]
+answer = { module = "ancalagon.contracts.answer_file", name = "AnswerFile" }
+tools = ["read_file", "write_file", "edit_json", "submit_answer_as_file"]
+```
 
 `watch_file` is the one that needs something else declared: a role that names `watch_for` as its
 `run` function, since that is what it queues and what tells the supervisor to run a process

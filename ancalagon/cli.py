@@ -35,6 +35,7 @@ from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
 from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
+from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.trace_command import trace_command
 from ancalagon.viz_command import viz_command
 from ancalagon.worker import build_registry
@@ -128,12 +129,15 @@ def _run_fault(name: str, role: Role) -> str:
     )
 
 
+SUBMITTING = (SubmitAnswer.name, SubmitAnswerAsFile.name)
+
+
 def _submit_fault(name: str, role: Role) -> str:
-    if role.run != NO_RUN or SubmitAnswer.name in role.tools:
+    if role.run is not NO_RUN or set(role.tools) & set(SUBMITTING):
         return ""
     return (
-        f"[roles.{name}] tools: a role that runs a session must name {SubmitAnswer.name}; "
-        f"named: {sorted(role.tools)}"
+        f"[roles.{name}] tools: a role that runs a session must name one of "
+        f"{sorted(SUBMITTING)}; named: {sorted(role.tools)}"
     )
 
 

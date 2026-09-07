@@ -36,6 +36,7 @@ from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.llm.unmetered import UNMETERED
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
+from ancalagon.tools.submit.submitting import submitting
 from ancalagon.transcript.demote import for_wire
 from ancalagon.transcript.transcript import Transcript
 
@@ -44,19 +45,8 @@ LOGGER = logging.getLogger(__name__)
 # A rejected final answer is quoted at length, because it is the evidence for the failure.
 REJECTED_CHARS = 2000
 
-FINAL_INSTRUCTION = (
-    "Your budget is exhausted. Answer now from what you already know, "
-    "using the submit_answer tool. No other tools are available."
-)
-
-CONTINUE_INSTRUCTION = (
-    "Answers are only accepted through the submit_answer tool. Keep working, and call it "
-    "when you have your answer."
-)
-
 NO_ANSWER = "no final answer"
 
-SUBMIT = "submit_answer"
 IDLE = "idle"
 
 
@@ -94,6 +84,7 @@ class Session:
         self.keep_recent_messages = keep_recent_messages
         self.remaining = spec.role.budget
         self.seq = len(messages)
+        self.submit = submitting(spec.role.tools)
         if not self.messages:
             self._record(
                 MessageRole.USER, [Text(text=f"{spec.goal}\n\nInput: {input.model_dump_json()}")]
@@ -116,7 +107,7 @@ class Session:
         return SystemPrompt(
             static=(
                 f"{self.spec.role.behaviour}\n\n"
-                f"When you have the answer, call the submit_answer tool with it. That tool is "
+                f"When you have the answer, call the {self.submit} tool with it. That tool is "
                 f"the only way to answer; a reply without it is taken as more work to do. "
                 f"Your answer must match this schema: {schema}"
             ),
@@ -203,10 +194,10 @@ class Session:
         self, final: bool, outstanding: collections.abc.Sequence[int]
     ) -> list[ToolSchema]:
         if final:
-            return [self.registry.get(SUBMIT).declaration]
+            return [self.registry.get(self.submit).declaration]
         uncollected = self.children.uncollected()
         excluded: set[str] = ({IDLE} if not outstanding else set[str]()) | (
-            {SUBMIT} if outstanding or uncollected else set[str]()
+            {self.submit} if outstanding or uncollected else set[str]()
         )
         return [
             self.registry.get(name).declaration
@@ -214,10 +205,22 @@ class Session:
             if name not in excluded
         ]
 
+    def _final_instruction(self) -> str:
+        return (
+            f"Your budget is exhausted. Answer now from what you already know, "
+            f"using the {self.submit} tool. No other tools are available."
+        )
+
+    def _continue_instruction(self) -> str:
+        return (
+            f"Answers are only accepted through the {self.submit} tool. Keep working, and "
+            f"call it when you have your answer."
+        )
+
     def _prepare_final_turn(self) -> None:
         if self.messages and self.messages[-1].role is MessageRole.USER:
             self._record(MessageRole.ASSISTANT, [Text(text="Understood.")])
-        self._record(MessageRole.USER, [Text(text=FINAL_INSTRUCTION)])
+        self._record(MessageRole.USER, [Text(text=self._final_instruction())])
 
     def _outcome_of_use(
         self, summary: Payload, final: bool
@@ -276,7 +279,7 @@ class Session:
                 spent=self._spent(),
             )
         LOGGER.info("the reply called no tool, asking again")
-        self._record(MessageRole.USER, [Text(text=CONTINUE_INSTRUCTION)])
+        self._record(MessageRole.USER, [Text(text=self._continue_instruction())])
         return PENDING
 
     def _evaluate_turn(self, reply: Reply, final: bool) -> Outcome[pydantic.BaseModel] | Pending:
@@ -321,7 +324,7 @@ class Session:
                 self._prepare_final_turn()
             else:
                 self.remaining = self.remaining.spend_turn()
-            reply = self._complete(declarations, force_tool=SUBMIT if final else "")
+            reply = self._complete(declarations, force_tool=self.submit if final else "")
             self._record(MessageRole.ASSISTANT, reply.blocks)
             outcome = self._evaluate_turn(reply, final)
             if not isinstance(outcome, Pending):
