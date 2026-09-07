@@ -10,6 +10,7 @@ from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
 from ancalagon.children.bus_children import BusChildren
 from ancalagon.children.children import Children
 from ancalagon.clock.fake_clock import FakeClock
+from ancalagon.config.config import Config
 from ancalagon.contracts.answer_file import AnswerFile
 from ancalagon.contracts.answer_status import AnswerStatus
 from ancalagon.contracts.budget import Budget
@@ -44,6 +45,7 @@ from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.transcript.transcript import Transcript
+from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
 
 
@@ -744,15 +746,32 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
         summary_chars=200,
         agent_id=18,
     )
+    role_both = Role(
+        behaviour="You answer questions.",
+        answer=ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile"),
+        tools=("submit_answer", "submit_answer_as_file"),
+        budget=Budget(turns=2, tool_calls=4),
+    )
     spec_both = TaskSpec(
         task_id="t2",
-        role=Role(
-            behaviour="You answer questions.",
-            answer=ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile"),
-            tools=("submit_answer", "submit_answer_as_file"),
-            budget=Budget(turns=2, tool_calls=4),
-        ),
+        role=role_both,
         goal="Answer it.",
+    )
+    config_both = Config(
+        write_root=both,
+        read_roots=(),
+        model="anthropic/claude",
+        roles={"t2": role_both},
+    )
+    registry_both = build_registry(
+        config_both,
+        spec_both,
+        both,
+        parent=0,
+        depth=0,
+        output_class=AnswerFile,
+        clock=FakeClock(),
+        fs=RealFileSystem(),
     )
     arguments_both = json.dumps(
         {"status": "complete", "summary": "one record", "path": str(answer_both)}
@@ -772,7 +791,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
         transcript=Transcript(RealFileSystem(), path=both / "transcript.jsonl", agent_id=18),
         agent_id=18,
         llm=llm_both,
-        registry=Registry([bind_tool(SubmitAnswer(AnswerFile)), bind_tool(SubmitAnswerAsFile())]),
+        registry=registry_both,
         ctx=ctx_both,
         output_class=AnswerFile,
         clock=FakeClock(),

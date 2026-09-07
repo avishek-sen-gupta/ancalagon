@@ -36,7 +36,7 @@ from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.llm.unmetered import UNMETERED
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
-from ancalagon.tools.submit.submitting import TERMINAL_TOOLS, submitting
+from ancalagon.tools.submit.submitting import submitting
 from ancalagon.transcript.demote import for_wire
 from ancalagon.transcript.transcript import Transcript
 
@@ -196,10 +196,8 @@ class Session:
         if final:
             return [self.registry.get(self.submit).declaration]
         uncollected = self.children.uncollected()
-        excluded: set[str] = (
-            ({IDLE} if not outstanding else set[str]())
-            | ({self.submit} if outstanding or uncollected else set[str]())
-            | (TERMINAL_TOOLS - {self.submit})
+        excluded: set[str] = ({IDLE} if not outstanding else set[str]()) | (
+            {self.submit} if outstanding or uncollected else set[str]()
         )
         return [
             self.registry.get(name).declaration
