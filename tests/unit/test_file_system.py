@@ -17,7 +17,7 @@ def test_the_real_file_system_reads_writes_lists_and_reports_what_is_there(
     assert fs.exists(note) is False
     fs.write_text(note, "hello é")
     assert fs.read_text(note) == "hello é"
-    assert fs.read_bytes(note) == "hello é".encode("utf-8")
+    assert fs.read_bytes(note) == "hello é".encode()
     assert (fs.exists(note), fs.is_file(note), fs.is_dir(note)) == (True, True, False)
 
     legacy = tmp_path / "legacy.txt"

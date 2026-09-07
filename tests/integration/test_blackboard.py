@@ -11,6 +11,8 @@ from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.watch_request import WatchRequest
+from ancalagon.contracts.watched import Watched
 from ancalagon.env.real_environment import RealEnvironment
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.sandbox.unsandboxed import Unsandboxed
@@ -18,8 +20,6 @@ from ancalagon.schedule.newest_agent import newest_agent
 from ancalagon.supervisor.spawn_by_run import SpawnByRun
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
-from ancalagon.contracts.watch_request import WatchRequest
-from ancalagon.contracts.watched import Watched
 from ancalagon.watch.watch_for import WATCH_FOR
 from tests.integration.prepared_run import prepared_run_dir
 

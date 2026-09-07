@@ -17,4 +17,4 @@ class FakeClock(Clock):
         return self.elapsed
 
     def sleep(self, seconds: float) -> None:
-        self.elapsed += seconds
+        self.elapsed = self.elapsed + seconds

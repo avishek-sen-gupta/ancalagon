@@ -59,7 +59,7 @@ def align(
             for opcode in opcodes
             for row in _rows(opcode, left_text, right_text, left_start, right_start)
         ),
-        matching=sum(i2 - i1 for tag, i1, i2, _, _ in opcodes if tag == EQUAL),
-        only_left=sum(i2 - i1 for tag, i1, i2, _, _ in opcodes if tag != EQUAL),
-        only_right=sum(j2 - j1 for tag, _, _, j1, j2 in opcodes if tag != EQUAL),
+        matching=sum(i2 - i1 for tag, i1, i2, *_ in opcodes if tag == EQUAL),
+        only_left=sum(i2 - i1 for tag, i1, i2, *_ in opcodes if tag != EQUAL),
+        only_right=sum(j2 - j1 for tag, _i1, _i2, j1, j2 in opcodes if tag != EQUAL),
     )

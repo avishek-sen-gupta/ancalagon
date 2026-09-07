@@ -23,10 +23,12 @@ class FakeLLM(LLM):
         tools: collections.abc.Sequence[ToolSchema],
         force_tool: str = "",
     ) -> Reply:
-        self.systems.append(system)
-        self.seen.append(list(messages))
-        self.forced.append(force_tool)
+        self.systems = [*self.systems, system]
+        self.seen = [*self.seen, list(messages)]
+        self.forced = [*self.forced, force_tool]
         self.offered = [*self.offered, list(tools)]
         if not self.replies:
             raise RuntimeError("FakeLLM exhausted")
-        return self.replies.pop(0)
+        head, *rest = self.replies
+        self.replies = rest
+        return head

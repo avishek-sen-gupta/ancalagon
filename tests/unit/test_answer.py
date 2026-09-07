@@ -68,9 +68,9 @@ def test_answering_a_suspended_agent_appends_the_answer_and_queues_a_new_attempt
     )
     assert resumed != agent
 
-    lines = [json.loads(l) for l in (task_dir / "transcript.jsonl").read_text().splitlines()]
+    lines = [json.loads(line) for line in (task_dir / "transcript.jsonl").read_text().splitlines()]
     assert len(lines) == 3
-    assert [l["seq"] for l in lines] == [0, 1, 2]
+    assert [line["seq"] for line in lines] == [0, 1, 2]
     assert lines[2]["role"] == "user"
     assert lines[2]["blocks"][0]["text"] == "the second one"
     assert lines[2]["agent"] == 0
@@ -104,8 +104,8 @@ def test_the_tool_and_the_command_both_answer_and_report_what_they_queued(
     assert f"answered agent {agent}" in answered.summary.text_for_model()
 
     lines = [
-        json.loads(l)
-        for l in (run_dir / "tasks" / "asked" / "transcript.jsonl").read_text().splitlines()
+        json.loads(line)
+        for line in (run_dir / "tasks" / "asked" / "transcript.jsonl").read_text().splitlines()
     ]
     assert lines[-1]["blocks"][0]["text"] == "by tool"
     assert lines[-1]["agent"] == 7

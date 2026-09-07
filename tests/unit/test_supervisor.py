@@ -26,11 +26,11 @@ from ancalagon.supervisor.fake_liveness import FakeLiveness
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawner import Spawner
 from ancalagon.supervisor.supervisor import Supervisor
-from ancalagon.tools.idle.idle import Idle
-from ancalagon.tools.idle.idle_args import IdleArgs
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.delegate.delegate_to import DelegateTo
 from ancalagon.tools.delegate.task_args import TaskArgs
+from ancalagon.tools.idle.idle import Idle
+from ancalagon.tools.idle.idle_args import IdleArgs
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.workspace import Workspace
 
@@ -140,7 +140,7 @@ def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: p
     assert bus.attempt(good) == Closed(verdict=AgentStatus.COMPLETED)
     assert bus.attempt(bad) == Lost(close=AgentStatus.CRASHED)
     assert bus.attempt(wedged) == Lost(close=AgentStatus.TIMED_OUT)
-    assert [e.pid for e in bus.history(wedged) if e.pid][0] == 1000 + wedged
+    assert next(e.pid for e in bus.history(wedged) if e.pid) == 1000 + wedged
     assert (tmp_path / "tasks" / "wedged" / f"outcome-{wedged}.json").exists() is False
 
 

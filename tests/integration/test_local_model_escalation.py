@@ -94,11 +94,11 @@ def test_a_real_model_asks_a_question_and_acts_on_the_answer(tmp_path: pathlib.P
     assert "both" in said
 
     lines = [
-        json.loads(l)
-        for l in (run_dir / "tasks" / "root" / "transcript.jsonl").read_text().splitlines()
+        json.loads(line)
+        for line in (run_dir / "tasks" / "root" / "transcript.jsonl").read_text().splitlines()
     ]
     answer_at = [
-        i for i, l in enumerate(lines) if l["blocks"][0].get("text") == "Keep both captions."
+        i for i, line in enumerate(lines) if line["blocks"][0].get("text") == "Keep both captions."
     ]
     assert len(answer_at) == 1
     assert len(lines) > answer_at[0] + 1, "the model was resumed but never replied"

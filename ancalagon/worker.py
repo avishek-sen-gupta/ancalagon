@@ -60,11 +60,11 @@ from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.search.transform_file import TransformFile
 from ancalagon.tools.shell.shell import Shell
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
-from ancalagon.tools.watch.watch_file import WatchFile
 from ancalagon.tools.survey.code_stats import CodeStats
-from ancalagon.watch.watch_for import WATCH_FOR
+from ancalagon.tools.watch.watch_file import WatchFile
 from ancalagon.transcript.history import load, repair
 from ancalagon.transcript.transcript import Transcript
+from ancalagon.watch.watch_for import WATCH_FOR
 from ancalagon.workspace.workspace import Workspace
 
 LOGGER = logging.getLogger(__name__)
