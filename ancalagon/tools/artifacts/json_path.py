@@ -9,7 +9,7 @@ class JsonPath(pydantic.RootModel[tuple[str | int, ...]], frozen=True):
 def path_of(pointer: str) -> JsonPath:
     return JsonPath(
         root=tuple(
-            int(token) if token.isdigit() else token.replace("~1", "/").replace("~0", "~")
+            int(token) if token.isdecimal() else token.replace("~1", "/").replace("~0", "~")
             for token in pointer.split("/")[1:]
         )
     )

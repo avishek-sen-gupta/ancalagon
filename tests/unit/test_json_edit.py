@@ -30,9 +30,13 @@ def test_a_json_pointer_becomes_the_path_jq_indexes_with():
     assert path_of("/a~1b/c~0d") == JsonPath(root=("a/b", "c~d"))
     assert path_of("/~01") == JsonPath(root=("~1",))
     assert path_of("/values/0/name").model_dump_json() == '["values",0,"name"]'
+    assert path_of("/²") == JsonPath(root=("²",))
 
     with pytest.raises(pydantic.ValidationError):
         JsonEditArgs(path=pathlib.PurePath("x.json"), op=JsonOp.SET, pointer="values/0")
+
+    with pytest.raises(pydantic.ValidationError, match="remove needs a pointer"):
+        JsonEditArgs(path=pathlib.PurePath("x.json"), op=JsonOp.REMOVE, pointer="")
 
 
 def test_edit_json_sets_appends_and_removes_in_place(tmp_path: pathlib.Path):
