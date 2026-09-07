@@ -203,7 +203,15 @@ submit_answer = [
 
 A citation that names an unreadable path, an inverted range, a range past the end of the file, or
 lines whose text differs is a refusal, so a claim the model invented cannot leave the loop looking
-like one it read.
+like one it read. A quote that differs is shown as an alignment rather than described, because
+"does not match" leaves the model guessing which of its lines was wrong:
+
+```
+/scope/record.txt: quote does not match lines 2-3. Rows are = same, - only in your quote, + only in the file, numbered quote:file.
+= 1:2 05  FIRST-FIELD    PIC X(01).
+- 2:- 05  INVENTED  PIC X.
++ -:3 05  SECOND-FIELD   PIC X(1).
+```
 
 ### The tools
 
