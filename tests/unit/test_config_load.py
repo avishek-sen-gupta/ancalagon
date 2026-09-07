@@ -4,6 +4,7 @@ import pathlib
 import pydantic
 import pytest
 
+from ancalagon.cli import check_contracts
 from ancalagon.config.load import load_config
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
@@ -301,3 +302,63 @@ behaviour = "Investigate."
 tools = ["read_file"]
 budget = { turns = 4, tool_calls = 8 }
 """
+
+
+def test_a_session_role_must_name_a_submit_tool(
+    tmp_path: pathlib.Path, importable: collections.abc.Callable[[pathlib.Path], None]
+):
+    package = tmp_path / "runkit"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "runners.py").write_text(RUNNERS)
+    importable(tmp_path)
+
+    text = """
+[workspace]
+write_root = "./ws"
+read_roots = ["./src"]
+
+[model]
+name = "fake/model"
+num_retries = 2
+request_timeout_s = 120
+max_tokens = 4000
+allowed_domains = []
+
+[limits]
+max_concurrent_agents = 1
+agent_timeout_s = 300
+max_depth = 1
+compact_above_tokens = 60000
+keep_recent_messages = 8
+summary_chars = 1000
+
+[sandbox]
+strategy = "fence"
+
+[roles.analyst]
+behaviour = "You answer."
+tools = ["read_file"]
+budget = { turns = 3, tool_calls = 3 }
+
+[roles.transformer]
+behaviour = "You transform."
+run = { module = "runkit.runners", name = "good" }
+tools = []
+budget = { turns = 1, tool_calls = 1 }
+
+[run]
+goal_file = "./goal.md"
+input_file = ""
+role = "analyst"
+"""
+    path = tmp_path / "ancalagon.toml"
+    path.write_text(text)
+    config = load_config(pathlib.PurePath(path), RealFileSystem())
+
+    with pytest.raises(ValueError) as raised:
+        check_contracts(config, RealFileSystem())
+
+    assert "[roles.analyst]" in str(raised.value)
+    assert "submit_answer" in str(raised.value)
+    assert "[roles.transformer]" not in str(raised.value)

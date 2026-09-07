@@ -336,7 +336,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     nested_agent = bus.enqueue(tmp_path / "nested-agent", parent_agent=HUMAN)
     full_role = Role(
         behaviour="Coordinate.",
-        tools=("delegate_scout", "need_input"),
+        tools=("delegate_scout", "need_input", "submit_answer"),
         budget=Budget(turns=1, tool_calls=1),
     )
     at_root = build_registry(
@@ -369,7 +369,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
                 task_id="root",
                 role=Role(
                     behaviour="Shell.",
-                    tools=("shell", "ast_query"),
+                    tools=("shell", "ast_query", "submit_answer"),
                     budget=Budget(turns=1, tool_calls=1),
                 ),
                 goal="g",
@@ -389,7 +389,9 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     assert set(answer_shape["properties"]) == {"text"}
 
     narrow_role = Role(
-        behaviour="Search.", tools=("read_file", "ripgrep", "diff_regions"), budget=full_role.budget
+        behaviour="Search.",
+        tools=("read_file", "ripgrep", "diff_regions", "submit_answer"),
+        budget=full_role.budget,
     )
     narrowed = build_registry(
         config,

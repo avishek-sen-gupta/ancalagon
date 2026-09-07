@@ -61,7 +61,7 @@ strategy = "none"
 
 [roles.root]
 behaviour = "You answer the goal."
-tools = []
+tools = ["submit_answer"]
 
 [roles.root.budget]
 turns = 4

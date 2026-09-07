@@ -160,7 +160,7 @@ strategy = "none"
 
 [roles.root]
 behaviour = "Look."
-tools = ["ripgrep"]
+tools = ["ripgrep", "submit_answer"]
 budget = { turns = 2, tool_calls = 4 }
 
 [roles.root.before]

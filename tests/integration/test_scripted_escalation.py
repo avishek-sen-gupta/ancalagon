@@ -63,7 +63,7 @@ strategy = "none"
 
 [roles.root]
 behaviour = "You investigate, delegating a focused subtask to escalate a question."
-tools = ["delegate_investigate", "need_input", "answer_task"]
+tools = ["delegate_investigate", "need_input", "answer_task", "submit_answer"]
 
 [roles.root.budget]
 turns = 6
@@ -71,7 +71,7 @@ tool_calls = 20
 
 [roles.investigate]
 behaviour = "You investigate."
-tools = ["need_input"]
+tools = ["need_input", "submit_answer"]
 
 [roles.investigate.budget]
 turns = 4

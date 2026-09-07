@@ -121,7 +121,7 @@ flowchart LR
     inc --> agentspec["the spec, re-read as a typed model"]
     outc --> submit["submit_answer<br/>the schema an answer must match"]
     role --> tl["the tools list"]
-    tl --> registry["registry - exactly these,<br/>plus submit_answer and idle"]
+    tl --> registry["registry - exactly these,<br/>plus idle"]
     role --> b["budget - turns and tool calls"]
     b --> registry
 ```
@@ -132,7 +132,9 @@ Rules that follow from that wiring:
 - A role a worker may spawn gets a `delegate_<role>` tool built from *that role's* input
   contract, so a parent sees the child's real schema. A worker builds them only for the roles
   its own `tools` list names. A role name becomes a tool name, so it must be a Python identifier.
-- `tools = []` means *no tools*, not all of them. `submit_answer` and `idle` arrive regardless.
+- `tools = []` means *no tools*, not all of them. `idle` arrives regardless; a terminal submit
+  tool does not — a role that runs a session names one, and `check_contracts` rejects a role
+  that names none. There is one way out of a run and the role chooses which.
 - There is no global default budget or tool list. Only what each role states.
 - A `spec.json` freezes the role at enqueue, so editing `[roles.*]` affects only tasks queued
   afterwards. The freeze is not total: the contract *source* is a dotted module, resolved fresh
@@ -215,9 +217,9 @@ like one it read. A quote that differs is shown as an alignment rather than desc
 
 ### The tools
 
-Every tool a role may name, and what it is for. `submit_answer` and `idle` arrive whatever
-the list says; `delegate_<role>` appears once per role the config declares. The two costing
-nothing do not spend the tool-call budget.
+Every tool a role may name, and what it is for. `idle` arrives whatever the list says;
+`delegate_<role>` appears once per role the config declares. The two costing nothing do not spend
+the tool-call budget.
 
 | Reading | |
 |---|---|

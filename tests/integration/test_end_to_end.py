@@ -85,7 +85,7 @@ strategy = "none"
 
 [roles.{role_name}]
 behaviour = "{ROOT_BEHAVIOUR}"
-{input_line}tools = ["read_file"]
+{input_line}tools = ["read_file", "submit_answer"]
 
 [roles.{role_name}.budget]
 turns = {turns}

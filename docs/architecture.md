@@ -436,13 +436,14 @@ indistinguishable to `collect_task` from one still working, for ever.
 
 `build_registry` decides which tools an agent's registry can serve at all, not which of them
 it is offered on a given turn: the role's own `tools` filters the list, every `delegate_<name>`
-entry is withheld once `bus/depth_of.py` reports the task is at `max_depth`, and `submit_answer`
-and `idle` are both added unconditionally, regardless of what `tools` names — a role author who
-left either out never chose to crash the harness, or to spawn children it could never wait for.
-A name in `tools` that no tool answers to raises, naming both the unknown entries and the
-available set. An empty `tools` list now means no tools at all, the inverse of the old global
-`[tools] enabled = []`, which meant every tool — a role written against the old default gets a
-much smaller toolset than its author expects, silently, unless `tools` is filled in.
+entry is withheld once `bus/depth_of.py` reports the task is at `max_depth`, and `idle` is added
+unconditionally — a role author who left it out never chose to crash the harness, or to spawn
+children it could never wait for. The submit tool is named by the role rather than added for it,
+and `check_contracts` catches a role that names none before any agent starts. A name in `tools`
+that no tool answers to raises, naming both the unknown entries and the available set. An empty
+`tools` list now means no tools at all, the inverse of the old global `[tools] enabled = []`,
+which meant every tool — a role written against the old default gets a much smaller toolset than
+its author expects, silently, unless `tools` is filled in.
 
 Which of `idle` and `submit_answer` the model actually sees changes every turn. `Session`
 learns the facts it needs through an injected `Children` port (`ancalagon/children/`) —
