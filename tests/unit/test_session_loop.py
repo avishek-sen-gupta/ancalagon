@@ -394,8 +394,9 @@ def test_session_completes_from_a_submit_answer_tool_call(tmp_path: pathlib.Path
     assert isinstance(second, Completed)
     assert second.value.model_dump() == {"answer": "second try"}
     refusal = (tmp_path / "bad" / "transcript.jsonl").read_text()
-    assert "ValidationError" in refusal
-    assert "Field required" in refusal
+    assert "submit_answer arguments are invalid:" in refusal
+    assert "answer: Field required" in refusal
+    assert "input_value" not in refusal
 
 
 def test_a_zero_cost_tool_still_works_with_no_tool_call_budget_left(tmp_path: pathlib.Path):
