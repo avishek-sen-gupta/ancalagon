@@ -29,6 +29,7 @@ from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.llm.inlined import Inlined
 from ancalagon.llm.llm import LLM
 from ancalagon.llm.meter import Meter
 from ancalagon.llm.system_prompt import SystemPrompt
@@ -112,7 +113,7 @@ class Session:
         )
 
     def _system(self) -> SystemPrompt:
-        schema = self.output_class.model_json_schema()
+        schema = self.output_class.model_json_schema(schema_generator=Inlined)
         return SystemPrompt(
             static=(
                 f"{self.spec.role.behaviour}\n\n"

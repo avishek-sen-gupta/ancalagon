@@ -53,12 +53,22 @@ class Verdict(pydantic.BaseModel):
     answer: str
 
 
+class Where(pydantic.BaseModel):
+    path: str
+
+
+class Sited(pydantic.BaseModel):
+    answer: str
+    where: Where
+
+
 def _session(
     tmp_path: pathlib.Path,
     replies: list[Reply],
     budget: Budget,
     goal: str = "Answer it.",
     given: pydantic.BaseModel = Verdict(answer="seed"),
+    answer_class: type[pydantic.BaseModel] = Verdict,
 ) -> Session:
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
@@ -89,11 +99,11 @@ def _session(
             [
                 bind_tool(ReadFile(FakeClock())),
                 bind_tool(NeedInput()),
-                bind_tool(SubmitAnswer(Verdict)),
+                bind_tool(SubmitAnswer(answer_class)),
             ]
         ),
         ctx=ctx,
-        output_class=Verdict,
+        output_class=answer_class,
         clock=FakeClock(),
     )
 
@@ -451,6 +461,39 @@ def test_final_turn_forces_submit_answer_and_keeps_a_rejected_payload(tmp_path: 
 
     assert isinstance(outcome, Failed)
     assert "wrapped by mistake" in outcome.summary
+
+
+def test_the_answer_schema_named_in_the_system_prompt_carries_no_references(
+    tmp_path: pathlib.Path,
+):
+    session = _session(
+        tmp_path,
+        [
+            Reply(
+                blocks=[
+                    ToolUse(
+                        id="tu_1",
+                        name="submit_answer",
+                        arguments='{"answer": "done", "where": {"path": "/tmp/x"}}',
+                    )
+                ],
+                stop_reason="tool_calls",
+            )
+        ],
+        Budget(turns=5, tool_calls=5),
+        answer_class=Sited,
+    )
+    outcome = session.run()
+
+    fake = session.llm
+    assert isinstance(fake, FakeLLM)
+    static = fake.systems[0].static
+    assert "$ref" not in static
+    assert "$defs" not in static
+    assert "'where': {'properties': {'path': {'title': 'Path', 'type': 'string'}}" in static
+
+    assert isinstance(outcome, Completed)
+    assert outcome.value == Sited(answer="done", where=Where(path="/tmp/x"))
 
 
 def test_the_static_system_half_is_shared_across_items_and_the_per_item_half_is_not(
