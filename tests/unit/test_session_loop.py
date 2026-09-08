@@ -32,9 +32,11 @@ from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.fs.real_file_system import RealFileSystem
+from ancalagon.letterbox.letterbox import Letterbox
+from ancalagon.letterbox.no_letterbox import NO_LETTERBOX
 from ancalagon.llm.fake_llm import FakeLLM
 from ancalagon.migrations import latest_version, migrate_file
-from ancalagon.session import Session
+from ancalagon.session import NOTE_PREFIX, Session
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.idle.idle import Idle
@@ -69,6 +71,7 @@ def _session(
     goal: str = "Answer it.",
     given: pydantic.BaseModel = Verdict(answer="seed"),
     answer_class: type[pydantic.BaseModel] = Verdict,
+    letterbox: Letterbox = NO_LETTERBOX,
 ) -> Session:
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
@@ -105,6 +108,7 @@ def _session(
         ctx=ctx,
         output_class=answer_class,
         clock=FakeClock(),
+        letterbox=letterbox,
     )
 
 
@@ -461,6 +465,54 @@ def test_final_turn_forces_submit_answer_and_keeps_a_rejected_payload(tmp_path: 
 
     assert isinstance(outcome, Failed)
     assert "wrapped by mistake" in outcome.summary
+
+
+class ScriptedLetterbox(Letterbox):
+    def __init__(self, notes: collections.abc.Sequence[tuple[str, ...]]):
+        self._notes = list(notes)
+        self.marked: list[int] = []
+
+    def unread(self) -> tuple[str, ...]:
+        if not self._notes:
+            return ()
+        head, *rest = self._notes
+        self._notes = rest
+        return head
+
+    def mark(self, delivered: int) -> None:
+        self.marked = [*self.marked, delivered]
+
+
+def test_a_note_left_for_a_task_joins_the_next_turn_and_costs_no_turn(tmp_path: pathlib.Path):
+    box = ScriptedLetterbox([("pass the nested fields as objects",)])
+    session = _session(
+        tmp_path,
+        [
+            Reply(blocks=[Text(text="still looking")], stop_reason="stop"),
+            Reply(
+                blocks=[ToolUse(id="tu_1", name="submit_answer", arguments='{"answer": "done"}')],
+                stop_reason="tool_calls",
+            ),
+        ],
+        Budget(turns=5, tool_calls=5),
+        letterbox=box,
+    )
+    outcome = session.run()
+
+    fake = session.llm
+    assert isinstance(fake, FakeLLM)
+    delivered = f"{NOTE_PREFIX}pass the nested fields as objects"
+
+    def texts(turn: int) -> list[str]:
+        return [b.text for m in fake.seen[turn] for b in m.blocks if isinstance(b, Text)]
+
+    assert delivered in texts(0)
+    assert delivered in texts(1)
+    assert box.marked == [1, 0]
+
+    assert isinstance(outcome, Completed)
+    assert outcome.spent == Budget(turns=2, tool_calls=0)
+    assert delivered in (tmp_path / "transcript.jsonl").read_text()
 
 
 def test_the_answer_schema_named_in_the_system_prompt_carries_no_references(

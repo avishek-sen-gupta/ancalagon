@@ -29,6 +29,8 @@ from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.letterbox.letterbox import Letterbox
+from ancalagon.letterbox.no_letterbox import NO_LETTERBOX
 from ancalagon.llm.inlined import Inlined
 from ancalagon.llm.llm import LLM
 from ancalagon.llm.meter import Meter
@@ -49,6 +51,8 @@ REJECTED_CHARS = 2000
 NO_ANSWER = "no final answer"
 
 IDLE = "idle"
+
+NOTE_PREFIX = "Note from the operator: "
 
 
 def _faults(name: str, exc: pydantic.ValidationError) -> str:
@@ -74,6 +78,7 @@ class Session:
         output_class: type[pydantic.BaseModel],
         clock: Clock,
         children: Children = NO_CHILDREN,
+        letterbox: Letterbox = NO_LETTERBOX,
         compact_above_tokens: int = 0,
         keep_recent_messages: int = 8,
         meter: Meter = UNMETERED,
@@ -90,6 +95,7 @@ class Session:
         self.meter = meter
         self.clock = clock
         self.children = children
+        self.letterbox = letterbox
         self.compact_above_tokens = compact_above_tokens
         self.keep_recent_messages = keep_recent_messages
         self.remaining = spec.role.budget
@@ -319,8 +325,15 @@ class Session:
             case failure:
                 return failure
 
+    def _deliver(self) -> None:
+        notes = self.letterbox.unread()
+        for note in notes:
+            self._record(MessageRole.USER, [Text(text=f"{NOTE_PREFIX}{note}")])
+        self.letterbox.mark(len(notes))
+
     def run(self) -> Outcome[pydantic.BaseModel]:
         while True:
+            self._deliver()
             final = self.remaining.turns_exhausted
             outstanding = self.children.outstanding()
             if final and outstanding:
