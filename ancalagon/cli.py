@@ -25,6 +25,7 @@ from ancalagon.env.real_environment import RealEnvironment
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrate_command import migrate_command
+from ancalagon.note_command import note_command
 from ancalagon.sandbox.fence import Fence
 from ancalagon.sandbox.sandbox import Sandbox
 from ancalagon.sandbox.strategy import Strategy
@@ -314,6 +315,10 @@ def cli() -> int:
     answer.add_argument("--run-dir", type=pathlib.PurePath, required=True)
     answer.add_argument("--task", type=int, required=True)
     answer.add_argument("--answer", type=str, required=True)
+    note = commands.add_parser("note")
+    note.add_argument("--run-dir", type=pathlib.PurePath, required=True)
+    note.add_argument("--agent", type=int, required=True)
+    note.add_argument("--text", type=str, required=True)
     trace = commands.add_parser("trace")
     trace.add_argument("--run-dir", type=pathlib.PurePath, required=True)
     trace.add_argument("--output", type=str, default="")
@@ -328,6 +333,8 @@ def cli() -> int:
             return migrate_command(args.db, args.to, RealFileSystem())
         if args.command == "answer":
             return answer_command(args.run_dir, args.task, args.answer)
+        if args.command == "note":
+            return note_command(args.run_dir, args.agent, args.text)
         if args.command == "trace":
             return trace_command(args.run_dir, args.output, RealFileSystem())
         if args.command == "viz":

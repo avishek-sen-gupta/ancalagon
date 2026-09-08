@@ -5,7 +5,8 @@ from ancalagon.fs.file_system import FileSystem
 from ancalagon.letterbox.letterbox import Letterbox
 
 NOTES = "notes"
-SUFFIX = "*.txt"
+SUFFIX = ".txt"
+PATTERN = f"*{SUFFIX}"
 
 
 class FileLetterbox(Letterbox):
@@ -14,7 +15,7 @@ class FileLetterbox(Letterbox):
         self.dir = task_dir / NOTES
 
     def _waiting(self) -> tuple[pathlib.PurePath, ...]:
-        return self.fs.glob(self.dir, SUFFIX)
+        return self.fs.glob(self.dir, PATTERN)
 
     def unread(self) -> tuple[str, ...]:
         return tuple(self.fs.read_text(path) for path in self._waiting())

@@ -42,6 +42,7 @@ side effect of starting a run.
 | `migrate` | brings that run's database to the latest schema, creating it if absent | — |
 | `run` | starts or continues the run in `--run-dir` | a database that is absent or out of date, naming the command that fixes it |
 | `answer` | appends your answer to a stopped agent and re-queues its task | a task with no `needs_input` in its history, or one with a live agent |
+| `note` | leaves a note in a running task's letterbox, read at its next turn | empty text, or an agent the run has never heard of |
 | `trace` | emits a finished or running run as a graph of nodes and edges | — |
 | `viz` | renders that graph as a Mermaid sequence diagram | — |
 
@@ -439,6 +440,26 @@ ancalagon run --config ancalagon.toml --run-dir ws/runs/r_20260822-121500   # sa
 ```
 
 Meanwhile the other children keep working, so by the time you answer, their results are waiting.
+
+## Correcting an agent that is still running
+
+An agent that has gone wrong in a way you can name in one sentence does not have to be killed.
+Leave it a note and it reads it at the top of its next turn:
+
+```bash
+ancalagon note --run-dir ws/runs/r_20260822-121500 --agent 14 --text "send the nested fields as objects, not as JSON strings"
+```
+
+The note is written to `<task_dir>/notes/<stamp>.txt` and folded in as a user message prefixed
+`Note from the operator:`, then deleted. Folding costs no turn and no tool call.
+
+Three limits worth knowing. A note is addressed by agent number because that is what the log
+prints, but it belongs to the **task** — if that agent has already exited, the next attempt on
+the same task delivers it. A note to an agent idling on its children waits until something else
+wakes it, since an idling agent runs no loop. And a note lands at the end of the context, which
+is the strongest position an instruction can hold, but it removes nothing already there: it
+catches drift early, it does not reform an agent that has spent its budget learning the wrong
+shape.
 
 ## The lifecycle of one attempt
 
