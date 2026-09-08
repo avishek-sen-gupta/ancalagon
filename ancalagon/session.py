@@ -50,6 +50,15 @@ NO_ANSWER = "no final answer"
 IDLE = "idle"
 
 
+def _faults(name: str, exc: pydantic.ValidationError) -> str:
+    problems = exc.errors(include_input=False)
+    listed = "\n".join(
+        f"  {'.'.join(str(part) for part in problem['loc'])}: {problem['msg']}"
+        for problem in problems
+    )
+    return f"{name} arguments are invalid:\n{listed}"
+
+
 class Session:
     def __init__(
         self,
@@ -176,7 +185,7 @@ class Session:
                 result = tool.invoke(use.arguments, self.ctx)
             except pydantic.ValidationError as exc:
                 LOGGER.info("tool %s was called with bad arguments: %s", use.name, exc)
-                result = self.ctx.failure(use.name, f"{type(exc).__name__}: {exc}")
+                result = self.ctx.failure(use.name, _faults(use.name, exc))
             results.append((use, result))
             blocks.append(
                 ToolResultBlock(
