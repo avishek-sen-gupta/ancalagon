@@ -11,9 +11,11 @@ from ancalagon.workspace.workspace import missing_hint
 class ReadFile(Tool[ReadArgs]):
     name = "read_file"
     description = (
-        "Read a file inside the configured read roots. Returns whole lines from offset, "
-        "and states which lines it showed of how many exist. If the file is larger than "
-        "one reply can carry, call again with offset set past the last line shown."
+        "Read a file inside the configured read roots. Returns whole lines from offset, each "
+        "prefixed with its line number and a tab, and states which lines it showed of how many "
+        "exist. Cite those numbers as they are printed; do not count lines yourself. If the "
+        "file is larger than one reply can carry, call again with offset set past the last "
+        "line shown."
     )
     cost = 1
     args_model = ReadArgs

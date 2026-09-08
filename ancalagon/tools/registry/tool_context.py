@@ -77,22 +77,26 @@ class ToolContext:
         offset: int,
         total: int,
     ) -> ToolResult:
-        totals = itertools.accumulate(len(line) + 1 for line in lines)
+        numbered = [f"{offset + n}\t{line}" for n, line in enumerate(lines, start=1)]
+        totals = itertools.accumulate(len(line) + 1 for line in numbered)
         fitting = [
-            line for line, total in zip(lines, totals, strict=True) if total <= self.summary_chars
+            line
+            for line, total in zip(numbered, totals, strict=True)
+            if total <= self.summary_chars
         ]
-        kept = fitting if fitting or not lines else [lines[0][: self.summary_chars]]
+        kept = fitting if fitting or not numbered else [numbered[0][: self.summary_chars]]
         last = offset + len(kept)
         body = "\n".join(kept)
         note = f"[lines {offset + 1}-{last} of {total}" + (
             f"; call again with offset={last} for more]" if last < total else "; end of file]"
         )
-        path = self.write_output(tool_name, "\n".join(lines), ".txt")
+        whole = "\n".join(numbered)
+        path = self.write_output(tool_name, whole, ".txt")
         return ToolResult(
             ok=True,
             summary=TextAnswer(text=f"{body}\n{note}"),
             path=path,
-            byte_count=len("\n".join(lines).encode("utf-8")),
+            byte_count=len(whole.encode("utf-8")),
             truncated=last < total,
         )
 

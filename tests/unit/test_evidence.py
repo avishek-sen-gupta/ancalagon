@@ -3,11 +3,14 @@ import pathlib
 import pydantic
 import pytest
 
+from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.contracts.accepted import Accepted
 from ancalagon.contracts.cited import Cited
 from ancalagon.contracts.evidence import Evidence
 from ancalagon.contracts.refused import Refused
 from ancalagon.fs.real_file_system import RealFileSystem
+from ancalagon.tools.files.read_args import ReadArgs
+from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.evidence_resolves import evidence_resolves
 from ancalagon.workspace.workspace import Workspace
@@ -118,3 +121,22 @@ def test_a_citation_is_accepted_only_when_it_quotes_the_lines_it_names(tmp_path:
 
     with pytest.raises(pydantic.ValidationError, match="path"):
         Evidence(path="scope/record.txt", start_line=1, end_line=1, quote="x")
+
+
+def test_the_numbers_read_file_prints_are_the_numbers_a_citation_may_name(tmp_path: pathlib.Path):
+    ctx = _ctx(tmp_path)
+    cited = tmp_path / "scope" / "record.txt"
+
+    shown = ReadFile(FakeClock()).run(ReadArgs(path=cited, offset=1, limit=1), ctx)
+    body, note = shown.summary.text_for_model().splitlines()
+    assert note == "[lines 2-2 of 3; call again with offset=2 for more]"
+    number, quote = body.split("\t", 1)
+    assert (number, quote) == ("2", "           05  FIRST-FIELD    PIC X(01).")
+
+    copied = Finding(
+        claim="the numbers came from the tool, not from counting",
+        evidence=(
+            Evidence(path=str(cited), start_line=int(number), end_line=int(number), quote=quote),
+        ),
+    )
+    assert evidence_resolves(copied, ctx) == Accepted(value=copied)
