@@ -727,6 +727,17 @@ up, answers flow down, and the machinery is one append and one enqueue.
 
 Answering refuses unless the agent's history **contains** a `needs_input` event and its task
 has no live agent, so a question cannot be answered twice into two competing resumptions.
+
+`ancalagon note` is the other direction, and needs no question first. `note.py` resolves the
+agent to its task exactly as `answer.py` does, then writes `<task_dir>/notes/<stamp>.txt` — the
+note verbatim, one file per note so a note arriving mid-drain is picked up on the following turn
+instead of being lost. `Letterbox` (`ancalagon/letterbox/`) is the seam the session consults:
+`FileLetterbox` lists that directory, `unread` returns the contents in name order, and `mark(n)`
+deletes the first `n`. `NO_LETTERBOX` returns nothing, so a session with no letterbox is a
+choice and not a branch. `Session.run` folds at the top of the loop, before the budget is read,
+recording each note as a USER message and *then* marking — a crash between the two re-delivers
+the note, where the reverse order would lose it. Folding spends no turn, and because `_record`
+writes the transcript, a delivered note is replayed by every later agent on that task.
 `delegate_to.py` writes a child's `spec.json` and enqueues it — it does not spawn; the
 supervisor does.
 
@@ -750,6 +761,7 @@ ws/runs/r_20260822-121500/
         transcript.jsonl          every message, one per line, tagged by agent id
         outcome-<agent>.json      the result of that attempt, kept even when superseded
         access.jsonl              every file this task read, and when that file had changed
+        notes/<stamp>.txt         an operator's note, until the next turn folds it in
         stderr-1.log              the worker's stderr
         tools/0000-read_file.txt  every tool's full output
     tasks/<child>/                same shape, one per delegated task
