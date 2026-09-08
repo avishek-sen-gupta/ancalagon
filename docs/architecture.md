@@ -487,8 +487,13 @@ flags set, `final` and `force_tool`. Seven things worth knowing:
   along the call it came from. Or `Failed` on the forced final turn, when the reply produced no
   such payload.
 - **The terminal submit tool is the only way to answer.** A reply that calls no tool has not finished:
-  `_uncalled` records `_continue_instruction()` and the loop goes round, and on the forced final
-  turn the attempt is `Failed`. The session does not parse a reply's raw text as the output
+  `_uncalled` records `_continue_instruction(delivered)` and the loop goes round, and on the
+  forced final turn the attempt is `Failed`. `delivered` is the `Delivery` `_deliver` returned
+  this turn: after `Delivery.NOTE` a reply is answering the operator rather than fumbling an
+  answer, so it is told to carry on instead of being told answers only come through the submit
+  tool. A message is still recorded
+  either way — omitting it would leave the wire ending on an assistant turn, and two prose
+  replies in a row would send two consecutive assistant messages. The session does not parse a reply's raw text as the output
   class, because a completion reached that way never passes through `bind_tool` and so never
   meets the role's `before` hooks on the terminal submit tool. Two ways in would mean a contract whose hook
   gates one of them, which is not a gate.

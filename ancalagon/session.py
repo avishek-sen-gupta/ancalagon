@@ -11,6 +11,7 @@ from ancalagon.contracts.asked import Asked
 from ancalagon.contracts.block import Block
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.completed import Completed
+from ancalagon.contracts.delivery import Delivery
 from ancalagon.contracts.exhausted import Exhausted
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.idled import Idled
@@ -227,7 +228,9 @@ class Session:
             f"using the {self.submit} tool. No other tools are available."
         )
 
-    def _continue_instruction(self) -> str:
+    def _continue_instruction(self, delivered: Delivery) -> str:
+        if delivered is Delivery.NOTE:
+            return f"Noted. Carry on, and call the {self.submit} tool when you have your answer."
         return (
             f"Answers are only accepted through the {self.submit} tool. Keep working, and "
             f"call it when you have your answer."
@@ -287,7 +290,9 @@ class Session:
             spent=self._spent(),
         )
 
-    def _uncalled(self, reply: Reply, final: bool) -> Outcome[pydantic.BaseModel] | Pending:
+    def _uncalled(
+        self, reply: Reply, final: bool, delivered: Delivery
+    ) -> Outcome[pydantic.BaseModel] | Pending:
         if final:
             return Failed(
                 error=NO_ANSWER,
@@ -295,13 +300,15 @@ class Session:
                 spent=self._spent(),
             )
         LOGGER.info("the reply called no tool, asking again")
-        self._record(MessageRole.USER, [Text(text=self._continue_instruction())])
+        self._record(MessageRole.USER, [Text(text=self._continue_instruction(delivered))])
         return PENDING
 
-    def _evaluate_turn(self, reply: Reply, final: bool) -> Outcome[pydantic.BaseModel] | Pending:
+    def _evaluate_turn(
+        self, reply: Reply, final: bool, delivered: Delivery
+    ) -> Outcome[pydantic.BaseModel] | Pending:
         uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
         if not uses:
-            return self._uncalled(reply, final)
+            return self._uncalled(reply, final, delivered)
         ran = self._run_tools(uses)
         from_uses = self._settled(ran, final)
         if not isinstance(from_uses, Pending):
@@ -325,15 +332,16 @@ class Session:
             case failure:
                 return failure
 
-    def _deliver(self) -> None:
+    def _deliver(self) -> Delivery:
         notes = self.letterbox.unread()
         for note in notes:
             self._record(MessageRole.USER, [Text(text=f"{NOTE_PREFIX}{note}")])
         self.letterbox.mark(len(notes))
+        return Delivery.NOTE if notes else Delivery.NOTHING
 
     def run(self) -> Outcome[pydantic.BaseModel]:
         while True:
-            self._deliver()
+            delivered = self._deliver()
             final = self.remaining.turns_exhausted
             outstanding = self.children.outstanding()
             if final and outstanding:
@@ -349,6 +357,6 @@ class Session:
                 self.remaining = self.remaining.spend_turn()
             reply = self._complete(declarations, force_tool=self.submit if final else "")
             self._record(MessageRole.ASSISTANT, reply.blocks)
-            outcome = self._evaluate_turn(reply, final)
+            outcome = self._evaluate_turn(reply, final, delivered)
             if not isinstance(outcome, Pending):
                 return outcome
