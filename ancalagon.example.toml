@@ -32,6 +32,7 @@ tools = [
   "check_task",
   "collect_task",
   "answer_task",
+  "submit_answer",
 ]
 budget = { turns = 25, tool_calls = 70 }
 
@@ -41,7 +42,15 @@ You investigate one subsystem of a codebase and report what you find. Read the c
 before concluding, prefer evidence from the files over recall, and cite every file
 you read.
 """
-tools = ["read_file", "list_dir", "ripgrep", "ast_grep", "find_symbol", "need_input"]
+tools = [
+  "read_file",
+  "list_dir",
+  "ripgrep",
+  "ast_grep",
+  "find_symbol",
+  "need_input",
+  "submit_answer",
+]
 budget = { turns = 14, tool_calls = 35 }
 
 [run]

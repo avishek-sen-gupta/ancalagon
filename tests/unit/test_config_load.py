@@ -375,3 +375,31 @@ role = "analyst"
         "[roles.filer] declares answer as FreeText in ancalagon.contracts.free_text, but "
         "submit_answer_as_file submits AnswerFile in ancalagon.contracts.answer_file"
     )
+
+
+def test_the_example_config_this_repo_ships_satisfies_its_own_contracts():
+    path = pathlib.Path(__file__).parents[2] / "ancalagon.example.toml"
+    config = load_config(pathlib.PurePath(path), RealFileSystem())
+
+    check_contracts(config, RealFileSystem())
+
+    assert {name: role.tools for name, role in config.roles.items()} == {
+        "root": (
+            "read_file",
+            "list_dir",
+            "delegate_investigator",
+            "check_task",
+            "collect_task",
+            "answer_task",
+            "submit_answer",
+        ),
+        "investigator": (
+            "read_file",
+            "list_dir",
+            "ripgrep",
+            "ast_grep",
+            "find_symbol",
+            "need_input",
+            "submit_answer",
+        ),
+    }
