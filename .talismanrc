@@ -129,4 +129,6 @@ fileignoreconfig:
   checksum: 826401845deeeee239eeb68b81e863af05ccf2b64f59cc7f6d1db94de8b4d0bb
 - filename: tests/integration/test_answer_as_file.py
   checksum: 54e1a0785f2889964da576acb52bdfb347a73b0bff7aa8a7e2d8c01a87a55ffd
+- filename: ancalagon/llm/inlined.py
+  checksum: 074cf4c85fd6bae2cd030d3a35b167d80f2b7258bcc383fab16ddfa77bcc21d3
 version: "1.0"
