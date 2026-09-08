@@ -27,6 +27,7 @@ from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
+from ancalagon.letterbox.file_letterbox import FileLetterbox
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient
 from ancalagon.schedule.depth_of import depth_of
 from ancalagon.session import Session
@@ -214,6 +215,7 @@ def main(
             output_class=output_class,
             clock=clock,
             children=BusChildren(bus, agent_id),
+            letterbox=FileLetterbox(fs, task_dir),
             meter=BusMeter(meter_store),
             compact_above_tokens=config.compact_above_tokens,
             keep_recent_messages=config.keep_recent_messages,
