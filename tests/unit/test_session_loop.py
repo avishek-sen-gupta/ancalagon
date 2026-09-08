@@ -512,7 +512,10 @@ def test_a_note_left_for_a_task_joins_the_next_turn_and_costs_no_turn(tmp_path: 
 
     assert isinstance(outcome, Completed)
     assert outcome.spent == Budget(turns=2, tool_calls=0)
-    assert delivered in (tmp_path / "transcript.jsonl").read_text()
+    transcript = (tmp_path / "transcript.jsonl").read_text()
+    assert delivered in transcript
+    assert "Noted. Carry on, and call the submit_answer tool when you have your answer." in texts(1)
+    assert "Answers are only accepted" not in transcript
 
 
 def test_the_answer_schema_named_in_the_system_prompt_carries_no_references(
