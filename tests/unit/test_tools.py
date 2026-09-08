@@ -129,8 +129,8 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
 
     read = registry.get("read_file").invoke(f'{{"path": "{target}"}}', ctx)
     assert read.ok is True
-    assert pathlib.Path(read.path).read_text() == "hello world"
-    assert read.byte_count == 11
+    assert pathlib.Path(read.path).read_text() == "1\thello world"
+    assert read.byte_count == 13
 
     edited = registry.get("edit_file").invoke(
         f'{{"path": "{target}", "old": "world", "new": "there"}}', ctx
@@ -171,23 +171,26 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
     first = registry.get("read_file").invoke(f'{{"path": "{big}"}}', ctx)
     assert first.ok is True
     assert first.truncated is True
-    assert "line 0" in first.summary.text_for_model()
+    assert "1\tline 0" in first.summary.text_for_model()
     assert "of 60" in first.summary.text_for_model()
     shown = int(first.summary.text_for_model().rsplit("offset=", 1)[1].split(" ")[0])
     assert 0 < shown < 60
 
     rest = registry.get("read_file").invoke(f'{{"path": "{big}", "offset": {shown}}}', ctx)
-    assert f"line {shown}" in rest.summary.text_for_model()
+    assert f"{shown + 1}\tline {shown}" in rest.summary.text_for_model()
 
     assert "[lines 1-" in first.summary.text_for_model()
 
     window = registry.get("read_file").invoke(f'{{"path": "{big}", "offset": 10, "limit": 5}}', ctx)
     shown_lines = window.summary.text_for_model().splitlines()
-    assert shown_lines[:5] == [f"line {i}" for i in range(10, 15)]
-    assert shown_lines[5] == "[lines 11-15 of 60; call again with offset=15 for more]"
+    assert shown_lines[:4] == [f"{i + 1}\tline {i}" for i in range(10, 14)]
+    assert shown_lines[4] == "[lines 11-14 of 60; call again with offset=14 for more]"
+    assert pathlib.Path(window.path).read_text() == "\n".join(
+        f"{i + 1}\tline {i}" for i in range(10, 15)
+    )
 
     tail = registry.get("read_file").invoke(f'{{"path": "{big}", "offset": 58}}', ctx)
-    assert "line 59" in tail.summary.text_for_model()
+    assert "59\tline 58" in tail.summary.text_for_model()
     assert "[lines 59-60 of 60; end of file]" in tail.summary.text_for_model()
     assert tail.truncated is False
 

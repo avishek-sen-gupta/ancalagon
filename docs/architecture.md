@@ -655,6 +655,15 @@ past the end of the file, or a quote whose text differs. Aggregating matters mor
 elsewhere — the agent pays a turn per refusal, and a fifteen-citation answer corrected one fault
 at a time would spend its budget on round trips.
 
+The numbers a citation names come from `read_file`, which prefixes every line it returns with that
+line's number and a tab. Before it did, the tool returned bare lines under a footer saying which
+range they were, and an agent had to arrive at a line number by counting — with `offset` 0-based,
+`Evidence.start_line` 1-based, and nothing stating either. Measured over 855 citations submitted
+by real runs, 391 quoted the right text at the wrong number, and 344 of those were low by exactly
+one. The check had been right all along; it was being fed arithmetic. Numbering makes citing a
+copy rather than a count, and the full output file is numbered as well as the page the model sees,
+so reading that dump back still yields the source's numbers instead of the dump's.
+
 `citations()` is hand-written rather than derived, and gathers a nested contract's citations by
 calling theirs, so a claim buried three levels down is checked exactly like a top-level one. The
 alternative — walking the model tree for anything that looks like `Evidence` — would decide by

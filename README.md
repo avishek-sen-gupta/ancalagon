@@ -193,7 +193,8 @@ actually happened rather than being handed an answer that never met its criteria
 One hook ships with the harness, because every analysis wants it. An answer contract that
 inherits `ancalagon.contracts.cited.Cited` implements `citations()`, returning the
 `ancalagon.contracts.evidence.Evidence` values it rests on — a path, a line range, and those
-lines quoted verbatim. Attaching `evidence_resolves` to `submit_answer` reads each cited file
+lines quoted verbatim. `read_file` numbers every line it returns, so a range is copied from what
+the tool printed rather than counted. Attaching `evidence_resolves` to `submit_answer` reads each cited file
 through the workspace and refuses the answer unless every quote matches the lines it names,
 listing all the faults at once:
 
@@ -240,7 +241,7 @@ the tool-call budget.
 
 | Reading | |
 |---|---|
-| `read_file` | a slice of a file, told which lines it showed of how many |
+| `read_file` | a slice of a file, every line numbered, told which lines it showed of how many |
 | `list_dir` | what is in a directory |
 | `diff_regions` | two line ranges aligned row by row, with both files' line numbers |
 | `code_stats` | languages, file and line counts, before reading anything |

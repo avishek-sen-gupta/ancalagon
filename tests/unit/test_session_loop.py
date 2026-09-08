@@ -162,7 +162,7 @@ def test_session_runs_tools_completes_and_forces_a_final_answer_when_exhausted(
     assert "read_file" in lines[1]
 
     returned = json.loads(lines[2])["blocks"][0]["content"]
-    assert returned.startswith("payload\n[lines 1-1 of 1; end of file]\n[full output: ")
+    assert returned.startswith("1\tpayload\n[lines 1-1 of 1; end of file]\n[full output: ")
 
     second = tmp_path / "second"
     second.mkdir(parents=True, exist_ok=True)
