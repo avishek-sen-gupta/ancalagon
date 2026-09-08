@@ -14,6 +14,7 @@ from ancalagon.llm.adapters.wire_message import WireMessage
 from ancalagon.llm.adapters.wire_text_block import WireTextBlock
 from ancalagon.llm.adapters.wire_tool_call import WireToolCall
 from ancalagon.llm.adapters.wire_usage import WireUsage
+from ancalagon.llm.inlined import Inlined
 from ancalagon.llm.llm import LLM
 from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.tool_schema import ToolSchema
@@ -78,7 +79,7 @@ class LiteLLMClient(LLM):
                 "function": {
                     "name": t.name,
                     "description": t.description,
-                    "parameters": t.parameters.model_json_schema(),
+                    "parameters": t.parameters.model_json_schema(schema_generator=Inlined),
                 },
             }
             for t in tools

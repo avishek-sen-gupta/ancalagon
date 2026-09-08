@@ -3,6 +3,7 @@ import sys
 import types
 import typing
 
+import pydantic
 import pytest
 
 from ancalagon.contracts.message import Message
@@ -16,6 +17,36 @@ from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.search.grep_args import GrepArgs
 
 WireDict = dict[str, str | list[dict[str, str | dict[str, str]]]]
+
+
+class Cite(pydantic.BaseModel, frozen=True):
+    path: str
+
+
+class Note(pydantic.BaseModel, frozen=True):
+    text: str
+
+
+CITE = {
+    "title": "Cite",
+    "type": "object",
+    "required": ["path"],
+    "properties": {"path": {"title": "Path", "type": "string"}},
+}
+
+NOTE = {
+    "title": "Note",
+    "type": "object",
+    "required": ["text"],
+    "properties": {"text": {"title": "Text", "type": "string"}},
+}
+
+
+class ReportArgs(pydantic.BaseModel, frozen=True):
+    title: str
+    cite: Cite
+    seen: list[Cite]
+    prior: Cite | Note
 
 
 def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
@@ -161,7 +192,10 @@ def test_only_the_static_system_half_is_cache_marked_and_usage_counters_reach_th
     reply = client.complete(
         SystemPrompt(static="behave", per_item="Goal: this one"),
         [user],
-        [ToolSchema(name="rg", description="d", parameters=GrepArgs)],
+        [
+            ToolSchema(name="rg", description="d", parameters=GrepArgs),
+            ToolSchema(name="report", description="r", parameters=ReportArgs),
+        ],
     )
 
     assert seen[0][0] == {
@@ -180,7 +214,25 @@ def test_only_the_static_system_half_is_cache_marked_and_usage_counters_reach_th
                 "description": "d",
                 "parameters": GrepArgs.model_json_schema(),
             },
-        }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "report",
+                "description": "r",
+                "parameters": {
+                    "title": "ReportArgs",
+                    "type": "object",
+                    "required": ["title", "cite", "seen", "prior"],
+                    "properties": {
+                        "title": {"title": "Title", "type": "string"},
+                        "cite": CITE,
+                        "seen": {"title": "Seen", "type": "array", "items": CITE},
+                        "prior": {"anyOf": [CITE, NOTE], "title": "Prior"},
+                    },
+                },
+            },
+        },
     ]
     assert (reply.usage.cache_creation_tokens, reply.usage.cache_read_tokens) == (2048, 1024)
 
