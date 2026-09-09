@@ -95,9 +95,6 @@ class LiteLLMClient(LLM):
         wanted: str | dict[str, str | dict[str, str]] = (
             {"type": "function", "function": {"name": force_tool}} if force_tool else "auto"
         )
-        provider_kwarg = (
-            {"custom_llm_provider": self.custom_llm_provider} if self.custom_llm_provider else {}
-        )
         response = litellm.completion(
             model=self.model,
             messages=payload,
@@ -106,7 +103,7 @@ class LiteLLMClient(LLM):
             num_retries=self.num_retries,
             timeout=self.request_timeout_s,
             tool_choice=wanted,
-            **provider_kwarg,
+            custom_llm_provider=self.custom_llm_provider or None,
         )
         if not isinstance(response, litellm.ModelResponse):
             raise TypeError("litellm.completion returned a streaming response")
