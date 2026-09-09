@@ -200,6 +200,7 @@ def main(
                 max_tokens=config.max_tokens,
                 num_retries=config.num_retries,
                 request_timeout_s=config.request_timeout_s,
+                custom_llm_provider=config.custom_llm_provider,
             ),
             registry=build_registry(
                 config,

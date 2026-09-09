@@ -14,6 +14,7 @@ class Config(pydantic.BaseModel, frozen=True):
     write_root: pathlib.PurePath
     read_roots: tuple[pathlib.PurePath, ...]
     model: str
+    custom_llm_provider: str = ""
     roles: collections.abc.Mapping[str, Role] = {}
     max_tokens: int = 8000
     num_retries: int = 3

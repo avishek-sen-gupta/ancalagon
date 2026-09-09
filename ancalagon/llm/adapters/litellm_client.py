@@ -53,8 +53,16 @@ def _to_arguments(raw: str | collections.abc.Mapping[str, str]) -> str:
 
 
 class LiteLLMClient(LLM):
-    def __init__(self, model: str, max_tokens: int, num_retries: int, request_timeout_s: int):
+    def __init__(
+        self,
+        model: str,
+        max_tokens: int,
+        num_retries: int,
+        request_timeout_s: int,
+        custom_llm_provider: str = "",
+    ):
         self.model = model
+        self.custom_llm_provider = custom_llm_provider
         self.max_tokens = max_tokens
         self.num_retries = num_retries
         self.request_timeout_s = request_timeout_s
@@ -87,6 +95,9 @@ class LiteLLMClient(LLM):
         wanted: str | dict[str, str | dict[str, str]] = (
             {"type": "function", "function": {"name": force_tool}} if force_tool else "auto"
         )
+        provider_kwarg = (
+            {"custom_llm_provider": self.custom_llm_provider} if self.custom_llm_provider else {}
+        )
         response = litellm.completion(
             model=self.model,
             messages=payload,
@@ -95,6 +106,7 @@ class LiteLLMClient(LLM):
             num_retries=self.num_retries,
             timeout=self.request_timeout_s,
             tool_choice=wanted,
+            **provider_kwarg,
         )
         if not isinstance(response, litellm.ModelResponse):
             raise TypeError("litellm.completion returned a streaming response")
