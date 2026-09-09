@@ -106,6 +106,7 @@ def load_config(path: pathlib.PurePath, fs: FileSystem) -> Config:
             for name, table in raw.get("roles", {}).items()
         },
         model=model["name"],
+        custom_llm_provider=model.get("custom_llm_provider", ""),
         max_tokens=model["max_tokens"],
         num_retries=model["num_retries"],
         request_timeout_s=model["request_timeout_s"],
