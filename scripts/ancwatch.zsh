@@ -42,10 +42,17 @@ print(value if value.is_absolute() else (cfg.resolve().parent / value).resolve()
   fi
 
   print -u2 "\e[2m-- watching $root at $cols columns, ${#pids} existing agent(s) skipped --\e[0m"
+
+  # resolved-path → label: prevents two watchers on the same file via symlinks
+  local -A resolved_paths
+
   while :; do
     for f in $(transcripts); do
+      real=$( realpath "$f" 2>/dev/null || print "$f" )
       label=${${f:h:h:h}:t}/${${f:h}:t}
+      [[ -n ${resolved_paths[$real]} ]] && continue
       [[ -n ${pids[$label]} && ${pids[$label]} != 0 ]] && continue
+      resolved_paths[$real]=$label
       if [[ ${pids[$label]} == 0 ]]; then from="-n 0"; else from="-n +1"; fi
       local -i width=$(( cols - ${#label} - frame ))
       (( width < floor )) && width=$floor
