@@ -80,6 +80,7 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
 
     seen: dict[str, int] = {}
     chosen: list[str | dict[str, str | dict[str, str]]] = []
+    providers: list[str | None] = []
 
     class FakeMessage:
         content = "done"
@@ -100,10 +101,12 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
         num_retries: int,
         timeout: int,
         tool_choice: str | dict[str, str | dict[str, str]],
+        custom_llm_provider: str | None,
     ) -> FakeResponse:
         seen["num_retries"] = num_retries
         seen["timeout"] = timeout
         chosen.append(tool_choice)
+        providers.append(custom_llm_provider)
         return FakeResponse()
 
     fake = types.ModuleType("litellm")
@@ -119,6 +122,16 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
 
     client.complete(SystemPrompt(static="sys"), [assistant], [], force_tool="submit_answer")
     assert chosen[1] == {"type": "function", "function": {"name": "submit_answer"}}
+
+    configured = LiteLLMClient(
+        model="m",
+        max_tokens=10,
+        num_retries=4,
+        request_timeout_s=99,
+        custom_llm_provider="a-provider",
+    )
+    configured.complete(SystemPrompt(static="sys"), [assistant], [])
+    assert providers == [None, None, "a-provider"]
 
     # litellm imports tenacity lazily, only when a retry actually fires, so a
     # missing dependency surfaces at the worst moment rather than at import.
@@ -177,6 +190,7 @@ def test_only_the_static_system_half_is_cache_marked_and_usage_counters_reach_th
         num_retries: int,
         timeout: int,
         tool_choice: str | dict[str, str | dict[str, str]],
+        custom_llm_provider: str | None,
     ) -> FakeResponse:
         seen.append(messages)
         offered.append(tools)
