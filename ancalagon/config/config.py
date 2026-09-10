@@ -27,4 +27,5 @@ class Config(pydantic.BaseModel, frozen=True):
     keep_recent_messages: int = 8
     run: RunSettings = RunSettings()
     allowed_domains: tuple[str, ...] = ()
+    web_domains: tuple[str, ...] = ()
     sandbox: Strategy = Strategy.FENCE

@@ -377,6 +377,23 @@ role = "analyst"
     )
 
 
+WEB = """
+[web]
+allowed_domains = ["*.example.com", "lite.duckduckgo.com"]
+"""
+
+
+def test_a_config_without_a_web_table_declares_no_web_domains(tmp_path: pathlib.Path):
+    assert load_config(_written(tmp_path, ""), RealFileSystem()).web_domains == ()
+
+
+def test_the_web_table_is_read_separately_from_the_model_endpoint(tmp_path: pathlib.Path):
+    config = load_config(_written(tmp_path, WEB), RealFileSystem())
+
+    assert config.allowed_domains == ("bedrock-runtime.us-east-1.amazonaws.com",)
+    assert config.web_domains == ("*.example.com", "lite.duckduckgo.com")
+
+
 def test_the_example_config_this_repo_ships_satisfies_its_own_contracts():
     path = pathlib.Path(__file__).parents[2] / "ancalagon.example.toml"
     config = load_config(pathlib.PurePath(path), RealFileSystem())

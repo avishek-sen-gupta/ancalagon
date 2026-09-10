@@ -2,6 +2,8 @@ import collections.abc
 import json
 import pathlib
 
+from ancalagon.cli import sandbox_of
+from ancalagon.config.config import Config
 from ancalagon.env.fake_environment import FakeEnvironment
 from ancalagon.env.real_environment import RealEnvironment
 from ancalagon.fs.real_file_system import RealFileSystem
@@ -25,14 +27,14 @@ def test_fence_writes_its_policy_and_wraps_the_command(tmp_path: pathlib.Path):
 
     sandbox = Fence(
         write_root=write_root,
-        allowed_domains=["bedrock-runtime.us-east-1.amazonaws.com"],
+        allowed_domains=["bedrock-runtime.us-east-1.amazonaws.com", "*.example.com"],
         run_dir=run_dir,
         fs=RealFileSystem(),
     )
 
     policy = json.loads((run_dir / "fence.json").read_text())
     assert policy == {
-        "network": {"allowedDomains": ["bedrock-runtime.us-east-1.amazonaws.com"]},
+        "network": {"allowedDomains": ["bedrock-runtime.us-east-1.amazonaws.com", "*.example.com"]},
         "filesystem": {"allowWrite": [str(write_root), str(run_dir)]},
     }
 
@@ -46,6 +48,25 @@ def test_fence_writes_its_policy_and_wraps_the_command(tmp_path: pathlib.Path):
         "ancalagon.worker",
     ]
     assert dict(sandbox.environment()) == {}
+
+
+def test_the_fence_policy_carries_the_model_endpoint_and_the_web_domains_together(
+    tmp_path: pathlib.Path,
+):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    config = Config(
+        write_root=tmp_path / "ws",
+        read_roots=(tmp_path,),
+        model="m",
+        allowed_domains=("endpoint.example.net",),
+        web_domains=("*.example.com",),
+    )
+
+    sandbox_of(config, run_dir, RealFileSystem())
+
+    policy = json.loads((run_dir / "fence.json").read_text())
+    assert policy["network"]["allowedDomains"] == ["endpoint.example.net", "*.example.com"]
 
 
 class RecordingSandbox(Sandbox):
