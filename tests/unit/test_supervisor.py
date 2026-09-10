@@ -13,6 +13,7 @@ from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.free_text import FreeText
+from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.idled import Idled
 from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.role import Role
@@ -58,7 +59,7 @@ def _write_completed(task_dir: pathlib.Path, agent: int) -> None:
     task_dir.mkdir(parents=True, exist_ok=True)
     (task_dir / f"outcome-{agent}.json").write_text(
         Completed[FreeText](
-            value=FreeText(text="done"), summary="done", spent=Budget(turns=1, tool_calls=1)
+            value=FreeText(text="done"), summary="done", spent=Spend(turns=1, tool_calls=1)
         ).model_dump_json()
     )
 
@@ -246,7 +247,7 @@ def test_a_tick_wakes_an_idling_parent_once_a_supervisor_has_reaped_its_child(
     (parent_dir / f"outcome-{parent}.json").write_text(
         Idling(
             summary="waiting on children",
-            spent=Budget(turns=1, tool_calls=1),
+            spent=Spend(turns=1, tool_calls=1),
             seen_through=watermark,
         ).model_dump_json()
     )
@@ -439,7 +440,7 @@ def test_a_healthy_worker_left_by_a_previous_supervisor_is_adopted_and_reaped(
 
     (task_dir / f"outcome-{agent}.json").write_text(
         Completed[FreeText](
-            value=FreeText(text="done"), summary="done", spent=Budget(turns=1, tool_calls=1)
+            value=FreeText(text="done"), summary="done", spent=Spend(turns=1, tool_calls=1)
         ).model_dump_json()
     )
 
@@ -596,7 +597,7 @@ def test_an_idle_records_how_much_of_the_log_the_parent_had_seen(tmp_path: pathl
     (parent_dir / f"outcome-{parent}.json").write_text(
         Idling(
             summary=result.summary.text_for_model(),
-            spent=Budget(turns=1, tool_calls=1),
+            spent=Spend(turns=1, tool_calls=1),
             seen_through=result.summary.seen_through,
         ).model_dump_json()
     )

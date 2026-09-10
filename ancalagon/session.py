@@ -9,10 +9,10 @@ from ancalagon.children.no_children import NO_CHILDREN
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.asked import Asked
 from ancalagon.contracts.block import Block
-from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.delivery import Delivery
 from ancalagon.contracts.exhausted import Exhausted
+from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.idled import Idled
 from ancalagon.contracts.idling import Idling
@@ -108,6 +108,7 @@ class Session:
         self.compact_above_tokens = compact_above_tokens
         self.keep_recent_messages = keep_recent_messages
         self.remaining = spec.role.budget
+        self.spent = Spend(turns=0, tool_calls=0)
         self.seq = len(messages)
         self.submit = submitting(spec.role.tools)
         if not self.messages:
@@ -166,11 +167,8 @@ class Session:
         self.messages.append(message)
         self.transcript.write(message)
 
-    def _spent(self) -> Budget:
-        return Budget(
-            turns=self.spec.role.budget.turns - self.remaining.turns,
-            tool_calls=self.spec.role.budget.tool_calls - self.remaining.tool_calls,
-        )
+    def _spent(self) -> Spend:
+        return self.spent
 
     def _text_of(self, reply: Reply) -> str:
         return "".join(b.text for b in reply.blocks if isinstance(b, Text))
@@ -197,6 +195,7 @@ class Session:
                 )
                 continue
             self.remaining = self.remaining.spend_tool_calls(tool.cost)
+            self.spent = self.spent.plus_tool_calls(tool.cost)
             try:
                 result = tool.invoke(use.arguments, self.ctx)
             except pydantic.ValidationError as exc:
@@ -363,6 +362,7 @@ class Session:
                 self._prepare_final_turn()
             else:
                 self.remaining = self.remaining.spend_turn()
+                self.spent = self.spent.plus_turn()
             reply = self._complete(declarations, force_tool=self.submit if final else "")
             self._record(MessageRole.ASSISTANT, reply.blocks)
             outcome = self._evaluate_turn(reply, final, delivered)
