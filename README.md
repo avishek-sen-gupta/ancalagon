@@ -261,6 +261,11 @@ the tool-call budget.
 | `find_symbol` | where a symbol is defined, rather than every mention |
 | `git_history` | why a file looks the way it does |
 
+| Reaching the web | |
+|---|---|
+| `web_search` | ranked results for a query: title, URL and snippet |
+| `fetch_url` | one https page's article text, with navigation and markup removed |
+
 | Writing | |
 |---|---|
 | `write_file` | replace a file whole |
@@ -632,6 +637,12 @@ the line.
   outside the run or reach an unlisted domain; under `strategy = "none"` an agent holding `run`
   has whatever access you have. It runs in a directory the call must name, resolved against
   `read_roots`, and is killed after 120 seconds.
+- The fence policy's egress list is `[model] allowed_domains` and `[web] allowed_domains`
+  merged together, and it governs the whole worker, not one tool: `web_search` and `fetch_url`
+  reach nothing until the operator lists domains there, and so does anything `shell` tries to
+  curl. `["*"]` opens the run to the entire web for every tool in that worker. Matching is
+  strict — `example.com` does not cover `www.example.com`; a subdomain needs its own entry, such
+  as `*.example.com`.
 - On Bedrock, `scripts/ancrun.zsh` takes either `AWS_BEARER_TOKEN_BEDROCK` or the pair
   `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, and strips whichever form it is not using
   from the environment — otherwise litellm signs with the stale one and Bedrock rejects the
