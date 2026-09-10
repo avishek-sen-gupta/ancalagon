@@ -20,6 +20,9 @@ summary_chars = 1000
 [sandbox]
 strategy = "fence"
 
+[web]
+allowed_domains = []
+
 [roles.root]
 behaviour = """
 You coordinate an investigation of a codebase. Delegate each self-contained question
