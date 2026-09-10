@@ -48,7 +48,7 @@ print(value if value.is_absolute() else (cfg.resolve().parent / value).resolve()
 
   while :; do
     for f in $(transcripts); do
-      real=$( realpath "$f" 2>/dev/null || print "$f" )
+      real=${f:A}
       label=${${f:h:h:h}:t}/${${f:h}:t}
       [[ -n ${resolved_paths[$real]} ]] && continue
       [[ -n ${pids[$label]} && ${pids[$label]} != 0 ]] && continue
