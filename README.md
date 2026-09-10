@@ -49,6 +49,15 @@ side effect of starting a run.
 `scripts/ancrun.zsh <config.toml> [run-dir]` does the first three. With no run directory it
 allocates a fresh one; pass an existing one to continue that run.
 
+Three worked configs ship with the repo, each with its goal file beside it. Run any of them
+the same way, in place of `ancalagon.toml`:
+
+| Config | Shows |
+|---|---|
+| `research.toml` | `web_search` and `fetch_url`, with every role answering by writing a file |
+| `blackboard.toml` | three peers sharing one append-only file, waking each other through `watch_file` |
+| `pong.toml` | `before` hooks gating `submit_answer` until an agent's own tests pass |
+
 ## How it works
 
 Three kinds of process. They share no memory and there is no IPC — every hand-off is a SQLite
@@ -652,7 +661,9 @@ the line.
   strict — `example.com` does not cover `www.example.com`; a subdomain needs its own entry, such
   as `*.example.com`. Some sites refuse a non-browser HTTP client outright, independent of the
   egress list; `fetch_url` reports that refusal as a failure naming the status, same as any
-  other non-200 response.
+  other non-200 response. `research.toml` and `research_goal.md` are a worked run of
+  the two tools: a root that delegates one researcher per area, each answering with a file it
+  wrote rather than a reply.
 - On Bedrock, `scripts/ancrun.zsh` takes either `AWS_BEARER_TOKEN_BEDROCK` or the pair
   `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, and strips whichever form it is not using
   from the environment — otherwise litellm signs with the stale one and Bedrock rejects the
