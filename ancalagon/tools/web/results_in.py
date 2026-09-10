@@ -16,9 +16,18 @@ def _snippet(link: lxml.html.HtmlElement) -> str:
     return _text(found[0]) if found else ""
 
 
+def _hrefed(link: lxml.html.HtmlElement) -> tuple[tuple[lxml.html.HtmlElement, str], ...]:
+    match link.get("href"):
+        case str() as href:
+            return ((link, href),)
+        case _:
+            return ()
+
+
 def results_in(html: str, count: int) -> tuple[Result, ...]:
     tree = lxml.html.fromstring(html)
+    linked = tuple(pair for link in tree.xpath(LINKS)[:count] for pair in _hrefed(link))
     return tuple(
-        Result(rank=rank, title=_text(link), url=link.get("href"), snippet=_snippet(link))
-        for rank, link in enumerate(tree.xpath(LINKS)[:count], start=1)
+        Result(rank=rank, title=_text(link), url=href, snippet=_snippet(link))
+        for rank, (link, href) in enumerate(linked, start=1)
     )

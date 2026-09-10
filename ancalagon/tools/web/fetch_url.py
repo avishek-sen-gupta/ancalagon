@@ -4,7 +4,20 @@ from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.web.fetch_args import FetchArgs
 from ancalagon.web.extracted import extracted
+from ancalagon.web.page import Page
+from ancalagon.web.unreachable import Unreachable
 from ancalagon.web.web_client import WebClient
+
+
+def _fetched(page: Page, name: str, ctx: ToolContext) -> ToolResult:
+    if page.status != 200:
+        return ctx.failure(name, f"{page.url} answered {page.status}")
+    text = extracted(page.body)
+    if not text:
+        return ctx.failure(
+            name, f"extracted no text from {page.url} ({page.status}, {page.content_type})"
+        )
+    return ctx.result(name, text)
 
 
 class FetchUrl(Tool[FetchArgs]):
@@ -20,13 +33,8 @@ class FetchUrl(Tool[FetchArgs]):
         self.client = client
 
     def run(self, args: FetchArgs, ctx: ToolContext) -> ToolResult:
-        page = self.client.get(args.url)
-        if page.status != 200:
-            return ctx.failure(self.name, f"{args.url} answered {page.status}")
-        text = extracted(page.body)
-        if not text:
-            return ctx.failure(
-                self.name,
-                f"extracted no text from {page.url} ({page.status}, {page.content_type})",
-            )
-        return ctx.result(self.name, text)
+        try:
+            page = self.client.get(args.url)
+        except Unreachable as exc:
+            return ctx.failure(self.name, str(exc))
+        return _fetched(page, self.name, ctx)

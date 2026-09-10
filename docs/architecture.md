@@ -708,13 +708,36 @@ land. Three threads writing fifty entries each leave a hundred and fifty intact.
 `shell/shell.py` is the one deliberate exception to that obligation. It takes a command line and
 hands it to `/bin/sh`, so pipes, globs and substitution work and nothing about the command is
 inspectable before it executes. What bounds it is not the argument but the sandbox — `Fence`
-allows writes only to `write_root` and `run_dir`, and network only to `allowed_domains` — and
-the directory it runs in, which is a **required** argument resolved through
-`Workspace.resolve_read` like any other path. Without it the command would inherit the worker's
-own `cwd`, which is the run directory, and an agent searching `.` would find its own
-transcripts. It is killed after `TIMEOUT_S` seconds and a hang comes back as an ordinary failed
-tool result, rather than blocking until `agent_timeout_s` takes the whole attempt down. Under
-`Unsandboxed` nothing bounds it at all.
+allows writes only to `write_root` and `run_dir`, and network only to `[model].allowed_domains`
+and `[web].allowed_domains` together — and the directory it runs in, which is a **required**
+argument resolved through `Workspace.resolve_read` like any other path. Without it the command
+would inherit the worker's own `cwd`, which is the run directory, and an agent searching `.`
+would find its own transcripts. It is killed after `TIMEOUT_S` seconds and a hang comes back as
+an ordinary failed tool result, rather than blocking until `agent_timeout_s` takes the whole
+attempt down. Under `Unsandboxed` nothing bounds it at all.
+
+`ancalagon/web/` is the port for everything the harness fetches over HTTP, on the same footing
+as `ancalagon.fs`: a `WebClient` protocol with `get` and `post_form`, `RealWebClient` behind it
+using `httpx`, and `FakeWebClient` returning pages scripted at construction so `tools/web` tests
+run offline. `RealWebClient` is the only place `httpx` is imported; every exception it can raise
+is `httpx.HTTPError`, caught there and re-raised as `Unreachable`, carrying the url and a reason
+rather than a traceback. Without that adapter a blocked domain, a DNS failure or a timeout would
+propagate as an ordinary exception, which `worker.py`'s catch-all turns into a `Failed` outcome —
+the agent would never learn that a domain was off-limits, only that it stopped existing.
+`tools/web/fetch_url.py` and `tools/web/web_search.py` both catch `Unreachable` in `run` and
+return it as an ordinary failed `ToolResult`, the same shape a bad status or empty extraction
+already reports through. Neither tool imports `httpx`.
+
+`fetch_url` fetches an https page — `FetchArgs.url` refuses plain http at the schema — and hands
+the body to `web/extracted.py`, which strips navigation and boilerplate down to the article
+prose. A non-200 status and an empty extraction are both reported against `page.url` rather than
+the url the agent asked for, since a redirect can answer from somewhere else entirely.
+
+`web_search` posts a query to DuckDuckGo's lite endpoint and hands the response to
+`tools/web/results_in.py`, which reads the result table with `lxml.html` and turns each anchor
+into a ranked `Result`. A row whose anchor carries no `href` — markup drift, not a model
+mistake — is dropped rather than turned into a `Result` with an empty url, and the surviving
+rows are renumbered so a dropped row never leaves a gap in the ranks the model sees.
 
 `submit/submit_answer.py` and `need_input/need_input.py` are the two tools whose results the
 session reads.

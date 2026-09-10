@@ -1,3 +1,4 @@
+import collections.abc
 import pathlib
 
 import pydantic
@@ -12,7 +13,18 @@ from ancalagon.tools.web.search_args import SearchArgs
 from ancalagon.tools.web.web_search import ENDPOINT, WebSearch
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.web.page import Page
+from ancalagon.web.unreachable import Unreachable
+from ancalagon.web.web_client import WebClient
 from ancalagon.workspace.workspace import Workspace
+
+
+class UnreachableWebClient(WebClient):
+    def get(self, url: str) -> Page:
+        raise Unreachable(url, "connection refused")
+
+    def post_form(self, url: str, form: collections.abc.Mapping[str, str]) -> Page:
+        raise Unreachable(url, "connection refused")
+
 
 DDG_PAGE = """
 <html><body><table>
@@ -89,6 +101,52 @@ def test_search_reports_an_empty_result_table_as_a_failure(tmp_path: pathlib.Pat
     assert found.error == "no results for 'a query'"
 
 
+def test_search_returns_a_failure_naming_the_url_when_the_client_cannot_reach_it(
+    tmp_path: pathlib.Path,
+):
+    found = WebSearch(UnreachableWebClient()).run(SearchArgs(query="a query"), _ctx(tmp_path))
+
+    assert found.ok is False
+    assert found.error == f"{ENDPOINT} is unreachable: connection refused"
+
+
+DDG_PAGE_WITH_A_BROKEN_ROW = """
+<html><body><table>
+<tr><td valign="top">1.&nbsp;</td>
+    <td><a rel="nofollow" href="https://example.com/one" class='result-link'>First Result</a></td>
+</tr>
+<tr><td>&nbsp;</td><td class='result-snippet'>The first snippet.</td></tr>
+<tr><td valign="top">2.&nbsp;</td>
+    <td><a rel="nofollow" class='result-link'>No Href Here</a></td>
+</tr>
+<tr><td>&nbsp;</td><td class='result-snippet'>An orphaned snippet.</td></tr>
+<tr><td valign="top">3.&nbsp;</td>
+    <td><a rel="nofollow" href="https://example.org/two" class='result-link'>Second Result</a></td>
+</tr>
+<tr><td>&nbsp;</td><td class='result-snippet'>The second <b>snippet</b>.</td></tr>
+</table></body></html>
+"""
+
+
+def test_search_skips_a_result_row_with_no_href_and_keeps_ranks_contiguous(
+    tmp_path: pathlib.Path,
+):
+    found = WebSearch(_answered(DDG_PAGE_WITH_A_BROKEN_ROW)).run(
+        SearchArgs(query="a query"), _ctx(tmp_path)
+    )
+
+    assert found.ok is True
+    assert pathlib.Path(found.path).read_text() == (
+        "1. First Result\n"
+        "https://example.com/one\n"
+        "The first snippet.\n"
+        "\n"
+        "2. Second Result\n"
+        "https://example.org/two\n"
+        "The second snippet."
+    )
+
+
 PAGE = """
 <html><head><title>A Title</title></head><body>
 <nav><ul><li><a href="/edit">Edit this page</a></li></ul></nav>
@@ -144,6 +202,29 @@ def test_fetch_reports_a_bad_status_as_a_failure(tmp_path: pathlib.Path):
 
     assert got.ok is False
     assert got.error == f"{TARGET} answered 404"
+
+
+def test_fetch_reports_a_bad_status_against_the_url_it_actually_answered(
+    tmp_path: pathlib.Path,
+):
+    redirected = "https://example.com/moved"
+    client = FakeWebClient(
+        {TARGET: Page(url=redirected, status=404, content_type="text/html", body="")}
+    )
+
+    got = FetchUrl(client).run(FetchArgs(url=TARGET), _ctx(tmp_path))
+
+    assert got.ok is False
+    assert got.error == f"{redirected} answered 404"
+
+
+def test_fetch_returns_a_failure_naming_the_url_when_the_client_cannot_reach_it(
+    tmp_path: pathlib.Path,
+):
+    got = FetchUrl(UnreachableWebClient()).run(FetchArgs(url=TARGET), _ctx(tmp_path))
+
+    assert got.ok is False
+    assert got.error == f"{TARGET} is unreachable: connection refused"
 
 
 def test_a_non_https_url_is_refused_by_the_schema_not_by_the_tool(tmp_path: pathlib.Path):
