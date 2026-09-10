@@ -230,7 +230,7 @@ def sandbox_of(config: Config, run_dir: pathlib.PurePath, fs: FileSystem) -> San
         return Unsandboxed()
     return Fence(
         write_root=config.write_root,
-        allowed_domains=config.allowed_domains,
+        allowed_domains=config.allowed_domains + config.web_domains,
         run_dir=run_dir,
         fs=fs,
     )

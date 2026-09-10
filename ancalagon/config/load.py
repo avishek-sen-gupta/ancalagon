@@ -118,5 +118,6 @@ def load_config(path: pathlib.PurePath, fs: FileSystem) -> Config:
         keep_recent_messages=limits["keep_recent_messages"],
         run=_run_settings(base, raw["run"], fs),
         allowed_domains=tuple(model["allowed_domains"]),
+        web_domains=tuple(raw.get("web", {}).get("allowed_domains", [])),
         sandbox=Strategy(raw["sandbox"]["strategy"]),
     )
