@@ -37,7 +37,7 @@ def render(message: Message, width: int) -> str:
     return rendered.stdout
 
 
-def test_a_watched_line_cuts_prose_to_the_width_and_keeps_tool_arguments_whole():
+def test_a_watched_message_puts_every_block_on_its_own_line_cut_to_the_width():
     arguments = '{"path": "/a/long/enough/path/to/be/cut/BP13K800.txt", "offset": 774, "limit": 5}'
     spoken = Message(
         role=MessageRole.ASSISTANT,
@@ -50,8 +50,10 @@ def test_a_watched_line_cuts_prose_to_the_width_and_keeps_tool_arguments_whole()
         ],
     )
     assert render(spoken, 26) == (
-        f"{CYAN}[r_1/root/3]{PLAIN} A reading the copybook to fi"
-        f" | → {YELLOW}read_file{PLAIN} {arguments}\n"
+        f"{CYAN}[r_1/root/3]{PLAIN} A\n"
+        "  reading the copybook\n"
+        "  to find the field\n"
+        f"  → {YELLOW}read_file{PLAIN} " + arguments[:26] + "\n"
     )
 
     refused = Message(
@@ -68,5 +70,5 @@ def test_a_watched_line_cuts_prose_to_the_width_and_keeps_tool_arguments_whole()
         ],
     )
     assert render(refused, 20) == (
-        f"{CYAN}[r_1/root/3]{PLAIN} U ← {RED}ERR{PLAIN} these citations do n\n"
+        f"{CYAN}[r_1/root/3]{PLAIN} U\n" f"  ← {RED}ERR{PLAIN} these citations do n\n"
     )
