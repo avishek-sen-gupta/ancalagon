@@ -31,6 +31,7 @@ from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.watch.watch_args import WatchArgs
 from ancalagon.tools.watch.watch_file import WatchFile
 from ancalagon.watch.watch_for import WATCH_FOR, watch_for
+from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
 
@@ -215,6 +216,7 @@ def test_watch_file_is_offered_only_where_a_role_declares_the_watch_contract(
                 output_class=FreeText,
                 clock=SystemClock(),
                 fs=fs,
+                web=FakeWebClient({}),
             ).names()
         )
 

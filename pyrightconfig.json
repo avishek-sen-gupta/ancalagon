@@ -13,6 +13,13 @@
     {
       "root": "ancalagon/tools/submit/adheres_to_schema.py",
       "reportUnknownMemberType": "none"
+    },
+    {
+      "root": "ancalagon/tools/web/results_in.py",
+      "reportUnknownMemberType": "none",
+      "reportUnknownVariableType": "none",
+      "reportUnknownArgumentType": "none",
+      "reportMissingTypeStubs": "none"
     }
   ]
 }

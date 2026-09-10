@@ -47,6 +47,7 @@ from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.transcript.transcript import Transcript
+from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
 
@@ -871,6 +872,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
         output_class=AnswerFile,
         clock=FakeClock(),
         fs=RealFileSystem(),
+        web=FakeWebClient({}),
     )
     arguments_both = json.dumps(
         {"status": "complete", "summary": "one record", "path": str(answer_both)}

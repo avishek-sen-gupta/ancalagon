@@ -26,6 +26,7 @@ from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.grep_args import GrepArgs
 from ancalagon.tools.search.transform_args import TransformArgs
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
+from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
 
@@ -206,6 +207,7 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
         output_class=FreeText,
         clock=SystemClock(),
         fs=fs,
+        web=FakeWebClient({}),
     )
     assert sorted(registry.names()) == ["idle", "ripgrep", "submit_answer"]
 

@@ -19,6 +19,7 @@ from ancalagon.tools.submit.adheres_to_schema import adheres_to_schema
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.tools.submit.submitting import submitting
+from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
 
@@ -60,6 +61,7 @@ def test_the_role_chooses_which_terminal_tool_it_submits_with(tmp_path: pathlib.
         output_class=AnswerFile,
         clock=SystemClock(),
         fs=RealFileSystem(),
+        web=FakeWebClient({}),
     )
     assert sorted(registry.names()) == ["idle", "read_file", "submit_answer_as_file"]
 

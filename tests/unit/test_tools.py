@@ -81,6 +81,7 @@ from ancalagon.tools.shell.shell import Shell
 from ancalagon.tools.shell.shell_args import ShellArgs
 from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.tools.survey.stats_args import StatsArgs
+from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
 from tests.unit.conftest import settle
@@ -351,6 +352,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         output_class=FreeText,
         clock=SystemClock(),
         fs=RealFileSystem(),
+        web=FakeWebClient({}),
     )
     at_limit = build_registry(
         config,
@@ -361,6 +363,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         output_class=FreeText,
         clock=SystemClock(),
         fs=RealFileSystem(),
+        web=FakeWebClient({}),
     )
 
     assert "delegate_scout" in at_root.names()
@@ -383,6 +386,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
             output_class=FreeText,
             clock=SystemClock(),
             fs=RealFileSystem(),
+            web=FakeWebClient({}),
         ).names()
     ) == ["ast_query", "idle", "shell", "submit_answer"]
     assert "need_input" in at_root.names()
@@ -405,6 +409,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         output_class=FreeText,
         clock=SystemClock(),
         fs=RealFileSystem(),
+        web=FakeWebClient({}),
     )
     assert set(narrowed.names()) == {
         "read_file",
@@ -429,6 +434,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
             output_class=FreeText,
             clock=SystemClock(),
             fs=RealFileSystem(),
+            web=FakeWebClient({}),
         )
     assert "'delegate_ghost', 'grep', 'rigrep'" in str(refused.value)
     assert "ripgrep" in str(refused.value)
