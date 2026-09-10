@@ -14,7 +14,6 @@ from ancalagon.config.config import Config
 from ancalagon.contracts.answer_file import AnswerFile
 from ancalagon.contracts.answer_status import AnswerStatus
 from ancalagon.contracts.budget import Budget
-from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
@@ -29,6 +28,7 @@ from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.reviewed import Reviewed
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
@@ -51,6 +51,7 @@ from ancalagon.transcript.transcript import Transcript
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
+from tests.unit.conftest import finite_budget
 
 
 class Verdict(pydantic.BaseModel):
@@ -141,7 +142,7 @@ def test_session_runs_tools_completes_and_forces_a_final_answer_when_exhausted(
                 stop_reason="tool_calls",
             ),
         ],
-        Budget(turns=5, tool_calls=5),
+        finite_budget(5, 5),
     )
     outcome = session.run()
     assert isinstance(outcome, Completed)
@@ -182,7 +183,7 @@ def test_session_runs_tools_completes_and_forces_a_final_answer_when_exhausted(
                 stop_reason="tool_calls",
             ),
         ],
-        Budget(turns=1, tool_calls=5),
+        finite_budget(1, 5),
     )
     forced = exhausting.run()
     assert isinstance(forced, Exhausted)
@@ -205,7 +206,7 @@ def test_session_returns_tool_failures_and_nudges_a_reply_that_called_nothing(
                 stop_reason="tool_calls",
             ),
         ],
-        Budget(turns=5, tool_calls=5),
+        finite_budget(5, 5),
     )
     outcome = session.run()
     assert isinstance(outcome, Completed)
@@ -234,7 +235,7 @@ def test_session_stops_and_returns_the_question_when_an_agent_needs_input(
                 stop_reason="tool_calls",
             )
         ],
-        Budget(turns=5, tool_calls=5),
+        finite_budget(5, 5),
     )
     outcome = session.run()
     assert isinstance(outcome, NeedsInput)
@@ -265,7 +266,7 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
             behaviour="You answer questions.",
             answer=ClassRef(module="verdict.py", name="Verdict"),
             tools=(),
-            budget=Budget(turns=5, tool_calls=5),
+            budget=finite_budget(5, 5),
         ),
         goal="Answer it.",
     )
@@ -326,7 +327,7 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
             behaviour="You answer questions.",
             answer=ClassRef(module="verdict.py", name="Verdict"),
             tools=(),
-            budget=Budget(turns=1, tool_calls=5),
+            budget=finite_budget(1, 5),
         ),
         goal="Answer it.",
     )
@@ -382,7 +383,7 @@ def test_session_completes_from_a_submit_answer_tool_call(tmp_path: pathlib.Path
                 stop_reason="tool_calls",
             )
         ],
-        Budget(turns=5, tool_calls=5),
+        finite_budget(5, 5),
     )
     outcome = session.run()
     assert isinstance(outcome, Completed)
@@ -404,7 +405,7 @@ def test_session_completes_from_a_submit_answer_tool_call(tmp_path: pathlib.Path
                 stop_reason="tool_calls",
             ),
         ],
-        Budget(turns=5, tool_calls=5),
+        finite_budget(5, 5),
     )
     second = rejected.run()
     assert isinstance(second, Completed)
@@ -431,7 +432,7 @@ def test_a_zero_cost_tool_still_works_with_no_tool_call_budget_left(tmp_path: pa
                 stop_reason="tool_calls",
             ),
         ],
-        Budget(turns=5, tool_calls=1),
+        finite_budget(5, 1),
     )
     outcome = session.run()
     assert isinstance(outcome, Completed)
@@ -457,7 +458,7 @@ def test_final_turn_forces_submit_answer_and_keeps_a_rejected_payload(tmp_path: 
                 stop_reason="tool_calls",
             )
         ],
-        Budget(turns=0, tool_calls=5),
+        finite_budget(0, 5),
     )
     outcome = session.run()
 
@@ -496,7 +497,7 @@ def test_a_note_left_for_a_task_joins_the_next_turn_and_costs_no_turn(tmp_path: 
                 stop_reason="tool_calls",
             ),
         ],
-        Budget(turns=5, tool_calls=5),
+        finite_budget(5, 5),
         letterbox=box,
     )
     outcome = session.run()
@@ -537,7 +538,7 @@ def test_the_answer_schema_named_in_the_system_prompt_carries_no_references(
                 stop_reason="tool_calls",
             )
         ],
-        Budget(turns=5, tool_calls=5),
+        finite_budget(5, 5),
         answer_class=Sited,
     )
     outcome = session.run()
@@ -568,7 +569,7 @@ def test_the_static_system_half_is_shared_across_items_and_the_per_item_half_is_
                     usage=CallUsage(cache_creation_tokens=2048, cache_read_tokens=1024),
                 )
             ],
-            Budget(turns=5, tool_calls=5),
+            finite_budget(5, 5),
             goal=goal,
             given=Verdict(answer=item),
         )
@@ -599,9 +600,7 @@ def test_the_static_system_half_is_shared_across_items_and_the_per_item_half_is_
 
 
 def test_a_session_takes_its_behaviour_and_budget_from_its_role(tmp_path: pathlib.Path):
-    role = Role(
-        behaviour="You investigate.", tools=("read_file",), budget=Budget(turns=2, tool_calls=4)
-    )
+    role = Role(behaviour="You investigate.", tools=("read_file",), budget=finite_budget(2, 4))
     spec = TaskSpec(task_id="t", role=role, goal="find it")
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
@@ -689,7 +688,7 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
             behaviour="You answer questions.",
             answer=ClassRef(module="verdict.py", name="Verdict"),
             tools=(),
-            budget=Budget(turns=2, tool_calls=5),
+            budget=finite_budget(2, 5),
         ),
         goal="Answer it.",
     )
@@ -760,7 +759,7 @@ def test_a_hook_gates_every_answer_and_prose_cannot_evade_it(tmp_path: pathlib.P
         blocks=[ToolUse(id="s1", name="submit_answer", arguments='{"answer": "no citation"}')],
         stop_reason="tool_calls",
     )
-    session = _session(tmp_path, [submitting] * 4, Budget(turns=2, tool_calls=4))
+    session = _session(tmp_path, [submitting] * 4, finite_budget(2, 4))
     session.registry = Registry([bind_tool(SubmitAnswer(Verdict), before=always_refuses)])
 
     outcome = session.run()
@@ -771,7 +770,7 @@ def test_a_hook_gates_every_answer_and_prose_cannot_evade_it(tmp_path: pathlib.P
     assert outcome.spent == Spend(turns=2, tool_calls=0)
 
     prose = Reply(blocks=[Text(text='{"answer": "no citation"}')], stop_reason="stop")
-    evading = _session(tmp_path / "prose", [prose] * 3, Budget(turns=2, tool_calls=4))
+    evading = _session(tmp_path / "prose", [prose] * 3, finite_budget(2, 4))
     evading.registry = Registry([bind_tool(SubmitAnswer(Verdict), before=always_refuses)])
 
     evaded = evading.run()
@@ -802,7 +801,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
             behaviour="You answer questions.",
             answer=ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile"),
             tools=("submit_answer_as_file",),
-            budget=Budget(turns=0, tool_calls=4),
+            budget=finite_budget(0, 4),
         ),
         goal="Answer it.",
     )
@@ -851,7 +850,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
         behaviour="You answer questions.",
         answer=ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile"),
         tools=("submit_answer", "submit_answer_as_file"),
-        budget=Budget(turns=2, tool_calls=4),
+        budget=finite_budget(2, 4),
     )
     spec_both = TaskSpec(
         task_id="t2",

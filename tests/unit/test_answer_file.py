@@ -6,7 +6,6 @@ from ancalagon.config.config import Config
 from ancalagon.contracts.accepted import Accepted
 from ancalagon.contracts.answer_file import AnswerFile
 from ancalagon.contracts.answer_status import AnswerStatus
-from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.role import Role
@@ -22,6 +21,7 @@ from ancalagon.tools.submit.submitting import submitting
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
+from tests.unit.conftest import finite_budget
 
 ANSWER_FILE = ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile")
 
@@ -50,7 +50,7 @@ def test_the_role_chooses_which_terminal_tool_it_submits_with(tmp_path: pathlib.
         behaviour="You answer.",
         answer=ANSWER_FILE,
         tools=("read_file", "submit_answer", "submit_answer_as_file"),
-        budget=Budget(turns=1, tool_calls=1),
+        budget=finite_budget(1, 1),
     )
     registry = build_registry(
         Config(write_root=tmp_path, read_roots=(tmp_path,), model="m", roles={"root": role}),

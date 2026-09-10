@@ -13,17 +13,16 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.accepted import Accepted
 from ancalagon.contracts.access import Access
 from ancalagon.contracts.agent_status import AgentStatus
-from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.free_text import FreeText
-from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.reviewed import Reviewed
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text_answer import TextAnswer
 from ancalagon.contracts.tool_result import ToolResult
@@ -85,7 +84,7 @@ from ancalagon.tools.survey.stats_args import StatsArgs
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
-from tests.unit.conftest import settle
+from tests.unit.conftest import finite_budget, settle
 
 
 def _ctx(tmp_path: pathlib.Path) -> ToolContext:
@@ -317,12 +316,12 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         read_roots=(tmp_path,),
         model="claude-opus-5",
         roles={
-            "scout": Role(behaviour="Look.", tools=(), budget=Budget(turns=4, tool_calls=8)),
+            "scout": Role(behaviour="Look.", tools=(), budget=finite_budget(4, 8)),
             "unreachable": Role(
                 behaviour="Never spawned.",
                 input=ClassRef(module="no_such_shapes", name="Query"),
                 tools=(),
-                budget=Budget(turns=4, tool_calls=8),
+                budget=finite_budget(4, 8),
             ),
         },
         max_tokens=100,
@@ -342,7 +341,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     full_role = Role(
         behaviour="Coordinate.",
         tools=("delegate_scout", "need_input", "submit_answer"),
-        budget=Budget(turns=1, tool_calls=1),
+        budget=finite_budget(1, 1),
     )
     at_root = build_registry(
         config,
@@ -377,7 +376,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
                 role=Role(
                     behaviour="Shell.",
                     tools=("shell", "ast_query", "submit_answer"),
-                    budget=Budget(turns=1, tool_calls=1),
+                    budget=finite_budget(1, 1),
                 ),
                 goal="g",
             ),
@@ -463,7 +462,7 @@ def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pa
     ctx = _ctx(tmp_path)
     run_dir = tmp_path / "run"
     run_dir.mkdir()
-    role = Role(behaviour="b", tools=(), budget=Budget(turns=3, tool_calls=5))
+    role = Role(behaviour="b", tools=(), budget=finite_budget(3, 5))
     delegate = DelegateTo(
         "analyst", role, run_dir, parent=1, clock=SystemClock(), fs=RealFileSystem()
     )
@@ -497,7 +496,7 @@ def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pa
 
     written = TaskSpec.model_validate_json((task_dir / "spec.json").read_text())
     assert written.role.behaviour == "b"
-    assert written.role.budget == Budget(turns=3, tool_calls=5)
+    assert written.role.budget == finite_budget(3, 5)
     assert json.loads((task_dir / "spec.json").read_text())["input"] == {"text": "look at this"}
 
     with pytest.raises(pydantic.ValidationError):
@@ -679,7 +678,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
-    role = Role(behaviour="b", tools=(), budget=Budget(turns=20, tool_calls=60))
+    role = Role(behaviour="b", tools=(), budget=finite_budget(20, 60))
     delegate = DelegateTo(
         "worker", role, run_dir, parent=1, clock=SystemClock(), fs=RealFileSystem()
     )
@@ -830,7 +829,7 @@ def test_collect_task_named_by_a_stale_agent_id_records_collected_on_the_newest_
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
-    role = Role(behaviour="b", tools=(), budget=Budget(turns=20, tool_calls=60))
+    role = Role(behaviour="b", tools=(), budget=finite_budget(20, 60))
     delegate = DelegateTo(
         "worker", role, run_dir, parent=1, clock=SystemClock(), fs=RealFileSystem()
     )
@@ -878,17 +877,15 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
             behaviour="Analyse.",
             input=ClassRef(module="querykit.shapes", name="Query"),
             tools=("read_file",),
-            budget=Budget(turns=12, tool_calls=30),
+            budget=finite_budget(12, 30),
         ),
-        "scout": Role(
-            behaviour="Look.", tools=("read_file",), budget=Budget(turns=4, tool_calls=8)
-        ),
+        "scout": Role(behaviour="Look.", tools=("read_file",), budget=finite_budget(4, 8)),
     }
     run_dir = tmp_path / "run"
     (run_dir / "tasks").mkdir(parents=True)
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
 
-    caller = Role(behaviour="Coordinate.", tools=(), budget=Budget(turns=1, tool_calls=1))
+    caller = Role(behaviour="Coordinate.", tools=(), budget=finite_budget(1, 1))
     tools = delegate_tools(
         roles, caller, run_dir=run_dir, parent=1, clock=FakeClock(), fs=RealFileSystem()
     )
@@ -906,7 +903,7 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     spec = json.loads((run_dir / "tasks" / "t1" / "spec.json").read_text())
     assert spec["goal"] == "map the bus"
     assert spec["input"] == {"area": "bus", "depth": 2}
-    assert spec["role"]["budget"] == {"turns": 12, "tool_calls": 30}
+    assert spec["role"]["budget"] == {"turns": {"value": 12}, "tool_calls": {"value": 30}}
 
     prose = tools[1].declaration.parameters.model_json_schema()
     assert sorted(prose["$defs"]["FreeText"]["properties"]) == ["text"]
@@ -917,7 +914,7 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     scouted = json.loads((run_dir / "tasks" / "t3" / "spec.json").read_text())
     assert scouted["goal"] == "look around"
     assert scouted["input"] == {"text": "start at the bus"}
-    assert scouted["role"]["budget"] == {"turns": 4, "tool_calls": 8}
+    assert scouted["role"]["budget"] == {"turns": {"value": 4}, "tool_calls": {"value": 8}}
 
     with pytest.raises(pydantic.ValidationError, match="depth"):
         tools[0].invoke('{"task_id": "t2", "goal": "g", "input": {"area": "bus"}}', ctx)

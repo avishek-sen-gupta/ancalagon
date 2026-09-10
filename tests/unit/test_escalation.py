@@ -9,7 +9,6 @@ from ancalagon.answer_command import answer_command
 from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
-from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.free_text import FreeText
@@ -38,13 +37,14 @@ from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.transcript.history import load, repair
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.workspace.workspace import Workspace
+from tests.unit.conftest import finite_budget
 
 
 def _call(id: str, name: str, **arguments: str | int) -> ToolUse:
     return ToolUse(id=id, name=name, arguments=json.dumps(arguments))
 
 
-INVESTIGATE = Role(behaviour="You investigate.", tools=(), budget=Budget(turns=5, tool_calls=5))
+INVESTIGATE = Role(behaviour="You investigate.", tools=(), budget=finite_budget(5, 5))
 
 
 def _run(
@@ -138,7 +138,7 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
                         "answer_task",
                         "need_input",
                     ],
-                    "budget": {"turns": 8, "tool_calls": 20},
+                    "budget": {"turns": {"value": 8}, "tool_calls": {"value": 20}},
                 },
                 "goal": "Investigate both halves.",
                 "input": {"text": "go"},

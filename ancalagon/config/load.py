@@ -3,13 +3,17 @@ import collections.abc
 import pathlib
 import re
 import tomllib
+import typing
 
 from ancalagon.config.config import Config
 from ancalagon.config.importable import importable
 from ancalagon.config.raw_role import RawClassRef, RawRole
+from ancalagon.contracts.allowance import Allowance
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.finite import Finite
 from ancalagon.contracts.function_ref import FunctionRef
+from ancalagon.contracts.infinite import Infinite
 from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.role import FREE_TEXT, Role
 from ancalagon.contracts.run_contracts import run_contracts
@@ -72,6 +76,12 @@ def _contracts(name: str, raw: RawRole) -> tuple[FunctionRef, ClassRef, ClassRef
     return ref, given, produced
 
 
+def _allowance(given: int | typing.Literal["infinite"]) -> Allowance:
+    if isinstance(given, int):
+        return Finite(value=given)
+    return Infinite()
+
+
 def _role(name: str, raw: RawRole) -> Role:
     if not ROLE_NAME.match(name):
         raise ValueError(
@@ -85,7 +95,10 @@ def _role(name: str, raw: RawRole) -> Role:
         answer=produced,
         run=run,
         tools=tuple(raw.tools),
-        budget=Budget(turns=raw.budget.turns, tool_calls=raw.budget.tool_calls),
+        budget=Budget(
+            turns=_allowance(raw.budget.turns),
+            tool_calls=_allowance(raw.budget.tool_calls),
+        ),
         before=_hooks(raw.before),
         after=_hooks(raw.after),
     )

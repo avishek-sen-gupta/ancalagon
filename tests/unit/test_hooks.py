@@ -9,7 +9,6 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.accepted import Accepted
-from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.function_ref import FunctionRef
@@ -29,6 +28,7 @@ from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
+from tests.unit.conftest import finite_budget
 
 MODULE = """
 from __future__ import annotations
@@ -284,7 +284,7 @@ def test_check_contracts_refuses_a_role_whose_answer_disagrees_with_its_run_func
         input=ClassRef(module="runkit.runners", name="Given"),
         answer=FREE_TEXT,
         tools=(),
-        budget=Budget(turns=0, tool_calls=0),
+        budget=finite_budget(0, 0),
     )
     config = Config(
         write_root=tmp_path,

@@ -8,7 +8,6 @@ from ancalagon import cli
 from ancalagon.cli import created_run_dir, goal_of, root_spec, sandbox_of
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.config.config import Config
-from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.run_settings import RunSettings
@@ -16,6 +15,7 @@ from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.sandbox.fence import Fence
 from ancalagon.sandbox.strategy import Strategy
 from ancalagon.sandbox.unsandboxed import Unsandboxed
+from tests.unit.conftest import finite_budget
 
 
 def test_a_named_run_dir_is_created_verbatim_and_an_unnamed_one_is_stamped(
@@ -94,7 +94,7 @@ def test_the_root_spec_comes_from_its_role_and_its_two_files(
         behaviour="Analyse.",
         input=ClassRef(module="querykit.shapes", name="Query"),
         tools=("read_file", "submit_answer"),
-        budget=Budget(turns=3, tool_calls=6),
+        budget=finite_budget(3, 6),
     )
     config = Config(
         write_root=tmp_path,

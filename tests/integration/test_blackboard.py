@@ -10,6 +10,7 @@ from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.finite import Finite
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.watch_request import WatchRequest
 from ancalagon.contracts.watched import Watched
@@ -45,7 +46,7 @@ def test_a_watcher_process_wakes_the_supervisor_the_way_any_child_does(
             input=WATCHING,
             answer=WATCHED,
             tools=(),
-            budget=Budget(turns=0, tool_calls=0),
+            budget=Budget(turns=Finite(value=0), tool_calls=Finite(value=0)),
         ),
         goal="Wake me when the blackboard changes.",
         input=WatchRequest(path=str(board), since=fs.changed_at(board), poll_s=0.05),

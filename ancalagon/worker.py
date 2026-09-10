@@ -18,9 +18,9 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
-from ancalagon.contracts.nothing import NOTHING
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.message import Message
+from ancalagon.contracts.nothing import NOTHING
 from ancalagon.contracts.outcome import SUMMARY_CHARS
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
@@ -32,9 +32,9 @@ from ancalagon.llm.adapters.litellm_client import LiteLLMClient
 from ancalagon.schedule.depth_of import depth_of
 from ancalagon.session import Session
 from ancalagon.tools.artifacts.convert_document import ConvertDocument
+from ancalagon.tools.artifacts.edit_json import EditJson
 from ancalagon.tools.artifacts.extract_strings import ExtractStrings
 from ancalagon.tools.artifacts.file_type import FileType
-from ancalagon.tools.artifacts.edit_json import EditJson
 from ancalagon.tools.artifacts.query_json import QueryJson
 from ancalagon.tools.compare.diff_regions import DiffRegions
 from ancalagon.tools.delegate.answer_task import AnswerTask

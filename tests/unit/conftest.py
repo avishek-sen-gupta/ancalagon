@@ -7,7 +7,9 @@ import pytest
 
 from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.contracts.agent_status import AgentStatus
+from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.event_source import EventSource
+from ancalagon.contracts.finite import Finite
 
 
 def settle(
@@ -31,3 +33,7 @@ def importable() -> collections.abc.Iterator[collections.abc.Callable[[pathlib.P
     sys.path[:] = path_before
     for name in set(sys.modules) - modules_before:
         del sys.modules[name]
+
+
+def finite_budget(turns: int, tool_calls: int) -> Budget:
+    return Budget(turns=Finite(value=turns), tool_calls=Finite(value=tool_calls))
