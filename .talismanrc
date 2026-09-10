@@ -135,10 +135,4 @@ fileignoreconfig:
   checksum: b0a45698c5992ca525d26519c2455cda4f398d2ca468e06319f31eadd223e230
 - filename: docs/superpowers/plans/2026-09-10-two-web-research-tools.md
   checksum: b48b11bbfc58f890d3d4ee50a7c3a0ec0002cc9eae683d247cdbbf86c08feb55
-- filename: pong_goal.md
-  checksum: 8cdeb4654d73160e43ae83fa87d5a87cb95e414f360cb23f80f24f289cd9b175
-- filename: pongkit/checks.py
-  checksum: b016fb32adf27c203cd918fc23b94338e8cf7b318bf36dddaccd1d65b75c264b
-- filename: pong.toml
-  checksum: 78cce184d6bbe4f0ad73550ec9d5e0b1907c61d4d2612f578b53d60afc4673c2
 version: "1.0"
