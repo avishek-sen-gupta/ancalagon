@@ -9,7 +9,9 @@ from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.failed import Failed
+from ancalagon.contracts.finite import Finite
 from ancalagon.contracts.free_text import FreeText
+from ancalagon.contracts.infinite import Infinite
 from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
@@ -156,3 +158,21 @@ def test_an_outcome_header_reads_the_kind_from_any_outcome():
     failed_header = OutcomeHeader.model_validate_json(failed.model_dump_json())
     assert failed_header.kind == OutcomeKind.FAILED
     assert failed_header.summary == "boom"
+
+
+def test_a_finite_allowance_is_spent_down_and_an_infinite_one_is_not():
+    finite = Finite(value=2)
+
+    assert finite.permits(2) is True
+    assert finite.permits(3) is False
+    assert finite.spend(1) == Finite(value=1)
+    assert finite.exhausted is False
+    assert finite.spend(2).exhausted is True
+    assert str(Finite(value=7)) == "7"
+
+    endless = Infinite()
+
+    assert endless.permits(10**9) is True
+    assert endless.spend(10**9) == endless
+    assert endless.exhausted is False
+    assert str(endless) == "unlimited"
