@@ -66,6 +66,7 @@ from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.tools.submit.submitting import TERMINAL_TOOLS, submitting
 from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.tools.watch.watch_file import WatchFile
+from ancalagon.tools.web.fetch_url import FetchUrl
 from ancalagon.tools.web.web_search import WebSearch
 from ancalagon.transcript.history import load, repair
 from ancalagon.transcript.transcript import Transcript
@@ -110,6 +111,7 @@ def available_tools(
         bound_for(AstQuery(), role),
         bound_for(Shell(), role),
         bound_for(WebSearch(web), role),
+        bound_for(FetchUrl(web), role),
         *delegate_tools(roles, role, run_dir=run_dir, parent=parent, clock=clock, fs=fs),
         bound_for(CheckTask(run_dir=run_dir, clock=clock, fs=fs), role),
         bound_for(CollectTask(run_dir=run_dir, clock=clock, fs=fs), role),
