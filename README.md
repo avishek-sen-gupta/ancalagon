@@ -49,14 +49,13 @@ side effect of starting a run.
 `scripts/ancrun.zsh <config.toml> [run-dir]` does the first three. With no run directory it
 allocates a fresh one; pass an existing one to continue that run.
 
-Three worked configs ship with the repo, each with its goal file beside it. Run any of them
+Two worked configs ship with the repo, each with its goal file beside it. Run any of them
 the same way, in place of `ancalagon.toml`:
 
 | Config | Shows |
 |---|---|
 | `research.toml` | `web_search` and `fetch_url`, with every role answering by writing a file |
 | `blackboard.toml` | three peers sharing one append-only file, waking each other through `watch_file` |
-| `pong.toml` | `before` hooks gating `submit_answer` until an agent's own tests pass |
 
 ## How it works
 
