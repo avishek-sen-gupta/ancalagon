@@ -109,6 +109,12 @@ input_file = ""      # validated against the root role's input class; empty + Fr
 role = "root"
 ```
 
+A budget field takes a number or the string `"infinite"`, and the two may be mixed:
+`budget = { turns = "infinite", tool_calls = 200 }` runs until the agent answers or spends its
+two hundredth tool call. An infinite field is never spent down and never exhausts, so nothing
+stops that agent but its own answer and `[limits] agent_timeout_s`. What an agent spent is
+counted as it works, so an outcome reports real turns and tool calls either way.
+
 The root is a role like any other; `[run] role` names which one it runs as, and its goal comes
 from a file because it has no parent to call `delegate` on it.
 
