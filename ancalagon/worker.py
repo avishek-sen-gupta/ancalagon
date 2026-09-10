@@ -66,9 +66,12 @@ from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.tools.submit.submitting import TERMINAL_TOOLS, submitting
 from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.tools.watch.watch_file import WatchFile
+from ancalagon.tools.web.web_search import WebSearch
 from ancalagon.transcript.history import load, repair
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.watch.watch_for import WATCH_FOR
+from ancalagon.web.real_web_client import RealWebClient
+from ancalagon.web.web_client import WebClient
 from ancalagon.workspace.workspace import Workspace
 
 LOGGER = logging.getLogger(__name__)
@@ -82,6 +85,7 @@ def available_tools(
     output_class: type[pydantic.BaseModel],
     clock: Clock,
     fs: FileSystem,
+    web: WebClient,
 ) -> list[BoundTool]:
     return [
         bound_for(ReadFile(clock), role),
@@ -105,6 +109,7 @@ def available_tools(
         bound_for(TreeSitter(), role),
         bound_for(AstQuery(), role),
         bound_for(Shell(), role),
+        bound_for(WebSearch(web), role),
         *delegate_tools(roles, role, run_dir=run_dir, parent=parent, clock=clock, fs=fs),
         bound_for(CheckTask(run_dir=run_dir, clock=clock, fs=fs), role),
         bound_for(CollectTask(run_dir=run_dir, clock=clock, fs=fs), role),
@@ -131,11 +136,14 @@ def build_registry(
     output_class: type[pydantic.BaseModel],
     clock: Clock,
     fs: FileSystem,
+    web: WebClient,
 ) -> Registry:
     spawnable = {
         name: role for name, role in config.roles.items() if f"delegate_{name}" in spec.role.tools
     }
-    available = available_tools(spec.role, spawnable, run_dir, parent, output_class, clock, fs) + [
+    available = available_tools(
+        spec.role, spawnable, run_dir, parent, output_class, clock, fs, web
+    ) + [
         bound_for(WatchFile(watcher, run_dir, parent, clock, fs), spec.role)
         for watcher in watcher_in(config.roles)[:1]
     ]
@@ -165,6 +173,7 @@ def main(
     config_path: pathlib.PurePath,
 ) -> int:
     fs = RealFileSystem()
+    web = RealWebClient()
     config = load_config(config_path, fs)
     outcome_path = task_dir / f"outcome-{agent_id}.json"
     transcript_path = task_dir / "transcript.jsonl"
@@ -211,6 +220,7 @@ def main(
                 output_class=output_class,
                 clock=clock,
                 fs=fs,
+                web=web,
             ),
             ctx=ctx,
             output_class=output_class,

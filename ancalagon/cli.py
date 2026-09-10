@@ -40,6 +40,8 @@ from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.tools.submit.submitting import TERMINAL_TOOLS, submitting
 from ancalagon.trace_command import trace_command
 from ancalagon.viz_command import viz_command
+from ancalagon.web.real_web_client import RealWebClient
+from ancalagon.web.web_client import WebClient
 from ancalagon.worker import build_registry
 
 LOGGER = logging.getLogger(__name__)
@@ -152,7 +154,7 @@ def _answer_file_fault(name: str, role: Role) -> str:
     )
 
 
-def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem) -> str:
+def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem, web: WebClient) -> str:
     named = set(role.before) | set(role.after)
     withheld = TERMINAL_TOOLS - {submitting(role.tools)}
     in_role_but_withheld = named & set(role.tools) & withheld
@@ -176,13 +178,16 @@ def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem) -> str:
             output_class=resolve_class(role.answer),
             clock=SystemClock(),
             fs=fs,
+            web=web,
         )
         return ""
     except Exception as error:
         return f"[roles.{name}] {error}"
 
 
-def check_contracts(config: Config, fs: FileSystem = RealFileSystem()) -> None:
+def check_contracts(
+    config: Config, fs: FileSystem = RealFileSystem(), web: WebClient = RealWebClient()
+) -> None:
     faults = (
         [
             fault
@@ -200,7 +205,7 @@ def check_contracts(config: Config, fs: FileSystem = RealFileSystem()) -> None:
         or [
             fault
             for name, role in config.roles.items()
-            if (fault := _hook_fault(name, role, config, fs))
+            if (fault := _hook_fault(name, role, config, fs, web))
         ]
     )
     if faults:
