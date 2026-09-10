@@ -26,7 +26,7 @@ def _hrefed(link: lxml.html.HtmlElement) -> tuple[tuple[lxml.html.HtmlElement, s
 
 def results_in(html: str, count: int) -> tuple[Result, ...]:
     tree = lxml.html.fromstring(html)
-    linked = tuple(pair for link in tree.xpath(LINKS)[:count] for pair in _hrefed(link))
+    linked = tuple(pair for link in tree.xpath(LINKS) for pair in _hrefed(link))[:count]
     return tuple(
         Result(rank=rank, title=_text(link), url=href, snippet=_snippet(link))
         for rank, (link, href) in enumerate(linked, start=1)

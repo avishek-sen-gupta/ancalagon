@@ -2,5 +2,3 @@
 class Unreachable(Exception):
     def __init__(self, url: str, reason: str):
         super().__init__(f"{url} is unreachable: {reason}")
-        self.url = url
-        self.reason = reason
