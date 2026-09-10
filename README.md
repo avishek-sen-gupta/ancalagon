@@ -642,7 +642,9 @@ the line.
   reach nothing until the operator lists domains there, and so does anything `shell` tries to
   curl. `["*"]` opens the run to the entire web for every tool in that worker. Matching is
   strict — `example.com` does not cover `www.example.com`; a subdomain needs its own entry, such
-  as `*.example.com`.
+  as `*.example.com`. Some sites refuse a non-browser HTTP client outright, independent of the
+  egress list; `fetch_url` reports that refusal as a failure naming the status, same as any
+  other non-200 response.
 - On Bedrock, `scripts/ancrun.zsh` takes either `AWS_BEARER_TOKEN_BEDROCK` or the pair
   `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, and strips whichever form it is not using
   from the environment — otherwise litellm signs with the stale one and Bedrock rejects the

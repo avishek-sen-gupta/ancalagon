@@ -42,8 +42,6 @@ def test_a_search_and_a_fetch_against_the_live_web(tmp_path: pathlib.Path):
     ]
     assert len(urls) == 5
 
-    got = FetchUrl(client).run(
-        FetchArgs(url="https://en.wikipedia.org/wiki/Reverse_engineering"), ctx
-    )
+    got = FetchUrl(client).run(FetchArgs(url="https://docs.python.org/3/library/json.html"), ctx)
     assert got.ok is True
-    assert "reverse engineering" in pathlib.Path(got.path).read_text().lower()
+    assert "json (javascript object notation)" in pathlib.Path(got.path).read_text().lower()
