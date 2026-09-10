@@ -12,7 +12,6 @@ from ancalagon.contracts.block import Block
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.delivery import Delivery
 from ancalagon.contracts.exhausted import Exhausted
-from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.idled import Idled
 from ancalagon.contracts.idling import Idling
@@ -24,6 +23,7 @@ from ancalagon.contracts.outcome import SUMMARY_CHARS, Outcome
 from ancalagon.contracts.payload import Payload
 from ancalagon.contracts.pending import PENDING, Pending
 from ancalagon.contracts.reply import Reply
+from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.submitted import Submitted
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
@@ -184,7 +184,7 @@ class Session:
             except KeyError as exc:
                 blocks.append(ToolResultBlock(tool_use_id=use.id, content=str(exc), is_error=True))
                 continue
-            if tool.cost > self.remaining.tool_calls:
+            if not self.remaining.tool_calls.permits(tool.cost):
                 blocks.append(
                     ToolResultBlock(
                         tool_use_id=use.id,

@@ -11,6 +11,7 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.finite import Finite
 from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.role import Role
 from ancalagon.env.real_environment import RealEnvironment
@@ -41,6 +42,7 @@ from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.role import Role
 from ancalagon.deterministic.run_context import RunContext
 from ancalagon.schedule.newest_agent import newest_agent
+from ancalagon.contracts.finite import Finite
 
 MODULE = "loopkit.rounds"
 COUNTER = "rounds"
@@ -73,7 +75,7 @@ def _spawn(n: int, ctx: RunContext) -> int:
             input=ClassRef(module=MODULE, name="Tick"),
             answer=ClassRef(module=MODULE, name="Tick"),
             tools=(),
-            budget=Budget(turns=0, tool_calls=0),
+            budget=Budget(turns=Finite(value=0), tool_calls=Finite(value=0)),
         ),
         goal=f"Tick {n}.",
         input=Tick(n=n),
@@ -175,7 +177,7 @@ def test_a_deterministic_parent_is_woken_once_per_child_it_spawns(
             input=ClassRef(module="loopkit.rounds", name="Rounds"),
             answer=ClassRef(module="loopkit.rounds", name="Ticks"),
             tools=(),
-            budget=Budget(turns=0, tool_calls=0),
+            budget=Budget(turns=Finite(value=0), tool_calls=Finite(value=0)),
         ),
         goal=f"Spawn {ROUNDS} children, one at a time.",
         input=given,

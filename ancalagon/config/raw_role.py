@@ -1,4 +1,6 @@
 # One [roles.*] table exactly as TOML presents it, before paths are resolved.
+import typing
+
 import pydantic
 
 
@@ -8,8 +10,8 @@ class RawClassRef(pydantic.BaseModel, frozen=True):
 
 
 class RawBudget(pydantic.BaseModel, frozen=True):
-    turns: int
-    tool_calls: int
+    turns: int | typing.Literal["infinite"]
+    tool_calls: int | typing.Literal["infinite"]
 
 
 class RawRole(pydantic.BaseModel, frozen=True):

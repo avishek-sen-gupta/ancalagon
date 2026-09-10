@@ -9,14 +9,13 @@ from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
-from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.free_text import FreeText
-from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.idled import Idled
 from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.spend import Spend
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.schedule.active_for import active_for
@@ -34,6 +33,7 @@ from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.idle.idle_args import IdleArgs
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.workspace import Workspace
+from tests.unit.conftest import finite_budget
 
 
 def _open(tmp_path: pathlib.Path) -> LifecycleStore:
@@ -382,7 +382,7 @@ def test_a_startup_kill_leaves_a_close_that_collect_task_can_report(tmp_path: pa
     clock = FakeClock()
     bus = LifecycleStore.open(run_dir / "bus.db", clock, RealFileSystem())
     ctx = _ctx(tmp_path)
-    role = Role(behaviour="b", tools=(), budget=Budget(turns=20, tool_calls=60))
+    role = Role(behaviour="b", tools=(), budget=finite_budget(20, 60))
     delegate = DelegateTo("worker", role, run_dir, parent=HUMAN, clock=clock, fs=RealFileSystem())
     args = delegate.args_model(task_id="wedged", goal="g", input=FreeText(text="go"))
     assert delegate.run(args, ctx).ok is True

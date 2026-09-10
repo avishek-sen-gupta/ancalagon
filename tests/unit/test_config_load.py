@@ -8,11 +8,14 @@ from ancalagon.cli import check_contracts
 from ancalagon.config.load import load_config
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.finite import Finite
 from ancalagon.contracts.function_ref import FunctionRef
+from ancalagon.contracts.infinite import Infinite
 from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.role import FREE_TEXT, Role
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.sandbox.strategy import Strategy
+from tests.unit.conftest import finite_budget
 
 TEMPLATE = """
 [workspace]
@@ -139,7 +142,7 @@ budget = { turns = 4, tool_calls = 8 }
     assert roles["analyst"].behaviour == "Analyse."
     assert roles["analyst"].answer == ClassRef(module="shapekit.shapes", name="Component")
     assert roles["analyst"].tools == ("read_file", "delegate_scout")
-    assert roles["analyst"].budget == Budget(turns=12, tool_calls=30)
+    assert roles["analyst"].budget == finite_budget(12, 30)
     assert roles["scout"].answer == FREE_TEXT
     assert roles["scout"].input == FREE_TEXT
 
@@ -366,7 +369,7 @@ role = "analyst"
     filer = Role(
         behaviour="You file.",
         tools=("submit_answer_as_file",),
-        budget=Budget(turns=1, tool_calls=1),
+        budget=finite_budget(1, 1),
     )
     with pytest.raises(ValueError) as wrong_answer:
         check_contracts(config.model_copy(update={"roles": {"filer": filer}}), RealFileSystem())
@@ -420,3 +423,17 @@ def test_the_example_config_this_repo_ships_satisfies_its_own_contracts():
             "submit_answer",
         ),
     }
+
+
+UNLIMITED_ROLE = """
+[roles.scout]
+behaviour = "Investigate."
+tools = ["read_file"]
+budget = { turns = "infinite", tool_calls = 30 }
+"""
+
+
+def test_a_role_may_declare_a_budget_with_no_turn_limit(tmp_path: pathlib.Path):
+    roles = load_config(_written(tmp_path, UNLIMITED_ROLE), RealFileSystem()).roles
+
+    assert roles["scout"].budget == Budget(turns=Infinite(), tool_calls=Finite(value=30))

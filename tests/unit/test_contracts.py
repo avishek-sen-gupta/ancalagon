@@ -11,9 +11,8 @@ from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.finite import Finite
 from ancalagon.contracts.free_text import FreeText
-from ancalagon.contracts.spend import Spend
-from ancalagon.contracts.infinite import Infinite
 from ancalagon.contracts.idling import Idling
+from ancalagon.contracts.infinite import Infinite
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.outcome import Outcome
@@ -22,9 +21,11 @@ from ancalagon.contracts.outcome_kind import OutcomeKind
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.run_settings import RunSettings
+from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
+from tests.unit.conftest import finite_budget
 
 
 class NodeSummary(pydantic.BaseModel):
@@ -33,12 +34,12 @@ class NodeSummary(pydantic.BaseModel):
 
 
 def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
-    budget = Budget(turns=3, tool_calls=10)
-    assert budget.spend_turn() == Budget(turns=2, tool_calls=10)
-    assert budget.spend_tool_calls() == Budget(turns=3, tool_calls=9)
-    assert budget.spend_tool_calls(4) == Budget(turns=3, tool_calls=6)
+    budget = finite_budget(3, 10)
+    assert budget.spend_turn() == finite_budget(2, 10)
+    assert budget.spend_tool_calls() == finite_budget(3, 9)
+    assert budget.spend_tool_calls(4) == finite_budget(3, 6)
     assert budget.spend_tool_calls(0) == budget
-    assert Budget(turns=0, tool_calls=5).turns_exhausted is True
+    assert finite_budget(0, 5).turns_exhausted is True
 
     role = Role(
         behaviour="You summarise.",
@@ -116,9 +117,7 @@ def test_a_role_defaults_to_prose_and_resolves_the_contracts_it_names(
     )
     importable(tmp_path)
 
-    prose = Role(
-        behaviour="Investigate.", tools=("read_file",), budget=Budget(turns=4, tool_calls=8)
-    )
+    prose = Role(behaviour="Investigate.", tools=("read_file",), budget=finite_budget(4, 8))
     assert resolve_class(prose.input) is FreeText
     assert resolve_class(prose.answer) is FreeText
 
@@ -126,7 +125,7 @@ def test_a_role_defaults_to_prose_and_resolves_the_contracts_it_names(
         behaviour="Analyse.",
         answer=ClassRef(module="shapekit.shapes", name="Component"),
         tools=("read_file",),
-        budget=Budget(turns=4, tool_calls=8),
+        budget=finite_budget(4, 8),
     )
     component = resolve_class(named.answer)
     fields = set(component.model_fields)
@@ -177,3 +176,17 @@ def test_a_finite_allowance_is_spent_down_and_an_infinite_one_is_not():
     assert endless.spend(10**9) == endless
     assert endless.exhausted is False
     assert str(endless) == "unlimited"
+
+
+def test_a_budget_may_be_unlimited_and_survives_the_round_trip_to_a_spec():
+    endless = Budget(turns=Infinite(), tool_calls=Finite(value=2))
+
+    assert endless.turns_exhausted is False
+    assert endless.spend_turn().turns == Infinite()
+    assert endless.spend_tool_calls(2).tool_calls.exhausted is True
+    assert endless.spend_turn().spend_turn().turns_exhausted is False
+
+    back = Budget.model_validate_json(endless.model_dump_json())
+
+    assert back.turns == Infinite()
+    assert back.tool_calls == Finite(value=2)
