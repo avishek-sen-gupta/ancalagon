@@ -903,7 +903,7 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     spec = json.loads((run_dir / "tasks" / "t1" / "spec.json").read_text())
     assert spec["goal"] == "map the bus"
     assert spec["input"] == {"area": "bus", "depth": 2}
-    assert spec["role"]["budget"] == {"turns": {"value": 12}, "tool_calls": {"value": 30}}
+    assert spec["role"]["budget"] == {"turns": 12, "tool_calls": 30}
 
     prose = tools[1].declaration.parameters.model_json_schema()
     assert sorted(prose["$defs"]["FreeText"]["properties"]) == ["text"]
@@ -914,7 +914,7 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     scouted = json.loads((run_dir / "tasks" / "t3" / "spec.json").read_text())
     assert scouted["goal"] == "look around"
     assert scouted["input"] == {"text": "start at the bus"}
-    assert scouted["role"]["budget"] == {"turns": {"value": 4}, "tool_calls": {"value": 8}}
+    assert scouted["role"]["budget"] == {"turns": 4, "tool_calls": 8}
 
     with pytest.raises(pydantic.ValidationError, match="depth"):
         tools[0].invoke('{"task_id": "t2", "goal": "g", "input": {"area": "bus"}}', ctx)

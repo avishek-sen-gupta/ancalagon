@@ -17,3 +17,7 @@ class Finite(pydantic.BaseModel, frozen=True):
 
     def __str__(self) -> str:
         return str(self.value)
+
+    @pydantic.model_serializer
+    def _as_written(self) -> int:
+        return self.value

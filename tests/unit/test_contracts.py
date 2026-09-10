@@ -175,7 +175,7 @@ def test_a_finite_allowance_is_spent_down_and_an_infinite_one_is_not():
     assert endless.permits(10**9) is True
     assert endless.spend(10**9) == endless
     assert endless.exhausted is False
-    assert str(endless) == "unlimited"
+    assert str(endless) == "infinite"
 
 
 def test_a_budget_may_be_unlimited_and_survives_the_round_trip_to_a_spec():
@@ -190,3 +190,16 @@ def test_a_budget_may_be_unlimited_and_survives_the_round_trip_to_a_spec():
 
     assert back.turns == Infinite()
     assert back.tool_calls == Finite(value=2)
+
+
+def test_a_budget_takes_plain_numbers_from_a_file_but_never_from_code():
+    written = Budget(turns=Infinite(), tool_calls=Finite(value=60)).model_dump_json()
+
+    assert written == '{"turns":"infinite","tool_calls":60}'
+
+    back = Budget.model_validate_json('{"turns": 20, "tool_calls": "infinite"}')
+
+    assert back == Budget(turns=Finite(value=20), tool_calls=Infinite())
+
+    with pytest.raises(pydantic.ValidationError):
+        Budget.model_validate({"turns": 20, "tool_calls": 60})
