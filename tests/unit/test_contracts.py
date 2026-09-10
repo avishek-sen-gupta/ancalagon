@@ -11,6 +11,7 @@ from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.finite import Finite
 from ancalagon.contracts.free_text import FreeText
+from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.infinite import Infinite
 from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.message import Message
@@ -82,12 +83,12 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
     completed = Completed[NodeSummary](
         value=NodeSummary(text="done", confidence=2),
         summary="finished",
-        spent=Budget(turns=1, tool_calls=2),
+        spent=Spend(turns=1, tool_calls=2),
     )
     assert adapter.validate_json(completed.model_dump_json()) == completed
-    failed = Failed(error="boom", summary="died", spent=Budget(turns=0, tool_calls=0))
+    failed = Failed(error="boom", summary="died", spent=Spend(turns=0, tool_calls=0))
     assert adapter.validate_json(failed.model_dump_json()) == failed
-    idling = Idling(summary="waiting", spent=Budget(turns=0, tool_calls=0), seen_through=0)
+    idling = Idling(summary="waiting", spent=Spend(turns=0, tool_calls=0), seen_through=0)
     assert adapter.validate_json(idling.model_dump_json()) == idling
     with pytest.raises(pydantic.ValidationError):
         adapter.validate_json(
@@ -148,13 +149,13 @@ def test_a_role_defaults_to_prose_and_resolves_the_contracts_it_names(
 
 def test_an_outcome_header_reads_the_kind_from_any_outcome():
     completed = Completed[FreeText](
-        value=FreeText(text="done"), summary="done", spent=Budget(turns=1, tool_calls=2)
+        value=FreeText(text="done"), summary="done", spent=Spend(turns=1, tool_calls=2)
     )
     completed_header = OutcomeHeader.model_validate_json(completed.model_dump_json())
     assert completed_header.kind == OutcomeKind.COMPLETED
     assert completed_header.summary == "done"
 
-    failed = Failed(error="boom", summary="boom", spent=Budget(turns=0, tool_calls=0))
+    failed = Failed(error="boom", summary="boom", spent=Spend(turns=0, tool_calls=0))
     failed_header = OutcomeHeader.model_validate_json(failed.model_dump_json())
     assert failed_header.kind == OutcomeKind.FAILED
     assert failed_header.summary == "boom"

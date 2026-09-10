@@ -19,6 +19,7 @@ from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.free_text import FreeText
+from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.reviewed import Reviewed
@@ -690,7 +691,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
         assert delegate.run(args, ctx).ok is True
         return active_for(bus.snapshot(), str(run_dir / "tasks" / task_id))[0]
 
-    spent = Budget(turns=1, tool_calls=1)
+    spent = Spend(turns=1, tool_calls=1)
     answered = queue("answered")
     unfinished = queue("unfinished")
     broken = queue("broken")
@@ -849,7 +850,7 @@ def test_collect_task_named_by_a_stale_agent_id_records_collected_on_the_newest_
         Completed[FreeText](
             value=FreeText(text="resumed answer"),
             summary="done",
-            spent=Budget(turns=1, tool_calls=1),
+            spent=Spend(turns=1, tool_calls=1),
         ).model_dump_json()
     )
 

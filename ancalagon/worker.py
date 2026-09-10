@@ -18,7 +18,7 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
-from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.nothing import NOTHING
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.outcome import SUMMARY_CHARS
@@ -241,7 +241,7 @@ def main(
         failure = Failed(
             error=traceback.format_exc(),
             summary=str(exc)[:SUMMARY_CHARS],
-            spent=Budget(turns=0, tool_calls=0),
+            spent=NOTHING,
         )
         fs.write_text(outcome_path, failure.model_dump_json())
         return 1

@@ -11,6 +11,7 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.free_text import FreeText
@@ -94,7 +95,7 @@ def test_a_watcher_waits_until_the_file_it_was_given_changes(tmp_path: pathlib.P
     assert outcome.value.path == str(board)
     assert outcome.value.at > before
     assert outcome.summary == f"{board} changed at {outcome.value.at}"
-    assert outcome.spent == Budget(turns=0, tool_calls=0)
+    assert outcome.spent == Spend(turns=0, tool_calls=0)
 
 
 def test_a_dispatching_spawner_picks_the_runner_when_the_role_names_a_run_function(

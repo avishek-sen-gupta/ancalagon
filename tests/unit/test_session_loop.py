@@ -14,6 +14,7 @@ from ancalagon.config.config import Config
 from ancalagon.contracts.answer_file import AnswerFile
 from ancalagon.contracts.answer_status import AnswerStatus
 from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
@@ -296,7 +297,7 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
     assert isinstance(outcome, Idling)
     assert outcome.kind is OutcomeKind.IDLING
     assert outcome.summary == f"idling until one of agents [{child}] finishes"
-    assert outcome.spent == Budget(turns=1, tool_calls=0)
+    assert outcome.spent == Spend(turns=1, tool_calls=0)
     highest = max(e.id for events in bus.snapshot().events.values() for e in events)
     assert outcome.seen_through == highest
 
@@ -354,7 +355,7 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
     outcome = session.run()
 
     assert outcome.kind is OutcomeKind.IDLING
-    assert outcome.spent == Budget(turns=1, tool_calls=0)
+    assert outcome.spent == Spend(turns=1, tool_calls=0)
     assert isinstance(outcome, Idling)
     assert outcome.seen_through == NO_WATERMARK
 
@@ -512,7 +513,7 @@ def test_a_note_left_for_a_task_joins_the_next_turn_and_costs_no_turn(tmp_path: 
     assert box.marked == [1, 0]
 
     assert isinstance(outcome, Completed)
-    assert outcome.spent == Budget(turns=2, tool_calls=0)
+    assert outcome.spent == Spend(turns=2, tool_calls=0)
     transcript = (tmp_path / "transcript.jsonl").read_text()
     assert delivered in transcript
     assert "Noted. Carry on, and call the submit_answer tool when you have your answer." in texts(1)
@@ -641,7 +642,7 @@ def test_a_session_takes_its_behaviour_and_budget_from_its_role(tmp_path: pathli
     outcome = session.run()
 
     assert llm.systems[0].static.startswith("You investigate.")
-    assert outcome.spent == Budget(turns=2, tool_calls=0)
+    assert outcome.spent == Spend(turns=2, tool_calls=0)
 
 
 class ScriptedChildren(Children):
@@ -767,7 +768,7 @@ def test_a_hook_gates_every_answer_and_prose_cannot_evade_it(tmp_path: pathlib.P
     assert isinstance(outcome, Failed)
     assert outcome.error == "submit_answer refused: every answer must cite a file"
     assert outcome.summary == '{"answer": "no citation"}'
-    assert outcome.spent == Budget(turns=2, tool_calls=0)
+    assert outcome.spent == Spend(turns=2, tool_calls=0)
 
     prose = Reply(blocks=[Text(text='{"answer": "no citation"}')], stop_reason="stop")
     evading = _session(tmp_path / "prose", [prose] * 3, Budget(turns=2, tool_calls=4))
@@ -778,7 +779,7 @@ def test_a_hook_gates_every_answer_and_prose_cannot_evade_it(tmp_path: pathlib.P
     assert isinstance(evaded, Failed)
     assert evaded.error == "no final answer"
     assert evaded.summary == '{"answer": "no citation"}'
-    assert evaded.spent == Budget(turns=2, tool_calls=0)
+    assert evaded.spent == Spend(turns=2, tool_calls=0)
 
     nudged = (tmp_path / "prose" / "transcript.jsonl").read_text()
     assert "Answers are only accepted through the submit_answer tool" in nudged
