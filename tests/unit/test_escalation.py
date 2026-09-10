@@ -138,7 +138,7 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
                         "answer_task",
                         "need_input",
                     ],
-                    "budget": {"turns": {"value": 8}, "tool_calls": {"value": 20}},
+                    "budget": {"turns": 8, "tool_calls": 20},
                 },
                 "goal": "Investigate both halves.",
                 "input": {"text": "go"},
