@@ -147,6 +147,24 @@ def test_search_skips_a_result_row_with_no_href_and_keeps_ranks_contiguous(
     )
 
 
+def test_a_broken_row_does_not_consume_one_of_the_results_that_were_asked_for(
+    tmp_path: pathlib.Path,
+):
+    found = WebSearch(_answered(DDG_PAGE_WITH_A_BROKEN_ROW)).run(
+        SearchArgs(query="a query", count=2), _ctx(tmp_path)
+    )
+
+    assert pathlib.Path(found.path).read_text() == (
+        "1. First Result\n"
+        "https://example.com/one\n"
+        "The first snippet.\n"
+        "\n"
+        "2. Second Result\n"
+        "https://example.org/two\n"
+        "The second snippet."
+    )
+
+
 PAGE = """
 <html><head><title>A Title</title></head><body>
 <nav><ul><li><a href="/edit">Edit this page</a></li></ul></nav>
