@@ -51,6 +51,14 @@ REJECTED_CHARS = 2000
 
 NO_ANSWER = "no final answer"
 
+
+def _answer_summary(answer: pydantic.BaseModel) -> str:
+    to_summary = getattr(answer, "to_summary", None)
+    if callable(to_summary):
+        return str(to_summary())[:SUMMARY_CHARS]
+    return answer.model_dump_json()[:SUMMARY_CHARS]
+
+
 IDLE = "idle"
 
 NOTE_PREFIX = "Note from the operator: "
@@ -259,13 +267,13 @@ class Session:
         if isinstance(summary, Submitted) and final:
             return Exhausted(
                 value=summary.answer,
-                summary=summary.answer.model_dump_json()[:SUMMARY_CHARS],
+                summary=_answer_summary(summary.answer),
                 spent=self._spent(),
             )
         if isinstance(summary, Submitted):
             return Completed(
                 value=summary.answer,
-                summary=summary.answer.model_dump_json()[:SUMMARY_CHARS],
+                summary=_answer_summary(summary.answer),
                 spent=self._spent(),
             )
         return PENDING
