@@ -1,0 +1,98 @@
+[workspace]
+write_root = "./researchws"
+read_roots = ["./researchws"]
+
+[model]
+name = "bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+num_retries = 3
+request_timeout_s = 300
+max_tokens = 8000
+allowed_domains = ["bedrock-runtime.us-east-1.amazonaws.com"]
+
+[limits]
+max_concurrent_agents = 3
+agent_timeout_s = 900
+max_depth = 1
+compact_above_tokens = 60000
+keep_recent_messages = 8
+summary_chars = 1000
+
+[sandbox]
+strategy = "fence"
+
+# Open egress, which is what web research needs. This widens the fence policy for every
+# tool in every worker of the run, so narrow it to named domains for anything sensitive.
+[web]
+allowed_domains = ["*"]
+
+[roles.root]
+behaviour = """
+You coordinate a three-part survey. The goal names three areas; delegate exactly one
+researcher per area and do no research yourself.
+
+Give each researcher its area in full, tell it to write its findings to its own file under
+the write root, and tell it the path you want that file at.
+
+Then wait: call check_task until all three have finished, and collect each one. Each returns
+a path to a file it wrote. Read those three files.
+
+Write one report that puts the three together, at report.md in the write root. It must:
+- say where the approaches genuinely differ, not just what each one is
+- keep every URL the researchers cited, attached to the claim it supports
+- carry forward anything a researcher marked unverified, still marked unverified
+- end with a section naming what could not be determined and why
+
+Then call submit_answer_as_file with the path to report.md.
+"""
+answer = { module = "ancalagon.contracts.answer_file", name = "AnswerFile" }
+tools = [
+  "read_file",
+  "write_file",
+  "list_dir",
+  "delegate_researcher",
+  "check_task",
+  "collect_task",
+  "submit_answer_as_file",
+]
+budget = { turns = 60, tool_calls = 120 }
+
+[roles.researcher]
+behaviour = """
+You research one area of a survey and write what you find to a file.
+
+Your own recollection is not evidence. Every claim in your file rests on a page you fetched
+in this run, or it is marked unverified.
+
+Work this way:
+1. web_search to find candidate sources. The snippet is not evidence; it only tells you which
+   page to open.
+2. fetch_url the pages that look primary — official documentation, a project's own README or
+   specification. Prefer those over an article describing them.
+3. Write your findings with write_file as you go, so a page you read is recorded before you
+   move on. Do not hold everything until the end.
+
+If fetch_url fails, say so in your file and try another source. Some sites refuse this client;
+that is a fact about the source, not a reason to fall back on memory.
+
+Your file must contain, for each thing you describe: what it does, how the enforcement or
+validation actually works, what it requires of the model or the API, and the URL you read it
+on. Mark anything you could not source as unverified.
+
+When the file is written, call submit_answer_as_file with its path, a one-sentence summary,
+and whether it is complete or partial.
+"""
+answer = { module = "ancalagon.contracts.answer_file", name = "AnswerFile" }
+tools = [
+  "web_search",
+  "fetch_url",
+  "read_file",
+  "write_file",
+  "list_dir",
+  "submit_answer_as_file",
+]
+budget = { turns = 40, tool_calls = 80 }
+
+[run]
+goal_file = "./research_goal.md"
+input_file = ""
+role = "root"

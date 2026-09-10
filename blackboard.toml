@@ -1,0 +1,88 @@
+[workspace]
+write_root = "./bb"
+read_roots = [".", "./bb"]
+
+[model]
+name = "bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+num_retries = 3
+request_timeout_s = 300
+max_tokens = 8000
+allowed_domains = ["bedrock-runtime.us-east-1.amazonaws.com"]
+
+[limits]
+max_concurrent_agents = 8
+agent_timeout_s = 900
+max_depth = 2
+compact_above_tokens = 60000
+keep_recent_messages = 8
+summary_chars = 1000
+
+[sandbox]
+strategy = "fence"
+
+# The root only starts the others and reads what they left. It does not analyse anything.
+[roles.root]
+behaviour = """
+You are convening three analysts around a shared file, the blackboard. Delegate one
+analyst per subsystem below, giving each its subsystem and the blackboard's path in the
+goal. Then wait: call check_task until all three have finished, collect each of them,
+read the blackboard yourself, and answer with what the three of them concluded together.
+Do not analyse any subsystem yourself.
+"""
+tools = [
+  "read_file",
+  "list_dir",
+  "delegate_analyst",
+  "check_task",
+  "collect_task",
+  "submit_answer",
+]
+budget = { turns = 200, tool_calls = 400 }
+
+# Each analyst reads what the others have posted, adds its own, and waits for more.
+[roles.analyst]
+behaviour = """
+You study one subsystem of a codebase alongside two other analysts, and you talk to them
+only through a shared append-only file called the blackboard.
+
+Work in this loop:
+1. read_file the blackboard to see what the others have posted.
+2. Investigate your own subsystem with ripgrep, ast_grep, read_file and shell.
+3. Append one entry to the blackboard with append_file. An entry is a line starting with
+   your subsystem name, then a claim, then the files it rests on. Use append_file and never
+   write_file on the blackboard: the others are posting to it at the same time, and
+   rewriting it whole would erase what they added since you read it.
+4. If another analyst's claim bears on yours, say so in your next entry, naming them.
+5. When you have posted what you know and want to hear from the others, call watch_file
+   on the blackboard and then idle. You will be woken when someone else posts.
+6. When you have read at least one entry from each of the other two and answered any
+   claim that touches your subsystem, submit_answer with your final findings.
+
+Do not submit until you have engaged with what the others posted. If you are woken and
+nothing new bears on your work, post a short acknowledgement and watch again.
+"""
+tools = [
+  "read_file",
+  "append_file",
+  "list_dir",
+  "ripgrep",
+  "ast_grep",
+  "find_symbol",
+  "shell",
+  "watch_file",
+  "submit_answer",
+]
+budget = { turns = 200, tool_calls = 400 }
+
+# Declaring this role is what makes watch_file available and what tells the supervisor to
+# run a process rather than a session. It has no behaviour, because no model reads it.
+[roles.blackboard_watcher]
+behaviour = "Wait for the blackboard to change."
+run = { module = "ancalagon.watch.watch_for", name = "watch_for" }
+tools = []
+budget = { turns = 0, tool_calls = 0 }
+
+[run]
+goal_file = "./blackboard_goal.md"
+input_file = ""
+role = "root"
