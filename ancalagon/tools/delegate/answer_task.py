@@ -38,4 +38,4 @@ class AnswerTask(Tool[AnswerArgs]):
             )
         except (KeyError, ValueError) as exc:
             return ctx.failure(self.name, str(exc))
-        return ctx.result(self.name, f"answered agent {args.task}; queued agent {resumed}")
+        return ctx.result(self.name, f"answered agent {args.task}; queued agent {resumed.id}")
