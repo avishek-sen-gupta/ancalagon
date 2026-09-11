@@ -336,8 +336,8 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     )
     migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
-    root_agent = bus.enqueue(tmp_path / "root-agent", parent_agent=HUMAN)
-    nested_agent = bus.enqueue(tmp_path / "nested-agent", parent_agent=HUMAN)
+    root_agent = bus.enqueue(tmp_path / "root-agent", parent_agent=HUMAN).id
+    nested_agent = bus.enqueue(tmp_path / "nested-agent", parent_agent=HUMAN).id
     full_role = Role(
         behaviour="Coordinate.",
         tools=("delegate_scout", "need_input", "submit_answer"),
@@ -445,8 +445,8 @@ def test_idle_refuses_once_its_children_have_settled(tmp_path: pathlib.Path):
     (run_dir / "tasks").mkdir(parents=True)
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(run_dir / "bus.db", FakeClock(), RealFileSystem())
-    parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN)
-    child = bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent)
+    parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN).id
+    child = bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent).id
     bus.record(child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
     bus.record(child, AgentStatus.COMPLETED, EventSource.SUPERVISOR)
@@ -779,7 +779,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert resumed.ok is True
     assert AgentStatus.COLLECTED not in [e.status for e in bus.history(still_running)]
 
-    lost = bus.enqueue(run_dir / "tasks" / "lost", parent_agent=1)
+    lost = bus.enqueue(run_dir / "tasks" / "lost", parent_agent=1).id
     bus.record(lost, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(lost, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=7)
     bus.record(lost, AgentStatus.TIMED_OUT, EventSource.SUPERVISOR, summary="killed after 600s")
@@ -804,11 +804,11 @@ def test_check_task_reports_the_newest_agent_not_the_one_it_was_named(
     check = CheckTask(run_dir=run_dir, clock=SystemClock(), fs=RealFileSystem())
 
     task_dir = run_dir / "tasks" / "waiter"
-    first = bus.enqueue(task_dir, parent_agent=1)
+    first = bus.enqueue(task_dir, parent_agent=1).id
     settle(bus, first, AgentStatus.IDLING)
 
     # Idled and then woken: the interesting agent is the newer one.
-    second = bus.enqueue(task_dir, parent_agent=1)
+    second = bus.enqueue(task_dir, parent_agent=1).id
     settle(bus, second, AgentStatus.COMPLETED, summary="the line appeared")
 
     asked = check.run(TaskArgs(task=first), ctx)
@@ -843,7 +843,7 @@ def test_collect_task_named_by_a_stale_agent_id_records_collected_on_the_newest_
     settle(bus, first, AgentStatus.IDLING)
 
     task = task_of(bus.snapshot(), first).id
-    second = bus.enqueue(task_dir, parent_agent=1)
+    second = bus.enqueue(task_dir, parent_agent=1).id
     settle(bus, second, AgentStatus.COMPLETED)
     (task_dir / f"outcome-{second}.json").write_text(
         Completed[FreeText](

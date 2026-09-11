@@ -240,7 +240,7 @@ def test_trace_and_viz_commands_round_trip_through_a_file_and_through_stdout(
     migrate_file(run_dir / "bus.db", latest_version(fs), fs)
     clock = FakeClock()
     bus = LifecycleStore.open(run_dir / "bus.db", clock, fs)
-    agent = bus.enqueue(task_dir, parent_agent=HUMAN)
+    agent = bus.enqueue(task_dir, parent_agent=HUMAN).id
     clock.sleep(1)
     bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR)

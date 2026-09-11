@@ -64,5 +64,7 @@ class DelegateTo(Tool[DelegateArgs]):
             task_id=args.task_id, role=self.role, goal=args.goal, input=args.input
         )
         self.fs.write_text(task_dir / "spec.json", spec.model_dump_json())
-        task = bus.enqueue(task_dir, parent_agent=self.parent)
-        return ctx.result(self.name, f"queued agent {task} for task {args.task_id} at {task_dir}")
+        queued = bus.enqueue(task_dir, parent_agent=self.parent)
+        return ctx.result(
+            self.name, f"queued agent {queued.id} for task {args.task_id} at {task_dir}"
+        )

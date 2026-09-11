@@ -147,7 +147,7 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
     )
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
-    root = bus.enqueue(root_dir, parent_agent=0)
+    root = bus.enqueue(root_dir, parent_agent=0).id
 
     first = _run(
         run_dir,

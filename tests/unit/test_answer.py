@@ -43,7 +43,7 @@ def _suspended(tmp_path: pathlib.Path) -> tuple[pathlib.Path, LifecycleStore, in
     )
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
-    agent = bus.enqueue(task_dir, parent_agent=0)
+    agent = bus.enqueue(task_dir, parent_agent=0).id
     bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
     return run_dir, bus, agent
@@ -65,7 +65,7 @@ def test_answering_a_suspended_agent_appends_the_answer_and_queues_a_new_attempt
 
     resumed = answer_task(
         run_dir, agent, "the second one", answered_by=0, clock=SystemClock(), fs=RealFileSystem()
-    )
+    ).id
     assert resumed != agent
 
     lines = [json.loads(line) for line in (task_dir / "transcript.jsonl").read_text().splitlines()]

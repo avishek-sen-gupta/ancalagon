@@ -4,6 +4,7 @@ import pathlib
 from ancalagon.attempt.snapshot import Snapshot
 from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.clock.clock import Clock
+from ancalagon.contracts.agent_ref import AgentRef
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
@@ -49,7 +50,7 @@ def answer_task(
     answered_by: int,
     clock: Clock,
     fs: FileSystem,
-) -> int:
+) -> AgentRef:
     bus = LifecycleStore.open(run_dir / "bus.db", clock, fs)
     snapshot = bus.snapshot()
     _answerable(snapshot, agent)
