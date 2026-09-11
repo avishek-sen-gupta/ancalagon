@@ -2,11 +2,11 @@ import collections.abc
 import json
 import pathlib
 
-from ancalagon.cli import sandbox_of
 from ancalagon.config.config import Config
 from ancalagon.env.fake_environment import FakeEnvironment
 from ancalagon.env.real_environment import RealEnvironment
 from ancalagon.fs.real_file_system import RealFileSystem
+from ancalagon.run import sandbox_of
 from ancalagon.sandbox.fence import Fence
 from ancalagon.sandbox.sandbox import Sandbox
 from ancalagon.sandbox.unsandboxed import Unsandboxed

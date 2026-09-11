@@ -51,6 +51,8 @@ name = "Layers point downward"
 type = "layers"
 layers = [
     "ancalagon.cli",
+    "ancalagon.run",
+    "ancalagon.check_contracts",
     "ancalagon.viz",
     "ancalagon.trace",
     "ancalagon.worker : ancalagon.watch",

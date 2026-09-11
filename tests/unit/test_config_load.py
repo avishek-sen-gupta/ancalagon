@@ -5,7 +5,7 @@ import sys
 import pydantic
 import pytest
 
-from ancalagon.cli import check_contracts
+from ancalagon.check_contracts import check_contracts
 from ancalagon.config.load import load_config
 from ancalagon.config.on_path import on_path
 from ancalagon.contracts.budget import Budget

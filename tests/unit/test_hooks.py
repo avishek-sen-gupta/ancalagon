@@ -4,7 +4,7 @@ import pathlib
 import pydantic
 import pytest
 
-from ancalagon.cli import check_contracts
+from ancalagon.check_contracts import check_contracts
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
