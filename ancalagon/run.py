@@ -84,8 +84,6 @@ def sandbox_of(config: Config, run_dir: pathlib.PurePath, fs: FileSystem) -> San
     )
 
 
-# A task whose role names a run function is served by a process, not by a model, so the
-# supervisor is given a spawner that reads each spec and picks accordingly.
 def _spawner(config: Config, run_dir: pathlib.PurePath, fs: FileSystem) -> Spawner:
     sandbox = sandbox_of(config, run_dir, fs)
     ordinary = SubprocessSpawner(
@@ -129,7 +127,7 @@ def run(
     fs: FileSystem,
 ) -> Outcome[pydantic.BaseModel]:
     on_path(config.import_paths)
-    check_contracts(config)
+    check_contracts(config, fs)
     fs.mkdir(run_dir, parents=True, exist_ok=True)
     fs.write_text(run_dir / CONFIG, config.model_dump_json())
     task_dir = run_dir / "tasks" / "root"
