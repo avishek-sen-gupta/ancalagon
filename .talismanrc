@@ -139,4 +139,6 @@ fileignoreconfig:
   checksum: 4a190fa60d1deec742778d571d7da234d20176a5f2c5682f447e72e635561a92
 - filename: docs/superpowers/plans/2026-09-11-embedding-a-run.md
   checksum: 91318324882e465bb1dfbd5bbc8f2590d44802b305089801645314d864296ad0
+- filename: docs/superpowers/specs/2026-09-11-a-bus-a-role-can-be-given-design.md
+  checksum: a8b476d8a588de23cf4a5750a7abcc2c6119669ab827f1d3e1715c1212bdd43d
 version: "1.0"
