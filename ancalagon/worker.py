@@ -16,7 +16,6 @@ from ancalagon.children.bus_children import BusChildren
 from ancalagon.clock.clock import Clock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
-from ancalagon.config.load import load_config
 from ancalagon.config.on_path import on_path
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.failed import Failed
@@ -177,7 +176,7 @@ def main(
 ) -> int:
     fs = RealFileSystem()
     web = RealWebClient()
-    config = load_config(config_path, fs)
+    config = Config.model_validate_json(fs.read_text(config_path))
     on_path(config.import_paths)
     outcome_path = task_dir / f"outcome-{agent_id}.json"
     transcript_path = task_dir / "transcript.jsonl"

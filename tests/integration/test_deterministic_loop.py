@@ -8,6 +8,7 @@ import pydantic
 from ancalagon.attempt.collected import Collected
 from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
 from ancalagon.clock.system_clock import SystemClock
+from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
@@ -161,8 +162,11 @@ def test_a_deterministic_parent_is_woken_once_per_child_it_spawns(
     (package / "__init__.py").write_text("")
     (package / "rounds.py").write_text(LOOPKIT)
     importable(tmp_path)
-    config_path = tmp_path / "loop.toml"
-    config_path.write_text(CONFIG)
+    toml_path = tmp_path / "loop.toml"
+    toml_path.write_text(CONFIG)
+    config = load_config(pathlib.PurePath(toml_path), fs)
+    config_path = tmp_path / "loop.json"
+    config_path.write_text(config.model_dump_json())
 
     rounds_class: type[pydantic.BaseModel] = importlib.import_module("loopkit.rounds").Rounds
     run_dir = prepared_run_dir(tmp_path / "ws" / "runs" / "loop")

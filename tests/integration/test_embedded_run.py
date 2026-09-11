@@ -5,10 +5,17 @@ import typing
 import pydantic
 
 from ancalagon.clock.system_clock import SystemClock
-from ancalagon.config.load import load_config
+from ancalagon.config.config import Config
+from ancalagon.contracts.budget import Budget
+from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
+from ancalagon.contracts.finite import Finite
+from ancalagon.contracts.function_ref import FunctionRef
+from ancalagon.contracts.role import Role
+from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.run import run
+from ancalagon.sandbox.strategy import Strategy
 from tests.integration.prepared_run import prepared_run_dir
 
 KIT = """
@@ -29,41 +36,6 @@ def speaks(given: FreeText, ctx: RunContext) -> Outcome[Said]:
     return Completed(value=Said(text=given.text), summary="spoke", spent=NOTHING)
 """
 
-CONFIG = """
-[workspace]
-write_root = "./ws"
-read_roots = ["./ws"]
-
-[model]
-name = "some-provider/no-model-is-called"
-num_retries = 1
-request_timeout_s = 60
-max_tokens = 1000
-allowed_domains = []
-
-[limits]
-max_concurrent_agents = 1
-agent_timeout_s = 120
-max_depth = 1
-compact_above_tokens = 60000
-keep_recent_messages = 8
-summary_chars = 1000
-
-[sandbox]
-strategy = "none"
-
-[roles.root]
-behaviour = "Say it."
-run = { module = "speechkit.speech", name = "speaks" }
-tools = []
-budget = { turns = 0, tool_calls = 0 }
-
-[run]
-goal_file = "./goal.md"
-input_file = ""
-role = "root"
-"""
-
 
 class Said(pydantic.BaseModel, frozen=True):
     text: str
@@ -80,13 +52,29 @@ def test_a_run_hands_back_the_root_outcome_as_a_typed_value(
     (package / "speech.py").write_text(KIT)
     importable(tmp_path)
     (tmp_path / "goal.md").write_text("Say hello.")
-    config_path = tmp_path / "anc.toml"
-    config_path.write_text(CONFIG)
-    config = load_config(pathlib.PurePath(config_path), fs)
+
+    config = Config(
+        write_root=pathlib.PurePath(tmp_path / "ws"),
+        read_roots=(pathlib.PurePath(tmp_path / "ws"),),
+        model="some-provider/no-model-is-called",
+        roles={
+            "root": Role(
+                behaviour="Say it.",
+                run=FunctionRef(module="speechkit.speech", name="speaks"),
+                answer=ClassRef(module="speechkit.speech", name="Said"),
+                tools=(),
+                budget=Budget(turns=Finite(value=0), tool_calls=Finite(value=0)),
+            )
+        },
+        run=RunSettings(goal_file=str(tmp_path / "goal.md"), role="root"),
+        sandbox=Strategy.NONE,
+        import_paths=(pathlib.PurePath(tmp_path),),
+    )
     run_dir = prepared_run_dir(tmp_path / "ws" / "runs" / "embedded")
 
-    produced = run(config, run_dir, pathlib.PurePath(config_path), SystemClock(), fs)
+    produced = run(config, run_dir, SystemClock(), fs)
 
     assert isinstance(produced, Completed)
     value = typing.cast(Said, produced.value)
     assert value.text == "Say hello."
+    assert list(pathlib.Path(run_dir).glob("*.toml")) == []

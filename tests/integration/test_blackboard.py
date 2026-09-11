@@ -6,6 +6,7 @@ import time
 from ancalagon.attempt.closed import Closed
 from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
 from ancalagon.clock.system_clock import SystemClock
+from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.budget import Budget
@@ -90,9 +91,12 @@ goal_file = ""
 input_file = ""
 role = "blackboard_watcher"
 """)
+    config = load_config(pathlib.PurePath(tmp_path / "watcher.toml"), fs)
+    config_path = tmp_path / "watcher.json"
+    config_path.write_text(config.model_dump_json())
     ordinary = SubprocessSpawner(
         run_dir=run_dir,
-        config_path=tmp_path / "watcher.toml",
+        config_path=config_path,
         environment=RealEnvironment(),
         fs=fs,
         module="ancalagon.worker",
@@ -100,7 +104,7 @@ role = "blackboard_watcher"
     )
     watching = SubprocessSpawner(
         run_dir=run_dir,
-        config_path=tmp_path / "watcher.toml",
+        config_path=config_path,
         environment=RealEnvironment(),
         fs=fs,
         module="ancalagon.deterministic.run",

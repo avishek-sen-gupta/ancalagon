@@ -10,7 +10,7 @@ import typing
 import pydantic
 
 from ancalagon.clock.system_clock import SystemClock
-from ancalagon.config.load import load_config
+from ancalagon.config.config import Config
 from ancalagon.config.on_path import on_path
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.failed import Failed
@@ -45,7 +45,7 @@ def _outcome(
     config_path: pathlib.PurePath,
     fs: FileSystem,
 ) -> Outcome[pydantic.BaseModel]:
-    config = load_config(config_path, fs)
+    config = Config.model_validate_json(fs.read_text(config_path))
     on_path(config.import_paths)
     spec_text = fs.read_text(task_dir / "spec.json")
     spec = TaskSpec.model_validate_json(spec_text)
