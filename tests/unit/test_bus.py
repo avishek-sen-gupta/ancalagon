@@ -9,6 +9,7 @@ from ancalagon.attempt.illegal_transition import IllegalTransition
 from ancalagon.attempt.queued import Queued
 from ancalagon.attempt.running import Running
 from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
+from ancalagon.bus.no_bus import NO_BUS
 from ancalagon.children.bus_children import BusChildren
 from ancalagon.children.no_children import NO_CHILDREN
 from ancalagon.clock.fake_clock import FakeClock
@@ -16,6 +17,7 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_ref import AgentRef
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
+from ancalagon.contracts.no_agent_ref import NoAgentRef
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.schedule.active_for import active_for
@@ -286,3 +288,18 @@ def test_a_snapshot_carries_every_task_agent_and_folded_attempt(tmp_path: pathli
         assert agent in snap.agents_by_task[task]
         assert agent in snap.events
         assert agent in snap.attempts
+
+
+def test_a_bus_that_queues_nothing_reports_an_empty_run_and_records_no_event():
+    bus = NO_BUS
+    snapshot = bus.snapshot()
+
+    assert snapshot.tasks == ()
+    assert dict(snapshot.agents_by_task) == {}
+    assert dict(snapshot.task_by_agent) == {}
+    assert dict(snapshot.events) == {}
+    assert dict(snapshot.attempts) == {}
+
+    assert bus.record(1, AgentStatus.QUEUED, EventSource.WORKER) is None
+    assert bus.enqueue(pathlib.PurePath("/tmp/nowhere"), parent_agent=0) == NoAgentRef()
+    assert bus.snapshot() == snapshot

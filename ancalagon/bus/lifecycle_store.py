@@ -11,6 +11,7 @@ from ancalagon.attempt.attempt_of import attempt_of
 from ancalagon.attempt.next_state import next_state
 from ancalagon.attempt.snapshot import Snapshot
 from ancalagon.bus.agent_state import AgentState
+from ancalagon.bus.bus import Bus
 from ancalagon.bus.connect import connect
 from ancalagon.bus.schema import agent_events, agents, tasks
 from ancalagon.clock.clock import Clock
@@ -94,7 +95,7 @@ HUMAN = 0
 SUMMARY_LIMIT = 1000
 
 
-class LifecycleStore:
+class LifecycleStore(Bus):
     def __init__(self, conn: sqlite3.Connection, clock: Clock):
         self.conn = conn
         self.clock = clock
