@@ -149,4 +149,6 @@ fileignoreconfig:
   checksum: 64b1db5b4add280e4a7d3d39bc581af7da2588093f0f1374374c648c10bd8288
 - filename: docs/superpowers/specs/2026-09-12-one-agent-in-your-process-design.md
   checksum: d1487b5ec6a19d6ad46a987c9c950a9b7f87e027144a7f8850b5a60e512e6190
+- filename: docs/superpowers/plans/2026-09-12-one-agent-in-your-process.md
+  checksum: 5cc95394b0e704b13000d05672a07a0dddb4a094789b394b5f212e894efae2b8
 version: "1.0"
