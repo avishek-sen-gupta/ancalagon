@@ -96,9 +96,14 @@ outcome = session.run()
 ```
 
 The caller owns the `ToolContext` and the `Transcript`, and closes the transcript when it is done.
+`tests/integration/test_one_agent.py` builds all four from a `Config` written in Python, and is
+the worked example this section describes.
+
 The remaining collaborators default to `NO_BUS`, `NO_CHILDREN`, `NO_LETTERBOX` and `UNMETERED`,
-which is what makes one agent run alone: a role naming `delegate_<role>`, `watch_file` or `idle`
-gets a tool of the same name and schema whose every call refuses.
+which is what makes one agent run alone: a role naming `delegate_<role>` or `idle` gets a tool of
+the same name and schema whose every call refuses. `watch_file` is not among them, because it is
+offered at all only when some role declares `watch_for` as its `run` function; a solo agent that
+names it fails at startup like any unknown tool, as described under [the tools](#the-tools).
 
 Three things fail later than you would like:
 
