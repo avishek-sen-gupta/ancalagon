@@ -2,6 +2,7 @@
 # supervisor is the worker's: read spec.json, write outcome-<agent>.json.
 import argparse
 import importlib
+import logging
 import pathlib
 import sys
 import traceback
@@ -29,6 +30,9 @@ class Run(typing.Protocol):
     def __call__(
         self, given: pydantic.BaseModel, ctx: RunContext
     ) -> Outcome[pydantic.BaseModel]: ...
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def resolve_run(ref: FunctionRef) -> Run:
@@ -67,6 +71,7 @@ def main(
     agent_id: int,
     config_path: pathlib.PurePath,
 ) -> int:
+    logging.basicConfig(level=logging.INFO)
     fs = RealFileSystem()
     outcome_path = task_dir / f"outcome-{agent_id}.json"
     try:
@@ -74,6 +79,7 @@ def main(
         fs.write_text(outcome_path, produced.model_dump_json())
         return 0
     except Exception as exc:
+        LOGGER.exception("the deterministic run failed")
         failure = Failed(
             error=traceback.format_exc(), summary=str(exc)[:SUMMARY_CHARS], spent=NOTHING
         )
