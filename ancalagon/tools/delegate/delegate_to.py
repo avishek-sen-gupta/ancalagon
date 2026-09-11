@@ -3,9 +3,10 @@ import pathlib
 
 import pydantic
 
-from ancalagon.bus.lifecycle_store import LifecycleStore
-from ancalagon.clock.clock import Clock
+from ancalagon.bus.bus import Bus
+from ancalagon.contracts.agent_ref import AgentRef
 from ancalagon.contracts.agent_spec import AgentSpec
+from ancalagon.contracts.no_agent_ref import NoAgentRef
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.tool_result import ToolResult
@@ -22,13 +23,14 @@ class DelegateTo(Tool[DelegateArgs]):
 
     def __init__(
         self,
+        bus: Bus,
         role_name: str,
         role: Role,
         run_dir: pathlib.PurePath,
         parent: int,
-        clock: Clock,
         fs: FileSystem,
     ):
+        self.bus = bus
         self.name = f"delegate_{role_name}"
         self.description = (
             f"Queue a {role_name} task. Returns its task id immediately without waiting. "
@@ -39,7 +41,6 @@ class DelegateTo(Tool[DelegateArgs]):
         self.role = role
         self.run_dir = run_dir
         self.parent = parent
-        self.clock = clock
         self.fs = fs
         self.args_model = pydantic.create_model(
             f"DelegateTo{role_name.title().replace('_', '')}Args",
@@ -49,8 +50,7 @@ class DelegateTo(Tool[DelegateArgs]):
 
     def run(self, args: DelegateArgs, ctx: ToolContext) -> ToolResult:
         task_dir = self.run_dir / "tasks" / args.task_id
-        bus = LifecycleStore.open(self.run_dir / "bus.db", self.clock, self.fs)
-        snapshot = bus.snapshot()
+        snapshot = self.bus.snapshot()
         active = active_for(snapshot, str(task_dir))
         if active:
             agent = active[0]
@@ -64,7 +64,20 @@ class DelegateTo(Tool[DelegateArgs]):
             task_id=args.task_id, role=self.role, goal=args.goal, input=args.input
         )
         self.fs.write_text(task_dir / "spec.json", spec.model_dump_json())
-        queued = bus.enqueue(task_dir, parent_agent=self.parent)
-        return ctx.result(
-            self.name, f"queued agent {queued.id} for task {args.task_id} at {task_dir}"
-        )
+        queued = self.bus.enqueue(task_dir, parent_agent=self.parent)
+        return self._queued_result(queued, args.task_id, task_dir, ctx)
+
+    def _queued_result(
+        self,
+        queued: AgentRef | NoAgentRef,
+        task_id: str,
+        task_dir: pathlib.PurePath,
+        ctx: ToolContext,
+    ) -> ToolResult:
+        match queued:
+            case AgentRef(id=agent_id):
+                return ctx.result(
+                    self.name, f"queued agent {agent_id} for task {task_id} at {task_dir}"
+                )
+            case NoAgentRef():
+                return ctx.failure(self.name, f"no bus to queue task {task_id} at {task_dir}")

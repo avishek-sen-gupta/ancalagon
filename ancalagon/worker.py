@@ -8,6 +8,7 @@ import traceback
 
 import pydantic
 
+from ancalagon.bus.bus import Bus
 from ancalagon.bus.bus_meter import BusMeter
 from ancalagon.bus.connect import connect
 from ancalagon.bus.lifecycle_store import LifecycleStore
@@ -87,6 +88,7 @@ def available_tools(
     clock: Clock,
     fs: FileSystem,
     web: WebClient,
+    bus: Bus,
 ) -> list[BoundTool]:
     return [
         bound_for(ReadFile(clock), role),
@@ -112,12 +114,12 @@ def available_tools(
         bound_for(Shell(), role),
         bound_for(WebSearch(web), role),
         bound_for(FetchUrl(web), role),
-        *delegate_tools(roles, role, run_dir=run_dir, parent=parent, clock=clock, fs=fs),
-        bound_for(CheckTask(run_dir=run_dir, clock=clock, fs=fs), role),
-        bound_for(CollectTask(run_dir=run_dir, clock=clock, fs=fs), role),
-        bound_for(AnswerTask(run_dir=run_dir, parent=parent, clock=clock, fs=fs), role),
+        *delegate_tools(roles, role, run_dir=run_dir, parent=parent, fs=fs, bus=bus),
+        bound_for(CheckTask(bus), role),
+        bound_for(CollectTask(bus, fs), role),
+        bound_for(AnswerTask(bus=bus, run_dir=run_dir, parent=parent, clock=clock, fs=fs), role),
         bound_for(NeedInput(), role),
-        bound_for(Idle(run_dir=run_dir, agent=parent, clock=clock, fs=fs), role),
+        bound_for(Idle(bus, agent=parent), role),
         bound_for(SubmitAnswer(output_class), role),
         bound_for(SubmitAnswerAsFile(), role),
     ]
@@ -139,14 +141,15 @@ def build_registry(
     clock: Clock,
     fs: FileSystem,
     web: WebClient,
+    bus: Bus,
 ) -> Registry:
     spawnable = {
         name: role for name, role in config.roles.items() if f"delegate_{name}" in spec.role.tools
     }
     available = available_tools(
-        spec.role, spawnable, run_dir, parent, output_class, clock, fs, web
+        spec.role, spawnable, run_dir, parent, output_class, clock, fs, web, bus
     ) + [
-        bound_for(WatchFile(watcher, run_dir, parent, clock, fs), spec.role)
+        bound_for(WatchFile(bus, watcher, run_dir, parent, fs), spec.role)
         for watcher in watcher_in(config.roles)[:1]
     ]
     wanted = set(spec.role.tools) | {Idle.name}
@@ -224,6 +227,7 @@ def main(
                 clock=clock,
                 fs=fs,
                 web=web,
+                bus=bus,
             ),
             ctx=ctx,
             output_class=output_class,

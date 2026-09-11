@@ -2,6 +2,7 @@
 import pathlib
 
 from ancalagon.answer import answer_task
+from ancalagon.bus.bus import Bus
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.fs.file_system import FileSystem
@@ -20,7 +21,10 @@ class AnswerTask(Tool[AnswerArgs]):
     cost = 1
     args_model = AnswerArgs
 
-    def __init__(self, run_dir: pathlib.PurePath, parent: int, clock: Clock, fs: FileSystem):
+    def __init__(
+        self, bus: Bus, run_dir: pathlib.PurePath, parent: int, clock: Clock, fs: FileSystem
+    ):
+        self.bus = bus
         self.run_dir = run_dir
         self.parent = parent
         self.clock = clock

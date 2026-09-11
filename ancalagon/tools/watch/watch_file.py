@@ -1,10 +1,11 @@
 # Queues a watcher for a file, measuring how large it is now so the caller need not.
 import pathlib
 
-from ancalagon.bus.lifecycle_store import LifecycleStore
-from ancalagon.clock.clock import Clock
+from ancalagon.bus.bus import Bus
 from ancalagon.contracts.access import Access
+from ancalagon.contracts.agent_ref import AgentRef
 from ancalagon.contracts.agent_spec import AgentSpec
+from ancalagon.contracts.no_agent_ref import NoAgentRef
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.contracts.watch_request import WatchRequest
@@ -36,12 +37,12 @@ class WatchFile(Tool[WatchArgs]):
     args_model = WatchArgs
 
     def __init__(
-        self, role: Role, run_dir: pathlib.PurePath, parent: int, clock: Clock, fs: FileSystem
+        self, bus: Bus, role: Role, run_dir: pathlib.PurePath, parent: int, fs: FileSystem
     ):
+        self.bus = bus
         self.role = role
         self.run_dir = run_dir
         self.parent = parent
-        self.clock = clock
         self.fs = fs
 
     def run(self, args: WatchArgs, ctx: ToolContext) -> ToolResult:
@@ -55,8 +56,7 @@ class WatchFile(Tool[WatchArgs]):
         self, args: WatchArgs, watched: pathlib.PurePath, seen: float, ctx: ToolContext
     ) -> ToolResult:
         task_dir = self.run_dir / "tasks" / f"{args.task_id}-{ctx.task_dir.name}"
-        bus = LifecycleStore.open(self.run_dir / "bus.db", self.clock, self.fs)
-        active = active_for(bus.snapshot(), str(task_dir))
+        active = active_for(self.bus.snapshot(), str(task_dir))
         if active:
             return ctx.failure(self.name, f"{task_dir.name} is already running as {active[0]}")
         self.fs.mkdir(task_dir, parents=True, exist_ok=True)
@@ -67,7 +67,21 @@ class WatchFile(Tool[WatchArgs]):
             input=WatchRequest(path=str(watched), since=seen),
         )
         self.fs.write_text(task_dir / "spec.json", spec.model_dump_json())
-        queued = bus.enqueue(task_dir, parent_agent=self.parent)
-        return ctx.result(
-            self.name, f"queued agent {queued.id} watching {watched} for changes after {seen}"
-        )
+        queued = self.bus.enqueue(task_dir, parent_agent=self.parent)
+        return self._queued_result(queued, watched, seen, ctx)
+
+    def _queued_result(
+        self,
+        queued: AgentRef | NoAgentRef,
+        watched: pathlib.PurePath,
+        seen: float,
+        ctx: ToolContext,
+    ) -> ToolResult:
+        match queued:
+            case AgentRef(id=agent_id):
+                return ctx.result(
+                    self.name,
+                    f"queued agent {agent_id} watching {watched} for changes after {seen}",
+                )
+            case NoAgentRef():
+                return ctx.failure(self.name, f"no bus to queue a watcher for {watched}")

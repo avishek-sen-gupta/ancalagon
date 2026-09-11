@@ -4,6 +4,7 @@ import pathlib
 import pydantic
 import pytest
 
+from ancalagon.bus.no_bus import NO_BUS
 from ancalagon.check_contracts import check_contracts
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
@@ -208,6 +209,7 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
         clock=SystemClock(),
         fs=fs,
         web=FakeWebClient({}),
+        bus=NO_BUS,
     )
     assert sorted(registry.names()) == ["idle", "ripgrep", "submit_answer"]
 

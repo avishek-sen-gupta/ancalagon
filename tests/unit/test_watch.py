@@ -139,6 +139,7 @@ def test_a_watch_resumes_from_the_read_the_agent_logged_not_from_the_file_now(
     run_dir = tmp_path / "ws" / "runs" / "r2"
     fs.mkdir(run_dir, parents=True, exist_ok=True)
     migrate_file(run_dir / "bus.db", latest_version(fs), fs)
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), fs)
     board = run_dir / "blackboard.md"
     fs.write_text(board, "a claim\n")
 
@@ -148,7 +149,7 @@ def test_a_watch_resumes_from_the_read_the_agent_logged_not_from_the_file_now(
         summary_chars=500,
         agent_id=1,
     )
-    tool = WatchFile(role=ROLE, run_dir=run_dir, parent=1, clock=SystemClock(), fs=fs)
+    tool = WatchFile(bus, role=ROLE, run_dir=run_dir, parent=1, fs=fs)
 
     # Never read, so nothing has been seen and the first watch returns everything.
     first = tool.run(WatchArgs(task_id="w0", path=board), ctx)
@@ -196,6 +197,7 @@ def test_watch_file_is_offered_only_where_a_role_declares_the_watch_contract(
 ):
     fs = RealFileSystem()
     migrate_file(tmp_path / "bus.db", latest_version(fs), fs)
+    bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), fs)
     watcher = Role(
         behaviour="Wait.",
         input=ClassRef(module=WatchRequest.__module__, name="WatchRequest"),
@@ -227,6 +229,7 @@ def test_watch_file_is_offered_only_where_a_role_declares_the_watch_contract(
                 clock=SystemClock(),
                 fs=fs,
                 web=FakeWebClient({}),
+                bus=bus,
             ).names()
         )
 
@@ -249,6 +252,7 @@ def test_two_agents_watching_the_same_file_get_a_watcher_each(tmp_path: pathlib.
     run_dir = tmp_path / "ws" / "runs" / "r3"
     fs.mkdir(run_dir, parents=True, exist_ok=True)
     migrate_file(run_dir / "bus.db", latest_version(fs), fs)
+    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), fs)
     board = run_dir / "blackboard.md"
     fs.write_text(board, "shared\n")
     workspace = Workspace(fs, write_root=run_dir, read_roots=(run_dir,))
@@ -263,10 +267,9 @@ def test_two_agents_watching_the_same_file_get_a_watcher_each(tmp_path: pathlib.
 
     # Both analysts pick the same name for their waiting task, as three of them did.
     for task, agent in (("registry_analyst", 2), ("session_analyst", 3)):
-        tool = WatchFile(role=ROLE, run_dir=run_dir, parent=agent, clock=SystemClock(), fs=fs)
+        tool = WatchFile(bus, role=ROLE, run_dir=run_dir, parent=agent, fs=fs)
         assert tool.run(WatchArgs(task_id="wait", path=board), watching(task, agent)).ok is True
 
-    bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), fs)
     watchers = {
         pathlib.PurePath(t.dir).name: t.parent_agent
         for t in bus.snapshot().tasks

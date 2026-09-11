@@ -1,6 +1,7 @@
 import json
 import pathlib
 
+from ancalagon.bus.no_bus import NO_BUS
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.contracts.accepted import Accepted
@@ -62,6 +63,7 @@ def test_the_role_chooses_which_terminal_tool_it_submits_with(tmp_path: pathlib.
         clock=SystemClock(),
         fs=RealFileSystem(),
         web=FakeWebClient({}),
+        bus=NO_BUS,
     )
     assert sorted(registry.names()) == ["idle", "read_file", "submit_answer_as_file"]
 

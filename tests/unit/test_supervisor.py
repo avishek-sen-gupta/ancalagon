@@ -383,7 +383,7 @@ def test_a_startup_kill_leaves_a_close_that_collect_task_can_report(tmp_path: pa
     bus = LifecycleStore.open(run_dir / "bus.db", clock, RealFileSystem())
     ctx = _ctx(tmp_path)
     role = Role(behaviour="b", tools=(), budget=finite_budget(20, 60))
-    delegate = DelegateTo("worker", role, run_dir, parent=HUMAN, clock=clock, fs=RealFileSystem())
+    delegate = DelegateTo(bus, "worker", role, run_dir, parent=HUMAN, fs=RealFileSystem())
     args = delegate.args_model(task_id="wedged", goal="g", input=FreeText(text="go"))
     assert delegate.run(args, ctx).ok is True
     child = active_for(bus.snapshot(), str(run_dir / "tasks" / "wedged"))[0]
@@ -406,9 +406,7 @@ def test_a_startup_kill_leaves_a_close_that_collect_task_can_report(tmp_path: pa
     assert bus.attempt(child) == Lost(close=AgentStatus.TIMED_OUT)
     assert (run_dir / "tasks" / "wedged" / f"outcome-{child}.json").exists() is False
 
-    collected = CollectTask(run_dir=run_dir, clock=clock, fs=RealFileSystem()).run(
-        TaskArgs(task=child), ctx
-    )
+    collected = CollectTask(bus, RealFileSystem()).run(TaskArgs(task=child), ctx)
 
     assert collected.ok is False
     assert collected.error == f"agent {child} ended as timed_out: killed after 5s at startup"
@@ -585,7 +583,7 @@ def test_an_idle_records_how_much_of_the_log_the_parent_had_seen(tmp_path: pathl
     bus.record(child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=2)
 
     highest = max(e.id for events in bus.snapshot().events.values() for e in events)
-    tool = Idle(run_dir=tmp_path, agent=parent, clock=SystemClock(), fs=RealFileSystem())
+    tool = Idle(bus, agent=parent)
     result = tool.run(IdleArgs(), _ctx(tmp_path))
 
     assert result.ok is True

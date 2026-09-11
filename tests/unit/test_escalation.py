@@ -81,14 +81,18 @@ def _run(
                     INVESTIGATE,
                     run_dir=run_dir,
                     parent=agent,
-                    clock=SystemClock(),
                     fs=RealFileSystem(),
+                    bus=bus,
                 ),
-                bind_tool(CheckTask(run_dir=run_dir, clock=SystemClock(), fs=RealFileSystem())),
-                bind_tool(CollectTask(run_dir=run_dir, clock=SystemClock(), fs=RealFileSystem())),
+                bind_tool(CheckTask(bus)),
+                bind_tool(CollectTask(bus, RealFileSystem())),
                 bind_tool(
                     AnswerTask(
-                        run_dir=run_dir, parent=agent, clock=SystemClock(), fs=RealFileSystem()
+                        bus=bus,
+                        run_dir=run_dir,
+                        parent=agent,
+                        clock=SystemClock(),
+                        fs=RealFileSystem(),
                     )
                 ),
                 bind_tool(NeedInput()),

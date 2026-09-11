@@ -99,7 +99,7 @@ def test_the_tool_and_the_command_both_answer_and_report_what_they_queued(
     bus.record(agent, AgentStatus.NEEDS_INPUT, EventSource.SUPERVISOR, summary="which one?")
     ctx = _ctx(tmp_path)
 
-    tool = AnswerTask(run_dir=run_dir, parent=7, clock=SystemClock(), fs=RealFileSystem())
+    tool = AnswerTask(bus=bus, run_dir=run_dir, parent=7, clock=SystemClock(), fs=RealFileSystem())
     answered = tool.run(AnswerArgs(task=agent, answer="by tool"), ctx)
     assert answered.ok is True
     (queued,) = active_for(bus.snapshot(), str(task_dir))
