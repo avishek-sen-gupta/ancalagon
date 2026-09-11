@@ -45,8 +45,6 @@ from ancalagon.tools.artifacts.strings_args import StringsArgs
 from ancalagon.tools.compare.diff_args import DiffArgs
 from ancalagon.tools.compare.diff_regions import DiffRegions
 from ancalagon.tools.compare.region import Region
-from ancalagon.tools.delegate.answer_args import AnswerArgs
-from ancalagon.tools.delegate.answer_task import AnswerTask
 from ancalagon.tools.delegate.check_task import CheckTask
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.delegate.delegate_to import DelegateTo
@@ -1185,7 +1183,7 @@ def test_appending_keeps_what_arrived_after_the_caller_last_read(tmp_path: pathl
     assert "outside write_root" in denied.error
 
 
-def test_the_four_bus_reading_tools_refuse_cleanly_when_there_is_no_bus(tmp_path: pathlib.Path):
+def test_check_task_and_collect_task_refuse_cleanly_when_there_is_no_bus(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
 
     checked = CheckTask(NO_BUS).run(TaskArgs(task=7), ctx)
@@ -1195,16 +1193,6 @@ def test_the_four_bus_reading_tools_refuse_cleanly_when_there_is_no_bus(tmp_path
     assert checked.error == "no agent 7"
     assert collected.ok is False
     assert collected.error == "no agent 7"
-
-    run_dir = tmp_path / "run"
-    run_dir.mkdir()
-    migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
-    answered = AnswerTask(
-        bus=NO_BUS, run_dir=run_dir, parent=1, clock=SystemClock(), fs=RealFileSystem()
-    ).run(AnswerArgs(task=7, answer="hi"), ctx)
-
-    assert answered.ok is False
-    assert answered.error == "'no agent 7'"
 
     with pytest.raises(KeyError):
         Idle(NO_BUS, agent=1).run(IdleArgs(), ctx)
