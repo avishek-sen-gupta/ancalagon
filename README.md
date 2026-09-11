@@ -59,12 +59,18 @@ the same way, in place of `ancalagon.toml`:
 
 ## Starting a run from Python
 
-`ancalagon run` is one caller of a seam any program can use:
+`ancalagon run` is one caller of a seam any program can use. Before calling `run`, the run
+directory must exist and its `bus.db` must be migrated to the latest schema — `ancalagon init`
+and `ancalagon migrate` do this for the CLI; a Python caller does it directly:
 
 ```python
+from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.run import run
 
-produced = run(config, run_dir, SystemClock(), RealFileSystem())
+fs = RealFileSystem()
+run_dir.mkdir(parents=True, exist_ok=True)
+migrate_file(run_dir / "bus.db", latest_version(fs), fs)
+produced = run(config, run_dir, SystemClock(), fs)
 ```
 
 `run` takes a `Config` and returns the root's `Outcome`, parsed against the answer class its role
@@ -73,7 +79,9 @@ for a JSON one, or from Python directly — the conversion layer sits above the 
 below it knows a format exists.
 
 A `Config` built in Python must set `import_paths` to the directories its contract classes and
-hook functions live under. `load_config` sets it to the config file's own directory.
+hook functions live under. `load_config` sets it to the config file's own directory. If a worker
+fails with a module error naming a module the host can import itself, `import_paths` is unset —
+validation runs in the host process, where that import succeeds.
 
 ## How it works
 
@@ -83,7 +91,7 @@ row or a file.
 ```mermaid
 flowchart TB
     subgraph proc1["process 1 - ancalagon run"]
-        cli["cli.py<br/>writes the root spec.json"]
+        cli["run.py<br/>writes the root spec.json"]
         sup["supervisor.py<br/>claim, spawn, reap, wake"]
     end
     subgraph proc2["process 2..N - one worker per attempt"]

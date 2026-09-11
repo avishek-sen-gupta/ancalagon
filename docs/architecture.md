@@ -21,7 +21,7 @@ the work cannot tell which produced its answer either. Which one a task gets is 
 whether its role names a run function.
 
 ```
-cli.py ──writes spec.json──▶ tasks/root/
+run.py ──writes spec.json──▶ tasks/root/
    │                              ▲
    │ enqueue                      │ outcome-<agent>.json
    ▼                              │             ┌──▶ worker ──▶ Session ──▶ llm ──▶ provider

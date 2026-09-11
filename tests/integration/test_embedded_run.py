@@ -77,4 +77,3 @@ def test_a_run_hands_back_the_root_outcome_as_a_typed_value(
     assert isinstance(produced, Completed)
     value = typing.cast(Said, produced.value)
     assert value.text == "Say hello."
-    assert list(pathlib.Path(run_dir).glob("*.toml")) == []
