@@ -79,6 +79,8 @@ def test_a_host_runs_one_agent_with_no_bus_and_no_subprocess(tmp_path: pathlib.P
     finally:
         transcript.close()
 
+    assert list(tmp_path.rglob("bus.db")) == []
+
     refusals = [b for m in llm.seen[1] for b in m.blocks if isinstance(b, ToolResultBlock)]
     assert len(refusals) == 1
     assert refusals[0].is_error is True
@@ -86,4 +88,3 @@ def test_a_host_runs_one_agent_with_no_bus_and_no_subprocess(tmp_path: pathlib.P
 
     assert isinstance(produced, Completed)
     assert produced.value.model_dump() == {"text": "Paris"}
-    assert list(tmp_path.rglob("bus.db")) == []
