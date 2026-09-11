@@ -39,6 +39,7 @@ from ancalagon.letterbox.no_letterbox import NO_LETTERBOX
 from ancalagon.llm.fake_llm import FakeLLM
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.session import NOTE_PREFIX, Session
+from ancalagon.session_for import build_registry
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.idle.idle import Idle
@@ -50,7 +51,6 @@ from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.web.fake_web_client import FakeWebClient
-from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
 from tests.unit.conftest import finite_budget
 

@@ -14,13 +14,13 @@ from ancalagon.contracts.schema_guided import SchemaGuided
 from ancalagon.contracts.submitted import Submitted
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.real_file_system import RealFileSystem
+from ancalagon.session_for import build_registry
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.adheres_to_schema import adheres_to_schema
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.tools.submit.submitting import submitting
 from ancalagon.web.fake_web_client import FakeWebClient
-from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
 from tests.unit.conftest import finite_budget
 

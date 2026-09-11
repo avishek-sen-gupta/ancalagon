@@ -33,6 +33,7 @@ from ancalagon.schedule.active_for import active_for
 from ancalagon.schedule.newest_agent import newest_agent
 from ancalagon.schedule.task_of import task_of
 from ancalagon.schedule.uncollected import uncollected
+from ancalagon.session_for import build_registry
 from ancalagon.tools.artifacts.convert_args import ConvertArgs
 from ancalagon.tools.artifacts.convert_document import ConvertDocument
 from ancalagon.tools.artifacts.document_format import DocumentFormat
@@ -87,7 +88,6 @@ from ancalagon.tools.shell.shell_args import ShellArgs
 from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.tools.survey.stats_args import StatsArgs
 from ancalagon.web.fake_web_client import FakeWebClient
-from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
 from tests.unit.conftest import finite_budget, settle
 
