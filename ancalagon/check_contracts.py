@@ -11,12 +11,12 @@ from ancalagon.contracts.run_contracts import run_contracts
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
+from ancalagon.session_for import build_registry
 from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.tools.submit.submitting import TERMINAL_TOOLS, submitting
 from ancalagon.web.real_web_client import RealWebClient
 from ancalagon.web.web_client import WebClient
-from ancalagon.worker import build_registry
 
 
 def _contract_fault(name: str, field: str, ref: ClassRef) -> str:

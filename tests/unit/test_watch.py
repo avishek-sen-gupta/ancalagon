@@ -22,6 +22,7 @@ from ancalagon.contracts.watch_request import WatchRequest
 from ancalagon.deterministic.run_context import RunContext
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrations import latest_version, migrate_file
+from ancalagon.session_for import build_registry
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawn_by_run import SpawnByRun
 from ancalagon.supervisor.spawner import Spawner
@@ -33,7 +34,6 @@ from ancalagon.tools.watch.watch_args import WatchArgs
 from ancalagon.tools.watch.watch_file import WatchFile
 from ancalagon.watch.watch_for import WATCH_FOR, watch_for
 from ancalagon.web.fake_web_client import FakeWebClient
-from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
 from tests.unit.conftest import finite_budget
 

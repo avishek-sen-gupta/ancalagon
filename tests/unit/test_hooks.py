@@ -18,6 +18,7 @@ from ancalagon.contracts.reviewed import Reviewed
 from ancalagon.contracts.role import FREE_TEXT, Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.real_file_system import RealFileSystem
+from ancalagon.session_for import build_registry
 from ancalagon.tools.registry.accepts import accepts
 from ancalagon.tools.registry.bind_tool import bind_tool
 from ancalagon.tools.registry.resolve_after import resolve_after
@@ -27,7 +28,6 @@ from ancalagon.tools.search.grep_args import GrepArgs
 from ancalagon.tools.search.transform_args import TransformArgs
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.web.fake_web_client import FakeWebClient
-from ancalagon.worker import build_registry
 from ancalagon.workspace.workspace import Workspace
 from tests.unit.conftest import finite_budget
 
