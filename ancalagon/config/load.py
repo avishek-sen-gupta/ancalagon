@@ -6,6 +6,7 @@ import tomllib
 import typing
 
 from ancalagon.config.config import Config
+from ancalagon.config.on_path import on_path
 from ancalagon.config.raw_role import RawClassRef, RawRole
 from ancalagon.contracts.allowance import Allowance
 from ancalagon.contracts.budget import Budget
@@ -105,6 +106,7 @@ def _role(name: str, raw: RawRole) -> Role:
 
 def load_config(path: pathlib.PurePath, fs: FileSystem) -> Config:
     base = fs.resolve(path).parent
+    on_path((base,))
     raw = tomllib.loads(fs.read_text(path))
     workspace = raw["workspace"]
     model = raw["model"]
