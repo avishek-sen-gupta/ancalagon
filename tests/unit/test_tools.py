@@ -459,7 +459,13 @@ def test_idle_refuses_once_its_children_have_settled(tmp_path: pathlib.Path):
 
 
 def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathlib.Path):
-    ctx = _ctx(tmp_path)
+    base = _ctx(tmp_path)
+    ctx = ToolContext(
+        workspace=base.workspace,
+        task_dir=base.task_dir,
+        summary_chars=500,
+        agent_id=base.agent_id,
+    )
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     role = Role(behaviour="b", tools=(), budget=finite_budget(3, 5))
@@ -470,7 +476,11 @@ def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pa
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
 
-    assert delegate.run(args, ctx).ok is True
+    task_dir = run_dir / "tasks" / "analyse"
+
+    first = delegate.run(args, ctx)
+    assert first.ok is True
+    assert first.summary.text_for_model() == f"queued agent 1 for task analyse at {task_dir}"
     queued = delegate.run(args, ctx)
     assert queued.ok is False
     assert "already queued" in queued.error
@@ -488,8 +498,7 @@ def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pa
     bus.record(1, AgentStatus.CRASHED, EventSource.SUPERVISOR, summary="died")
     retried = delegate.run(args, ctx)
     assert retried.ok is True
-
-    task_dir = run_dir / "tasks" / "analyse"
+    assert retried.summary.text_for_model() == f"queued agent 2 for task analyse at {task_dir}"
     assert active_for(bus.snapshot(), str(task_dir)) == (2,)
     assert bus.attempt(1) == Lost(close=AgentStatus.CRASHED)
     assert bus.dir_of(2) == str(task_dir)

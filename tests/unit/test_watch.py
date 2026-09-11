@@ -145,13 +145,17 @@ def test_a_watch_resumes_from_the_read_the_agent_logged_not_from_the_file_now(
     ctx = ToolContext(
         workspace=Workspace(fs, write_root=run_dir, read_roots=(run_dir,)),
         task_dir=run_dir,
-        summary_chars=200,
+        summary_chars=500,
         agent_id=1,
     )
     tool = WatchFile(role=ROLE, run_dir=run_dir, parent=1, clock=SystemClock(), fs=fs)
 
     # Never read, so nothing has been seen and the first watch returns everything.
-    assert tool.run(WatchArgs(task_id="w0", path=board), ctx).ok is True
+    first = tool.run(WatchArgs(task_id="w0", path=board), ctx)
+    assert first.ok is True
+    assert (
+        first.summary.text_for_model() == f"queued agent 1 watching {board} for changes after 0.0"
+    )
     assert (
         json.loads((run_dir / "tasks" / "w0-r2" / "spec.json").read_text())["input"]["since"] == 0.0
     )
@@ -172,7 +176,12 @@ def test_a_watch_resumes_from_the_read_the_agent_logged_not_from_the_file_now(
     assert fs.changed_at(board) > read_at
 
     # The baseline is the read, not the file as it is now, or those writes are never woken on.
-    assert tool.run(WatchArgs(task_id="w1", path=board), ctx).ok is True
+    second = tool.run(WatchArgs(task_id="w1", path=board), ctx)
+    assert second.ok is True
+    assert (
+        second.summary.text_for_model()
+        == f"queued agent 2 watching {board} for changes after {read_at}"
+    )
     assert json.loads((run_dir / "tasks" / "w1-r2" / "spec.json").read_text())["input"][
         "since"
     ] == (read_at)
