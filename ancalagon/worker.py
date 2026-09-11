@@ -13,6 +13,7 @@ from ancalagon.bus.bus_meter import BusMeter
 from ancalagon.bus.connect import connect
 from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.bus.meter_store import MeterStore
+from ancalagon.bus.no_bus import NO_BUS
 from ancalagon.children.bus_children import BusChildren
 from ancalagon.clock.clock import Clock
 from ancalagon.clock.system_clock import SystemClock
@@ -50,12 +51,15 @@ from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.files.write_file import WriteFile
 from ancalagon.tools.history.git_history import GitHistory
 from ancalagon.tools.idle.idle import Idle
+from ancalagon.tools.idle.idle_args import IdleArgs
+from ancalagon.tools.idle.no_idle import NoIdle
 from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.parse.ast_query import AstQuery
 from ancalagon.tools.parse.tree_sitter_tool import TreeSitter
 from ancalagon.tools.registry.bound_for import bound_for
 from ancalagon.tools.registry.bound_tool import BoundTool
 from ancalagon.tools.registry.registry import Registry
+from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.ast_grep import AstGrep
 from ancalagon.tools.search.find_symbol import FindSymbol
@@ -66,6 +70,8 @@ from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.tools.submit.submitting import TERMINAL_TOOLS, submitting
 from ancalagon.tools.survey.code_stats import CodeStats
+from ancalagon.tools.watch.no_watch_file import NoWatchFile
+from ancalagon.tools.watch.watch_args import WatchArgs
 from ancalagon.tools.watch.watch_file import WatchFile
 from ancalagon.tools.web.fetch_url import FetchUrl
 from ancalagon.tools.web.web_search import WebSearch
@@ -77,6 +83,20 @@ from ancalagon.web.web_client import WebClient
 from ancalagon.workspace.workspace import Workspace
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _idle(bus: Bus, agent: int) -> Tool[IdleArgs]:
+    if bus is NO_BUS:
+        return NoIdle()
+    return Idle(bus, agent=agent)
+
+
+def _watch(
+    bus: Bus, watcher: Role, run_dir: pathlib.PurePath, parent: int, fs: FileSystem
+) -> Tool[WatchArgs]:
+    if bus is NO_BUS:
+        return NoWatchFile()
+    return WatchFile(bus, watcher, run_dir, parent, fs)
 
 
 def available_tools(
@@ -119,7 +139,7 @@ def available_tools(
         bound_for(CollectTask(bus, fs), role),
         bound_for(AnswerTask(bus=bus, run_dir=run_dir, parent=parent, clock=clock, fs=fs), role),
         bound_for(NeedInput(), role),
-        bound_for(Idle(bus, agent=parent), role),
+        bound_for(_idle(bus, parent), role),
         bound_for(SubmitAnswer(output_class), role),
         bound_for(SubmitAnswerAsFile(), role),
     ]
@@ -149,7 +169,7 @@ def build_registry(
     available = available_tools(
         spec.role, spawnable, run_dir, parent, output_class, clock, fs, web, bus
     ) + [
-        bound_for(WatchFile(bus, watcher, run_dir, parent, fs), spec.role)
+        bound_for(_watch(bus, watcher, run_dir, parent, fs), spec.role)
         for watcher in watcher_in(config.roles)[:1]
     ]
     wanted = set(spec.role.tools) | {Idle.name}

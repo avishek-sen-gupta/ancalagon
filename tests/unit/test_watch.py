@@ -28,6 +28,7 @@ from ancalagon.supervisor.spawner import Spawner
 from ancalagon.tools.files.read_args import ReadArgs
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.registry.tool_context import ToolContext
+from ancalagon.tools.watch.no_watch_file import NoWatchFile
 from ancalagon.tools.watch.watch_args import WatchArgs
 from ancalagon.tools.watch.watch_file import WatchFile
 from ancalagon.watch.watch_for import WATCH_FOR, watch_for
@@ -276,3 +277,27 @@ def test_two_agents_watching_the_same_file_get_a_watcher_each(tmp_path: pathlib.
         if "wait" in pathlib.PurePath(t.dir).name
     }
     assert watchers == {"wait-registry_analyst": 2, "wait-session_analyst": 3}
+
+
+def test_a_watch_tool_without_a_bus_keeps_its_schema_and_writes_nothing(tmp_path: pathlib.Path):
+    fs = RealFileSystem()
+    board = tmp_path / "blackboard.md"
+    fs.write_text(board, "claim\n")
+    ctx = ToolContext(
+        workspace=Workspace(fs, write_root=tmp_path, read_roots=(tmp_path,)),
+        task_dir=tmp_path,
+        summary_chars=200,
+        agent_id=1,
+    )
+    absent = NoWatchFile()
+
+    assert absent.name == WatchFile.name
+    assert absent.description == WatchFile.description
+    assert absent.cost == WatchFile.cost
+    assert absent.args_model is WatchFile.args_model
+
+    refused = absent.run(WatchArgs(task_id="w0", path=board), ctx)
+
+    assert refused.ok is False
+    assert refused.error == f"cannot watch {board}: this session has no bus"
+    assert list(tmp_path.glob("**/spec.json")) == []
