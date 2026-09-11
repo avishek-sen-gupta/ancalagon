@@ -83,6 +83,34 @@ hook functions live under. `load_config` sets it to the config file's own direct
 fails with a module error naming a module the host can import itself, `import_paths` is unset —
 validation runs in the host process, where that import succeeds.
 
+## Running one agent in your process
+
+`run` starts a whole tree. To run a single agent in your own process, with no subprocess and no
+database, assemble its session directly:
+
+```python
+from ancalagon.session_for import session_for
+
+session = session_for(config, spec, ctx, transcript, run_dir, llm, clock, fs, web)
+outcome = session.run()
+```
+
+The caller owns the `ToolContext` and the `Transcript`, and closes the transcript when it is done.
+The remaining collaborators default to `NO_BUS`, `NO_CHILDREN`, `NO_LETTERBOX` and `UNMETERED`,
+which is what makes one agent run alone: a role naming `delegate_<role>`, `watch_file` or `idle`
+gets a tool of the same name and schema whose every call refuses.
+
+Three things fail later than you would like:
+
+- The task directory must sit under `config.write_root`. Tool output goes through the workspace,
+  so a directory outside it raises `ScopeError` at the first tool that writes, naming the tool
+  rather than the wiring.
+- `on_path(config.import_paths)` must run before `session_for`. Building a `delegate_<role>` tool
+  imports that role's input contract, so a config built in Python whose `import_paths` are unset
+  fails with a module error naming a module the host can import itself.
+- `depth` defaults to `0`, which is a decision rather than a placeholder: `build_registry`
+  withholds `delegate_<role>` once `depth` reaches `config.max_depth`.
+
 ## How it works
 
 Three kinds of process. They share no memory and there is no IPC — every hand-off is a SQLite
