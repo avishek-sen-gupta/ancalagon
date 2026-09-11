@@ -105,6 +105,11 @@ the same name and schema whose every call refuses. `watch_file` is not among the
 offered at all only when some role declares `watch_for` as its `run` function; a solo agent that
 names it fails at startup like any unknown tool, as described under [the tools](#the-tools).
 
+`session.run()` does not raise. A provider that dies, a tool that throws, anything else the loop
+does not expect: each comes back as a `Failed` outcome carrying the traceback in `error` and the
+turns and tool calls actually spent. A host switches on the outcome rather than wrapping the call.
+`KeyboardInterrupt` and `SystemExit` still propagate.
+
 Three things fail later than you would like:
 
 - The task directory must sit under `config.write_root`. Tool output goes through the workspace,
