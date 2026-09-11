@@ -902,3 +902,18 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
     assert offered_names == [["submit_answer_as_file"]]
     assert "submit_answer" not in offered_names[0]
     assert isinstance(outcome_both, Completed)
+
+
+def test_a_session_whose_provider_dies_returns_a_failure_carrying_what_it_spent(
+    tmp_path: pathlib.Path,
+):
+    session = _session(tmp_path, [], finite_budget(5, 5))
+
+    outcome = session.run()
+
+    assert isinstance(outcome, Failed)
+    assert "RuntimeError" in outcome.error
+    assert "FakeLLM exhausted" in outcome.error
+    assert "Traceback (most recent call last)" in outcome.error
+    assert outcome.summary == "FakeLLM exhausted"
+    assert outcome.spent == Spend(turns=1, tool_calls=0)

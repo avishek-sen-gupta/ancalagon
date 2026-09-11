@@ -1,6 +1,7 @@
 # The agent loop: one turn per model call, until an answer, a question, or no turns left.
 import collections.abc
 import logging
+import traceback
 
 import pydantic
 
@@ -182,6 +183,7 @@ class Session:
             try:
                 tool = self.registry.get(use.name)
             except KeyError as exc:
+                LOGGER.exception("the model called a tool that is not in the registry")
                 blocks.append(ToolResultBlock(tool_use_id=use.id, content=str(exc), is_error=True))
                 continue
             if not self.remaining.tool_calls.permits(tool.cost):
@@ -199,7 +201,7 @@ class Session:
             try:
                 result = tool.invoke(use.arguments, self.ctx)
             except pydantic.ValidationError as exc:
-                LOGGER.info("tool %s was called with bad arguments: %s", use.name, exc)
+                LOGGER.exception("tool %s was called with bad arguments", use.name)
                 result = self.ctx.failure(use.name, _faults(use.name, exc))
             results.append((use, result))
             blocks.append(
@@ -347,6 +349,17 @@ class Session:
         return Delivery.NOTE if notes else Delivery.NOTHING
 
     def run(self) -> Outcome[pydantic.BaseModel]:
+        try:
+            return self._loop()
+        except Exception as exc:
+            LOGGER.exception("the session failed")
+            return Failed(
+                error=traceback.format_exc(),
+                summary=str(exc)[: self.ctx.summary_chars],
+                spent=self._spent(),
+            )
+
+    def _loop(self) -> Outcome[pydantic.BaseModel]:
         while True:
             delivered = self._deliver()
             final = self.remaining.turns_exhausted
