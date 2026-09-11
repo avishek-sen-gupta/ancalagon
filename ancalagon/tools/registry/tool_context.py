@@ -1,6 +1,7 @@
 # What a tool is given to do its work, and the writer that puts every output on disk.
 import collections.abc
 import itertools
+import logging
 import pathlib
 
 import pydantic
@@ -14,6 +15,9 @@ from ancalagon.workspace.workspace import Workspace
 
 # A role whose input contract is FreeText and whose run named no input file still has one.
 NO_INPUT = FreeText(text="")
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class ToolContext:
@@ -101,6 +105,7 @@ class ToolContext:
         )
 
     def failure(self, tool_name: str, error: str) -> ToolResult:
+        LOGGER.error("%s failed: %s", tool_name, error, exc_info=True)
         path = self.write_output(tool_name, error, ".err.txt")
         return ToolResult(
             ok=False,

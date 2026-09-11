@@ -1,5 +1,6 @@
 import collections.abc
 import json
+import logging
 import pathlib
 
 import pydantic
@@ -88,6 +89,7 @@ from ancalagon.tools.shell.shell_args import ShellArgs
 from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.tools.survey.stats_args import StatsArgs
 from ancalagon.web.fake_web_client import FakeWebClient
+from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.workspace.workspace import Workspace
 from tests.unit.conftest import finite_budget, settle
 
@@ -1225,3 +1227,21 @@ def test_a_delegate_tool_without_a_bus_keeps_its_schema_and_writes_nothing(
     assert refused.ok is False
     assert refused.error == "cannot queue task analyse: this session has no bus"
     assert list(pathlib.Path(ctx.workspace.write_root / "tasks").glob("**/spec.json")) == []
+
+
+def test_a_tool_failure_is_logged_with_its_stack(
+    tmp_path: pathlib.Path, caplog: pytest.LogCaptureFixture
+):
+    ctx = _ctx(tmp_path)
+
+    with caplog.at_level(logging.ERROR):
+        try:
+            raise ScopeError("outside the read roots")
+        except ScopeError as exc:
+            result = ctx.failure("read_file", str(exc))
+
+    assert result.ok is False
+    assert len(caplog.records) == 1
+    assert caplog.records[0].exc_info is not None
+    assert "ScopeError" in caplog.text
+    assert "outside the read roots" in caplog.text
