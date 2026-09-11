@@ -17,6 +17,7 @@ from ancalagon.clock.clock import Clock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
+from ancalagon.config.on_path import on_path
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.message import Message
@@ -177,6 +178,7 @@ def main(
     fs = RealFileSystem()
     web = RealWebClient()
     config = load_config(config_path, fs)
+    on_path(config.import_paths)
     outcome_path = task_dir / f"outcome-{agent_id}.json"
     transcript_path = task_dir / "transcript.jsonl"
     log = Transcript(fs, path=transcript_path, agent_id=agent_id)

@@ -12,6 +12,7 @@ from ancalagon.clock.clock import Clock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
+from ancalagon.config.on_path import on_path
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.answer_file import AnswerFile
 from ancalagon.contracts.class_ref import ClassRef
@@ -271,6 +272,7 @@ def main(config_path: pathlib.PurePath, run_dir: pathlib.PurePath) -> int:
     logging.basicConfig(level=logging.INFO)
     fs = RealFileSystem()
     config = load_config(config_path, fs)
+    on_path(config.import_paths)
     check_contracts(config)
 
     clock = SystemClock()

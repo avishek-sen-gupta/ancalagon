@@ -11,6 +11,7 @@ import pydantic
 
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.load import load_config
+from ancalagon.config.on_path import on_path
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.function_ref import FunctionRef
@@ -44,7 +45,8 @@ def _outcome(
     config_path: pathlib.PurePath,
     fs: FileSystem,
 ) -> Outcome[pydantic.BaseModel]:
-    load_config(config_path, fs)
+    config = load_config(config_path, fs)
+    on_path(config.import_paths)
     spec_text = fs.read_text(task_dir / "spec.json")
     spec = TaskSpec.model_validate_json(spec_text)
     input_class = resolve_class(spec.role.input)

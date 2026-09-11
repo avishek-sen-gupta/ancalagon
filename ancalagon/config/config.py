@@ -28,4 +28,5 @@ class Config(pydantic.BaseModel, frozen=True):
     run: RunSettings = RunSettings()
     allowed_domains: tuple[str, ...] = ()
     web_domains: tuple[str, ...] = ()
+    import_paths: tuple[pathlib.PurePath, ...] = ()
     sandbox: Strategy = Strategy.FENCE

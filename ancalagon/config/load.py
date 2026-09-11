@@ -6,7 +6,6 @@ import tomllib
 import typing
 
 from ancalagon.config.config import Config
-from ancalagon.config.importable import importable
 from ancalagon.config.raw_role import RawClassRef, RawRole
 from ancalagon.contracts.allowance import Allowance
 from ancalagon.contracts.budget import Budget
@@ -106,7 +105,6 @@ def _role(name: str, raw: RawRole) -> Role:
 
 def load_config(path: pathlib.PurePath, fs: FileSystem) -> Config:
     base = fs.resolve(path).parent
-    importable(base)
     raw = tomllib.loads(fs.read_text(path))
     workspace = raw["workspace"]
     model = raw["model"]
@@ -133,4 +131,5 @@ def load_config(path: pathlib.PurePath, fs: FileSystem) -> Config:
         allowed_domains=tuple(model["allowed_domains"]),
         web_domains=tuple(raw.get("web", {}).get("allowed_domains", [])),
         sandbox=Strategy(raw["sandbox"]["strategy"]),
+        import_paths=(base,),
     )

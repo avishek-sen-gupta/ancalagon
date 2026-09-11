@@ -1,11 +1,13 @@
 import collections.abc
 import pathlib
+import sys
 
 import pydantic
 import pytest
 
 from ancalagon.cli import check_contracts
 from ancalagon.config.load import load_config
+from ancalagon.config.on_path import on_path
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.finite import Finite
@@ -56,6 +58,25 @@ def _written(tmp_path: pathlib.Path, block: str) -> pathlib.Path:
     path = tmp_path / "config.toml"
     path.write_text(TEMPLATE.format(run=REQUIRED_RUN, block=block))
     return path
+
+
+def test_a_config_carries_its_import_anchor_instead_of_load_mutating_the_path(
+    tmp_path: pathlib.Path,
+):
+    before = list(sys.path)
+    config = load_config(_written(tmp_path, ""), RealFileSystem())
+
+    assert config.import_paths == (RealFileSystem().resolve(pathlib.PurePath(tmp_path)),)
+    assert sys.path == before
+
+    on_path(config.import_paths)
+
+    assert str(tmp_path) in sys.path
+
+    on_path(config.import_paths)
+
+    assert sys.path.count(str(tmp_path)) == 1
+    sys.path[:] = before
 
 
 def test_run_settings_resolve_against_the_config_file(tmp_path: pathlib.Path):
