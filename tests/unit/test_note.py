@@ -17,7 +17,7 @@ def _running(tmp_path: pathlib.Path) -> tuple[pathlib.PurePath, int, pathlib.Pur
     RealFileSystem().mkdir(task_dir, parents=True)
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
-    return run_dir, bus.enqueue(task_dir, parent_agent=0), task_dir
+    return run_dir, bus.enqueue(task_dir, parent_agent=0).id, task_dir
 
 
 def test_a_note_lands_in_the_letterbox_of_the_task_the_agent_belongs_to(tmp_path: pathlib.Path):

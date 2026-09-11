@@ -55,7 +55,7 @@ def test_a_watcher_process_wakes_the_supervisor_the_way_any_child_does(
     fs.write_text(task_dir / "spec.json", spec.model_dump_json())
 
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), fs)
-    agent = bus.enqueue(task_dir, parent_agent=HUMAN)
+    agent = bus.enqueue(task_dir, parent_agent=HUMAN).id
 
     (tmp_path / "watcher.toml").write_text("""
 [workspace]

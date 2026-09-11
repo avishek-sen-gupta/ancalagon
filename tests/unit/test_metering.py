@@ -19,8 +19,8 @@ def test_calls_accumulate_per_agent_and_survive_across_agents(tmp_path: pathlib.
     clock = SystemClock()
     bus = LifecycleStore(conn, clock)
     meter_store = MeterStore(conn, clock)
-    first = bus.enqueue(tmp_path / "tasks" / "alpha", parent_agent=0)
-    second = bus.enqueue(tmp_path / "tasks" / "beta", parent_agent=first)
+    first = bus.enqueue(tmp_path / "tasks" / "alpha", parent_agent=0).id
+    second = bus.enqueue(tmp_path / "tasks" / "beta", parent_agent=first).id
     meter: Meter = BusMeter(meter_store)
 
     meter.record(first, CallUsage(model="m", prompt_tokens=100, completion_tokens=10))
@@ -39,7 +39,7 @@ def test_calls_accumulate_per_agent_and_survive_across_agents(tmp_path: pathlib.
     assert totals[first].cache_read_tokens == 90
     assert totals[second].prompt_tokens == 7
 
-    retried = bus.enqueue(tmp_path / "tasks" / "alpha", parent_agent=0)
+    retried = bus.enqueue(tmp_path / "tasks" / "alpha", parent_agent=0).id
     meter.record(retried, CallUsage(model="m", prompt_tokens=5))
     snapshot = bus.snapshot()
     assert task_of(snapshot, retried).id == task_of(snapshot, first).id
@@ -59,6 +59,6 @@ def test_the_no_op_meter_records_nothing_and_satisfies_the_protocol(tmp_path: pa
     clock = SystemClock()
     bus = LifecycleStore(conn, clock)
     meter_store = MeterStore(conn, clock)
-    agent = bus.enqueue(tmp_path / "tasks" / "a", parent_agent=0)
+    agent = bus.enqueue(tmp_path / "tasks" / "a", parent_agent=0).id
     assert meter_store.calls(agent) == []
     assert meter_store.tokens_by_agent() == {}

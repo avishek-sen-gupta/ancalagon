@@ -249,8 +249,8 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
     (run_dir / "tasks").mkdir(parents=True)
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(run_dir / "bus.db", FakeClock(), RealFileSystem())
-    parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN)
-    child = bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent)
+    parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN).id
+    child = bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent).id
 
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
@@ -310,7 +310,7 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
     (run_dir / "tasks").mkdir(parents=True)
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(run_dir / "bus.db", FakeClock(), RealFileSystem())
-    parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN)
+    parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN).id
     bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent)
 
     write_root = tmp_path / "ws"

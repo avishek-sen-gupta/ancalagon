@@ -96,8 +96,8 @@ class FakeSpawner(Spawner):
 def test_a_crash_leaves_the_outcome_a_parent_needs_to_collect(tmp_path: pathlib.Path):
     migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
-    died = bus.enqueue(tmp_path / "tasks" / "died", parent_agent=0)
-    spoke = bus.enqueue(tmp_path / "tasks" / "spoke", parent_agent=0)
+    died = bus.enqueue(tmp_path / "tasks" / "died", parent_agent=0).id
+    spoke = bus.enqueue(tmp_path / "tasks" / "spoke", parent_agent=0).id
     _write_completed(tmp_path / "tasks" / "spoke", spoke)
 
     Supervisor(
@@ -118,9 +118,9 @@ def test_a_crash_leaves_the_outcome_a_parent_needs_to_collect(tmp_path: pathlib.
 def test_supervisor_completes_reports_crashes_and_kills_wedged_tasks(tmp_path: pathlib.Path):
     migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
-    good = bus.enqueue(tmp_path / "tasks" / "good", parent_agent=0)
-    bad = bus.enqueue(tmp_path / "tasks" / "bad", parent_agent=0)
-    wedged = bus.enqueue(tmp_path / "tasks" / "wedged", parent_agent=0)
+    good = bus.enqueue(tmp_path / "tasks" / "good", parent_agent=0).id
+    bad = bus.enqueue(tmp_path / "tasks" / "bad", parent_agent=0).id
+    wedged = bus.enqueue(tmp_path / "tasks" / "wedged", parent_agent=0).id
     _write_completed(tmp_path / "tasks" / "good", good)
 
     spawner = FakeSpawner([(0, 0), (0, 1), (10_000, 0)])
@@ -150,7 +150,7 @@ def test_supervisor_respects_concurrency_cap_and_leaves_live_tasks_running_on_sh
 ):
     migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
-    ids = [bus.enqueue(tmp_path / "tasks" / f"t{i}", parent_agent=0) for i in range(3)]
+    ids = [bus.enqueue(tmp_path / "tasks" / f"t{i}", parent_agent=0).id for i in range(3)]
 
     spawner = FakeSpawner([(10_000, 0)] * 3)
     clock = FakeClock()
@@ -194,8 +194,8 @@ def test_supervisor_respects_concurrency_cap_and_leaves_live_tasks_running_on_sh
 def test_startup_resolves_agents_by_reading_the_outcome_a_worker_left(tmp_path: pathlib.Path):
     migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
-    done = bus.enqueue(tmp_path / "tasks" / "done", parent_agent=0)
-    silent = bus.enqueue(tmp_path / "tasks" / "silent", parent_agent=0)
+    done = bus.enqueue(tmp_path / "tasks" / "done", parent_agent=0).id
+    silent = bus.enqueue(tmp_path / "tasks" / "silent", parent_agent=0).id
     _write_completed(tmp_path / "tasks" / "done", done)
     for agent in (done, silent):
         bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
@@ -223,8 +223,8 @@ def test_a_tick_wakes_an_idling_parent_once_a_supervisor_has_reaped_its_child(
     migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
     parent_dir = tmp_path / "tasks" / "parent"
-    parent = bus.enqueue(parent_dir, parent_agent=0)
-    child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=parent)
+    parent = bus.enqueue(parent_dir, parent_agent=0).id
+    child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=parent).id
 
     spawner = FakeSpawner([(1, 0), (2, 0), (10, 0)])
     clock = FakeClock()
@@ -277,8 +277,8 @@ def test_a_wake_is_skipped_while_the_idling_agents_process_is_still_live(
     migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
     parent_dir = tmp_path / "tasks" / "parent"
-    parent = bus.enqueue(parent_dir, parent_agent=0)
-    child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=parent)
+    parent = bus.enqueue(parent_dir, parent_agent=0).id
+    child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=parent).id
     parent_task = task_of(bus.snapshot(), parent).id
 
     def agents_for(task_id: int) -> list[int]:
@@ -316,10 +316,10 @@ def test_a_wake_is_skipped_while_the_idling_agents_process_is_still_live(
 
 def test_startup_resolves_stale_rows_by_checking_the_pid(tmp_path: pathlib.Path):
     bus = _open(tmp_path)
-    spoke = bus.enqueue(tmp_path / "spoke", parent_agent=HUMAN)
-    alive = bus.enqueue(tmp_path / "alive", parent_agent=HUMAN)
-    dead = bus.enqueue(tmp_path / "dead", parent_agent=HUMAN)
-    never = bus.enqueue(tmp_path / "never", parent_agent=HUMAN)
+    spoke = bus.enqueue(tmp_path / "spoke", parent_agent=HUMAN).id
+    alive = bus.enqueue(tmp_path / "alive", parent_agent=HUMAN).id
+    dead = bus.enqueue(tmp_path / "dead", parent_agent=HUMAN).id
+    never = bus.enqueue(tmp_path / "never", parent_agent=HUMAN).id
 
     _write_completed(tmp_path / "spoke", spoke)
     for agent, pid in ((spoke, 101), (alive, 102), (dead, 103)):
@@ -348,8 +348,8 @@ def test_startup_kills_a_wedged_agent_past_the_timeout_and_leaves_a_fresh_one_ru
     tmp_path: pathlib.Path,
 ):
     bus = _open(tmp_path)
-    wedged = bus.enqueue(tmp_path / "wedged", parent_agent=HUMAN)
-    fresh = bus.enqueue(tmp_path / "fresh", parent_agent=HUMAN)
+    wedged = bus.enqueue(tmp_path / "wedged", parent_agent=HUMAN).id
+    fresh = bus.enqueue(tmp_path / "fresh", parent_agent=HUMAN).id
 
     bus.record(wedged, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(wedged, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=301)
@@ -421,7 +421,7 @@ def test_a_healthy_worker_left_by_a_previous_supervisor_is_adopted_and_reaped(
     bus = _open(tmp_path)
     task_dir = tmp_path / "adopted"
     task_dir.mkdir()
-    agent = bus.enqueue(task_dir, parent_agent=HUMAN)
+    agent = bus.enqueue(task_dir, parent_agent=HUMAN).id
     bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=4242)
 
@@ -458,7 +458,7 @@ def test_a_healthy_worker_left_by_a_previous_supervisor_is_adopted_and_reaped(
 
     nearly_wedged_dir = tmp_path / "nearly-wedged"
     nearly_wedged_dir.mkdir()
-    nearly_wedged = bus.enqueue(nearly_wedged_dir, parent_agent=HUMAN)
+    nearly_wedged = bus.enqueue(nearly_wedged_dir, parent_agent=HUMAN).id
     bus.record(nearly_wedged, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(nearly_wedged, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=5353)
 
@@ -486,11 +486,11 @@ def test_the_concurrency_cap_governs_spawning_not_an_adopted_processes_slot(
     bus = _open(tmp_path)
     adopted_dir = tmp_path / "adopted"
     adopted_dir.mkdir()
-    adopted = bus.enqueue(adopted_dir, parent_agent=HUMAN)
+    adopted = bus.enqueue(adopted_dir, parent_agent=HUMAN).id
     bus.record(adopted, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(adopted, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=4242)
 
-    ids = [bus.enqueue(tmp_path / "tasks" / f"t{i}", parent_agent=HUMAN) for i in range(2)]
+    ids = [bus.enqueue(tmp_path / "tasks" / f"t{i}", parent_agent=HUMAN).id for i in range(2)]
 
     spawner = FakeSpawner([(10_000, 0), (10_000, 0)])
     supervisor = Supervisor(
@@ -517,7 +517,7 @@ def test_a_re_attempt_on_the_same_task_directory_does_not_inherit_the_previous_o
 ):
     bus = _open(tmp_path)
     task_dir = tmp_path / "retry"
-    first = bus.enqueue(task_dir, parent_agent=HUMAN)
+    first = bus.enqueue(task_dir, parent_agent=HUMAN).id
     _write_completed(task_dir, first)
 
     Supervisor(
@@ -533,7 +533,7 @@ def test_a_re_attempt_on_the_same_task_directory_does_not_inherit_the_previous_o
     assert bus.attempt(first) == Closed(verdict=AgentStatus.COMPLETED)
     assert bus.history(first)[-1].summary == "done"
 
-    second = bus.enqueue(task_dir, parent_agent=HUMAN)
+    second = bus.enqueue(task_dir, parent_agent=HUMAN).id
     Supervisor(
         bus=bus,
         spawner=FakeSpawner([(0, 3)]),
@@ -553,7 +553,7 @@ def test_waking_reads_the_database_a_fixed_number_of_times_whatever_the_child_co
     tmp_path: pathlib.Path,
 ):
     bus = _open(tmp_path)
-    parent = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
+    parent = bus.enqueue(tmp_path / "root", parent_agent=HUMAN).id
     for name in ("a", "b", "c", "d"):
         bus.enqueue(tmp_path / name, parent_agent=parent)
 
@@ -577,8 +577,8 @@ def test_an_idle_records_how_much_of_the_log_the_parent_had_seen(tmp_path: pathl
     migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
     parent_dir = tmp_path / "tasks" / "parent"
-    parent = bus.enqueue(parent_dir, parent_agent=0)
-    child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=parent)
+    parent = bus.enqueue(parent_dir, parent_agent=0).id
+    child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=parent).id
     bus.record(parent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(parent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
     bus.record(child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
@@ -636,8 +636,8 @@ def test_a_parent_wakes_whichever_order_it_and_its_child_are_reaped_in(
         root.mkdir()
         migrate_file(root / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
         bus = LifecycleStore.open(root / "bus.db", SystemClock(), RealFileSystem())
-        parent = bus.enqueue(root / "tasks" / "parent", parent_agent=0)
-        child = bus.enqueue(root / "tasks" / "child", parent_agent=parent)
+        parent = bus.enqueue(root / "tasks" / "parent", parent_agent=0).id
+        child = bus.enqueue(root / "tasks" / "child", parent_agent=parent).id
         watermark = max(e.id for events in bus.snapshot().events.values() for e in events)
 
         if child_first:
@@ -656,9 +656,9 @@ def test_a_child_that_settled_before_the_parent_idled_does_not_wake_it(
 ):
     migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
-    parent = bus.enqueue(tmp_path / "tasks" / "parent", parent_agent=0)
-    stale = bus.enqueue(tmp_path / "tasks" / "stale", parent_agent=parent)
-    live = bus.enqueue(tmp_path / "tasks" / "live", parent_agent=parent)
+    parent = bus.enqueue(tmp_path / "tasks" / "parent", parent_agent=0).id
+    stale = bus.enqueue(tmp_path / "tasks" / "stale", parent_agent=parent).id
+    live = bus.enqueue(tmp_path / "tasks" / "live", parent_agent=parent).id
 
     _settle(bus, stale, AgentStatus.COMPLETED)
     bus.record(live, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
@@ -679,10 +679,10 @@ def test_a_child_that_idles_and_is_woken_still_wakes_its_own_parent(
 ):
     migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
-    top = bus.enqueue(tmp_path / "tasks" / "top", parent_agent=0)
+    top = bus.enqueue(tmp_path / "tasks" / "top", parent_agent=0).id
     middle_dir = tmp_path / "tasks" / "middle"
-    middle = bus.enqueue(middle_dir, parent_agent=top)
-    bottom = bus.enqueue(tmp_path / "tasks" / "bottom", parent_agent=middle)
+    middle = bus.enqueue(middle_dir, parent_agent=top).id
+    bottom = bus.enqueue(tmp_path / "tasks" / "bottom", parent_agent=middle).id
 
     bus.record(middle, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(middle, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=2)
@@ -691,7 +691,7 @@ def test_a_child_that_idles_and_is_woken_still_wakes_its_own_parent(
 
     _settle(bus, bottom, AgentStatus.COMPLETED)
     bus.record(middle, AgentStatus.IDLING, EventSource.SUPERVISOR, seen_through=watermark)
-    resumed = bus.enqueue(middle_dir, parent_agent=top)
+    resumed = bus.enqueue(middle_dir, parent_agent=top).id
     _settle(bus, resumed, AgentStatus.COMPLETED)
 
     snapshot = bus.snapshot()

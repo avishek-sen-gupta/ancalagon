@@ -13,6 +13,7 @@ from ancalagon.children.bus_children import BusChildren
 from ancalagon.children.no_children import NO_CHILDREN
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
+from ancalagon.contracts.agent_ref import AgentRef
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.fs.real_file_system import RealFileSystem
@@ -40,8 +41,12 @@ def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.
     other = LifecycleStore.open(db, SystemClock(), RealFileSystem())
     alpha = tmp_path / "tasks" / "alpha"
 
-    first = bus.enqueue(alpha, parent_agent=0)
-    second = bus.enqueue(tmp_path / "tasks" / "beta", parent_agent=first)
+    queued = bus.enqueue(alpha, parent_agent=0)
+
+    assert queued == AgentRef(id=1)
+
+    first = queued.id
+    second = bus.enqueue(tmp_path / "tasks" / "beta", parent_agent=first).id
     assert bus.attempt(first) == Queued()
     assert task_of(bus.snapshot(), second).parent_agent == first
     assert bus.queued_count() == 2
@@ -72,7 +77,7 @@ def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.
     assert active_for(bus.snapshot(), str(alpha)) == ()
 
     clock.sleep(90)
-    retried = bus.enqueue(alpha, parent_agent=0)
+    retried = bus.enqueue(alpha, parent_agent=0).id
     assert retried != first
     assert bus.history(retried)[0].ts == "2026-01-01T00:01:30+00:00"
     snap = bus.snapshot()
@@ -84,9 +89,9 @@ def test_bus_appends_agent_history_and_claims_each_agent_once(tmp_path: pathlib.
 def test_depth_counts_ancestors_with_the_root_at_zero(tmp_path: pathlib.Path):
     migrate_file(tmp_path / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
-    root = bus.enqueue(tmp_path / "tasks" / "root", parent_agent=0)
-    child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=root)
-    grandchild = bus.enqueue(tmp_path / "tasks" / "grandchild", parent_agent=child)
+    root = bus.enqueue(tmp_path / "tasks" / "root", parent_agent=0).id
+    child = bus.enqueue(tmp_path / "tasks" / "child", parent_agent=root).id
+    grandchild = bus.enqueue(tmp_path / "tasks" / "grandchild", parent_agent=child).id
 
     snapshot = bus.snapshot()
     assert depth_of(snapshot, root) == 0
@@ -98,9 +103,9 @@ def test_the_bus_knows_which_children_are_live(
     tmp_path: pathlib.Path,
 ):
     bus = _open(tmp_path)
-    parent = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
-    first = bus.enqueue(tmp_path / "a", parent_agent=parent)
-    second = bus.enqueue(tmp_path / "b", parent_agent=parent)
+    parent = bus.enqueue(tmp_path / "root", parent_agent=HUMAN).id
+    first = bus.enqueue(tmp_path / "a", parent_agent=parent).id
+    second = bus.enqueue(tmp_path / "b", parent_agent=parent).id
 
     assert live_children(bus.snapshot(), parent) == (first, second)
 
@@ -114,15 +119,15 @@ def test_a_task_sees_children_from_every_attempt_and_knows_when_it_is_outstandin
     tmp_path: pathlib.Path,
 ):
     bus = _open(tmp_path)
-    first = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
-    early = bus.enqueue(tmp_path / "early", parent_agent=first)
+    first = bus.enqueue(tmp_path / "root", parent_agent=HUMAN).id
+    early = bus.enqueue(tmp_path / "early", parent_agent=first).id
 
     assert live_children(bus.snapshot(), first) == (early,)
     assert outstanding(bus.snapshot(), task_of(bus.snapshot(), early).id) is True
 
     settle(bus, first, AgentStatus.IDLING)
-    woken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
-    late = bus.enqueue(tmp_path / "late", parent_agent=woken)
+    woken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN).id
+    late = bus.enqueue(tmp_path / "late", parent_agent=woken).id
 
     assert tuple(sorted(live_children(bus.snapshot(), woken))) == (early, late)
 
@@ -139,9 +144,9 @@ def test_a_task_is_wakeable_only_for_news_a_supervisor_has_marked(
     tmp_path: pathlib.Path,
 ):
     bus = _open(tmp_path)
-    parent = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
-    first = bus.enqueue(tmp_path / "a", parent_agent=parent)
-    second = bus.enqueue(tmp_path / "b", parent_agent=parent)
+    parent = bus.enqueue(tmp_path / "root", parent_agent=HUMAN).id
+    first = bus.enqueue(tmp_path / "a", parent_agent=parent).id
+    second = bus.enqueue(tmp_path / "b", parent_agent=parent).id
 
     assert wakeable(bus.snapshot()) == ()
 
@@ -155,7 +160,7 @@ def test_a_task_is_wakeable_only_for_news_a_supervisor_has_marked(
     bus.record(first, AgentStatus.COMPLETED, EventSource.SUPERVISOR)
     assert [t.dir for t in wakeable(bus.snapshot())] == [str(tmp_path / "root")]
 
-    woken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
+    woken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN).id
     assert wakeable(bus.snapshot()) == ()
 
     watermark = max(e.id for events in bus.snapshot().events.values() for e in events)
@@ -168,9 +173,9 @@ def test_a_task_is_wakeable_only_for_news_a_supervisor_has_marked(
     bus.record(second, AgentStatus.CRASHED, EventSource.SUPERVISOR)
     assert [t.dir for t in wakeable(bus.snapshot())] == [str(tmp_path / "root")]
 
-    rewoken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
-    idled_child = bus.enqueue(tmp_path / "c", parent_agent=rewoken)
-    reporting_child = bus.enqueue(tmp_path / "d", parent_agent=rewoken)
+    rewoken = bus.enqueue(tmp_path / "root", parent_agent=HUMAN).id
+    idled_child = bus.enqueue(tmp_path / "c", parent_agent=rewoken).id
+    reporting_child = bus.enqueue(tmp_path / "d", parent_agent=rewoken).id
     assert wakeable(bus.snapshot()) == ()
 
     watermark = max(e.id for events in bus.snapshot().events.values() for e in events)
@@ -189,9 +194,9 @@ def test_children_reports_outstanding_and_uncollected_for_one_agent(tmp_path: pa
     bus = _open(tmp_path)
     bus.enqueue(tmp_path / "warmup", parent_agent=HUMAN)
     bus.enqueue(tmp_path / "warmup", parent_agent=HUMAN)
-    parent = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
-    done = bus.enqueue(tmp_path / "done", parent_agent=parent)
-    busy = bus.enqueue(tmp_path / "busy", parent_agent=parent)
+    parent = bus.enqueue(tmp_path / "root", parent_agent=HUMAN).id
+    done = bus.enqueue(tmp_path / "done", parent_agent=parent).id
+    busy = bus.enqueue(tmp_path / "busy", parent_agent=parent).id
     assert task_of(bus.snapshot(), parent).id != parent
 
     children = BusChildren(bus, parent)
@@ -211,7 +216,7 @@ def test_children_reports_outstanding_and_uncollected_for_one_agent(tmp_path: pa
 
 def test_record_refuses_a_transition_the_lifecycle_does_not_allow(tmp_path: pathlib.Path):
     bus = _open(tmp_path)
-    agent = bus.enqueue(tmp_path / "a", parent_agent=HUMAN)
+    agent = bus.enqueue(tmp_path / "a", parent_agent=HUMAN).id
 
     with pytest.raises(IllegalTransition, match="collected"):
         bus.record(agent, AgentStatus.COLLECTED, EventSource.WORKER)
@@ -236,7 +241,7 @@ def test_record_refuses_a_transition_the_lifecycle_does_not_allow(tmp_path: path
     with pytest.raises(IllegalTransition, match="timed_out"):
         bus.record(agent, AgentStatus.TIMED_OUT, EventSource.SUPERVISOR)
 
-    closed = bus.enqueue(tmp_path / "b", parent_agent=HUMAN)
+    closed = bus.enqueue(tmp_path / "b", parent_agent=HUMAN).id
     settle(bus, closed, AgentStatus.COMPLETED)
     with pytest.raises(IllegalTransition, match="crashed"):
         bus.record(closed, AgentStatus.CRASHED, EventSource.SUPERVISOR)
@@ -246,7 +251,7 @@ def test_a_rejected_record_leaves_no_open_transaction_and_no_partial_write(
     tmp_path: pathlib.Path,
 ):
     bus = _open(tmp_path)
-    agent = bus.enqueue(tmp_path / "a", parent_agent=HUMAN)
+    agent = bus.enqueue(tmp_path / "a", parent_agent=HUMAN).id
     before = bus.history(agent)
 
     with pytest.raises(IllegalTransition):
@@ -264,9 +269,9 @@ def test_a_rejected_record_leaves_no_open_transaction_and_no_partial_write(
 
 def test_a_snapshot_carries_every_task_agent_and_folded_attempt(tmp_path: pathlib.Path):
     bus = _open(tmp_path)
-    first = bus.enqueue(tmp_path / "root", parent_agent=HUMAN)
+    first = bus.enqueue(tmp_path / "root", parent_agent=HUMAN).id
     settle(bus, first, AgentStatus.COMPLETED)
-    second = bus.enqueue(tmp_path / "child", parent_agent=first)
+    second = bus.enqueue(tmp_path / "child", parent_agent=first).id
 
     snap = bus.snapshot()
 

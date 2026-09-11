@@ -15,6 +15,7 @@ from ancalagon.bus.connect import connect
 from ancalagon.bus.schema import agent_events, agents, tasks
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.agent_event import AgentEvent
+from ancalagon.contracts.agent_ref import AgentRef
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.harness_task import HarnessTask
@@ -159,7 +160,7 @@ class LifecycleStore:
             raise
         self.conn.execute("COMMIT")
 
-    def enqueue(self, dir: pathlib.PurePath, parent_agent: int) -> int:
+    def enqueue(self, dir: pathlib.PurePath, parent_agent: int) -> AgentRef:
         self.conn.execute("BEGIN IMMEDIATE")
         task = self._exec(
             _INSERT_TASK,
@@ -171,7 +172,7 @@ class LifecycleStore:
         agent_id = int(agent["id"])
         self._record(agent_id, AgentStatus.QUEUED, EventSource.SUPERVISOR)
         self.conn.execute("COMMIT")
-        return agent_id
+        return AgentRef(id=agent_id)
 
     def _queued(self) -> list[AgentState]:
         return [
