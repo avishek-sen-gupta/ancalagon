@@ -47,8 +47,10 @@ from ancalagon.tools.compare.diff_regions import DiffRegions
 from ancalagon.tools.compare.region import Region
 from ancalagon.tools.delegate.check_task import CheckTask
 from ancalagon.tools.delegate.collect_task import CollectTask
+from ancalagon.tools.delegate.delegate_args import DelegateArgs
 from ancalagon.tools.delegate.delegate_to import DelegateTo
 from ancalagon.tools.delegate.delegate_tools import delegate_tools
+from ancalagon.tools.delegate.no_delegate_to import NoDelegateTo
 from ancalagon.tools.delegate.task_args import TaskArgs
 from ancalagon.tools.files.append_args import AppendArgs
 from ancalagon.tools.files.append_file import AppendFile
@@ -60,6 +62,7 @@ from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.files.write_file import WriteFile
 from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.idle.idle_args import IdleArgs
+from ancalagon.tools.idle.no_idle import NoIdle
 from ancalagon.tools.parse.ast_query import AstQuery
 from ancalagon.tools.parse.ast_query_args import AstQueryArgs
 from ancalagon.tools.parse.capture import Capture
@@ -1183,16 +1186,42 @@ def test_appending_keeps_what_arrived_after_the_caller_last_read(tmp_path: pathl
     assert "outside write_root" in denied.error
 
 
-def test_check_task_and_collect_task_refuse_cleanly_when_there_is_no_bus(tmp_path: pathlib.Path):
+def test_check_task_collect_task_and_idle_refuse_cleanly_when_there_is_no_bus(
+    tmp_path: pathlib.Path,
+):
     ctx = _ctx(tmp_path)
 
     checked = CheckTask(NO_BUS).run(TaskArgs(task=7), ctx)
     collected = CollectTask(NO_BUS, RealFileSystem()).run(TaskArgs(task=7), ctx)
+    idled = NoIdle().run(IdleArgs(), ctx)
 
     assert checked.ok is False
     assert checked.error == "no agent 7"
     assert collected.ok is False
     assert collected.error == "no agent 7"
+    assert idled.ok is False
+    assert idled.error == "nothing to wait for: this session has no bus"
 
-    with pytest.raises(KeyError):
-        Idle(NO_BUS, agent=1).run(IdleArgs(), ctx)
+
+def test_a_delegate_tool_without_a_bus_keeps_its_schema_and_writes_nothing(
+    tmp_path: pathlib.Path,
+):
+    ctx = _ctx(tmp_path)
+    role = Role(
+        behaviour="Investigate.",
+        tools=("submit_answer",),
+        budget=finite_budget(3, 5),
+    )
+    real = DelegateTo(NO_BUS, "scout", role, ctx.workspace.write_root, 1, RealFileSystem())
+    absent = NoDelegateTo("scout", role)
+
+    assert absent.name == real.name
+    assert absent.description == real.description
+    assert absent.cost == real.cost
+    assert absent.args_model.model_json_schema() == real.args_model.model_json_schema()
+
+    refused = absent.run(DelegateArgs(task_id="analyse", goal="g", input=FreeText(text="i")), ctx)
+
+    assert refused.ok is False
+    assert refused.error == "cannot queue task analyse: this session has no bus"
+    assert list(pathlib.Path(ctx.workspace.write_root / "tasks").glob("**/spec.json")) == []

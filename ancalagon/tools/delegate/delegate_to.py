@@ -1,19 +1,21 @@
 # Queues one task for one role; the supervisor spawns it.
 import pathlib
 
-import pydantic
-
 from ancalagon.bus.bus import Bus
 from ancalagon.contracts.agent_ref import AgentRef
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.no_agent_ref import NoAgentRef
-from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.schedule.active_for import active_for
 from ancalagon.schedule.latest_event import latest_event
 from ancalagon.tools.delegate.delegate_args import DelegateArgs
+from ancalagon.tools.delegate.delegating import (
+    delegate_args,
+    delegate_description,
+    delegate_name,
+)
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 
@@ -31,22 +33,13 @@ class DelegateTo(Tool[DelegateArgs]):
         fs: FileSystem,
     ):
         self.bus = bus
-        self.name = f"delegate_{role_name}"
-        self.description = (
-            f"Queue a {role_name} task. Returns its task id immediately without waiting. "
-            f"That agent is told: {role.behaviour} "
-            "Reusing a task_id after that task has finished retries it, and the new agent "
-            "inherits the previous one's transcript. Use a new task_id for a clean start."
-        )
+        self.name = delegate_name(role_name)
+        self.description = delegate_description(role_name, role)
         self.role = role
         self.run_dir = run_dir
         self.parent = parent
         self.fs = fs
-        self.args_model = pydantic.create_model(
-            f"DelegateTo{role_name.title().replace('_', '')}Args",
-            __base__=DelegateArgs,
-            input=(resolve_class(role.input), ...),
-        )
+        self.args_model = delegate_args(role_name, role)
 
     def run(self, args: DelegateArgs, ctx: ToolContext) -> ToolResult:
         task_dir = self.run_dir / "tasks" / args.task_id
