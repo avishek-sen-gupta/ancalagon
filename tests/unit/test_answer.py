@@ -7,6 +7,8 @@ from ancalagon.answer import answer_task
 from ancalagon.answer_command import answer_command
 from ancalagon.attempt.queued import Queued
 from ancalagon.bus.lifecycle_store import LifecycleStore
+from ancalagon.bus.no_bus import NO_BUS
+from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
@@ -57,14 +59,16 @@ def test_answering_a_suspended_agent_appends_the_answer_and_queues_a_new_attempt
 
     with pytest.raises(ValueError, match="never asked"):
         answer_task(
-            run_dir, agent, "too early", answered_by=0, clock=SystemClock(), fs=RealFileSystem()
+            bus, agent, "too early", answered_by=0, clock=SystemClock(), fs=RealFileSystem()
         )
+
+    assert len((task_dir / "transcript.jsonl").read_text().splitlines()) == 2
 
     bus.record(agent, AgentStatus.NEEDS_INPUT, EventSource.SUPERVISOR, summary="which one?")
     bus.record(agent, AgentStatus.COLLECTED, EventSource.WORKER)
 
     resumed = answer_task(
-        run_dir, agent, "the second one", answered_by=0, clock=SystemClock(), fs=RealFileSystem()
+        bus, agent, "the second one", answered_by=0, clock=SystemClock(), fs=RealFileSystem()
     ).id
     assert resumed != agent
 
@@ -83,12 +87,10 @@ def test_answering_a_suspended_agent_appends_the_answer_and_queues_a_new_attempt
     assert task_of(snap, resumed).parent_agent == 0
 
     with pytest.raises(ValueError, match="never asked"):
-        answer_task(
-            run_dir, resumed, "again", answered_by=0, clock=SystemClock(), fs=RealFileSystem()
-        )
+        answer_task(bus, resumed, "again", answered_by=0, clock=SystemClock(), fs=RealFileSystem())
 
     with pytest.raises(KeyError):
-        answer_task(run_dir, 99, "nobody", answered_by=0, clock=SystemClock(), fs=RealFileSystem())
+        answer_task(bus, 99, "nobody", answered_by=0, clock=SystemClock(), fs=RealFileSystem())
 
 
 def test_the_tool_and_the_command_both_answer_and_report_what_they_queued(
@@ -99,7 +101,7 @@ def test_the_tool_and_the_command_both_answer_and_report_what_they_queued(
     bus.record(agent, AgentStatus.NEEDS_INPUT, EventSource.SUPERVISOR, summary="which one?")
     ctx = _ctx(tmp_path)
 
-    tool = AnswerTask(bus=bus, run_dir=run_dir, parent=7, clock=SystemClock(), fs=RealFileSystem())
+    tool = AnswerTask(bus=bus, parent=7, clock=SystemClock(), fs=RealFileSystem())
     answered = tool.run(AnswerArgs(task=agent, answer="by tool"), ctx)
     assert answered.ok is True
     (queued,) = active_for(bus.snapshot(), str(task_dir))
@@ -120,6 +122,21 @@ def test_the_tool_and_the_command_both_answer_and_report_what_they_queued(
     assert absent.ok is False
 
     second, other_bus, other = _suspended(tmp_path / "other")
+    other_task_dir = second / "tasks" / "asked"
     other_bus.record(other, AgentStatus.NEEDS_INPUT, EventSource.SUPERVISOR, summary="q")
     assert answer_command(second, other, "by command") == 0
-    assert f"answered agent {other}" in capsys.readouterr().out
+    (other_queued,) = active_for(other_bus.snapshot(), str(other_task_dir))
+    assert capsys.readouterr().out == f"answered agent {other}; queued agent {other_queued}\n"
+
+
+def test_answering_without_a_bus_refuses_before_writing_to_the_transcript(
+    tmp_path: pathlib.Path,
+):
+    ctx = _ctx(tmp_path)
+    tool = AnswerTask(NO_BUS, parent=1, clock=FakeClock(), fs=RealFileSystem())
+
+    refused = tool.run(AnswerArgs(task=7, answer="here"), ctx)
+
+    assert refused.ok is False
+    assert refused.error == "no agent 7"
+    assert not list(tmp_path.rglob("transcript.jsonl"))

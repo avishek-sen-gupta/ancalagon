@@ -89,7 +89,6 @@ def _run(
                 bind_tool(
                     AnswerTask(
                         bus=bus,
-                        run_dir=run_dir,
                         parent=agent,
                         clock=SystemClock(),
                         fs=RealFileSystem(),
