@@ -57,6 +57,24 @@ the same way, in place of `ancalagon.toml`:
 | `research.toml` | `web_search` and `fetch_url`, with every role answering by writing a file |
 | `blackboard.toml` | three peers sharing one append-only file, waking each other through `watch_file` |
 
+## Starting a run from Python
+
+`ancalagon run` is one caller of a seam any program can use:
+
+```python
+from ancalagon.run import run
+
+produced = run(config, run_dir, SystemClock(), RealFileSystem())
+```
+
+`run` takes a `Config` and returns the root's `Outcome`, parsed against the answer class its role
+declared. A `Config` comes from `load_config` for a TOML file, from `Config.model_validate_json`
+for a JSON one, or from Python directly — the conversion layer sits above the run, and nothing
+below it knows a format exists.
+
+A `Config` built in Python must set `import_paths` to the directories its contract classes and
+hook functions live under. `load_config` sets it to the config file's own directory.
+
 ## How it works
 
 Three kinds of process. They share no memory and there is no IPC — every hand-off is a SQLite
@@ -153,10 +171,12 @@ Rules that follow from that wiring:
   tool does not — a role that runs a session names one, and `check_contracts` rejects a role
   that names none. There is one way out of a run and the role chooses which.
 - There is no global default budget or tool list. Only what each role states.
-- A `spec.json` freezes the role at enqueue, so editing `[roles.*]` affects only tasks queued
-  afterwards. The freeze is not total: the contract *source* is a dotted module, resolved fresh
-  each time a worker starts, so editing `shapekit/shapes.py` changes the shape a resumed run
-  works to.
+- The config is fixed for the duration of one `run()` invocation: it is materialised into
+  `config.json` in the run directory, and every worker reads that copy rather than the source
+  TOML. Editing `[roles.*]`, the model or the limits therefore affects the next invocation, not
+  the next worker spawned. What still varies within a run is the contract *source*: a dotted
+  module is resolved fresh each time a worker starts, so editing `shapekit/shapes.py` changes
+  the shape a resumed run works to.
 - A config file's own directory goes on the import path when it loads, so a package sitting
   beside the TOML — `shapekit/` next to this file — resolves by its dotted name, `shapekit.shapes`.
 
