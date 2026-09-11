@@ -60,17 +60,13 @@ def _written(tmp_path: pathlib.Path, block: str) -> pathlib.Path:
     return path
 
 
-def test_a_config_carries_its_import_anchor_instead_of_load_mutating_the_path(
+def test_a_config_carries_its_import_anchor_and_load_already_put_it_on_the_path(
     tmp_path: pathlib.Path,
 ):
     before = list(sys.path)
     config = load_config(_written(tmp_path, ""), RealFileSystem())
 
     assert config.import_paths == (RealFileSystem().resolve(pathlib.PurePath(tmp_path)),)
-    assert sys.path == before
-
-    on_path(config.import_paths)
-
     assert str(tmp_path) in sys.path
 
     on_path(config.import_paths)
@@ -318,6 +314,21 @@ def test_a_role_naming_a_run_function_takes_its_contracts_from_the_signature(
     )
     with pytest.raises(ValueError, match="declares run"):
         load_config(both, RealFileSystem())
+
+
+def test_load_config_puts_the_file_s_own_directory_on_the_path_before_parsing_roles(
+    tmp_path: pathlib.Path, importable: collections.abc.Callable[[pathlib.Path], None]
+):
+    package = tmp_path / "runkit"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "runners.py").write_text(RUNNERS)
+
+    role = load_config(_with_run(tmp_path, "good"), RealFileSystem()).roles["transformer"]
+
+    assert role.run == FunctionRef(module="runkit.runners", name="good")
+    assert role.input == ClassRef(module="runkit.runners", name="Given")
+    assert role.answer == ClassRef(module="runkit.runners", name="Produced")
 
 
 PROSE_ROLE = """
