@@ -6,11 +6,21 @@ import pydantic
 
 from ancalagon.bus.bus import Bus
 from ancalagon.bus.no_bus import NO_BUS
+from ancalagon.children.children import Children
+from ancalagon.children.no_children import NO_CHILDREN
 from ancalagon.clock.clock import Clock
 from ancalagon.config.config import Config
+from ancalagon.contracts.message import Message
+from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.file_system import FileSystem
+from ancalagon.letterbox.letterbox import Letterbox
+from ancalagon.letterbox.no_letterbox import NO_LETTERBOX
+from ancalagon.llm.llm import LLM
+from ancalagon.llm.meter import Meter
+from ancalagon.llm.unmetered import UNMETERED
+from ancalagon.session import Session
 from ancalagon.tools.artifacts.convert_document import ConvertDocument
 from ancalagon.tools.artifacts.edit_json import EditJson
 from ancalagon.tools.artifacts.extract_strings import ExtractStrings
@@ -38,6 +48,7 @@ from ancalagon.tools.registry.bound_for import bound_for
 from ancalagon.tools.registry.bound_tool import BoundTool
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool import Tool
+from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.ast_grep import AstGrep
 from ancalagon.tools.search.find_symbol import FindSymbol
 from ancalagon.tools.search.ripgrep import Ripgrep
@@ -52,6 +63,8 @@ from ancalagon.tools.watch.watch_args import WatchArgs
 from ancalagon.tools.watch.watch_file import WatchFile
 from ancalagon.tools.web.fetch_url import FetchUrl
 from ancalagon.tools.web.web_search import WebSearch
+from ancalagon.transcript.history import load, repair
+from ancalagon.transcript.transcript import Transcript
 from ancalagon.watch.watch_for import WATCH_FOR
 from ancalagon.web.web_client import WebClient
 
@@ -160,3 +173,53 @@ def build_registry(
         and t.name not in withheld
     ]
     return Registry(permitted)
+
+
+def session_for(
+    config: Config,
+    spec: TaskSpec,
+    ctx: ToolContext,
+    transcript: Transcript,
+    run_dir: pathlib.PurePath,
+    llm: LLM,
+    clock: Clock,
+    fs: FileSystem,
+    web: WebClient,
+    bus: Bus = NO_BUS,
+    children: Children = NO_CHILDREN,
+    letterbox: Letterbox = NO_LETTERBOX,
+    meter: Meter = UNMETERED,
+    depth: int = 0,
+) -> Session:
+    output_class = resolve_class(spec.role.answer)
+    history: collections.abc.Sequence[Message] = (
+        repair(load(fs, transcript.path)) if fs.exists(transcript.path) else []
+    )
+    return Session(
+        spec=spec,
+        input=ctx.input,
+        messages=history,
+        transcript=transcript,
+        agent_id=ctx.agent_id,
+        llm=llm,
+        registry=build_registry(
+            config,
+            spec,
+            run_dir,
+            parent=ctx.agent_id,
+            depth=depth,
+            output_class=output_class,
+            clock=clock,
+            fs=fs,
+            web=web,
+            bus=bus,
+        ),
+        ctx=ctx,
+        output_class=output_class,
+        clock=clock,
+        children=children,
+        letterbox=letterbox,
+        meter=meter,
+        compact_above_tokens=config.compact_above_tokens,
+        keep_recent_messages=config.keep_recent_messages,
+    )

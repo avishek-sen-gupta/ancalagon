@@ -1,6 +1,5 @@
 # Entry point for one agent process: runs a single attempt at one task directory.
 import argparse
-import collections.abc
 import logging
 import pathlib
 import sys
@@ -16,7 +15,6 @@ from ancalagon.config.config import Config
 from ancalagon.config.on_path import on_path
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.failed import Failed
-from ancalagon.contracts.message import Message
 from ancalagon.contracts.nothing import NOTHING
 from ancalagon.contracts.outcome import SUMMARY_CHARS
 from ancalagon.contracts.resolve import resolve_class
@@ -25,10 +23,8 @@ from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.letterbox.file_letterbox import FileLetterbox
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient
 from ancalagon.schedule.depth_of import depth_of
-from ancalagon.session import Session
-from ancalagon.session_for import build_registry
+from ancalagon.session_for import session_for
 from ancalagon.tools.registry.tool_context import ToolContext
-from ancalagon.transcript.history import load, repair
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.web.real_web_client import RealWebClient
 from ancalagon.workspace.workspace import Workspace
@@ -56,12 +52,8 @@ def main(
     try:
         spec_text = fs.read_text(task_dir / "spec.json")
         spec = TaskSpec.model_validate_json(spec_text)
-        output_class = resolve_class(spec.role.answer)
         input_class = resolve_class(spec.role.input)
         given = AgentSpec[input_class].model_validate_json(spec_text).input
-        history: collections.abc.Sequence[Message] = (
-            repair(load(fs, transcript_path)) if fs.exists(transcript_path) else []
-        )
         ctx = ToolContext(
             workspace=Workspace.from_config(config, fs),
             task_dir=task_dir,
@@ -69,39 +61,27 @@ def main(
             agent_id=agent_id,
             input=given,
         )
-        session = Session(
-            spec=spec,
-            input=given,
-            messages=history,
-            transcript=log,
-            agent_id=agent_id,
-            llm=LiteLLMClient(
+        session = session_for(
+            config,
+            spec,
+            ctx,
+            log,
+            run_dir,
+            LiteLLMClient(
                 model=config.model,
                 max_tokens=config.max_tokens,
                 num_retries=config.num_retries,
                 request_timeout_s=config.request_timeout_s,
                 custom_llm_provider=config.custom_llm_provider,
             ),
-            registry=build_registry(
-                config,
-                spec,
-                run_dir,
-                parent=agent_id,
-                depth=depth_of(bus.snapshot(), agent_id),
-                output_class=output_class,
-                clock=clock,
-                fs=fs,
-                web=web,
-                bus=bus,
-            ),
-            ctx=ctx,
-            output_class=output_class,
-            clock=clock,
+            clock,
+            fs,
+            web,
+            bus=bus,
             children=BusChildren(bus, agent_id),
             letterbox=FileLetterbox(fs, task_dir),
             meter=BusMeter(meter_store),
-            compact_above_tokens=config.compact_above_tokens,
-            keep_recent_messages=config.keep_recent_messages,
+            depth=depth_of(bus.snapshot(), agent_id),
         )
         outcome = session.run()
         fs.write_text(outcome_path, outcome.model_dump_json())
