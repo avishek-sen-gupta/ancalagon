@@ -145,4 +145,6 @@ fileignoreconfig:
   checksum: 4433bd633410531cadbfa2a270aa2f8f130b7177c4d0de4697107d77ad9eb2c0
 - filename: docs/superpowers/specs/2026-09-12-handing-a-tool-its-bus-design.md
   checksum: 9d347469ecd886b78d72fc7d63b51590bc26264f9724982cbd47c21152b3d49d
+- filename: docs/superpowers/plans/2026-09-12-handing-a-tool-its-bus.md
+  checksum: 64b1db5b4add280e4a7d3d39bc581af7da2588093f0f1374374c648c10bd8288
 version: "1.0"
