@@ -38,6 +38,7 @@ def main(
     agent_id: int,
     config_path: pathlib.PurePath,
 ) -> int:
+    logging.basicConfig(level=logging.INFO)
     fs = RealFileSystem()
     web = RealWebClient()
     config = Config.model_validate_json(fs.read_text(config_path))
