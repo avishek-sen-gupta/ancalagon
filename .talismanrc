@@ -141,4 +141,6 @@ fileignoreconfig:
   checksum: 91318324882e465bb1dfbd5bbc8f2590d44802b305089801645314d864296ad0
 - filename: docs/superpowers/specs/2026-09-11-a-bus-a-role-can-be-given-design.md
   checksum: a8b476d8a588de23cf4a5750a7abcc2c6119669ab827f1d3e1715c1212bdd43d
+- filename: docs/superpowers/plans/2026-09-11-a-bus-a-role-can-be-given.md
+  checksum: 4433bd633410531cadbfa2a270aa2f8f130b7177c4d0de4697107d77ad9eb2c0
 version: "1.0"
