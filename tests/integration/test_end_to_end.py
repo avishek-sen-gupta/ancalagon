@@ -151,7 +151,7 @@ def test_pipeline_spawns_a_worker_and_records_its_failure_without_a_model(
 
     stderr_logs = list(task_dir.glob("stderr-*.log"))
     assert len(stderr_logs) == 1
-    assert "worker failed" in stderr_logs[0].read_text()
+    assert "the session failed" in stderr_logs[0].read_text()
 
 
 @pytest.mark.skipif(
