@@ -94,15 +94,18 @@ def _prepared(
     (package / "__init__.py").write_text("")
     (package / "runners.py").write_text(RUNNERS)
     importable(tmp_path)
-    config_path = tmp_path / f"{function}.toml"
-    config_path.write_text(CONFIG % function)
+    toml_path = tmp_path / f"{function}.toml"
+    toml_path.write_text(CONFIG % function)
     task_dir = tmp_path / "tasks" / function
     task_dir.mkdir(parents=True)
-    role = load_config(config_path, RealFileSystem()).roles["transformer"]
+    config = load_config(toml_path, RealFileSystem())
+    role = config.roles["transformer"]
     given_class: type[pydantic.BaseModel] = importlib.import_module("runkit.runners").Given
     given = given_class(path="board.md")
     spec = AgentSpec[given_class](task_id=function, role=role, goal="Read it.", input=given)
     (task_dir / "spec.json").write_text(spec.model_dump_json())
+    config_path = tmp_path / f"{function}.json"
+    config_path.write_text(config.model_dump_json())
     return config_path, task_dir
 
 

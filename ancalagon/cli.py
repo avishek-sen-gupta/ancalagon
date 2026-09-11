@@ -52,7 +52,7 @@ def main(config_path: pathlib.PurePath, run_dir: pathlib.PurePath) -> int:
     fs = RealFileSystem()
     config = load_config(config_path, fs)
     try:
-        produced = run(config, run_dir, config_path, SystemClock(), fs)
+        produced = run(config, run_dir, SystemClock(), fs)
     except NoOutcome as exc:
         LOGGER.error("%s", exc)
         return 1

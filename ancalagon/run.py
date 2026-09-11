@@ -26,6 +26,8 @@ from ancalagon.supervisor.spawner import Spawner
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
 
+CONFIG = "config.json"
+
 
 def _text_of(path: pathlib.PurePath, named_by: str, fs: FileSystem) -> str:
     if not fs.is_file(path):
@@ -84,14 +86,11 @@ def sandbox_of(config: Config, run_dir: pathlib.PurePath, fs: FileSystem) -> San
 
 # A task whose role names a run function is served by a process, not by a model, so the
 # supervisor is given a spawner that reads each spec and picks accordingly.
-def _spawner(
-    config: Config, run_dir: pathlib.PurePath, config_path: pathlib.PurePath, fs: FileSystem
-) -> Spawner:
-    made = fs.resolve(config_path)
+def _spawner(config: Config, run_dir: pathlib.PurePath, fs: FileSystem) -> Spawner:
     sandbox = sandbox_of(config, run_dir, fs)
     ordinary = SubprocessSpawner(
         run_dir=run_dir,
-        config_path=made,
+        config_path=run_dir / CONFIG,
         environment=RealEnvironment(),
         fs=fs,
         module="ancalagon.worker",
@@ -99,7 +98,7 @@ def _spawner(
     )
     deterministic = SubprocessSpawner(
         run_dir=run_dir,
-        config_path=made,
+        config_path=run_dir / CONFIG,
         environment=RealEnvironment(),
         fs=fs,
         module="ancalagon.deterministic.run",
@@ -126,12 +125,13 @@ def _outcome_of(
 def run(
     config: Config,
     run_dir: pathlib.PurePath,
-    config_path: pathlib.PurePath,
     clock: Clock,
     fs: FileSystem,
 ) -> Outcome[pydantic.BaseModel]:
     on_path(config.import_paths)
     check_contracts(config)
+    fs.mkdir(run_dir, parents=True, exist_ok=True)
+    fs.write_text(run_dir / CONFIG, config.model_dump_json())
     task_dir = run_dir / "tasks" / "root"
     fs.mkdir(task_dir, parents=True, exist_ok=True)
     fs.write_text(task_dir / "spec.json", root_spec(config, fs).model_dump_json())
@@ -140,7 +140,7 @@ def run(
     bus.enqueue(task_dir, parent_agent=HUMAN)
     supervisor = Supervisor(
         bus=LifecycleStore.open(db, clock, fs),
-        spawner=_spawner(config, run_dir, config_path, fs),
+        spawner=_spawner(config, run_dir, fs),
         max_concurrent=config.max_concurrent_agents,
         timeout_s=config.agent_timeout_s,
         clock=clock,
