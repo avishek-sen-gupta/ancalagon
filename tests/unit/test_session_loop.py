@@ -7,6 +7,7 @@ import pydantic
 import pytest
 
 from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
+from ancalagon.bus.no_bus import NO_BUS
 from ancalagon.children.bus_children import BusChildren
 from ancalagon.children.children import Children
 from ancalagon.clock.fake_clock import FakeClock
@@ -286,9 +287,7 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
                 )
             ]
         ),
-        registry=Registry(
-            [bind_tool(Idle(run_dir=run_dir, agent=parent, clock=FakeClock(), fs=RealFileSystem()))]
-        ),
+        registry=Registry([bind_tool(Idle(bus, agent=parent))]),
         ctx=ctx,
         output_class=Verdict,
         clock=FakeClock(),
@@ -343,9 +342,7 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
         registry=Registry(
             [
                 bind_tool(ReadFile(FakeClock())),
-                bind_tool(
-                    Idle(run_dir=run_dir, agent=parent, clock=FakeClock(), fs=RealFileSystem())
-                ),
+                bind_tool(Idle(bus, agent=parent)),
             ]
         ),
         ctx=ctx,
@@ -730,9 +727,9 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
         registry=Registry(
             [
                 bind_tool(ReadFile(FakeClock())),
-                bind_tool(Idle(run_dir=tmp_path, agent=17, clock=FakeClock(), fs=RealFileSystem())),
+                bind_tool(Idle(NO_BUS, agent=17)),
                 bind_tool(SubmitAnswer(Verdict)),
-                bind_tool(CollectTask(run_dir=tmp_path, clock=FakeClock(), fs=RealFileSystem())),
+                bind_tool(CollectTask(NO_BUS, RealFileSystem())),
             ]
         ),
         ctx=ctx,
@@ -873,6 +870,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
         clock=FakeClock(),
         fs=RealFileSystem(),
         web=FakeWebClient({}),
+        bus=NO_BUS,
     )
     arguments_both = json.dumps(
         {"status": "complete", "summary": "one record", "path": str(answer_both)}

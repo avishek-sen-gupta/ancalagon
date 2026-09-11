@@ -1,10 +1,6 @@
 # Reports a delegated task's status without waiting, as of the agent serving it now.
-import pathlib
-
-from ancalagon.bus.lifecycle_store import LifecycleStore
-from ancalagon.clock.clock import Clock
+from ancalagon.bus.bus import Bus
 from ancalagon.contracts.tool_result import ToolResult
-from ancalagon.fs.file_system import FileSystem
 from ancalagon.schedule.addressed import addressed
 from ancalagon.schedule.latest_event import latest_event
 from ancalagon.tools.delegate.task_args import TaskArgs
@@ -18,14 +14,11 @@ class CheckTask(Tool[TaskArgs]):
     cost = 0
     args_model = TaskArgs
 
-    def __init__(self, run_dir: pathlib.PurePath, clock: Clock, fs: FileSystem):
-        self.run_dir = run_dir
-        self.clock = clock
-        self.fs = fs
+    def __init__(self, bus: Bus):
+        self.bus = bus
 
     def run(self, args: TaskArgs, ctx: ToolContext) -> ToolResult:
-        bus = LifecycleStore.open(self.run_dir / "bus.db", self.clock, self.fs)
-        snapshot = bus.snapshot()
+        snapshot = self.bus.snapshot()
         if args.task not in snapshot.task_by_agent:
             return ctx.failure(self.name, f"no agent {args.task}")
         newest = addressed(snapshot, args.task)

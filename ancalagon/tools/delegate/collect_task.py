@@ -8,8 +8,7 @@ from ancalagon.attempt.closed import Closed
 from ancalagon.attempt.collected import Collected
 from ancalagon.attempt.lost import Lost
 from ancalagon.attempt.snapshot import Snapshot
-from ancalagon.bus.lifecycle_store import LifecycleStore
-from ancalagon.clock.clock import Clock
+from ancalagon.bus.bus import Bus
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.event_source import EventSource
@@ -54,21 +53,17 @@ class CollectTask(Tool[TaskArgs]):
     cost = 1
     args_model = TaskArgs
 
-    def __init__(self, run_dir: pathlib.PurePath, clock: Clock, fs: FileSystem):
-        self.run_dir = run_dir
-        self.clock = clock
+    def __init__(self, bus: Bus, fs: FileSystem):
+        self.bus = bus
         self.fs = fs
 
     def run(self, args: TaskArgs, ctx: ToolContext) -> ToolResult:
-        bus = LifecycleStore.open(self.run_dir / "bus.db", self.clock, self.fs)
-        snapshot = bus.snapshot()
+        snapshot = self.bus.snapshot()
         if args.task not in snapshot.task_by_agent:
             return ctx.failure(self.name, f"no agent {args.task}")
-        return self._answered(bus, ctx, snapshot, args.task)
+        return self._answered(self.bus, ctx, snapshot, args.task)
 
-    def _answered(
-        self, bus: LifecycleStore, ctx: ToolContext, snapshot: Snapshot, asked: int
-    ) -> ToolResult:
+    def _answered(self, bus: Bus, ctx: ToolContext, snapshot: Snapshot, asked: int) -> ToolResult:
         task = snapshot.task_by_agent[asked]
         newest = addressed(snapshot, asked)
         match snapshot.attempts[newest]:
@@ -80,7 +75,7 @@ class CollectTask(Tool[TaskArgs]):
                 return ctx.failure(self.name, _unready(newest, unsettled))
 
     def _read_closed(
-        self, bus: LifecycleStore, ctx: ToolContext, snapshot: Snapshot, task: int, newest: int
+        self, bus: Bus, ctx: ToolContext, snapshot: Snapshot, task: int, newest: int
     ) -> ToolResult:
         if not outstanding(snapshot, task):
             bus.record(newest, AgentStatus.COLLECTED, EventSource.WORKER)
@@ -99,7 +94,7 @@ class CollectTask(Tool[TaskArgs]):
 
     def _read_lost(
         self,
-        bus: LifecycleStore,
+        bus: Bus,
         ctx: ToolContext,
         snapshot: Snapshot,
         task: int,

@@ -2,7 +2,7 @@
 import collections.abc
 import pathlib
 
-from ancalagon.clock.clock import Clock
+from ancalagon.bus.bus import Bus
 from ancalagon.contracts.role import Role
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.tools.delegate.delegate_to import DelegateTo
@@ -15,10 +15,10 @@ def delegate_tools(
     caller: Role,
     run_dir: pathlib.PurePath,
     parent: int,
-    clock: Clock,
     fs: FileSystem,
+    bus: Bus,
 ) -> list[BoundTool]:
     return [
-        bound_for(DelegateTo(name, role, run_dir, parent, clock, fs), caller)
+        bound_for(DelegateTo(bus, name, role, run_dir, parent, fs), caller)
         for name, role in roles.items()
     ]

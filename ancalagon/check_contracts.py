@@ -1,4 +1,5 @@
 # What a config must satisfy before a run starts: every contract it names must resolve.
+from ancalagon.bus.no_bus import NO_BUS
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.contracts.answer_file import AnswerFile
@@ -97,6 +98,7 @@ def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem, web: WebC
             clock=SystemClock(),
             fs=fs,
             web=web,
+            bus=NO_BUS,
         )
         return ""
     except Exception as error:
