@@ -32,11 +32,14 @@ cli.py ──writes spec.json──▶ tasks/root/
 
 ## The trace
 
-### 1. Starting a run — `ancalagon/cli.py`
+### 1. Starting a run — `ancalagon/cli.py` and `ancalagon/run.py`
 
-`main(config_path, run_dir)`. The run directory is created by `ancalagon init` and migrated by
-`ancalagon migrate` before this runs — three separate invocations, so that schema changes are
-applied by the startup script rather than as a side effect of starting a run:
+`main(config_path, run_dir)` loads a `Config` and calls `run`; everything past that point —
+validation, materialising the config, enqueuing the root task, and supervising it to
+completion — happens inside `run`, not in the CLI. The run directory is created by
+`ancalagon init` and migrated by `ancalagon migrate` before this runs — three separate
+invocations, so that schema changes are applied by the startup script rather than as a side
+effect of starting a run:
 
 ```bash
 RUN_DIR=$(ancalagon init --config ancalagon.toml)
@@ -49,29 +52,39 @@ when `--run-dir` is absent, and creates the named
 directory when it is given. A named directory is reused if present, which is what makes a second
 invocation continue rather than start over; an allocated one must not already exist.
 
-1. `config/load.py` reads the TOML. Relative roots resolve against the **config file**, not
-   the process cwd, so a worker started elsewhere sees the same paths.
-2. `bus.db` is opened before anything is written, so a run against an absent or out-of-date
-   database refuses before creating a task directory.
+`main` calls `config/load.py`, which reads the TOML. Relative roots resolve against the
+**config file**, not the process cwd, so a worker started elsewhere sees the same paths. Then
+it calls `run(config, run_dir, clock, fs)`:
+
+1. `check_contracts` validates the config — every contract a role names must resolve, every
+   role that runs a session must name a terminal submit tool, every hook must be attachable to
+   the tool it names. Any fault raises `ValueError` before anything is written.
+2. `run_dir/config.json` is written as `config.model_dump_json()`. This is the copy every
+   worker this run spawns will read, not the source TOML — the config is fixed for the rest of
+   this invocation from here on.
 3. `root_spec` builds the root's `AgentSpec` from `[run] role`, looked up in `config.roles` and
-   embedded whole — not copied to disk, since the path in a role's `input`/`answer` `ClassRef`
-   already names where the config says the contract module lives, and the worker resolves it
-   there directly. The goal comes from `[run] goal_file` and nowhere else; the input comes from
-   `[run] input_file` when set, validated against the role's input class, or is built as
-   `{"text": goal}` when the role's input is `FreeText` and no `input_file` is given. `spec.json`
-   is then just `root_spec(config).model_dump_json()`. An unset, missing or empty goal file, a
-   role that `[run] role` names but `[roles.*]` does not declare, or an `input_file` that fails
-   to validate against the role's input class, exits 2 before any spawn.
-4. The task is enqueued with `parent_agent=0`. Enqueuing creates
+   embedded whole — not copied to disk separately, since the path in a role's `input`/`answer`
+   `ClassRef` already names where the config says the contract module lives, and the worker
+   resolves it there directly. The goal comes from `[run] goal_file` and nowhere else; the input
+   comes from `[run] input_file` when set, validated against the role's input class, or is built
+   as `{"text": goal}` when the role's input is `FreeText` and no `input_file` is given.
+   `spec.json` is then just `root_spec(config, fs).model_dump_json()`. An unset, missing or
+   empty goal file, a role that `[run] role` names but `[roles.*]` does not declare, or an
+   `input_file` that fails to validate against the role's input class, raises `ValueError`
+   before any spawn.
+4. `bus.db` is opened, and the task is enqueued with `parent_agent=HUMAN`. Enqueuing creates
    the task if new, adds an agent, and appends a `queued` event; a task retried later reuses
    the task row and adds another agent.
 5. Constructs the `Supervisor` and calls `run_until_idle()`, then `shutdown()` in a
    `finally`.
-6. Prints the root's newest agent's `outcome-<agent>.json`. Because that file is named for the
-   attempt that wrote it, a run that dies without writing one exits 1 instead of reporting an
-   earlier attempt's answer.
+6. Reads the root's newest agent's `outcome-<agent>.json` and returns it, parsed against the
+   role's answer class. Because that file is named for the attempt that wrote it, a run that
+   dies without writing one raises `NoOutcome` instead of reporting an earlier attempt's answer.
 
-The CLI never spawns anything and never speaks to a model.
+Back in `main`, `NoOutcome` is the only exception caught — it exits 1. Anything else propagates.
+On success, `main` prints the returned `Outcome` as JSON. The CLI never spawns anything and
+never speaks to a model; `run` is the seam that does, and it is callable directly from Python
+without a CLI in front of it.
 
 **Opening a bus never migrates it.** `LifecycleStore.open` requires a database that exists and is
 already at the latest version, and raises otherwise, naming the command to run. Migrating is
@@ -792,6 +805,7 @@ the only place third-party type gaps are tolerated.
 
 ```
 ws/runs/r_20260822-121500/
+    config.json                   the config this run was started with, materialised once
     bus.db                        tasks, agents, every event about them, every model call
     tasks/root/
         spec.json                 what was asked, with the whole role embedded
