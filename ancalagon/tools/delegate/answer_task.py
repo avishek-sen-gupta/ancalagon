@@ -1,6 +1,4 @@
 # Answers a subagent that stopped to ask something, which queues it to continue.
-import pathlib
-
 from ancalagon.answer import answer_task
 from ancalagon.bus.bus import Bus
 from ancalagon.clock.clock import Clock
@@ -21,11 +19,8 @@ class AnswerTask(Tool[AnswerArgs]):
     cost = 1
     args_model = AnswerArgs
 
-    def __init__(
-        self, bus: Bus, run_dir: pathlib.PurePath, parent: int, clock: Clock, fs: FileSystem
-    ):
+    def __init__(self, bus: Bus, parent: int, clock: Clock, fs: FileSystem):
         self.bus = bus
-        self.run_dir = run_dir
         self.parent = parent
         self.clock = clock
         self.fs = fs
@@ -33,13 +28,15 @@ class AnswerTask(Tool[AnswerArgs]):
     def run(self, args: AnswerArgs, ctx: ToolContext) -> ToolResult:
         try:
             resumed = answer_task(
-                self.run_dir,
+                self.bus,
                 args.task,
                 args.answer,
                 answered_by=self.parent,
                 clock=self.clock,
                 fs=self.fs,
             )
-        except (KeyError, ValueError) as exc:
-            return ctx.failure(self.name, str(exc))
+        except KeyError as no_agent:
+            return ctx.failure(self.name, str(no_agent.args[0]))
+        except ValueError as refusal:
+            return ctx.failure(self.name, str(refusal))
         return ctx.result(self.name, f"answered agent {args.task}; queued agent {resumed.id}")

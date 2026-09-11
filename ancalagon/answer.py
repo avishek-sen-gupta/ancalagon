@@ -2,12 +2,13 @@
 import pathlib
 
 from ancalagon.attempt.snapshot import Snapshot
-from ancalagon.bus.lifecycle_store import LifecycleStore
+from ancalagon.bus.bus import Bus
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.agent_ref import AgentRef
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
+from ancalagon.contracts.no_agent_ref import NoAgentRef
 from ancalagon.contracts.text import Text
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.schedule.active_for import active_for
@@ -44,14 +45,13 @@ def _answerable(snapshot: Snapshot, agent: int) -> None:
 
 
 def answer_task(
-    run_dir: pathlib.PurePath,
+    bus: Bus,
     agent: int,
     answer: str,
     answered_by: int,
     clock: Clock,
     fs: FileSystem,
 ) -> AgentRef:
-    bus = LifecycleStore.open(run_dir / "bus.db", clock, fs)
     snapshot = bus.snapshot()
     _answerable(snapshot, agent)
     task = task_of(snapshot, agent)
@@ -68,4 +68,8 @@ def answer_task(
         )
     )
     log.close()
-    return bus.enqueue(task_dir, parent_agent=task.parent_agent)
+    match bus.enqueue(task_dir, parent_agent=task.parent_agent):
+        case AgentRef() as ref:
+            return ref
+        case NoAgentRef():
+            raise KeyError(f"no agent {agent}")

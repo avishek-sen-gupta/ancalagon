@@ -137,7 +137,7 @@ def available_tools(
         *delegate_tools(roles, role, run_dir=run_dir, parent=parent, fs=fs, bus=bus),
         bound_for(CheckTask(bus), role),
         bound_for(CollectTask(bus, fs), role),
-        bound_for(AnswerTask(bus=bus, run_dir=run_dir, parent=parent, clock=clock, fs=fs), role),
+        bound_for(AnswerTask(bus=bus, parent=parent, clock=clock, fs=fs), role),
         bound_for(NeedInput(), role),
         bound_for(_idle(bus, parent), role),
         bound_for(SubmitAnswer(output_class), role),
