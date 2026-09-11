@@ -1,49 +1,21 @@
-# Starts a run: writes the root task, then supervises it to completion.
+# Parses arguments and dispatches to the command that carries out the run.
 import argparse
 import logging
 import pathlib
 import sys
 
-import pydantic
-
 from ancalagon.answer_command import answer_command
-from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
 from ancalagon.clock.clock import Clock
 from ancalagon.clock.system_clock import SystemClock
-from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
-from ancalagon.config.on_path import on_path
-from ancalagon.contracts.agent_spec import AgentSpec
-from ancalagon.contracts.answer_file import AnswerFile
-from ancalagon.contracts.class_ref import ClassRef
-from ancalagon.contracts.no_run import NO_RUN
-from ancalagon.contracts.resolve import resolve_class
-from ancalagon.contracts.role import Role
-from ancalagon.contracts.run_contracts import run_contracts
-from ancalagon.contracts.run_settings import RunSettings
-from ancalagon.contracts.task_spec import TaskSpec
-from ancalagon.env.real_environment import RealEnvironment
+from ancalagon.contracts.no_outcome import NoOutcome
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrate_command import migrate_command
 from ancalagon.note_command import note_command
-from ancalagon.sandbox.fence import Fence
-from ancalagon.sandbox.sandbox import Sandbox
-from ancalagon.sandbox.strategy import Strategy
-from ancalagon.sandbox.unsandboxed import Unsandboxed
-from ancalagon.schedule.newest_agent import newest_agent
-from ancalagon.supervisor.spawn_by_run import SpawnByRun
-from ancalagon.supervisor.spawner import Spawner
-from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
-from ancalagon.supervisor.supervisor import Supervisor
-from ancalagon.tools.idle.idle import Idle
-from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
-from ancalagon.tools.submit.submitting import TERMINAL_TOOLS, submitting
+from ancalagon.run import run
 from ancalagon.trace_command import trace_command
 from ancalagon.viz_command import viz_command
-from ancalagon.web.real_web_client import RealWebClient
-from ancalagon.web.web_client import WebClient
-from ancalagon.worker import build_registry
 
 LOGGER = logging.getLogger(__name__)
 
@@ -75,243 +47,25 @@ def init_command(config_path: pathlib.PurePath, run_dir: str) -> int:
     return 0
 
 
-def _text_of(path: pathlib.PurePath, named_by: str, fs: FileSystem) -> str:
-    if not fs.is_file(path):
-        raise ValueError(f"[run] {named_by} names {path}, which does not exist")
-    return fs.read_text(path)
-
-
-def goal_of(settings: RunSettings, fs: FileSystem) -> str:
-    if not settings.goal_file:
-        raise ValueError("no goal: set [run] goal_file")
-    goal = _text_of(pathlib.PurePath(settings.goal_file), "goal_file", fs)
-    if not goal.strip():
-        raise ValueError(f"[run] goal_file {settings.goal_file} is empty")
-    return goal
-
-
-def _from_goal(input_class: type[pydantic.BaseModel], role: Role, goal: str) -> pydantic.BaseModel:
-    try:
-        return input_class.model_validate({"text": goal})
-    except pydantic.ValidationError as error:
-        raise ValueError(
-            f"[run] input_file is unset, so root's input was built from the goal alone as "
-            f"{{'text': goal}}; that does not satisfy {role.input.name}, the role's input "
-            f"class: {error}"
-        ) from error
-
-
-def _contract_fault(name: str, field: str, ref: ClassRef) -> str:
-    try:
-        resolve_class(ref)
-        return ""
-    except Exception as error:
-        return (
-            f"[roles.{name}] {field} names {ref.name} in {ref.module}, "
-            f"which cannot be loaded: {type(error).__name__}: {error}"
-        )
-
-
-def _run_fault(name: str, role: Role) -> str:
-    if role.run == NO_RUN:
-        return ""
-    given, produced = run_contracts(role.run)
-    disagreements = [
-        (field, declared, derived)
-        for field, declared, derived in (
-            ("input", role.input, given),
-            ("answer", role.answer, produced),
-        )
-        if declared != derived
-    ]
-    if not disagreements:
-        return ""
-    field, declared, derived = disagreements[0]
-    return (
-        f"[roles.{name}] declares {field} as {declared.name} in {declared.module}, but its "
-        f"run function {role.run.name} in {role.run.module} states {field} as "
-        f"{derived.name} in {derived.module}"
-    )
-
-
-ANSWER_FILE = ClassRef(module=AnswerFile.__module__, name=AnswerFile.__name__)
-
-
-def _submit_fault(name: str, role: Role) -> str:
-    if role.run != NO_RUN or set(role.tools) & TERMINAL_TOOLS:
-        return ""
-    return (
-        f"[roles.{name}] tools: a role that runs a session must name one of "
-        f"{sorted(TERMINAL_TOOLS)}; named: {sorted(role.tools)}"
-    )
-
-
-def _answer_file_fault(name: str, role: Role) -> str:
-    if SubmitAnswerAsFile.name not in role.tools or role.answer == ANSWER_FILE:
-        return ""
-    return (
-        f"[roles.{name}] declares answer as {role.answer.name} in {role.answer.module}, but "
-        f"{SubmitAnswerAsFile.name} submits {ANSWER_FILE.name} in {ANSWER_FILE.module}"
-    )
-
-
-def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem, web: WebClient) -> str:
-    named = set(role.before) | set(role.after)
-    withheld = TERMINAL_TOOLS - {submitting(role.tools)}
-    in_role_but_withheld = named & set(role.tools) & withheld
-    not_in_role = named - set(role.tools) - {Idle.name}
-    if in_role_but_withheld:
-        tool = sorted(in_role_but_withheld)[0]
-        chosen = submitting(role.tools)
-        return (
-            f"[roles.{name}] names a hook for {tool}, but that tool is not among its tools "
-            f"because it named {chosen}"
-        )
-    if not_in_role:
-        return f"[roles.{name}] names a hook for {sorted(not_in_role)[0]}, which it does not use"
-    try:
-        build_registry(
-            config,
-            TaskSpec(task_id=name, role=role, goal=""),
-            config.write_root,
-            parent=0,
-            depth=0,
-            output_class=resolve_class(role.answer),
-            clock=SystemClock(),
-            fs=fs,
-            web=web,
-        )
-        return ""
-    except Exception as error:
-        return f"[roles.{name}] {error}"
-
-
-def check_contracts(
-    config: Config, fs: FileSystem = RealFileSystem(), web: WebClient = RealWebClient()
-) -> None:
-    faults = (
-        [
-            fault
-            for name, role in config.roles.items()
-            for field, ref in (("input", role.input), ("answer", role.answer))
-            if (fault := _contract_fault(name, field, ref))
-        ]
-        or [fault for name, role in config.roles.items() if (fault := _run_fault(name, role))]
-        or [fault for name, role in config.roles.items() if (fault := _submit_fault(name, role))]
-        or [
-            fault
-            for name, role in config.roles.items()
-            if (fault := _answer_file_fault(name, role))
-        ]
-        or [
-            fault
-            for name, role in config.roles.items()
-            if (fault := _hook_fault(name, role, config, fs, web))
-        ]
-    )
-    if faults:
-        raise ValueError("\n".join(faults))
-
-
-def root_spec(config: Config, fs: FileSystem) -> AgentSpec[pydantic.BaseModel]:
-    if config.run.role not in config.roles:
-        raise ValueError(
-            f"[run] role: no role named {config.run.role}; declared: {sorted(config.roles)}"
-        )
-    role = config.roles[config.run.role]
-    goal = goal_of(config.run, fs)
-    input_class = resolve_class(role.input)
-    given = (
-        input_class.model_validate_json(
-            _text_of(pathlib.PurePath(config.run.input_file), "input_file", fs)
-        )
-        if config.run.input_file
-        else _from_goal(input_class, role, goal)
-    )
-    return AgentSpec[input_class](task_id="root", role=role, goal=goal, input=given)
-
-
-def sandbox_of(config: Config, run_dir: pathlib.PurePath, fs: FileSystem) -> Sandbox:
-    if config.sandbox is Strategy.NONE:
-        return Unsandboxed()
-    return Fence(
-        write_root=config.write_root,
-        allowed_domains=config.allowed_domains + config.web_domains,
-        run_dir=run_dir,
-        fs=fs,
-    )
-
-
-# A task whose role names a run function is served by a process, not by a model, so the
-# supervisor is given a spawner that reads each spec and picks accordingly.
-def _spawner(
-    config: Config, run_dir: pathlib.PurePath, config_path: pathlib.PurePath, fs: FileSystem
-) -> Spawner:
-    made = fs.resolve(config_path)
-    sandbox = sandbox_of(config, run_dir, fs)
-    ordinary = SubprocessSpawner(
-        run_dir=run_dir,
-        config_path=made,
-        environment=RealEnvironment(),
-        fs=fs,
-        module="ancalagon.worker",
-        sandbox=sandbox,
-    )
-    deterministic = SubprocessSpawner(
-        run_dir=run_dir,
-        config_path=made,
-        environment=RealEnvironment(),
-        fs=fs,
-        module="ancalagon.deterministic.run",
-        sandbox=sandbox,
-    )
-    return SpawnByRun(default=ordinary, deterministic=deterministic, fs=fs)
-
-
 def main(config_path: pathlib.PurePath, run_dir: pathlib.PurePath) -> int:
     logging.basicConfig(level=logging.INFO)
     fs = RealFileSystem()
     config = load_config(config_path, fs)
-    on_path(config.import_paths)
-    check_contracts(config)
-
-    clock = SystemClock()
-    db = run_dir / "bus.db"
-    bus = LifecycleStore.open(db, clock, fs)
-
-    task_dir = run_dir / "tasks" / "root"
-    fs.mkdir(task_dir, parents=True, exist_ok=True)
-    fs.write_text(task_dir / "spec.json", root_spec(config, fs).model_dump_json())
-    bus.enqueue(task_dir, parent_agent=HUMAN)
-    supervisor = Supervisor(
-        bus=LifecycleStore.open(db, clock, fs),
-        spawner=_spawner(config, run_dir, config_path, fs),
-        max_concurrent=config.max_concurrent_agents,
-        timeout_s=config.agent_timeout_s,
-        clock=clock,
-        fs=fs,
-    )
     try:
-        supervisor.run_until_idle()
-    finally:
-        supervisor.shutdown()
-
-    task = bus.task(task_dir)
-    newest = newest_agent(bus.snapshot(), task.id)
-    outcome = task_dir / f"outcome-{newest}.json"
-    if not fs.exists(outcome):
-        LOGGER.error("root task produced no outcome; see %s", task_dir)
+        produced = run(config, run_dir, config_path, SystemClock(), fs)
+    except NoOutcome as exc:
+        LOGGER.error("%s", exc)
         return 1
-    sys.stdout.write(fs.read_text(outcome) + "\n")
+    sys.stdout.write(produced.model_dump_json() + "\n")
     return 0
 
 
 def cli() -> int:
     parser = argparse.ArgumentParser(prog="ancalagon")
     commands = parser.add_subparsers(dest="command", required=True)
-    run = commands.add_parser("run")
-    run.add_argument("--config", type=pathlib.PurePath, required=True)
-    run.add_argument("--run-dir", type=pathlib.PurePath, required=True)
+    run_parser = commands.add_parser("run")
+    run_parser.add_argument("--config", type=pathlib.PurePath, required=True)
+    run_parser.add_argument("--run-dir", type=pathlib.PurePath, required=True)
     init = commands.add_parser("init")
     init.add_argument("--config", type=pathlib.PurePath, required=True)
     init.add_argument("--run-dir", type=str, default="")

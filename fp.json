@@ -3,6 +3,7 @@
   "exclude": [
     "tests/",
     "ancalagon/cli.py",
+    "ancalagon/check_contracts.py",
     "ancalagon/worker.py",
     "ancalagon/session.py",
     "ancalagon/deterministic/run.py",

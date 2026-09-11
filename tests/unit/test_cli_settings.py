@@ -5,13 +5,14 @@ import pathlib
 import pytest
 
 from ancalagon import cli
-from ancalagon.cli import created_run_dir, goal_of, root_spec, sandbox_of
+from ancalagon.cli import created_run_dir
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.config.config import Config
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.run_settings import RunSettings
 from ancalagon.fs.real_file_system import RealFileSystem
+from ancalagon.run import goal_of, root_spec, sandbox_of
 from ancalagon.sandbox.fence import Fence
 from ancalagon.sandbox.strategy import Strategy
 from ancalagon.sandbox.unsandboxed import Unsandboxed
