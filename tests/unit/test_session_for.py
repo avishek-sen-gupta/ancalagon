@@ -28,7 +28,9 @@ SOLO = Role(
 WATCHER = Role(behaviour="Watch.", run=WATCH_FOR, tools=(), budget=finite_budget(0, 0))
 
 
-def test_a_session_with_no_bus_gets_tools_that_cannot_queue(tmp_path: pathlib.Path):
+def solo_agent(
+    tmp_path: pathlib.Path,
+) -> tuple[Config, TaskSpec, ToolContext, Transcript, RealFileSystem]:
     fs = RealFileSystem()
     write_root = tmp_path / "ws"
     task_dir = write_root / "tasks" / "solo"
@@ -48,6 +50,11 @@ def test_a_session_with_no_bus_gets_tools_that_cannot_queue(tmp_path: pathlib.Pa
         input=FreeText(text="Answer it."),
     )
     transcript = Transcript(fs, path=pathlib.PurePath(task_dir / "transcript.jsonl"), agent_id=1)
+    return config, spec, ctx, transcript, fs
+
+
+def test_a_session_with_no_bus_gets_tools_that_cannot_queue(tmp_path: pathlib.Path):
+    config, spec, ctx, transcript, fs = solo_agent(tmp_path)
 
     session = session_for(
         config,
@@ -69,3 +76,24 @@ def test_a_session_with_no_bus_gets_tools_that_cannot_queue(tmp_path: pathlib.Pa
     assert session.children is NO_CHILDREN
     assert session.letterbox is NO_LETTERBOX
     assert session.meter is UNMETERED
+
+
+def test_a_session_at_the_depth_cap_is_offered_no_delegate_tool(tmp_path: pathlib.Path):
+    config, spec, ctx, transcript, fs = solo_agent(tmp_path)
+
+    session = session_for(
+        config,
+        spec,
+        ctx,
+        transcript,
+        pathlib.PurePath(tmp_path / "runs" / "solo"),
+        FakeLLM([]),
+        FakeClock(),
+        fs,
+        RealWebClient(),
+        depth=config.max_depth,
+    )
+    transcript.close()
+
+    assert "delegate_solo" not in session.registry.names()
+    assert sorted(session.registry.names()) == ["idle", "submit_answer", "watch_file"]
