@@ -86,6 +86,17 @@ On success, `main` prints the returned `Outcome` as JSON. The CLI never spawns a
 never speaks to a model; `run` is the seam that does, and it is callable directly from Python
 without a CLI in front of it.
 
+**`run` is not the only seam.** `run` starts a tree: a run directory, a migrated `bus.db`, a
+supervisor polling it, and a subprocess per agent. A host that wants one agent and none of that
+calls `session_for` instead — `ancalagon/session_for.py`, which also holds `available_tools` and
+`build_registry`, so one module knows how an agent is assembled and `worker.main` is its first
+caller rather than a second copy of it. Nine arguments are required and five default to the null
+objects that make an agent run alone: `NO_BUS`, `NO_CHILDREN`, `NO_LETTERBOX`, `UNMETERED` and
+`depth=0`. Under `NO_BUS` the registry offers `NoDelegateTo`, `NoWatchFile` and `NoIdle` — same
+names, same schemas, every call refused — so the model learns from a failure rather than from a
+missing tool. Nothing is created and nothing is migrated; the caller owns the `ToolContext` and
+the `Transcript`, including closing it. `examples/embed_one_agent.py` is the worked version.
+
 **Opening a bus never migrates it.** `LifecycleStore.open` requires a database that exists and is
 already at the latest version, and raises otherwise, naming the command to run. Migrating is
 `migrations.migrate_file`, reached only through the `migrate` command. Starting a run never
@@ -469,7 +480,10 @@ check costs nothing where it can never apply.
 
 ### 4. The loop — `ancalagon/session.py`
 
-`run()` is the centre of the system:
+`run()` is the centre of the system. It is a `try` around `_loop()`, which is the part worth
+drawing; anything the loop raises comes back as a `Failed` carrying `traceback.format_exc()` in
+`error` and the turns and tool calls actually spent, so a dead provider is an outcome rather than
+a dead process. `KeyboardInterrupt` and `SystemExit` still propagate.
 
 ```
 while True:
@@ -498,7 +512,7 @@ flags set, `final` and `force_tool`. Seven things worth knowing:
   `Idled`, an `Asked` or a `Submitted` payload that `_run_tools` hands back for `run` to read.
   No tool holds state, and the session holds no second reference to one — the ending travels
   along the call it came from. Or `Failed` on the forced final turn, when the reply produced no
-  such payload.
+  such payload, or from the handler around the loop when anything raises.
 - **The terminal submit tool is the only way to answer.** A reply that calls no tool has not finished:
   `_uncalled` records `_continue_instruction(delivered)` and the loop goes round, and on the
   forced final turn the attempt is `Failed`. `delivered` is the `Delivery` `_deliver` returned
