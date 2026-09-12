@@ -649,9 +649,12 @@ replayed; an agent that appears later is shown from its first message. Stop it w
 
 It is **one process**, whatever the workspace holds. It stats every transcript each interval and
 re-reads only the ones whose mtime moved — on a workspace of 22 transcripts that is 0.15 ms per
-interval, against 14.5 ms to parse all of them. `scripts/ancwatch.zsh` does the same job with a
-`tail` and a `jq` per transcript, which is 44 processes for that workspace and none of them ever
-reaped.
+interval, against 14.5 ms to parse all of them, so polling costs less than following would. The
+shell watcher it replaces ran a `tail` and a `jq` per transcript: 44 processes for that workspace,
+none of them ever reaped.
+
+The tool's name is bold yellow and a failed result's `ERR` is red, so a scan finds what was called
+and what broke without reading the line.
 
 **`ancalagon watch` is not `watch_file`.** The tool is how one agent waits on a file another agent
 writes; this is how *you* watch the whole run from outside it. They share nothing but the word.
@@ -721,29 +724,16 @@ Both write to stdout when no `--output` is given, and `anccosttable` reads stdin
 `--input` is — the same convention `trace` and `viz` follow.
 
 Split the way `trace` and `viz` are: one reports what was spent and decides nothing about
-how to show it, the other decides only that. `anccost` reads `write_root` from a config
-exactly as `ancwatch.zsh` does, so the two cannot disagree about where runs live.
+how to show it, the other decides only that. `anccost` reads `write_root` from a config the same
+way `ancalagon watch` does, so the two cannot disagree about where runs live.
 
 Model calls have their own store, `MeterStore`, behind the `Meter` a session calls — a separate
 concern from the lifecycle rows, sharing the run's one connection rather than a second database.
 Tokens are recorded; money is not. A price list changes without notice, and a figure computed at
 one week's prices is silently wrong the next.
 
-Watch a whole run, subagents included:
-
-```bash
-./scripts/ancwatch.zsh ancalagon.toml    # start before or during a run
-```
-
-Give it the config the run uses, so the two cannot disagree about where runs live. It sees only
-`<write_root>/runs/*/tasks/*` and `<write_root>/*/tasks/*` — a run directory elsewhere is
-invisible to it.
-
-One line per message, rendered by `scripts/ancwatch.jq`. Prose and tool output are cut to the
-terminal's width less the label; a tool call's arguments are shown whole, because a path cut in
-half says less than the width saves. Widen the window to see more. The tool's name is bold yellow
-and a failed result's `ERR` is red, so a scan finds what was called and what broke without reading
-the line.
+Watching a run as it happens is [`ancalagon watch`](#inspecting-a-run), which replaced the shell
+watcher these scripts used to sit beside.
 
 ## Sandbox, credentials, migrations
 
