@@ -8,7 +8,7 @@ from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.fs.real_file_system import RealFileSystem
-from ancalagon.watch_command import concern, watching
+from ancalagon.watch_command import UNSET, concern, watching
 from ancalagon.watching.rendered import TEXT_WIDTHS, rendered
 from ancalagon.watching.watch import Watch
 
@@ -169,7 +169,7 @@ def test_the_command_watches_the_write_root_its_config_names(tmp_path: pathlib.P
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text(CONFIG)
 
-    watch = watching(pathlib.PurePath(config), RealFileSystem(), FakeClock())
+    watch = watching(str(config), UNSET, RealFileSystem(), FakeClock())
 
     assert watch.write_root == pathlib.PurePath(tmp_path / "nested" / "ws")
     assert watch.tick() == ""
@@ -233,6 +233,36 @@ def test_a_write_root_that_holds_no_runs_directory_is_called_out(tmp_path: pathl
     workspace = pathlib.PurePath(tmp_path / "ws")
     fs.mkdir(workspace / "runs", parents=True, exist_ok=True)
 
-    assert concern(missing, fs) == f"no runs directory under {missing}; is this the write_root?"
-    assert concern(bare, fs) == f"no runs directory under {bare}; is this the write_root?"
+    assert concern(missing, fs) == f"nothing to watch under {missing}; is this the write_root?"
+    assert concern(bare, fs) == f"nothing to watch under {bare}; is this the write_root?"
     assert concern(workspace, fs) == ""
+
+
+def test_a_runs_directory_is_watched_as_readily_as_a_workspace(tmp_path: pathlib.Path):
+    _write(tmp_path, "r_1", "root", [_said(1, "before the watcher")])
+    from_workspace = Watch(pathlib.PurePath(tmp_path), RealFileSystem(), FakeClock(), COLUMNS)
+    from_runs = Watch(pathlib.PurePath(tmp_path / "runs"), RealFileSystem(), FakeClock(), COLUMNS)
+
+    _write(tmp_path, "r_1", "root", [_said(2, "after it")])
+    by_workspace = from_workspace.tick()
+    by_runs = from_runs.tick()
+
+    assert "after it" in by_workspace
+    assert by_runs == by_workspace
+
+
+def test_a_directory_is_watched_without_a_config(tmp_path: pathlib.Path):
+    _write(tmp_path, "r_1", "root", [_said(1, "history")])
+
+    watch = watching(UNSET, str(tmp_path), RealFileSystem(), FakeClock())
+
+    assert watch.write_root == pathlib.PurePath(tmp_path)
+    assert watch.tick() == ""
+
+
+def test_the_concern_is_quiet_for_a_runs_directory_that_holds_agents(tmp_path: pathlib.Path):
+    fs = RealFileSystem()
+    _write(tmp_path, "r_1", "root", [_said(1, "here")])
+
+    assert concern(pathlib.PurePath(tmp_path / "runs"), fs) == ""
+    assert concern(pathlib.PurePath(tmp_path), fs) == ""

@@ -8,24 +8,36 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.load import load_config
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
-from ancalagon.watching.watch import Watch
+from ancalagon.watching.watch import TRANSCRIPTS, Watch
+
+UNSET = ""
 
 
 def concern(write_root: pathlib.PurePath, fs: FileSystem) -> str:
-    if fs.is_dir(write_root / "runs"):
+    if fs.is_dir(write_root / "runs") or _agents_under(write_root, fs):
         return ""
-    return f"no runs directory under {write_root}; is this the write_root?"
+    return f"nothing to watch under {write_root}; is this the write_root?"
 
 
-def watching(config_path: pathlib.PurePath, fs: FileSystem, clock: Clock) -> Watch:
-    config = load_config(config_path, fs)
-    return Watch(config.write_root, fs, clock, shutil.get_terminal_size().columns)
+def _agents_under(write_root: pathlib.PurePath, fs: FileSystem) -> bool:
+    return any(fs.glob(write_root, shape) for shape in TRANSCRIPTS)
 
 
-def watch_command(config_path: pathlib.PurePath, interval_s: float) -> int:
+def _root(config_path: str, watch_dir: str, fs: FileSystem) -> pathlib.PurePath:
+    if watch_dir:
+        return fs.resolve(pathlib.PurePath(watch_dir))
+    return load_config(pathlib.PurePath(config_path), fs).write_root
+
+
+def watching(config_path: str, watch_dir: str, fs: FileSystem, clock: Clock) -> Watch:
+    root = _root(config_path, watch_dir, fs)
+    return Watch(root, fs, clock, shutil.get_terminal_size().columns)
+
+
+def watch_command(config_path: str, watch_dir: str, interval_s: float) -> int:
     fs = RealFileSystem()
     clock = SystemClock()
-    watch = watching(config_path, fs, clock)
+    watch = watching(config_path, watch_dir, fs, clock)
     doubt = concern(watch.write_root, fs)
     if doubt:
         sys.stderr.write(f"-- {doubt} --\n")
