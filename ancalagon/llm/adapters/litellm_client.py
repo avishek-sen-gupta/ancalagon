@@ -1,6 +1,7 @@
 # Translates between our contracts and litellm's OpenAI-shaped wire format.
 import collections.abc
 import json
+import typing
 
 from ancalagon.contracts.block import Block
 from ancalagon.contracts.call_usage import CallUsage
@@ -18,6 +19,13 @@ from ancalagon.llm.inlined import Inlined
 from ancalagon.llm.llm import LLM
 from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.tool_schema import ToolSchema
+
+if typing.TYPE_CHECKING:
+    from litellm.types.utils import (
+        ChatCompletionMessageCustomToolCall,
+        ChatCompletionMessageToolCall,
+        Function,
+    )
 
 
 def _system_blocks(system: SystemPrompt) -> tuple[WireTextBlock, ...]:
@@ -50,6 +58,16 @@ def to_wire(message: Message) -> list[WireMessage]:
 
 def _to_arguments(raw: str | collections.abc.Mapping[str, str]) -> str:
     return raw if isinstance(raw, str) else json.dumps(dict(raw))
+
+
+def _function_of(
+    call: "ChatCompletionMessageToolCall | ChatCompletionMessageCustomToolCall",
+) -> "Function":
+    import litellm.types.utils
+
+    if isinstance(call, litellm.types.utils.ChatCompletionMessageCustomToolCall):
+        raise TypeError(f"litellm returned a custom tool call: {call.id}")
+    return call.function
 
 
 class LiteLLMClient(LLM):
@@ -113,8 +131,8 @@ class LiteLLMClient(LLM):
             ToolUse.model_validate(
                 {
                     "id": call.id,
-                    "name": call.function.name,
-                    "arguments": _to_arguments(call.function.arguments),
+                    "name": _function_of(call).name,
+                    "arguments": _to_arguments(_function_of(call).arguments),
                 }
             )
             for call in first.message.tool_calls or []
