@@ -8,7 +8,7 @@ from ancalagon.watching.rendered import rendered
 
 FRAME = 9
 FLOOR = 20
-TRANSCRIPTS = "runs/*/tasks/*/transcript.jsonl"
+TRANSCRIPTS = ("runs/*/tasks/*/transcript.jsonl", "*/tasks/*/transcript.jsonl")
 UNREAD = -1
 
 
@@ -27,7 +27,8 @@ class Watch:
         self._catch_up()
 
     def _transcripts(self) -> tuple[pathlib.PurePath, ...]:
-        return self.fs.glob(self.write_root, TRANSCRIPTS)
+        found = {p for shape in TRANSCRIPTS for p in self.fs.glob(self.write_root, shape)}
+        return tuple(sorted(found))
 
     def _catch_up(self) -> None:
         for path in self._transcripts():

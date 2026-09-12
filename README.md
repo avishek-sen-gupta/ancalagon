@@ -634,10 +634,15 @@ workspace and renders each message as it lands:
 ```bash
 ancalagon watch --config ancalagon.toml          # one line per block, per agent
 ancalagon watch --config ancalagon.toml --interval 0.5
+ancalagon watch --dir ws                         # a workspace, without a config
+ancalagon watch --dir ws/runs                    # or the runs directory itself
 ```
 
-It takes the workspace from the config's `write_root`, so the run and the watcher cannot disagree
-about where to look. A tool call's arguments are shown whole, never cut — they are the part of a
+`--config` and `--dir` are alternatives and one is required. `--config` takes the workspace from
+the config's `write_root` — resolved against the config file, not your shell's directory — so the
+run and the watcher cannot disagree about where to look. `--dir` names a directory outright, and
+accepts either a workspace or a `runs/` directory, for when you have a workspace in front of you
+and no config to hand. A tool call's arguments are shown whole, never cut — they are the part of a
 line worth reading, and a truncated one costs more to chase than a long one costs to skim. Prose
 and tool results are still trimmed to the terminal. Agents already on disk when it starts are followed but their history is not
 replayed; an agent that appears later is shown from its first message. Stop it with Ctrl-C.
