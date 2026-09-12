@@ -8,6 +8,7 @@ from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.fs.real_file_system import RealFileSystem
+from ancalagon.watch_command import watching
 from ancalagon.watching.rendered import rendered
 from ancalagon.watching.watch import Watch
 
@@ -160,3 +161,52 @@ def test_a_transcript_that_has_not_changed_is_not_read_again(tmp_path: pathlib.P
     _write(tmp_path, "r_1", "root", [_said(2, "moved")])
     assert "moved" in watch.tick()
     assert len(fs.reads) == after_startup + 1
+
+
+def test_the_command_watches_the_write_root_its_config_names(tmp_path: pathlib.Path):
+    config = tmp_path / "nested" / "some.toml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(CONFIG)
+
+    watch = watching(pathlib.PurePath(config), RealFileSystem(), FakeClock())
+
+    assert watch.write_root == pathlib.PurePath(tmp_path / "nested" / "ws")
+    assert watch.tick() == ""
+
+
+CONFIG = """
+[workspace]
+write_root = "./ws"
+read_roots = ["./ws"]
+
+[model]
+name = "some-provider/some-model"
+num_retries = 2
+request_timeout_s = 120
+max_tokens = 4000
+allowed_domains = []
+
+[limits]
+max_concurrent_agents = 1
+agent_timeout_s = 300
+max_depth = 1
+compact_above_tokens = 60000
+keep_recent_messages = 8
+summary_chars = 1000
+
+[sandbox]
+strategy = "fence"
+
+[run]
+goal_file = ""
+input_file = ""
+role = "solo"
+
+[roles.solo]
+behaviour = "Answer it."
+tools = ["submit_answer"]
+
+[roles.solo.budget]
+turns = 1
+tool_calls = 1
+"""

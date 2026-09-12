@@ -16,6 +16,7 @@ from ancalagon.note_command import note_command
 from ancalagon.run import run
 from ancalagon.trace_command import trace_command
 from ancalagon.viz_command import viz_command
+from ancalagon.watch_command import watch_command
 
 LOGGER = logging.getLogger(__name__)
 
@@ -86,6 +87,9 @@ def cli() -> int:
     viz = commands.add_parser("viz")
     viz.add_argument("--input", type=str, default="")
     viz.add_argument("--output", type=str, default="")
+    watch = commands.add_parser("watch")
+    watch.add_argument("--config", type=pathlib.PurePath, required=True)
+    watch.add_argument("--interval", type=float, default=1.0)
     args = parser.parse_args()
     try:
         if args.command == "init":
@@ -100,6 +104,8 @@ def cli() -> int:
             return trace_command(args.run_dir, args.output, RealFileSystem())
         if args.command == "viz":
             return viz_command(args.input, args.output, RealFileSystem())
+        if args.command == "watch":
+            return watch_command(args.config, args.interval)
         return main(args.config, args.run_dir)
     except ValueError as error:
         sys.stderr.write(f"{error}\n")
