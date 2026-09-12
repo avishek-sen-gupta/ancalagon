@@ -1,5 +1,5 @@
 {
-  "include": ["ancalagon", "tests"],
+  "include": ["ancalagon", "examples", "tests"],
   "exclude": ["**/__pycache__", "**/.venv"],
   "typeCheckingMode": "strict",
   "pythonVersion": "3.13",

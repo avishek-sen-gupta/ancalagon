@@ -57,6 +57,12 @@ the same way, in place of `ancalagon.toml`:
 | `research.toml` | `web_search` and `fetch_url`, with every role answering by writing a file |
 | `blackboard.toml` | three peers sharing one append-only file, waking each other through `watch_file` |
 
+One worked example does not use a config file at all:
+
+| Example | Shows |
+|---|---|
+| `examples/embed_one_agent.py` | [one agent inside a host program](#running-one-agent-in-your-process), with a `Config` built in Python and no supervisor |
+
 ## Starting a run from Python
 
 `ancalagon run` is one caller of a seam any program can use. Before calling `run`, the run
@@ -96,8 +102,12 @@ outcome = session.run()
 ```
 
 The caller owns the `ToolContext` and the `Transcript`, and closes the transcript when it is done.
-`tests/integration/test_one_agent.py` builds all four from a `Config` written in Python, and is
-the worked example this section describes.
+`examples/embed_one_agent.py` is the worked version of this section: it builds all four from a
+`Config` written in Python, hands one agent `list_dir`, `read_file` and `submit_answer`, and sets
+it to find the contradiction among four notes. Run it with `uv run python examples/embed_one_agent.py`
+once your provider credentials are in the environment, and change `MODEL` at the top of the file to
+point at a different one. `tests/integration/test_one_agent.py` is the same shape with a scripted
+model and no network.
 
 The remaining collaborators default to `NO_BUS`, `NO_CHILDREN`, `NO_LETTERBOX` and `UNMETERED`,
 which is what makes one agent run alone: a role naming `delegate_<role>` or `idle` gets a tool of
