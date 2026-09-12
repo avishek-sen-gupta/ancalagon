@@ -12,7 +12,7 @@ fileignoreconfig:
 - filename: docs/superpowers/plans/2026-08-03-ancalagon-substrate.md
   checksum: dad56bb88ded3533244d7f16f43bd9ce526cacfaba1b511558af92bae52a611a
 - filename: uv.lock
-  checksum: 32f45ac374bf26ba4dcb2c9ad815e837cd6ceac8a7a5772f69a538e8e6ef2302
+  checksum: 1d8d80a43031d0b5c2204bc85ef33d6d20d82a8555459147fcf5cf08f0bbb250
 - filename: tests/unit/test_workspace_scoping.py
   checksum: 1b71ea5dcdb64d0392e8a37d3cc240ab1ac3ee60c5002083e66c4afaa9681459
 - filename: tests/unit/test_config_load.py
@@ -50,7 +50,7 @@ fileignoreconfig:
 - filename: README.md
   checksum: ec5d5f1e5d72fb1e21d22a68151a3f13495b6117cccfc601ce4bd0ec897717a6
 - filename: scripts/ancrun.zsh
-  checksum: 3712acd42152df7dd1ff0abd50f242a85abba311c4fcf3f41b5074dd367b0273
+  checksum: 0e1da640407c1684e32bb0cdb2b701df2bb47f04888ba8c5992aed27c0a71dc7
 - filename: docs/guidelines/code-review.md
   checksum: 5256f2878a5cfa74c80e2e86e9c4a0dfa7c9696e8349d0f362416086a8a8531b
 - filename: docs/guidelines/tools-skills.md
