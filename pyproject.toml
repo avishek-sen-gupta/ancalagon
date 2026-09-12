@@ -5,7 +5,7 @@ description = "Agent harness for reverse engineering"
 requires-python = ">=3.13"
 dependencies = [
     "pydantic>=2.12",
-    "litellm>=1.60",
+    "litellm>=1.72",
     "tree-sitter>=0.23",
     "tree-sitter-python>=0.23",
     "tree-sitter-java>=0.23",
