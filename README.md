@@ -637,7 +637,9 @@ ancalagon watch --config ancalagon.toml --interval 0.5
 ```
 
 It takes the workspace from the config's `write_root`, so the run and the watcher cannot disagree
-about where to look. Agents already on disk when it starts are followed but their history is not
+about where to look. A tool call's arguments are shown whole, never cut — they are the part of a
+line worth reading, and a truncated one costs more to chase than a long one costs to skim. Prose
+and tool results are still trimmed to the terminal. Agents already on disk when it starts are followed but their history is not
 replayed; an agent that appears later is shown from its first message. Stop it with Ctrl-C.
 
 It is **one process**, whatever the workspace holds. It stats every transcript each interval and

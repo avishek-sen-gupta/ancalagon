@@ -6,6 +6,8 @@ from ancalagon.fs.file_system import FileSystem
 from ancalagon.transcript.history import load
 from ancalagon.watching.rendered import rendered
 
+FRAME = 9
+FLOOR = 20
 TRANSCRIPTS = "runs/*/tasks/*/transcript.jsonl"
 UNREAD = -1
 
@@ -15,11 +17,11 @@ def _label(path: pathlib.PurePath) -> str:
 
 
 class Watch:
-    def __init__(self, write_root: pathlib.PurePath, fs: FileSystem, clock: Clock, width: int):
+    def __init__(self, write_root: pathlib.PurePath, fs: FileSystem, clock: Clock, columns: int):
         self.write_root = write_root
         self.fs = fs
         self.clock = clock
-        self.width = width
+        self.columns = columns
         self.read_through: dict[str, int] = {}
         self.changed_at: dict[str, float] = {}
         self._catch_up()
@@ -42,7 +44,11 @@ class Watch:
         if not fresh:
             return ""
         self.read_through = {**self.read_through, where: fresh[-1].seq}
-        return "".join(rendered(_label(path), m, self.width) for m in fresh)
+        label = _label(path)
+        return "".join(rendered(label, m, self._width(label)) for m in fresh)
+
+    def _width(self, label: str) -> int:
+        return max(FLOOR, self.columns - len(label) - FRAME)
 
     def tick(self) -> str:
         return "".join(self._new_since(path) for path in self._transcripts())

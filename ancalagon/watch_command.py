@@ -10,17 +10,10 @@ from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.watching.watch import Watch
 
-FRAME = 9
-FLOOR = 20
-
-
-def _width(label_room: int) -> int:
-    return max(FLOOR, shutil.get_terminal_size().columns - label_room - FRAME)
-
 
 def watching(config_path: pathlib.PurePath, fs: FileSystem, clock: Clock) -> Watch:
     config = load_config(config_path, fs)
-    return Watch(config.write_root, fs, clock, _width(len(str(config.write_root))))
+    return Watch(config.write_root, fs, clock, shutil.get_terminal_size().columns)
 
 
 def watch_command(config_path: pathlib.PurePath, interval_s: float) -> int:

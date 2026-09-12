@@ -20,7 +20,7 @@ def _block_line(block: Block, width: int) -> str:
     if isinstance(block, Text):
         return f"{INDENT}{block.text.replace('\n', f'\n{INDENT}')[: width * TEXT_WIDTHS]}\n"
     if isinstance(block, ToolUse):
-        return f"{INDENT}→ {YELLOW}{block.name}{OFF} {_flat(block.arguments, width)}\n"
+        return f"{INDENT}→ {YELLOW}{block.name}{OFF} {block.arguments.replace('\n', ' ')}\n"
     marked = f"{RED}ERR{OFF} " if block.is_error else ""
     return f"{INDENT}← {marked}{_flat(block.content, width)}\n"
 
