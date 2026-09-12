@@ -9,7 +9,7 @@ from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.watch_command import watching
-from ancalagon.watching.rendered import rendered
+from ancalagon.watching.rendered import TEXT_WIDTHS, rendered
 from ancalagon.watching.watch import Watch
 
 CYAN = "[36m"
@@ -17,6 +17,7 @@ YELLOW = "[1;33m"
 RED = "[31m"
 OFF = "[0m"
 AGE_STEP = 2.0
+COLUMNS = 80
 
 
 def _message(role: MessageRole, blocks: list[Text | ToolUse | ToolResultBlock], agent: int = 3):
@@ -62,7 +63,7 @@ def test_a_message_indents_wrapped_text_and_truncates_every_block():
     assert lines[1] == "  first"
     assert lines[2] == "  second"
     assert lines[3] == "  " + "x" * 40
-    assert lines[4] == f"  → {YELLOW}shell{OFF} y y" + "y" * 7
+    assert lines[4] == f"  → {YELLOW}shell{OFF} y y" + "y" * 500
     assert lines[5] == "  ← z z" + "z" * 7
 
 
@@ -91,7 +92,7 @@ def _said(seq: int, what: str, agent: int = 1) -> Message:
 
 
 def _watch(tmp_path: pathlib.Path) -> Watch:
-    return Watch(pathlib.PurePath(tmp_path), RealFileSystem(), FakeClock(), 40)
+    return Watch(pathlib.PurePath(tmp_path), RealFileSystem(), FakeClock(), COLUMNS)
 
 
 def test_agents_already_on_disk_show_nothing_of_their_history(tmp_path: pathlib.Path):
@@ -151,7 +152,7 @@ class CountingFileSystem(RealFileSystem):
 def test_a_transcript_that_has_not_changed_is_not_read_again(tmp_path: pathlib.Path):
     _write(tmp_path, "r_1", "root", [_said(1, "settled")])
     fs = CountingFileSystem()
-    watch = Watch(pathlib.PurePath(tmp_path), fs, FakeClock(), 40)
+    watch = Watch(pathlib.PurePath(tmp_path), fs, FakeClock(), COLUMNS)
     after_startup = len(fs.reads)
 
     assert watch.tick() == ""
@@ -210,3 +211,15 @@ tools = ["submit_answer"]
 turns = 1
 tool_calls = 1
 """
+
+
+def test_the_text_budget_shrinks_with_the_label_it_shares_a_line_with(tmp_path: pathlib.Path):
+    watch = _watch(tmp_path)
+    watch.tick()
+    _write(tmp_path, "r", "a", [_said(1, "t" * 4000)])
+    _write(tmp_path, "a_very_long_run_name", "a_very_long_task_name", [_said(1, "t" * 4000)])
+
+    budgets = sorted(len(ln) for ln in watch.tick().splitlines() if ln.startswith("  t"))
+
+    room = len("a_very_long_run_name/a_very_long_task_name") - len("r/a")
+    assert budgets[1] - budgets[0] == room * TEXT_WIDTHS
