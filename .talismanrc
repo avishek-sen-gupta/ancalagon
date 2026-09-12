@@ -153,4 +153,6 @@ fileignoreconfig:
   checksum: 5cc95394b0e704b13000d05672a07a0dddb4a094789b394b5f212e894efae2b8
 - filename: docs/superpowers/plans/2026-09-12-a-crash-is-an-outcome.md
   checksum: dd5db400bc6ad2026a11aba8b8df0c9b622d4cf30650faf4e1a78a130294fa3a
+- filename: docs/superpowers/plans/2026-09-12-one-process-watching-a-run.md
+  checksum: 502bcbfcadfb3d4d7ee5ebe660ef9562264f5abf8a41840fd079ae2aabe08e5e
 version: "1.0"
