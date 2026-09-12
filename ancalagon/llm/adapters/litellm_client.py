@@ -122,6 +122,7 @@ class LiteLLMClient(LLM):
             timeout=self.request_timeout_s,
             tool_choice=wanted,
             custom_llm_provider=self.custom_llm_provider or None,
+            retry_strategy="exponential_backoff_retry",
         )
         if not isinstance(response, litellm.ModelResponse):
             raise TypeError("litellm.completion returned a streaming response")
