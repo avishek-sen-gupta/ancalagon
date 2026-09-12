@@ -628,6 +628,27 @@ ancalagon viz --input run.json --output run.mmd
 Both write to stdout when no `--output` is given, and `viz` reads stdin when no `--input` is.
 Neither writes anything into the run directory.
 
+`trace` reads a run once. To follow one as it happens, `watch` tails every agent's transcript in a
+workspace and renders each message as it lands:
+
+```bash
+ancalagon watch --config ancalagon.toml          # one line per block, per agent
+ancalagon watch --config ancalagon.toml --interval 0.5
+```
+
+It takes the workspace from the config's `write_root`, so the run and the watcher cannot disagree
+about where to look. Agents already on disk when it starts are followed but their history is not
+replayed; an agent that appears later is shown from its first message. Stop it with Ctrl-C.
+
+It is **one process**, whatever the workspace holds. It stats every transcript each interval and
+re-reads only the ones whose mtime moved — on a workspace of 22 transcripts that is 0.15 ms per
+interval, against 14.5 ms to parse all of them. `scripts/ancwatch.zsh` does the same job with a
+`tail` and a `jq` per transcript, which is 44 processes for that workspace and none of them ever
+reaped.
+
+**`ancalagon watch` is not `watch_file`.** The tool is how one agent waits on a file another agent
+writes; this is how *you* watch the whole run from outside it. They share nothing but the word.
+
 Abridged, that is what a fan-out actually looked like — three children, a parent that idles
 rather than polls, and two wakes to collect them:
 

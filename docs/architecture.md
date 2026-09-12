@@ -86,6 +86,15 @@ On success, `main` prints the returned `Outcome` as JSON. The CLI never spawns a
 never speaks to a model; `run` is the seam that does, and it is callable directly from Python
 without a CLI in front of it.
 
+**Following a run as it happens** is `ancalagon watch` — `watch_command.py` over
+`ancalagon/watching/`, unrelated to `ancalagon/watch/` and to the `watch_file` tool despite the
+name. It globs `runs/*/tasks/*/transcript.jsonl` under the config's `write_root`, gates each file
+on `changed_at`, and re-reads only what moved, keeping a `seq` high-water mark per agent so a
+message is rendered once. One process for any number of agents: `FileSystem` has no seek and only
+`real_file_system.py` may touch a file, so there are no byte offsets — measured, parsing every
+transcript in a 22-agent workspace costs 14.5 ms and statting them all costs 0.15 ms, which is
+what makes re-reading whole files affordable.
+
 **`run` is not the only seam.** `run` starts a tree: a run directory, a migrated `bus.db`, a
 supervisor polling it, and a subprocess per agent. A host that wants one agent and none of that
 calls `session_for` instead — `ancalagon/session_for.py`, which also holds `available_tools` and
