@@ -8,7 +8,7 @@ from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.fs.real_file_system import RealFileSystem
-from ancalagon.watch_command import watching
+from ancalagon.watch_command import concern, watching
 from ancalagon.watching.rendered import TEXT_WIDTHS, rendered
 from ancalagon.watching.watch import Watch
 
@@ -223,3 +223,16 @@ def test_the_text_budget_shrinks_with_the_label_it_shares_a_line_with(tmp_path: 
 
     room = len("a_very_long_run_name/a_very_long_task_name") - len("r/a")
     assert budgets[1] - budgets[0] == room * TEXT_WIDTHS
+
+
+def test_a_write_root_that_holds_no_runs_directory_is_called_out(tmp_path: pathlib.Path):
+    fs = RealFileSystem()
+    missing = pathlib.PurePath(tmp_path / "never-made")
+    bare = pathlib.PurePath(tmp_path / "bare")
+    fs.mkdir(bare, parents=True, exist_ok=True)
+    workspace = pathlib.PurePath(tmp_path / "ws")
+    fs.mkdir(workspace / "runs", parents=True, exist_ok=True)
+
+    assert concern(missing, fs) == f"no runs directory under {missing}; is this the write_root?"
+    assert concern(bare, fs) == f"no runs directory under {bare}; is this the write_root?"
+    assert concern(workspace, fs) == ""
