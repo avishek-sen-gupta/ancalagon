@@ -102,6 +102,7 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
         timeout: int,
         tool_choice: str | dict[str, str | dict[str, str]],
         custom_llm_provider: str | None,
+        retry_strategy: str = "constant_retry",
     ) -> FakeResponse:
         seen["num_retries"] = num_retries
         seen["timeout"] = timeout
@@ -191,6 +192,7 @@ def test_only_the_static_system_half_is_cache_marked_and_usage_counters_reach_th
         timeout: int,
         tool_choice: str | dict[str, str | dict[str, str]],
         custom_llm_provider: str | None,
+        retry_strategy: str = "constant_retry",
     ) -> FakeResponse:
         seen.append(messages)
         offered.append(tools)
