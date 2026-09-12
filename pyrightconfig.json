@@ -8,7 +8,8 @@
   "executionEnvironments": [
     {
       "root": "ancalagon/llm/adapters",
-      "reportUnknownMemberType": "none"
+      "reportUnknownMemberType": "none",
+      "reportMissingTypeStubs": "none"
     },
     {
       "root": "ancalagon/tools/submit/adheres_to_schema.py",
