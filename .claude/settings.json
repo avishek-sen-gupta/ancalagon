@@ -9,6 +9,14 @@
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-no-verify.sh"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/plugins/guvnah/hooks/bd-terminology-guard.sh"
+          }
+        ]
       }
     ]
   },
