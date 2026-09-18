@@ -96,13 +96,18 @@ one break, the same step repeats with the backward side growing one component at
 - `B` = everything that transitively calls the outcome.
 - Classify a root of `B`, search for its invoker **across the whole codebase**, not just the
   forward set.
-- If the invoker is in the forward component, the search is done.
-- Otherwise the invoker sits in some other component `C`. That is a bridge, and `B := B ∪ C`.
-  Repeat.
+- If the invoker is in the forward set, the search is done.
+- Otherwise the bridge stands but lands outside both sides. Expand callers backward **from the
+  invoker**, to its own roots — that expansion is `C`. Set `B := B ∪ C` and repeat with `C`'s
+  roots as the next classification candidates.
+
+So each round is the same step: a backward expansion to a set of roots, one root classified, a
+search for its invoker. What changes between rounds is only where the expansion starts. The
+backward side grows by one segment and one bridge per round.
 
 The search terminates when the backward side touches the forward side. The number of bridges
-is never guessed, and intermediate components are never enumerated — only the specific
-component containing the invoker being searched for is ever discovered.
+is never guessed, and intermediate components are never enumerated — a component is only ever
+expanded once an invoker has been found inside it.
 
 The cost shifts with each round: the search for an invoker is a text search over the whole
 codebase for one identifier (a bean name, a topic, a properties entry), not a graph query.
