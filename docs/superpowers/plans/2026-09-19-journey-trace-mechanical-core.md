@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Given a `buildcg` call graph, an entry method and an outcome method, answer whether a bridge is needed at all and, if it is, produce the candidate backward roots with mechanical dismissals applied.
+**Goal:** Given a `buildcg` call graph, an entry method and an outcome method, answer whether a bridge is needed at all and, if it is, produce the backward roots that are the candidates for bridging. The second half waits on `buildcg --to`.
 
-**Architecture:** A new `ancalagon.journey` package holding a functional core: a typed reader that turns `callgraph.json` into a `CallGraph` of `MethodRef` at the file boundary, forward reachability, graph inversion, backward roots, root dismissal, and the span verifier for a `Bridge`. No model calls and no Java toolchain — every input is a JSON file and every output is a value.
+**Architecture:** A new `ancalagon.journey` package holding a functional core: a typed reader that turns `callgraph.json` into a `CallGraph` of `MethodRef` at the file boundary, forward reachability, backward roots read from `buildcg --to`, and the span verifier for a `Bridge`. No model calls — every input is a file already on disk and every output is a value.
 
 **Tech Stack:** Python 3.13, Pydantic v2, pytest, uv. No new dependencies.
 
@@ -13,14 +13,15 @@
 ## Scope
 
 The spec covers more than one plan's worth of work. This plan implements the parts that need
-neither a model nor an external process — spec sections **Search strategy** steps 1 and 2,
-**Root ranking** (the dismissal half), and verifier 1 of **Verification**.
+neither a model nor an external process — spec sections **Search strategy** steps 1 and 2, and
+verifier 1 of **Verification**.
 
 Deferred to later plans, each of which depends on this one:
 
-- **Plan 2 — root classification and invoker search.** Spec steps 3 and 4. Needs source-level
-  facts (annotations, supertypes, config files), so it depends on `symbol-types` and the J2EE
-  extractors being callable.
+- **Plan 2 — root classification, dismissal and invoker search.** Spec steps 3 and 4 and the
+  whole of **Root ranking**. Every dismissal in the spec needs a source-level fact — a
+  modifier, an annotation, a supertype, a config entry, a source path — so none of them can be
+  decided from a call graph alone. Depends on `symbol-types` and the J2EE extractors.
 - **Plan 3 — the search loop and model touch points.** Spec step 5, **Anchors**, **Ambiguity**,
   **Granularity**. Needs plan 2 and the `LLM` protocol.
 
@@ -55,10 +56,8 @@ Copied from `CLAUDE.md` and `docs/guidelines/`. Every task's requirements includ
 | `ancalagon/contracts/bridge.py` | `Bridge` — a claimed link with its evidence and rationale |
 | `ancalagon/journey/parse_method_ref.py` | signature text to `MethodRef` |
 | `ancalagon/journey/read_call_graph.py` | file to `CallGraph` |
-| `ancalagon/journey/reachable_from.py` | transitive closure over a `CallGraph` |
-| `ancalagon/journey/inverted.py` | a `CallGraph` with every edge reversed |
-| `ancalagon/journey/backward_roots.py` | methods reaching an outcome that nothing in-project calls |
-| `ancalagon/journey/on_a_journey.py` | mechanical dismissal of roots that cannot be on a journey |
+| `ancalagon/journey/reachable_from.py` | transitive closure over a set of edges |
+| `ancalagon/journey/backward_roots.py` | methods reaching an outcome that nothing in-project calls — Task 4, blocked |
 | `ancalagon/journey/spans_hold.py` | verifier 1 — cited spans exist and contain the cited text |
 | `tests/unit/test_journey.py` | the whole suite for this package |
 
@@ -329,10 +328,14 @@ git commit -m "Read a call graph file into typed adjacency"
 
 **Interfaces:**
 - Consumes: `CallGraph`, `MethodRef` from Task 2.
-- Produces: `reachable_from(graph: CallGraph, entry: MethodRef) -> frozenset[MethodRef]`.
+- Produces: `Edges` (a `Mapping[MethodRef, tuple[MethodRef, ...]]`);
+  `reachable_from(edges: Edges, start: MethodRef) -> frozenset[MethodRef]`.
 
 This is spec step 1: expand callees forward from the entry once, then test membership of the
 outcome. A cycle in the graph must terminate, which the `- seen` subtraction handles.
+
+It takes the edge mapping rather than a `CallGraph` because the caller direction, when Task 4
+unblocks, may want the same walk.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -351,11 +354,10 @@ def test_forward_reachability_is_transitive_includes_the_entry_and_survives_cycl
         }
     )
 
-    assert reachable_from(graph, controller()) == frozenset(
+    assert reachable_from(graph.callees, controller()) == frozenset(
         {controller(), service(), repository()}
     )
-    assert reachable_from(graph, repository()) == frozenset({repository()})
-    assert repository() in reachable_from(graph, controller())
+    assert reachable_from(graph.callees, repository()) == frozenset({repository()})
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -368,24 +370,25 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'ancalagon.journey.rea
 Create `ancalagon/journey/reachable_from.py`:
 
 ```python
-# Everything a method transitively calls, itself included.
-from ancalagon.contracts.call_graph import CallGraph
+# Everything reachable from a method along one direction of edges, itself included.
+import collections.abc
+
 from ancalagon.contracts.method_ref import MethodRef
 
+Edges = collections.abc.Mapping[MethodRef, tuple[MethodRef, ...]]
 
-def reachable_from(graph: CallGraph, entry: MethodRef) -> frozenset[MethodRef]:
-    return expanded(graph, frozenset({entry}), frozenset({entry}))
+
+def reachable_from(edges: Edges, start: MethodRef) -> frozenset[MethodRef]:
+    return expanded(edges, frozenset({start}), frozenset({start}))
 
 
 def expanded(
-    graph: CallGraph, seen: frozenset[MethodRef], frontier: frozenset[MethodRef]
+    edges: Edges, seen: frozenset[MethodRef], frontier: frozenset[MethodRef]
 ) -> frozenset[MethodRef]:
     if not frontier:
         return seen
-    found = frozenset(
-        target for method in frontier for target in graph.callees.get(method, ())
-    )
-    return expanded(graph, seen | found, found - seen)
+    found = frozenset(onward for method in frontier for onward in edges.get(method, ()))
+    return expanded(edges, seen | found, found - seen)
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -397,10 +400,10 @@ Expected: PASS
 
 Break the implementation in two ways and confirm the test fails each time, then restore it:
 
-1. Change `expanded(graph, seen | found, found - seen)` to `expanded(graph, seen | found, found)`.
+1. Change `expanded(edges, seen | found, found - seen)` to `expanded(edges, seen | found, found)`.
    Expected: `RecursionError` on the cyclic graph.
-2. Change `reachable_from` to seed with `frozenset()` instead of `frozenset({entry})`.
-   Expected: the `reachable_from(graph, repository())` assertion fails.
+2. Change `reachable_from` to seed with `frozenset()` instead of `frozenset({start})`.
+   Expected: the `reachable_from(graph.callees, repository())` assertion fails.
 
 - [ ] **Step 6: Verify and commit**
 
@@ -414,207 +417,41 @@ git commit -m "Expand callees forward from an entry method"
 
 ---
 
-### Task 4: Graph inversion and backward roots
+### Task 4: Backward roots from `buildcg --to` — BLOCKED
 
-**Files:**
-- Create: `ancalagon/journey/inverted.py`
-- Create: `ancalagon/journey/backward_roots.py`
-- Modify: `tests/unit/test_journey.py`
+**Status:** blocked on a `--to` target in `java-bytecode-tools`, which computes the caller graph
+reaching a given method. That work is in progress. Do not start this task, and do not implement a
+Python-side substitute for it — the inversion this plan originally specified was deleted for that
+reason, not deferred.
+
+**Files:** not yet decidable. They depend on the shape `--to` emits.
 
 **Interfaces:**
-- Consumes: `CallGraph`, `MethodRef`, `reachable_from` from Tasks 2 and 3.
-- Produces: `inverted(graph: CallGraph) -> CallGraph`;
-  `backward_roots(graph: CallGraph, outcome: MethodRef) -> frozenset[MethodRef]`.
+- Consumes: `MethodRef` from Task 1, `reachable_from` from Task 3 if the output turns out to need
+  a walk rather than already being transitively closed.
+- Produces: `backward_roots(...) -> frozenset[MethodRef]` — the methods that reach the outcome and
+  that nothing in the project calls.
 
-This is spec step 2. Backward expansion is the forward expansion run over the inverted graph, so
-`reachable_from` is reused rather than mirrored. A root is a method in that backward set with no
-entry in the inverted adjacency — nothing in-project calls it. The outcome is its own root when
-nothing calls it.
+**To unblock, three things must be known:**
 
-`inverted` is quadratic in the number of edges. That is knowingly accepted: it is called once per
-round of the search, and correctness is what this task is for. If it becomes the bottleneck, fix
-it then, with a benchmark.
+1. What `--to` writes — the top-level fields, and whether the caller set it returns is the direct
+   callers or the transitive closure.
+2. Whether it reports the roots itself, or whether roots must still be derived as "present in the
+   result with no caller entry".
+3. Whether its output is a separate file or another field on `callgraph.json`, which decides
+   whether `CallGraphFile` from Task 2 grows a field or a second wire model is needed.
 
-- [ ] **Step 1: Write the failing test**
+Once those are settled this task is written the same way as the rest: a test over a fixture of
+that shape, then the reader, then the roots.
 
-Append to `tests/unit/test_journey.py`:
-
-```python
-from ancalagon.journey.backward_roots import backward_roots
-from ancalagon.journey.inverted import inverted
-
-
-def listener() -> MethodRef:
-    return MethodRef(declaring_class="com.example.Listener", subsignature="void onMessage()")
-
-
-def test_inversion_reverses_every_edge_and_roots_are_the_uncalled_callers():
-    graph = CallGraph(
-        callees={
-            controller(): (service(),),
-            listener(): (service(),),
-            service(): (repository(),),
-        }
-    )
-
-    assert inverted(graph).callees == {
-        service(): (controller(), listener()),
-        repository(): (service(),),
-    }
-    assert backward_roots(graph, repository()) == frozenset({controller(), listener()})
-    assert backward_roots(graph, controller()) == frozenset({controller()})
-```
-
-Note: `inverted` must produce callers in the order their callers appear in `graph.callees`, which
-for a dict literal is insertion order, so `(controller(), listener())` is deterministic.
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `uv run python -m pytest tests/unit/test_journey.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'ancalagon.journey.backward_roots'`
-
-- [ ] **Step 3: Write minimal implementation**
-
-Create `ancalagon/journey/inverted.py`:
-
-```python
-# The same call graph with every edge reversed, so callers can be walked like callees.
-from ancalagon.contracts.call_graph import CallGraph
-from ancalagon.contracts.method_ref import MethodRef
-
-
-def inverted(graph: CallGraph) -> CallGraph:
-    targets = frozenset(
-        target for targets in graph.callees.values() for target in targets
-    )
-    return CallGraph(
-        callees={target: callers_of(graph, target) for target in targets}
-    )
-
-
-def callers_of(graph: CallGraph, target: MethodRef) -> tuple[MethodRef, ...]:
-    return tuple(caller for caller, targets in graph.callees.items() if target in targets)
-```
-
-Create `ancalagon/journey/backward_roots.py`:
-
-```python
-# Methods that reach an outcome but that nothing in the project calls.
-from ancalagon.contracts.call_graph import CallGraph
-from ancalagon.contracts.method_ref import MethodRef
-from ancalagon.journey.inverted import inverted
-from ancalagon.journey.reachable_from import reachable_from
-
-
-def backward_roots(graph: CallGraph, outcome: MethodRef) -> frozenset[MethodRef]:
-    backward = inverted(graph)
-    return frozenset(
-        method
-        for method in reachable_from(backward, outcome)
-        if not backward.callees.get(method, ())
-    )
-```
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `uv run python -m pytest tests/unit/test_journey.py -v`
-Expected: PASS
-
-- [ ] **Step 5: Mutation-check the test**
-
-Break the implementation in two ways and confirm the test fails each time, then restore it:
-
-1. In `backward_roots`, drop the `if not backward.callees.get(method, ())` filter. Expected: the
-   root assertion fails because `service()` and `repository()` are included.
-2. In `inverted`, swap `caller` and `target` in the `callers_of` comprehension. Expected: the
-   inversion assertion fails.
-
-- [ ] **Step 6: Verify and commit**
-
-Run: `uv run python -m black . && uv run pyright && uv run python -m pytest tests/unit && uv run lint-imports`
-Expected: all pass.
-
-```bash
-git add ancalagon/journey/inverted.py ancalagon/journey/backward_roots.py tests/unit/test_journey.py
-git commit -m "Find the backward roots that reach an outcome"
-```
+**Everything else in this plan is independent of it.** Tasks 1, 2, 3, 5 and 6 neither import from
+this task nor are imported by it, so they proceed now. What they cannot do without it is answer
+the question the goal states — which is why this plan does not claim to be complete until this
+task lands.
 
 ---
 
-### Task 5: Dismiss roots that cannot be on a journey
-
-**Files:**
-- Create: `ancalagon/journey/on_a_journey.py`
-- Modify: `tests/unit/test_journey.py`
-
-**Interfaces:**
-- Consumes: `MethodRef` from Task 1.
-- Produces: `on_a_journey(root: MethodRef) -> bool`.
-
-This is the mechanical half of spec **Root ranking**. Only the dismissals the call graph alone
-supports belong here: a program entry point and a static initialiser are never on a user journey.
-The annotation- and path-based dismissals in the spec — `@Scheduled`, lifecycle callbacks, the
-test source tree — need source facts and belong to Plan 2, not here. Do not stub them.
-
-- [ ] **Step 1: Write the failing test**
-
-Append to `tests/unit/test_journey.py`:
-
-```python
-from ancalagon.journey.on_a_journey import on_a_journey
-
-
-def test_program_entry_points_and_static_initialisers_are_dismissed():
-    main = MethodRef(
-        declaring_class="com.example.App", subsignature="void main(java.lang.String[])"
-    )
-    initialiser = MethodRef(declaring_class="com.example.App", subsignature="void <clinit>()")
-
-    assert not on_a_journey(main)
-    assert not on_a_journey(initialiser)
-    assert on_a_journey(controller())
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `uv run python -m pytest tests/unit/test_journey.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'ancalagon.journey.on_a_journey'`
-
-- [ ] **Step 3: Write minimal implementation**
-
-Create `ancalagon/journey/on_a_journey.py`:
-
-```python
-# Whether a backward root could be on a user journey at all, judged from its signature alone.
-from ancalagon.contracts.method_ref import MethodRef
-
-
-class NeverOnAJourney:
-    SUBSIGNATURES = frozenset({"void main(java.lang.String[])", "void <clinit>()"})
-
-
-def on_a_journey(root: MethodRef) -> bool:
-    return root.subsignature not in NeverOnAJourney.SUBSIGNATURES
-```
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `uv run python -m pytest tests/unit/test_journey.py -v`
-Expected: PASS
-
-- [ ] **Step 5: Verify and commit**
-
-Run: `uv run python -m black . && uv run pyright && uv run python -m pytest tests/unit && uv run lint-imports`
-Expected: all pass.
-
-```bash
-git add ancalagon/journey/on_a_journey.py tests/unit/test_journey.py
-git commit -m "Dismiss roots that no user journey can pass through"
-```
-
----
-
-### Task 6: The Bridge record and its span verifier
+### Task 5: The Bridge record and its span verifier
 
 **Files:**
 - Create: `ancalagon/contracts/bridge.py`
@@ -745,14 +582,14 @@ git commit -m "Verify that a bridge's cited spans say what it quoted"
 
 ---
 
-### Task 7: Document the package
+### Task 6: Document the package
 
 **Files:**
 - Modify: `README.md`
 - Modify: `docs/architecture.md`
 
 **Interfaces:**
-- Consumes: everything from Tasks 1–6.
+- Consumes: everything from Tasks 1–5.
 - Produces: nothing in code.
 
 `docs/guidelines/code-review.md` makes `README.md` and `docs/architecture.md` part of the commit
@@ -798,26 +635,30 @@ git commit -m "Document the journey package"
 | Spec section | Task | Status |
 |---|---|---|
 | Search strategy, step 1 | 3 | covered — `reachable_from` plus a membership test |
-| Search strategy, step 2 | 4 | covered — `inverted`, `backward_roots` |
+| Search strategy, step 2 | 4 | BLOCKED on `buildcg --to`; nothing written |
 | Search strategy, steps 3–5 | — | deferred to Plans 2 and 3, declared in Scope |
-| Verification, verifier 1 | 6 | covered — `spans_hold` |
+| Verification, verifier 1 | 5 | covered — `spans_hold` |
 | Verification, verifiers 2–4 | — | deferred to Plan 2, declared in Scope |
 | Anchors | — | deferred to Plan 3, declared in Scope |
-| Artifact (the segment graph) | 6 | partial — `Bridge` exists; the graph that holds bridges is Plan 3 |
+| Artifact (the segment graph) | 5 | partial — `Bridge` exists; the graph that holds bridges is Plan 3 |
 | Ambiguity | — | deferred to Plan 3, declared in Scope |
 | Granularity (CFG refinement) | — | deferred to Plan 3, declared in Scope |
-| Root ranking, dismissal | 5 | partial by design — only the signature-based dismissals |
+| Root ranking, dismissal | — | deferred to Plan 2 — no dismissal is decidable from a call graph alone |
 | Root ranking, ordering | — | deferred to Plan 3, declared in Scope |
 | Division of labour | — | no model touch point in this plan, by scope |
 
 **Type consistency.** `MethodRef` is constructed identically in every task. `CallGraph.callees`
-is `dict[MethodRef, tuple[MethodRef, ...]]` in Tasks 2, 3 and 4. `reachable_from` returns
-`frozenset[MethodRef]` and is consumed as one in Task 4. `Evidence` field names match
+is `dict[MethodRef, tuple[MethodRef, ...]]`, which `Edges` accepts. `Evidence` field names match
 `ancalagon/contracts/evidence.py` as it exists: `path`, `start_line`, `end_line`, `quote`.
 
-**Placeholders.** None. Every step carries the code or the exact command it asks for; Task 7 is
-prose-only and says why, and names what to read before writing.
+**Placeholders.** None, with one deliberate exception: Task 4 carries no code because it is
+blocked on an external tool whose output shape is not yet fixed. It says so in its title, states
+the three facts needed to unblock it, and forbids writing a substitute. Guessing the shape would
+be a placeholder; naming the blocker is not.
 
-**Known gap carried from the spec.** Separating dead code and test fixtures from genuine
-reflective targets is unsolved, and Task 5 deliberately implements only the two dismissals that
-a signature alone justifies. Plan 2 inherits the problem.
+**Known gap carried from the spec.** Dismissal was dropped from this plan entirely. A method
+signature carries no modifiers, no annotations and no source path, so every dismissal the spec
+names — `@Scheduled`, lifecycle callbacks, `main`, the test source tree — needs a source-level
+fact this plan has no access to, and matching on signature text would be a heuristic dressed up
+as a rule. Plan 2 takes all of it, along with the unsolved problem of separating dead code and
+test fixtures from genuine reflective targets.
