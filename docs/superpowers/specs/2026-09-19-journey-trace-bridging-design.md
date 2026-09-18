@@ -50,13 +50,15 @@ bounded by the program, not by the model.
 
 Bidirectional, with the work done on the backward side.
 
-**Step 1 — check the two sides don't already meet.** Expand callees forward from the entry and
-callers backward from the outcome, both to exhaustion within the project. If the sets
-intersect there is no bridge to make. This is cheap and is often the answer.
+**Step 1 — check whether a bridge is needed at all.** Expand callees forward from the entry
+and test whether the outcome is in that set. One expansion, one membership test. If it is
+there, the path is already in the call graph and there is nothing to bridge. This is cheap and
+is often the answer.
 
-**Step 2 — work from the backward side.** The forward edge is wide: every method the entry
-transitively reaches that calls nothing further in-project, which is hundreds of leaves, most
-irrelevant. The backward edge is narrow: methods that reach the outcome but that nothing
+**Step 2 — only on failure, expand backward.** The forward set is already in hand but is the
+wrong side to work from: its edge is wide — every method the entry transitively reaches that
+calls nothing further in-project, hundreds of leaves, most irrelevant. Expand callers backward
+from the outcome instead. That edge is narrow: methods that reach the outcome but that nothing
 in-project calls. On a real codebase that is a handful.
 
 Backward roots are computable from the existing `callgraph.json` by inverting `callees`. No
