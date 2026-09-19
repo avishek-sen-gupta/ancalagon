@@ -13,6 +13,7 @@ lookup, a message queue, a home-grown registry keyed by a properties file. Each 
 ## Toolbox
 
 The mechanical tools are those in `java-bytecode-tools`: `buildcg` (call graph),
+`buildcg-to` (the call graph restricted to what reaches a given method),
 `calltree` (forward and backward method-level trees), `cfg-root` / `xtrace-slice`
 (interprocedural CFG), `ddg-slice` (backward data-dependency slice), `symbol-types`
 (source-level symbol resolution), `jspmap`, `bean-registry` and the J2EE bean pipeline,
@@ -61,8 +62,19 @@ calls nothing further in-project, hundreds of leaves, most irrelevant. Expand ca
 from the outcome instead. That edge is narrow: methods that reach the outcome but that nothing
 in-project calls. On a real codebase that is a handful.
 
-Backward roots are computable from the existing `callgraph.json` by inverting `callees`. No
-tool change is required.
+`buildcg-to --to <signature>` does this expansion. It searches backward but writes an ordinary
+forward-edged call graph restricted to the slice, marked `seededTo`. Nothing needs inverting.
+
+Two properties of that output do the rest of the work. Every method in it reaches a target, and
+therefore every caller of a method in it is also in it — so a method with no caller *within the
+slice* has no in-project caller at all, and the roots are one pass over the `callees` values.
+The exception is a static initialiser that writes the field it initialises, which the tool
+reports as a self-edge `C.<clinit> -> C.<clinit>`; self-edges are discounted when taking roots.
+
+A `seededTo` graph carries path edges only — a method's callees are those on some path to a
+target, not its full set — so it answers backward questions and must never be walked forward.
+`seededFrom` and `seededTo` are mutually exclusive, and which marker a graph carries is how a
+reader knows which of the two it is holding.
 
 **Step 3 — ask why each root is a root.** A method that exists but has no in-project caller is
 invoked by something outside the code. The method's own shape usually settles which: its
@@ -97,9 +109,9 @@ one break, the same step repeats with the backward side growing one component at
 - Classify a root of `B`, search for its invoker **across the whole codebase**, not just the
   forward set.
 - If the invoker is in the forward set, the search is done.
-- Otherwise the bridge stands but lands outside both sides. Expand callers backward **from the
-  invoker**, to its own roots — that expansion is `C`. Set `B := B ∪ C` and repeat with `C`'s
-  roots as the next classification candidates.
+- Otherwise the bridge stands but lands outside both sides. Run `buildcg-to --to <invoker>` —
+  that slice is `C`. Set `B := B ∪ C` and repeat with `C`'s roots as the next classification
+  candidates.
 
 So each round is the same step: a backward expansion to a set of roots, one root classified, a
 search for its invoker. What changes between rounds is only where the expansion starts. The
@@ -200,8 +212,12 @@ signal for "could not resolve this call site": an unresolved virtual call and a 
 record accessor are indistinguishable in it. The signal exists one layer up, in the empty
 branch of `MethodResolver.resolveCallee`'s `Optional`, and is discarded before serialisation.
 
-Working from backward roots sidesteps this entirely — "method with no in-project caller" is
-computable from the artifact as it stands — so no change to `java-bytecode-tools` is needed.
+That check was run against a graph whose `callsites` mapped each invoked signature to a single
+line. The field now maps it to a list of call-site references, each with an optional statement
+id and an optional line. The extra structure says nothing about resolution, so the finding
+stands, but any repeat of the experiment must read the current shape.
+
+Working from backward roots sidesteps this entirely — see below.
 
 **Ordering roots by dominance over the outcome.** Dominance requires a single entry point,
 which is precisely what is unknown here, and roots have no predecessors by construction, so

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Given a `buildcg` call graph, an entry method and an outcome method, answer whether a bridge is needed at all and, if it is, produce the backward roots that are the candidates for bridging. The second half waits on `buildcg --to`.
+**Goal:** Given a `buildcg` call graph, an entry method and an outcome method, answer whether a bridge is needed at all and, if it is, take the backward roots that are the candidates for bridging from a `buildcg-to` slice.
 
-**Architecture:** A new `ancalagon.journey` package holding a functional core: a typed reader that turns `callgraph.json` into a `CallGraph` of `MethodRef` at the file boundary, forward reachability, backward roots read from `buildcg --to`, and the span verifier for a `Bridge`. No model calls — every input is a file already on disk and every output is a value.
+**Architecture:** A new `ancalagon.journey` package holding a functional core: typed readers that turn `buildcg` and `buildcg-to` output into a `CallGraph` of `MethodRef` at the file boundary, forward reachability, backward roots, and the span verifier for a `Bridge`. No model calls and no subprocess — every input is a file already on disk and every output is a value.
 
 **Tech Stack:** Python 3.13, Pydantic v2, pytest, uv. No new dependencies.
 
@@ -56,8 +56,10 @@ Copied from `CLAUDE.md` and `docs/guidelines/`. Every task's requirements includ
 | `ancalagon/contracts/bridge.py` | `Bridge` — a claimed link with its evidence and rationale |
 | `ancalagon/journey/parse_method_ref.py` | signature text to `MethodRef` |
 | `ancalagon/journey/read_call_graph.py` | file to `CallGraph` |
+| `ancalagon/contracts/backward_slice_file.py` | `BackwardSliceFile` — the wire shape of `buildcg-to` output |
 | `ancalagon/journey/reachable_from.py` | transitive closure over a set of edges |
-| `ancalagon/journey/backward_roots.py` | methods reaching an outcome that nothing in-project calls — Task 4, blocked |
+| `ancalagon/journey/read_backward_slice.py` | a `buildcg-to` slice to a `CallGraph`, refusing a forward graph |
+| `ancalagon/journey/backward_roots.py` | methods in a slice that nothing in-project calls |
 | `ancalagon/journey/spans_hold.py` | verifier 1 — cited spans exist and contain the cited text |
 | `tests/unit/test_journey.py` | the whole suite for this package |
 
@@ -334,8 +336,9 @@ git commit -m "Read a call graph file into typed adjacency"
 This is spec step 1: expand callees forward from the entry once, then test membership of the
 outcome. A cycle in the graph must terminate, which the `- seen` subtraction handles.
 
-It takes the edge mapping rather than a `CallGraph` because the caller direction, when Task 4
-unblocks, may want the same walk.
+It takes the edge mapping rather than a `CallGraph` because that is the narrower parameter — the
+walk needs edges, not a graph. Task 4 needs no walk at all: `buildcg-to` returns a slice that is
+already transitively closed.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -417,37 +420,196 @@ git commit -m "Expand callees forward from an entry method"
 
 ---
 
-### Task 4: Backward roots from `buildcg --to` — BLOCKED
+### Task 4: Backward roots from a `buildcg-to` slice
 
-**Status:** blocked on a `--to` target in `java-bytecode-tools`, which computes the caller graph
-reaching a given method. That work is in progress. Do not start this task, and do not implement a
-Python-side substitute for it — the inversion this plan originally specified was deleted for that
-reason, not deferred.
-
-**Files:** not yet decidable. They depend on the shape `--to` emits.
+**Files:**
+- Create: `ancalagon/contracts/backward_slice_file.py`
+- Create: `ancalagon/journey/read_backward_slice.py`
+- Create: `ancalagon/journey/backward_roots.py`
+- Modify: `tests/unit/test_journey.py`
 
 **Interfaces:**
-- Consumes: `MethodRef` from Task 1, `reachable_from` from Task 3 if the output turns out to need
-  a walk rather than already being transitively closed.
-- Produces: `backward_roots(...) -> frozenset[MethodRef]` — the methods that reach the outcome and
-  that nothing in the project calls.
+- Consumes: `MethodRef`, `parse_method_ref` from Task 1; `CallGraph` from Task 2.
+- Produces: `BackwardSliceFile(seeded_to: tuple[str, ...], callees: dict[str, tuple[str, ...]])`;
+  `read_backward_slice(files: FileSystem, path: pathlib.PurePath) -> CallGraph`;
+  `backward_roots(slice_graph: CallGraph) -> frozenset[MethodRef]`.
 
-**To unblock, three things must be known:**
+This is spec step 2, and `buildcg-to` does the expansion, so there is no graph walk here at all.
 
-1. What `--to` writes — the top-level fields, and whether the caller set it returns is the direct
-   callers or the transitive closure.
-2. Whether it reports the roots itself, or whether roots must still be derived as "present in the
-   result with no caller entry".
-3. Whether its output is a separate file or another field on `callgraph.json`, which decides
-   whether `CallGraphFile` from Task 2 grows a field or a second wire model is needed.
+Three facts from `docs/tools/buildcg-to.md` shape this task, and each one removes work:
 
-Once those are settled this task is written the same way as the rest: a test over a fixture of
-that shape, then the reader, then the roots.
+1. **The output is not a reverse call graph.** The *search* runs backward; the *artifact* has
+   ordinary caller-to-callee edges, restricted to the methods that reach the target. So it reads
+   into the same `CallGraph` as Task 2 and nothing is inverted.
+2. **It is already transitively closed, and closed upward.** Every method present reaches a
+   target, therefore every caller of a present method is also present. So a method with no caller
+   *inside the slice* has no in-project caller at all. Roots are one pass over the values of
+   `callees` — no `reachable_from` on this side.
+3. **`seededTo` marks it, and the marker is exclusive with `seededFrom`.** A `seededTo` graph
+   carries path edges only, so it answers backward questions and must never be walked forward.
+   `read_backward_slice` requires the marker; the forward reader from Task 2 is unaffected because
+   Pydantic ignores fields it does not declare, and Task 2's forward use is out of scope for this
+   guard. Do not add a forward-direction check to Task 2 in this task.
 
-**Everything else in this plan is independent of it.** Tasks 1, 2, 3, 5 and 6 neither import from
-this task nor are imported by it, so they proceed now. What they cannot do without it is answer
-the question the goal states — which is why this plan does not claim to be complete until this
-task lands.
+One exception to fact 2, stated in the tool's own docs: a static initialiser that writes the field
+it is initialising produces a self-edge, `C.<clinit> -> C.<clinit>`. It is its own caller and
+would be wrongly excluded from the roots. Self-edges are discounted.
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `tests/unit/test_journey.py`:
+
+```python
+from ancalagon.journey.backward_roots import backward_roots
+from ancalagon.journey.read_backward_slice import read_backward_slice
+
+
+def listener() -> MethodRef:
+    return MethodRef(declaring_class="com.example.Listener", subsignature="void onMessage()")
+
+
+def initialiser() -> MethodRef:
+    return MethodRef(declaring_class="com.example.Holder", subsignature="void <clinit>()")
+
+
+def write_slice(
+    tmp_path: pathlib.Path, seeded_to: list[str], edges: dict[str, list[str]]
+) -> pathlib.Path:
+    path = tmp_path / "backward-cg.json"
+    path.write_text(
+        json.dumps(
+            {"seededTo": seeded_to, "callees": edges, "callsites": {}, "methodLines": {}}
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_roots_are_the_uncalled_methods_of_a_slice_and_self_edges_do_not_count(
+    tmp_path: pathlib.Path,
+):
+    path = write_slice(
+        tmp_path,
+        [repository().text()],
+        {
+            controller().text(): [service().text()],
+            listener().text(): [service().text()],
+            service().text(): [repository().text()],
+            initialiser().text(): [initialiser().text(), service().text()],
+        },
+    )
+
+    slice_graph = read_backward_slice(RealFileSystem(), path)
+
+    assert backward_roots(slice_graph) == frozenset({controller(), listener(), initialiser()})
+
+
+def test_a_forward_seeded_graph_is_refused_as_a_backward_slice(tmp_path: pathlib.Path):
+    path = tmp_path / "forward-cg.json"
+    path.write_text(
+        json.dumps({"callees": {controller().text(): [service().text()]}}), encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError):
+        read_backward_slice(RealFileSystem(), path)
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `uv run python -m pytest tests/unit/test_journey.py -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'ancalagon.journey.backward_roots'`
+
+- [ ] **Step 3: Write minimal implementation**
+
+Create `ancalagon/contracts/backward_slice_file.py`:
+
+```python
+# The shape buildcg-to writes, and the single place its text is validated.
+import pydantic
+
+
+class BackwardSliceFile(pydantic.BaseModel, frozen=True):
+    seeded_to: tuple[str, ...] = pydantic.Field(
+        alias="seededTo",
+        min_length=1,
+        description="The resolved targets the backward slice was built for.",
+    )
+    callees: dict[str, tuple[str, ...]]
+```
+
+Create `ancalagon/journey/read_backward_slice.py`:
+
+```python
+# The boundary where a buildcg-to slice becomes a value.
+import pathlib
+
+import pydantic
+
+from ancalagon.contracts.backward_slice_file import BackwardSliceFile
+from ancalagon.contracts.call_graph import CallGraph
+from ancalagon.fs.file_system import FileSystem
+from ancalagon.journey.parse_method_ref import parse_method_ref
+
+
+def read_backward_slice(files: FileSystem, path: pathlib.PurePath) -> CallGraph:
+    text = files.read_text(path)
+    try:
+        wire = BackwardSliceFile.model_validate_json(text)
+    except pydantic.ValidationError as absent:
+        raise ValueError(f"not a buildcg-to slice, no seededTo: {path}") from absent
+    return CallGraph(
+        callees={
+            parse_method_ref(caller): tuple(parse_method_ref(target) for target in targets)
+            for caller, targets in wire.callees.items()
+        }
+    )
+```
+
+Create `ancalagon/journey/backward_roots.py`:
+
+```python
+# Methods in a backward slice that nothing in the project calls.
+from ancalagon.contracts.call_graph import CallGraph
+from ancalagon.contracts.method_ref import MethodRef
+
+
+def backward_roots(slice_graph: CallGraph) -> frozenset[MethodRef]:
+    return frozenset(slice_graph.callees) - called_by_others(slice_graph)
+
+
+def called_by_others(slice_graph: CallGraph) -> frozenset[MethodRef]:
+    return frozenset(
+        target
+        for caller, targets in slice_graph.callees.items()
+        for target in targets
+        if target != caller
+    )
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `uv run python -m pytest tests/unit/test_journey.py -v`
+Expected: PASS
+
+- [ ] **Step 5: Mutation-check the test**
+
+Break the implementation in two ways and confirm the test fails each time, then restore it:
+
+1. In `called_by_others`, drop the `if target != caller` filter. Expected: the roots assertion
+   fails because `initialiser()` is no longer a root.
+2. In `BackwardSliceFile`, remove `min_length=1` from `seeded_to` and give it a default of `()`.
+   Expected: the forward-graph refusal test fails, because a graph with no `seededTo` now
+   validates.
+
+- [ ] **Step 6: Verify and commit**
+
+Run: `uv run python -m black . && uv run pyright && uv run python -m pytest tests/unit && uv run lint-imports`
+Expected: all pass.
+
+```bash
+git add ancalagon/contracts/backward_slice_file.py ancalagon/journey/read_backward_slice.py ancalagon/journey/backward_roots.py tests/unit/test_journey.py
+git commit -m "Take the backward roots from a buildcg-to slice"
+```
 
 ---
 
@@ -635,7 +797,7 @@ git commit -m "Document the journey package"
 | Spec section | Task | Status |
 |---|---|---|
 | Search strategy, step 1 | 3 | covered — `reachable_from` plus a membership test |
-| Search strategy, step 2 | 4 | BLOCKED on `buildcg --to`; nothing written |
+| Search strategy, step 2 | 4 | covered — `read_backward_slice`, `backward_roots` |
 | Search strategy, steps 3–5 | — | deferred to Plans 2 and 3, declared in Scope |
 | Verification, verifier 1 | 5 | covered — `spans_hold` |
 | Verification, verifiers 2–4 | — | deferred to Plan 2, declared in Scope |
@@ -651,10 +813,8 @@ git commit -m "Document the journey package"
 is `dict[MethodRef, tuple[MethodRef, ...]]`, which `Edges` accepts. `Evidence` field names match
 `ancalagon/contracts/evidence.py` as it exists: `path`, `start_line`, `end_line`, `quote`.
 
-**Placeholders.** None, with one deliberate exception: Task 4 carries no code because it is
-blocked on an external tool whose output shape is not yet fixed. It says so in its title, states
-the three facts needed to unblock it, and forbids writing a substitute. Guessing the shape would
-be a placeholder; naming the blocker is not.
+**Placeholders.** None. Every step carries the code or the exact command it asks for; Task 6 is
+prose-only and says why, and names what to read before writing.
 
 **Known gap carried from the spec.** Dismissal was dropped from this plan entirely. A method
 signature carries no modifiers, no annotations and no source path, so every dismissal the spec
