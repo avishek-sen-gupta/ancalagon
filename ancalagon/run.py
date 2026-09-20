@@ -82,6 +82,7 @@ def sandbox_of(config: Config, run_dir: pathlib.PurePath, fs: FileSystem) -> San
         allowed_domains=config.allowed_domains + config.web_domains,
         run_dir=run_dir,
         fs=fs,
+        log_socket=config.log_socket,
     )
 
 

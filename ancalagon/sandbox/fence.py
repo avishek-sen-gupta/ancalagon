@@ -12,6 +12,7 @@ POLICY = "fence.json"
 
 class Network(pydantic.BaseModel, frozen=True):
     allowedDomains: list[str]
+    allowUnixSockets: list[str]
 
 
 class Filesystem(pydantic.BaseModel, frozen=True):
@@ -30,12 +31,16 @@ class Fence(Sandbox):
         allowed_domains: collections.abc.Sequence[str],
         run_dir: pathlib.PurePath,
         fs: FileSystem,
+        log_socket: str,
     ):
         self.policy = run_dir / POLICY
         fs.write_text(
             self.policy,
             Policy(
-                network=Network(allowedDomains=list(allowed_domains)),
+                network=Network(
+                    allowedDomains=list(allowed_domains),
+                    allowUnixSockets=[log_socket] if log_socket else [],
+                ),
                 filesystem=Filesystem(allowWrite=[str(write_root), str(run_dir)]),
             ).model_dump_json(),
         )

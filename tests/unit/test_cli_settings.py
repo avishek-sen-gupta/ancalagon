@@ -138,7 +138,10 @@ def test_sandbox_of_resolves_each_strategy_and_fence_is_the_unstated_default(
 
     assert isinstance(sandbox_of(defaulted, run_dir, RealFileSystem()), Fence)
     assert json.loads((run_dir / "fence.json").read_text()) == {
-        "network": {"allowedDomains": ["bedrock-runtime.us-east-1.amazonaws.com"]},
+        "network": {
+            "allowedDomains": ["bedrock-runtime.us-east-1.amazonaws.com"],
+            "allowUnixSockets": [],
+        },
         "filesystem": {"allowWrite": [str(write_root), str(run_dir)]},
     }
 

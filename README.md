@@ -684,6 +684,12 @@ agents writing flat out lose lines to `nc`'s serial accept, but at any rate an a
 produces, nothing is dropped and no line is ever torn. Socket paths are capped near 104 bytes, so
 name a short one rather than deriving it from a run directory.
 
+Under `strategy = "fence"` the socket is named in the run's policy as `network.allowUnixSockets`,
+which is the only way a fenced worker reaches it: fence denies the socket calls themselves, so a
+socket in a writable directory is refused exactly like one outside it, and loopback TCP and UDP are
+refused even with `localhost` among the allowed domains. Naming it grants that one path and nothing
+else — a worker that tries a different socket is still refused.
+
 **`ancalagon watch` is not `watch_file`.** The tool is how one agent waits on a file another agent
 writes; this is how *you* watch the whole run from outside it. They share nothing but the word.
 

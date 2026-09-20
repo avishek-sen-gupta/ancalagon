@@ -30,11 +30,15 @@ def test_fence_writes_its_policy_and_wraps_the_command(tmp_path: pathlib.Path):
         allowed_domains=["bedrock-runtime.us-east-1.amazonaws.com", "*.example.com"],
         run_dir=run_dir,
         fs=RealFileSystem(),
+        log_socket="",
     )
 
     policy = json.loads((run_dir / "fence.json").read_text())
     assert policy == {
-        "network": {"allowedDomains": ["bedrock-runtime.us-east-1.amazonaws.com", "*.example.com"]},
+        "network": {
+            "allowedDomains": ["bedrock-runtime.us-east-1.amazonaws.com", "*.example.com"],
+            "allowUnixSockets": [],
+        },
         "filesystem": {"allowWrite": [str(write_root), str(run_dir)]},
     }
 
@@ -61,12 +65,14 @@ def test_the_fence_policy_carries_the_model_endpoint_and_the_web_domains_togethe
         model="m",
         allowed_domains=("endpoint.example.net",),
         web_domains=("*.example.com",),
+        log_socket="/tmp/anc.sock",
     )
 
     sandbox_of(config, run_dir, RealFileSystem())
 
     policy = json.loads((run_dir / "fence.json").read_text())
     assert policy["network"]["allowedDomains"] == ["endpoint.example.net", "*.example.com"]
+    assert policy["network"]["allowUnixSockets"] == ["/tmp/anc.sock"]
 
 
 class RecordingSandbox(Sandbox):
