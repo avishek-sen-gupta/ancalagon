@@ -86,3 +86,6 @@ budget = { turns = 0, tool_calls = 0 }
 goal_file = "./blackboard_goal.md"
 input_file = ""
 role = "root"
+
+[log]
+socket = "/tmp/anc.sock"

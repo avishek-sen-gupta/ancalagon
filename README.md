@@ -670,8 +670,14 @@ Anything listening on that socket sees every agent's messages and every lifecycl
 run pointed at it, with no directory to name:
 
 ```bash
-nc -lUk /tmp/anc.sock
+scripts/anclog.zsh                    # the default /tmp/anc.sock
+scripts/anclog.zsh /tmp/other.sock    # whatever a config names
+nc -lUk /tmp/anc.sock                 # the raw JSON, unrendered
 ```
+
+`anclog.zsh` renders each line: prose as `agent role: text`, a call as `→ name arguments`, a result
+as `← content` with newlines folded and the tail cut at `ANCLOG_RESULT_CHARS` (300). It binds the
+socket, so start it before the run and run one per socket.
 
 Each line is one `LogEvent` as JSON — the run's name, a timestamp, and either the message or the
 status change. Leave `socket` unset and the sink is `NoSink`, which does nothing; set it with
