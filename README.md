@@ -675,9 +675,11 @@ scripts/anclog.zsh /tmp/other.sock    # whatever a config names
 nc -lUk /tmp/anc.sock                 # the raw JSON, unrendered
 ```
 
-`anclog.zsh` renders each line: prose as `agent role: text`, a call as `→ name arguments`, a result
-as `← content` with newlines folded and the tail cut at `ANCLOG_RESULT_CHARS` (300). It binds the
-socket, so start it before the run and run one per socket.
+`anclog.zsh` renders each line in the colours `watch` already uses — cyan for whose line it is, bold
+yellow for a tool, red for `ERR` — so a status reads at a glance: green for `completed`, red for
+`crashed` and its neighbours, magenta for `needs_input` and `idling`. Prose, calls and results are
+dimmed against them, with newlines folded and the tail cut at `ANCLOG_RESULT_CHARS` (300). It binds
+the socket, so start it before the run and run one per socket.
 
 Each line is one `LogEvent` as JSON — the run's name, a timestamp, and either the message or the
 status change. Leave `socket` unset and the sink is `NoSink`, which does nothing; set it with
