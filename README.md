@@ -656,6 +656,34 @@ none of them ever reaped.
 The tool's name is bold yellow and a failed result's `ERR` is red, so a scan finds what was called
 and what broke without reading the line.
 
+### Watching without a run directory
+
+`watch` has to be pointed at a workspace, and following several runs means several watchers. A run
+can instead push every line it produces to one Unix socket, named once in the config:
+
+```toml
+[log]
+socket = "/tmp/anc.sock"
+```
+
+Anything listening on that socket sees every agent's messages and every lifecycle event, from every
+run pointed at it, with no directory to name:
+
+```bash
+nc -lUk /tmp/anc.sock
+```
+
+Each line is one `LogEvent` as JSON — the run's name, a timestamp, and either the message or the
+status change. Leave `socket` unset and the sink is `NoSink`, which does nothing; set it with
+nothing listening and each line is dropped, because a run must not wait on its own audience. The
+record is unaffected either way: transcripts and the bus are written exactly as before, so the
+socket is a live view, never the source of truth.
+
+One connection is made per line, which is what keeps concurrent writers from interleaving — four
+agents writing flat out lose lines to `nc`'s serial accept, but at any rate an agent actually
+produces, nothing is dropped and no line is ever torn. Socket paths are capped near 104 bytes, so
+name a short one rather than deriving it from a run directory.
+
 **`ancalagon watch` is not `watch_file`.** The tool is how one agent waits on a file another agent
 writes; this is how *you* watch the whole run from outside it. They share nothing but the word.
 

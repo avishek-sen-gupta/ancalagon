@@ -20,7 +20,10 @@ from ancalagon.contracts.agent_ref import AgentRef
 from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.harness_task import HarnessTask
+from ancalagon.contracts.lifecycle_line import LifecycleLine
 from ancalagon.fs.file_system import FileSystem
+from ancalagon.sink.no_sink import NO_SINK
+from ancalagon.sink.sink import Sink
 
 DIALECT = sqlite_dialect.dialect(paramstyle="named")
 
@@ -96,16 +99,32 @@ SUMMARY_LIMIT = 1000
 
 
 class LifecycleStore(Bus):
-    def __init__(self, conn: sqlite3.Connection, clock: Clock):
+    def __init__(self, conn: sqlite3.Connection, clock: Clock, sink: Sink = NO_SINK):
         self.conn = conn
         self.clock = clock
+        self.sink = sink
 
     def _now(self) -> str:
         return self.clock.now().isoformat()
 
     @classmethod
-    def open(cls, path: pathlib.PurePath, clock: Clock, fs: FileSystem) -> "LifecycleStore":
-        return cls(connect(path, fs), clock)
+    def open(
+        cls, path: pathlib.PurePath, clock: Clock, fs: FileSystem, sink: Sink = NO_SINK
+    ) -> "LifecycleStore":
+        return cls(connect(path, fs), clock, sink)
+
+    def _publish(
+        self, agent: int, status: AgentStatus, source: EventSource, pid: int, summary: str
+    ) -> None:
+        self.sink.publish(
+            LifecycleLine(
+                agent=agent,
+                status=status,
+                source=source,
+                pid=pid,
+                summary=summary[:SUMMARY_LIMIT],
+            )
+        )
 
     def _exec(
         self, stmt: sa.sql.ClauseElement, binds: Mapping[str, BindValue] = {}
@@ -160,6 +179,7 @@ class LifecycleStore(Bus):
             self.conn.execute("ROLLBACK")
             raise
         self.conn.execute("COMMIT")
+        self._publish(agent, status, source, pid, summary)
 
     def enqueue(self, dir: pathlib.PurePath, parent_agent: int) -> AgentRef:
         self.conn.execute("BEGIN IMMEDIATE")
@@ -173,6 +193,7 @@ class LifecycleStore(Bus):
         agent_id = int(agent["id"])
         self._record(agent_id, AgentStatus.QUEUED, EventSource.SUPERVISOR)
         self.conn.execute("COMMIT")
+        self._publish(agent_id, AgentStatus.QUEUED, EventSource.SUPERVISOR, 0, "")
         return AgentRef(id=agent_id)
 
     def _queued(self) -> list[AgentState]:
@@ -191,6 +212,8 @@ class LifecycleStore(Bus):
         for state in waiting:
             self._record(state.agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
         self.conn.execute("COMMIT")
+        for state in waiting:
+            self._publish(state.agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR, 0, "")
         return waiting
 
     def dir_of(self, agent: int) -> str:

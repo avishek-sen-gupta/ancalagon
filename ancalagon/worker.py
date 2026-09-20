@@ -24,6 +24,7 @@ from ancalagon.letterbox.file_letterbox import FileLetterbox
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient
 from ancalagon.schedule.depth_of import depth_of
 from ancalagon.session_for import session_for
+from ancalagon.sink.sink_for import sink_for
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.web.real_web_client import RealWebClient
@@ -45,10 +46,11 @@ def main(
     on_path(config.import_paths)
     outcome_path = task_dir / f"outcome-{agent_id}.json"
     transcript_path = task_dir / "transcript.jsonl"
-    log = Transcript(fs, path=transcript_path, agent_id=agent_id)
     clock = SystemClock()
+    sink = sink_for(config.log_socket, run_dir.name, clock)
+    log = Transcript(fs, path=transcript_path, agent_id=agent_id, sink=sink)
     conn = connect(run_dir / "bus.db", fs)
-    bus = LifecycleStore(conn, clock)
+    bus = LifecycleStore(conn, clock, sink)
     meter_store = MeterStore(conn, clock)
     try:
         spec_text = fs.read_text(task_dir / "spec.json")

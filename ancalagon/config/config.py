@@ -29,4 +29,5 @@ class Config(pydantic.BaseModel, frozen=True):
     allowed_domains: tuple[str, ...] = ()
     web_domains: tuple[str, ...] = ()
     import_paths: tuple[pathlib.PurePath, ...] = ()
+    log_socket: str = ""
     sandbox: Strategy = Strategy.FENCE

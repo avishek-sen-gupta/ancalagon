@@ -133,5 +133,6 @@ def load_config(path: pathlib.PurePath, fs: FileSystem) -> Config:
         allowed_domains=tuple(model["allowed_domains"]),
         web_domains=tuple(raw.get("web", {}).get("allowed_domains", [])),
         sandbox=Strategy(raw["sandbox"]["strategy"]),
+        log_socket=raw.get("log", {}).get("socket", ""),
         import_paths=(base,),
     )

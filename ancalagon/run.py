@@ -21,6 +21,7 @@ from ancalagon.sandbox.sandbox import Sandbox
 from ancalagon.sandbox.strategy import Strategy
 from ancalagon.sandbox.unsandboxed import Unsandboxed
 from ancalagon.schedule.newest_agent import newest_agent
+from ancalagon.sink.sink_for import sink_for
 from ancalagon.supervisor.spawn_by_run import SpawnByRun
 from ancalagon.supervisor.spawner import Spawner
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
@@ -134,10 +135,11 @@ def run(
     fs.mkdir(task_dir, parents=True, exist_ok=True)
     fs.write_text(task_dir / "spec.json", root_spec(config, fs).model_dump_json())
     db = run_dir / "bus.db"
-    bus = LifecycleStore.open(db, clock, fs)
+    sink = sink_for(config.log_socket, run_dir.name, clock)
+    bus = LifecycleStore.open(db, clock, fs, sink)
     bus.enqueue(task_dir, parent_agent=HUMAN)
     supervisor = Supervisor(
-        bus=LifecycleStore.open(db, clock, fs),
+        bus=LifecycleStore.open(db, clock, fs, sink),
         spawner=_spawner(config, run_dir, fs),
         max_concurrent=config.max_concurrent_agents,
         timeout_s=config.agent_timeout_s,

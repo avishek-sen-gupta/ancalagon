@@ -469,3 +469,11 @@ def test_a_role_may_declare_a_budget_with_no_turn_limit(tmp_path: pathlib.Path):
     roles = load_config(_written(tmp_path, UNLIMITED_ROLE), RealFileSystem()).roles
 
     assert roles["scout"].budget == Budget(turns=Infinite(), tool_calls=Finite(value=30))
+
+
+def test_the_log_socket_is_optional_and_read_from_the_log_section(tmp_path: pathlib.Path):
+    absent = load_config(_written(tmp_path, ""), RealFileSystem())
+    named = load_config(_written(tmp_path, '[log]\nsocket = "/tmp/anc.sock"\n'), RealFileSystem())
+
+    assert absent.log_socket == ""
+    assert named.log_socket == "/tmp/anc.sock"
