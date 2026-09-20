@@ -1,30 +1,98 @@
+# Every setting ancalagon reads, with the optional ones marked. This file is the one the repo
+# ships as a template; ancalagon.toml is the same configuration, tracked, and is what a run of
+# this repo against itself actually uses.
+#
+# Run it with:  scripts/ancrun.zsh ancalagon.toml
+# Watch it with: ancalagon watch --dir ./ws     (or anclog.zsh, if [log] names a socket)
+#
+# Paths are resolved relative to THIS file, not the working directory.
+
+# ── workspace ─────────────────────────────────────────────────────────── required
 [workspace]
+# The one directory agents may write to. Runs are allocated under <write_root>/runs, and a run
+# directory outside it fails the first time an agent uses a tool, because tool output is written
+# beside the task.
 write_root = "./ws"
+# Every directory agents may read. write_root is always readable and need not be listed.
 read_roots = [".", "./ancalagon", "./docs", "./tests", "./scripts"]
 
+# ── model ─────────────────────────────────────────────────────────────── required
 [model]
+# Anything litellm accepts. The provider prefix and custom_llm_provider below are two ways to
+# say the same thing; pick one.
 name = "bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+# custom_llm_provider = "bedrock"   # OPTIONAL, default "". Use with an unprefixed name.
 num_retries = 3
 request_timeout_s = 300
 max_tokens = 8000
+# The sandbox blocks all network except these, so the model's own endpoint must be listed or
+# every call fails with a proxy error. Credentials come from the environment, never from here.
 allowed_domains = ["bedrock-runtime.us-east-1.amazonaws.com"]
 
+# ── limits ────────────────────────────────────────────────────────────── required
 [limits]
+# How many agents may run at once across the whole run.
 max_concurrent_agents = 4
+# A single agent is killed after this long.
 agent_timeout_s = 600
+# How deep delegation may nest. 0 forbids delegation entirely; 1 lets the root delegate but
+# stops its children doing so.
 max_depth = 1
+# When a session's transcript passes this, older messages are summarised away.
 compact_above_tokens = 60000
+# How many recent messages survive that compaction verbatim.
 keep_recent_messages = 8
+# How much of an answer a parent sees in a summary without opening the file.
 summary_chars = 1000
 
+# ── sandbox ───────────────────────────────────────────────────────────── required
 [sandbox]
+# "fence" confines each worker to write_root and the allowed domains above.
+# "none" removes both. Use it only to prove a failure is not the sandbox's doing.
 strategy = "fence"
 
+# ── log ───────────────────────────────────────────────────────────────── OPTIONAL
 [log]
+# A Unix socket every run pushes its messages and lifecycle events to, so several runs can be
+# followed in one place without naming a directory. Unset (the default) means no sink at all.
+# Set with nothing listening, lines are dropped — a run never waits on its audience — so bind
+# it first with scripts/anclog.zsh. Transcripts and the bus are written either way; the socket
+# is a live view, never the record.
 socket = "/tmp/anc.sock"
 
+# ── web ───────────────────────────────────────────────────────────────── OPTIONAL
 [web]
+# Domains the fetch_url and web_search tools may reach. Separate from the model's
+# allowed_domains above, and empty by default, so those tools reach nothing until listed.
 allowed_domains = []
+
+# ── roles ─────────────────────────────────────────────────────────────── OPTIONAL
+#
+# A role is what an agent is: what it is told, what it may use, what it must produce, and what
+# it may spend. Every role becomes a tool named delegate_<role>, so a role's name must be a
+# valid identifier.
+#
+# Required in each role: behaviour, tools, budget.
+# Optional: input, answer, run, before, after.
+#
+# A role that runs a session must name submit_answer or submit_answer_as_file in tools, or the
+# run is refused at startup. Declaring a hook on a tool does not enable it.
+#
+# The tools available, by package:
+#   files     read_file  list_dir  write_file  edit_file  append_file  delete_file
+#   search    ripgrep  ast_grep  find_symbol  transform_file
+#   parse     ast_query  treesitter
+#   artifacts file_type  extract_strings  query_json  edit_json  convert_document
+#   compare   diff_regions
+#   history   git_history
+#   survey    code_stats
+#   shell     shell
+#   web       fetch_url  web_search          (need [web] allowed_domains)
+#   watch     watch_file
+#   delegate  check_task  collect_task  answer_task  delegate_<role>
+#   submit    submit_answer  submit_answer_as_file
+#   idle      idle
+#   input     need_input
 
 [roles.root]
 behaviour = """
@@ -40,8 +108,11 @@ tools = [
   "answer_task",
   "submit_answer",
 ]
+# Turns and tool calls. Either may be the string "infinite" instead of a number.
 budget = { turns = 25, tool_calls = 70 }
 
+# OPTIONAL. Functions run before a tool, which may refuse the call and tell the agent why.
+# A before-hook on submit_answer is the gate an answer must pass.
 [roles.root.before]
 submit_answer = [{ module = "checkkit.checks", name = "covers_every_subsystem" }]
 
@@ -69,10 +140,46 @@ submit_answer = [
   { module = "checkkit.checks", name = "cited_files_exist" },
 ]
 
+# OPTIONAL. Functions run after a tool, which see what it returned.
 [roles.investigator.after]
 shell = [{ module = "checkkit.checks", name = "produced_output" }]
 
+# ── a typed role ──────────────────────────────────────────────────────── OPTIONAL
+#
+# By default a role's input and answer are both FreeText, so its goal is prose and its answer is
+# prose. Naming contracts makes both Pydantic models: the agent is given a typed input and
+# submit_answer accepts only an instance of the answer class. Hooks then receive that instance
+# rather than text, which is what lets a check reason about fields.
+#
+# [roles.auditor]
+# behaviour = "Audit one module and report what you found."
+# input = { module = "mypkg.contracts", name = "AuditRequest" }
+# answer = { module = "mypkg.contracts", name = "AuditFinding" }
+# tools = ["read_file", "ripgrep", "submit_answer"]
+# budget = { turns = "infinite", tool_calls = 40 }
+
+# ── a deterministic role ──────────────────────────────────────────────── OPTIONAL
+#
+# A role may name a function instead of a behaviour to be carried out by a model. It takes the
+# same task and writes the same outcome, so the supervisor cannot tell the difference — which is
+# how a transform or a human gate sits behind the same contract as an agent.
+#
+# Its contracts come from that function's signature, so a role declaring run must NOT also
+# declare input or answer.
+#
+# [roles.tabulate]
+# behaviour = "Turn the collected findings into a table."
+# run = { module = "mypkg.steps", name = "tabulate" }
+# tools = []
+# budget = { turns = 1, tool_calls = 0 }
+
+# ── run ───────────────────────────────────────────────────────────────── required
 [run]
+# The prose the root agent is given. Required to be present as a key; may be empty only if the
+# root's input comes from input_file instead.
 goal_file = "./goal.md"
+# OPTIONAL as a value, required as a key. A JSON file validated against the root role's input
+# class. Leave empty when the goal alone is the input.
 input_file = ""
+# Which role the root agent takes.
 role = "root"

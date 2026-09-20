@@ -212,11 +212,14 @@ def test_config_needs_three_fields_in_code_but_a_complete_file_on_disk(
 
 
 def _without_key(text: str, section: str, key: str) -> str:
+    # A block is the section's when it CONTAINS the header, not when it starts with it: the
+    # shipped example leads each section with a banner comment, and matching only the start
+    # removed nothing while the test still looked like it passed.
     blocks = text.split("\n\n")
     return "\n\n".join(
         (
             "\n".join(line for line in block.splitlines() if not line.startswith(f"{key} ="))
-            if block.startswith(f"[{section}]")
+            if f"[{section}]" in block.splitlines()
             else block
         )
         for block in blocks
