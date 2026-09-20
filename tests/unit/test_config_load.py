@@ -451,6 +451,7 @@ def test_the_example_config_this_repo_ships_satisfies_its_own_contracts():
             "ripgrep",
             "ast_grep",
             "find_symbol",
+            "shell",
             "need_input",
             "submit_answer",
         ),
