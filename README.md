@@ -681,8 +681,9 @@ yellow for a tool, red for `ERR` — so a status reads at a glance: green for `c
 dimmed against them, with newlines folded and the tail cut at `ANCLOG_RESULT_CHARS` (300). It binds
 the socket, so start it before the run and run one per socket.
 
-Each line is one `LogEvent` as JSON — the run's name, a timestamp, and either the message or the
-status change. Leave `socket` unset and the sink is `NoSink`, which does nothing; set it with
+Each line is one `LogEvent` as JSON — the run's name, the task's, a timestamp, and either the
+message or the status change. The task is what tells two peers apart, so a line reads
+`[run/task/agent]` exactly as `watch` labels one. Leave `socket` unset and the sink is `NoSink`, which does nothing; set it with
 nothing listening and each line is dropped, because a run must not wait on its own audience. The
 record is unaffected either way: transcripts and the bus are written exactly as before, so the
 socket is a live view, never the source of truth.

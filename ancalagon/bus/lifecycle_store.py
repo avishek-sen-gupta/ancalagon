@@ -123,7 +123,8 @@ class LifecycleStore(Bus):
                 source=source,
                 pid=pid,
                 summary=summary[:SUMMARY_LIMIT],
-            )
+            ),
+            pathlib.PurePath(self.dir_of(agent)).name,
         )
 
     def _exec(

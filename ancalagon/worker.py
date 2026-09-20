@@ -48,7 +48,7 @@ def main(
     transcript_path = task_dir / "transcript.jsonl"
     clock = SystemClock()
     sink = sink_for(config.log_socket, run_dir.name, clock)
-    log = Transcript(fs, path=transcript_path, agent_id=agent_id, sink=sink)
+    log = Transcript(fs, path=transcript_path, agent_id=agent_id, sink=sink, task=task_dir.name)
     conn = connect(run_dir / "bus.db", fs)
     bus = LifecycleStore(conn, clock, sink)
     meter_store = MeterStore(conn, clock)

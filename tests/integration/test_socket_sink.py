@@ -12,6 +12,7 @@ from ancalagon.sink.socket_sink import SocketSink
 # AF_UNIX paths are capped near 104 bytes, which pytest's tmp_path already exceeds.
 SOCKET_ROOT = "/tmp"
 RUN = "run-1"
+TASK = "analyst"
 
 
 def _path() -> str:
@@ -45,7 +46,7 @@ def _line(agent: int) -> LifecycleLine:
 
 
 def _expected(agent: int) -> LogEvent:
-    return LogEvent(run=RUN, at=EPOCH.isoformat(), line=_line(agent))
+    return LogEvent(run=RUN, task=TASK, at=EPOCH.isoformat(), line=_line(agent))
 
 
 def test_published_lines_reach_a_listener_intact():
@@ -53,8 +54,8 @@ def test_published_lines_reach_a_listener_intact():
     listener = _listener(path)
     sink = SocketSink(path=path, run=RUN, clock=FakeClock())
 
-    sink.publish(_line(1))
-    sink.publish(_line(2))
+    sink.publish(_line(1), TASK)
+    sink.publish(_line(2), TASK)
     received = [_read(listener), _read(listener)]
     listener.close()
 
@@ -65,10 +66,10 @@ def test_publishing_without_a_listener_is_a_no_op_and_a_later_listener_still_rec
     path = _path()
     sink = SocketSink(path=path, run=RUN, clock=FakeClock())
 
-    sink.publish(_line(1))
+    sink.publish(_line(1), TASK)
 
     listener = _listener(path)
-    sink.publish(_line(2))
+    sink.publish(_line(2), TASK)
     received = _read(listener)
     listener.close()
 

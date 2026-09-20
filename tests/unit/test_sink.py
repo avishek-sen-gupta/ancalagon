@@ -18,10 +18,10 @@ from ancalagon.transcript.transcript import Transcript
 
 class FakeSink(Sink):
     def __init__(self) -> None:
-        self.lines: list[Line] = []
+        self.lines: list[tuple[str, Line]] = []
 
-    def publish(self, line: Line) -> None:
-        self.lines.append(line)
+    def publish(self, line: Line, task: str) -> None:
+        self.lines.append((task, line))
 
 
 def _lifecycle(agent: int, status: AgentStatus, pid: int = 0) -> LifecycleLine:
@@ -44,7 +44,13 @@ def test_every_transcript_message_and_lifecycle_event_reaches_the_sink(tmp_path:
         seq=0,
         ts="2026-01-01T00:00:00+00:00",
     )
-    log = Transcript(fs, path=pathlib.PurePath(tmp_path) / "t.jsonl", agent_id=1, sink=sink)
+    log = Transcript(
+        fs,
+        path=pathlib.PurePath(tmp_path) / "t.jsonl",
+        agent_id=1,
+        sink=sink,
+        task="root",
+    )
     log.write(written)
     log.close()
 
@@ -56,8 +62,8 @@ def test_every_transcript_message_and_lifecycle_event_reaches_the_sink(tmp_path:
     bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=7)
 
     assert sink.lines == [
-        MessageLine(message=written),
-        _lifecycle(agent, AgentStatus.QUEUED),
-        _lifecycle(agent, AgentStatus.CLAIMED),
-        _lifecycle(agent, AgentStatus.RUNNING, pid=7),
+        ("root", MessageLine(message=written)),
+        ("root", _lifecycle(agent, AgentStatus.QUEUED)),
+        ("root", _lifecycle(agent, AgentStatus.CLAIMED)),
+        ("root", _lifecycle(agent, AgentStatus.RUNNING, pid=7)),
     ]

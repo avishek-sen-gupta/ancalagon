@@ -16,8 +16,8 @@ class SocketSink(Sink):
         self.run = run
         self.clock = clock
 
-    def publish(self, line: Line) -> None:
-        event = LogEvent(run=self.run, at=self.clock.now().isoformat(), line=line)
+    def publish(self, line: Line, task: str) -> None:
+        event = LogEvent(run=self.run, task=task, at=self.clock.now().isoformat(), line=line)
         payload = (event.model_dump_json() + "\n").encode()
         wire = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         wire.settimeout(TIMEOUT_S)

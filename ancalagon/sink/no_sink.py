@@ -4,7 +4,7 @@ from ancalagon.sink.sink import Sink
 
 
 class NoSink(Sink):
-    def publish(self, line: Line) -> None:
+    def publish(self, line: Line, task: str) -> None:
         return None
 
 
