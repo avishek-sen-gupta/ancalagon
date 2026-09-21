@@ -1,6 +1,8 @@
 import json
 import pathlib
 
+import pydantic
+
 from ancalagon.bus.no_bus import NO_BUS
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
@@ -27,6 +29,11 @@ from tests.unit.conftest import finite_budget
 ANSWER_FILE = ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile")
 
 
+class Record(pydantic.BaseModel, frozen=True):
+    name: str
+    values: tuple[int, ...]
+
+
 class Guided(SchemaGuided, frozen=True):
     pass
 
@@ -50,6 +57,7 @@ def test_the_role_chooses_which_terminal_tool_it_submits_with(tmp_path: pathlib.
     role = Role(
         behaviour="You answer.",
         answer=ANSWER_FILE,
+        answer_file=ClassRef(module=__name__, name="Record"),
         tools=("read_file", "submit_answer", "submit_answer_as_file"),
         budget=finite_budget(1, 1),
     )
@@ -60,6 +68,7 @@ def test_the_role_chooses_which_terminal_tool_it_submits_with(tmp_path: pathlib.
         parent=1,
         depth=0,
         output_class=AnswerFile,
+        answer_file_class=Record,
         clock=SystemClock(),
         fs=RealFileSystem(),
         web=FakeWebClient({}),
@@ -68,29 +77,37 @@ def test_the_role_chooses_which_terminal_tool_it_submits_with(tmp_path: pathlib.
     assert sorted(registry.names()) == ["idle", "read_file", "submit_answer_as_file"]
 
 
-def test_submitting_a_file_ends_the_run_and_refuses_a_file_that_is_not_there(
+def test_submitting_a_file_validates_it_into_the_role_s_class_and_refuses_what_does_not_fit(
     tmp_path: pathlib.Path,
 ):
     ctx = _ctx(tmp_path)
     answer = tmp_path / "ws" / "record.json"
-    answer.write_text('{"values": []}')
-    tool = SubmitAnswerAsFile()
-
-    accepted = tool.run(
-        AnswerFile(
-            status=AnswerStatus.COMPLETE,
-            summary="one record with no values",
-            path=pathlib.PurePath(answer),
-        ),
-        ctx,
+    tool = SubmitAnswerAsFile(Record)
+    submitted = AnswerFile(
+        status=AnswerStatus.COMPLETE, summary="a record", path=pathlib.PurePath(answer)
     )
+
+    assert json.dumps(Record.model_json_schema()) in tool.description
+
+    answer.write_text(json.dumps({"name": "a", "values": [1, 2]}))
+    accepted = tool.run(submitted, ctx)
     assert accepted.ok
     assert isinstance(accepted.summary, Submitted)
-    assert accepted.summary.answer == AnswerFile(
-        status=AnswerStatus.COMPLETE,
-        summary="one record with no values",
-        path=pathlib.PurePath(answer),
+    assert accepted.summary.answer == submitted
+
+    answer.write_text(json.dumps({"values": [1, "two"]}))
+    mismatched = tool.run(submitted, ctx)
+    assert not mismatched.ok
+    assert mismatched.error == (
+        f"{answer} does not match Record:\n"
+        "/name: Field required\n"
+        "/values/1: Input should be a valid integer, unable to parse string as an integer"
     )
+
+    answer.write_text("{oops")
+    unparsable = tool.run(submitted, ctx)
+    assert not unparsable.ok
+    assert unparsable.error.startswith(f"{answer} does not match Record:\n/: Invalid JSON: ")
 
     missing = tool.run(
         AnswerFile(

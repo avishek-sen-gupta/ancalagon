@@ -6,6 +6,7 @@ import pydantic
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.function_ref import FunctionRef
+from ancalagon.contracts.no_answer_file import NO_ANSWER_FILE
 from ancalagon.contracts.no_run import NO_RUN
 
 FREE_TEXT = ClassRef(module="ancalagon.contracts.free_text", name="FreeText")
@@ -15,6 +16,7 @@ class Role(pydantic.BaseModel, frozen=True):
     behaviour: str
     input: ClassRef = FREE_TEXT
     answer: ClassRef = FREE_TEXT
+    answer_file: ClassRef = NO_ANSWER_FILE
     run: FunctionRef = NO_RUN
     tools: tuple[str, ...]
     budget: Budget

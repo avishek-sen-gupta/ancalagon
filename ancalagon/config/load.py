@@ -14,6 +14,7 @@ from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.finite import Finite
 from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.infinite import Infinite
+from ancalagon.contracts.no_answer_file import NO_ANSWER_FILE
 from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.role import FREE_TEXT, Role
 from ancalagon.contracts.run_contracts import run_contracts
@@ -93,6 +94,7 @@ def _role(name: str, raw: RawRole) -> Role:
         behaviour=raw.behaviour,
         input=given,
         answer=produced,
+        answer_file=_class_ref(raw.answer_file) if raw.answer_file.module else NO_ANSWER_FILE,
         run=run,
         tools=tuple(raw.tools),
         budget=Budget(

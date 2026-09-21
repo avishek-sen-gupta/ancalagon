@@ -89,6 +89,7 @@ def available_tools(
     run_dir: pathlib.PurePath,
     parent: int,
     output_class: type[pydantic.BaseModel],
+    answer_file_class: type[pydantic.BaseModel],
     clock: Clock,
     fs: FileSystem,
     web: WebClient,
@@ -125,7 +126,7 @@ def available_tools(
         bound_for(NeedInput(), role),
         bound_for(_idle(bus, parent), role),
         bound_for(SubmitAnswer(output_class), role),
-        bound_for(SubmitAnswerAsFile(), role),
+        bound_for(SubmitAnswerAsFile(answer_file_class), role),
     ]
 
 
@@ -142,6 +143,7 @@ def build_registry(
     parent: int,
     depth: int,
     output_class: type[pydantic.BaseModel],
+    answer_file_class: type[pydantic.BaseModel],
     clock: Clock,
     fs: FileSystem,
     web: WebClient,
@@ -151,7 +153,7 @@ def build_registry(
         name: role for name, role in config.roles.items() if f"delegate_{name}" in spec.role.tools
     }
     available = available_tools(
-        spec.role, spawnable, run_dir, parent, output_class, clock, fs, web, bus
+        spec.role, spawnable, run_dir, parent, output_class, answer_file_class, clock, fs, web, bus
     ) + [
         bound_for(_watch(bus, watcher, run_dir, parent, fs), spec.role)
         for watcher in watcher_in(config.roles)[:1]
@@ -192,6 +194,7 @@ def session_for(
     depth: int = 0,
 ) -> Session:
     output_class = resolve_class(spec.role.answer)
+    answer_file_class = resolve_class(spec.role.answer_file)
     history: collections.abc.Sequence[Message] = (
         repair(load(fs, transcript.path)) if fs.exists(transcript.path) else []
     )
@@ -209,6 +212,7 @@ def session_for(
             parent=ctx.agent_id,
             depth=depth,
             output_class=output_class,
+            answer_file_class=answer_file_class,
             clock=clock,
             fs=fs,
             web=web,

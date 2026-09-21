@@ -63,6 +63,10 @@ class Where(pydantic.BaseModel):
     path: str
 
 
+class Values(pydantic.BaseModel, frozen=True):
+    values: tuple[int, ...]
+
+
 class Sited(pydantic.BaseModel):
     answer: str
     where: Where
@@ -818,7 +822,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
         transcript=Transcript(RealFileSystem(), path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
         llm=llm,
-        registry=Registry([bind_tool(SubmitAnswerAsFile())]),
+        registry=Registry([bind_tool(SubmitAnswerAsFile(Values))]),
         ctx=ctx,
         output_class=AnswerFile,
         clock=FakeClock(),
@@ -846,6 +850,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
     role_both = Role(
         behaviour="You answer questions.",
         answer=ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile"),
+        answer_file=ClassRef(module=__name__, name="Values"),
         tools=("submit_answer", "submit_answer_as_file"),
         budget=finite_budget(2, 4),
     )
@@ -867,6 +872,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
         parent=0,
         depth=0,
         output_class=AnswerFile,
+        answer_file_class=Values,
         clock=FakeClock(),
         fs=RealFileSystem(),
         web=FakeWebClient({}),

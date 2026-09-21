@@ -4,6 +4,7 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.contracts.answer_file import AnswerFile
 from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.no_answer_file import NO_ANSWER_FILE
 from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
@@ -73,6 +74,23 @@ def _answer_file_fault(name: str, role: Role) -> str:
     )
 
 
+def _content_fault(name: str, role: Role) -> str:
+    names_tool = SubmitAnswerAsFile.name in role.tools
+    declares = role.answer_file != NO_ANSWER_FILE
+    if names_tool == declares:
+        return ""
+    if names_tool:
+        return (
+            f"[roles.{name}] names {SubmitAnswerAsFile.name}, so it must declare answer_file: "
+            "the class its answer file holds"
+        )
+    return (
+        f"[roles.{name}] declares answer_file as {role.answer_file.name} in "
+        f"{role.answer_file.module}, but does not name {SubmitAnswerAsFile.name}, so nothing "
+        "checks it"
+    )
+
+
 def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem, web: WebClient) -> str:
     named = set(role.before) | set(role.after)
     withheld = TERMINAL_TOOLS - {submitting(role.tools)}
@@ -95,6 +113,7 @@ def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem, web: WebC
             parent=0,
             depth=0,
             output_class=resolve_class(role.answer),
+            answer_file_class=resolve_class(role.answer_file),
             clock=SystemClock(),
             fs=fs,
             web=web,
@@ -112,7 +131,11 @@ def check_contracts(
         [
             fault
             for name, role in config.roles.items()
-            for field, ref in (("input", role.input), ("answer", role.answer))
+            for field, ref in (
+                ("input", role.input),
+                ("answer", role.answer),
+                ("answer_file", role.answer_file),
+            )
             if (fault := _contract_fault(name, field, ref))
         ]
         or [fault for name, role in config.roles.items() if (fault := _run_fault(name, role))]
@@ -122,6 +145,7 @@ def check_contracts(
             for name, role in config.roles.items()
             if (fault := _answer_file_fault(name, role))
         ]
+        or [fault for name, role in config.roles.items() if (fault := _content_fault(name, role))]
         or [
             fault
             for name, role in config.roles.items()

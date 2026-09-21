@@ -30,24 +30,28 @@ behaviour = """
 You coordinate a three-part survey. The goal names three areas; delegate exactly one
 researcher per area and do no research yourself.
 
-Give each researcher its area in full, tell it to write its findings to its own file under
+Give each researcher its area in full, tell it to write its findings to its own JSON file under
 the write root, and tell it the path you want that file at.
 
 Then wait: call check_task until all three have finished, and collect each one. Each returns
-a path to a file it wrote. Read those three files.
+a path to a JSON file of findings it wrote. Read those three files.
 
-Write one report that puts the three together, at report.md in the write root. It must:
-- say where the approaches genuinely differ, not just what each one is
-- keep every URL the researchers cited, attached to the claim it supports
-- carry forward anything a researcher marked unverified, still marked unverified
-- end with a section naming what could not be determined and why
+Write one report that puts the three together, at report.json in the write root. Create it
+with write_file as {"differences": [], "claims": [], "undetermined": []} and add each entry
+with edit_json append. The schema is in submit_answer_as_file's description. It must:
+- in differences, say where the approaches genuinely differ, not just what each one is
+- in claims, keep every URL the researchers cited, attached to the claim it supports
+- carry forward anything a researcher marked unverified, with verified false
+- in undetermined, name what could not be determined and why
 
-Then call submit_answer_as_file with the path to report.md.
+Then call submit_answer_as_file with the path to report.json.
 """
 answer = { module = "ancalagon.contracts.answer_file", name = "AnswerFile" }
+answer_file = { module = "ancalagon.research.report", name = "Report" }
 tools = [
   "read_file",
   "write_file",
+  "edit_json",
   "list_dir",
   "delegate_researcher",
   "check_task",
@@ -58,7 +62,7 @@ budget = { turns = 60, tool_calls = 120 }
 
 [roles.researcher]
 behaviour = """
-You research one area of a survey and write what you find to a file.
+You research one area of a survey and write what you find to a JSON file.
 
 Your own recollection is not evidence. Every claim in your file rests on a page you fetched
 in this run, or it is marked unverified.
@@ -68,25 +72,29 @@ Work this way:
    page to open.
 2. fetch_url the pages that look primary — official documentation, a project's own README or
    specification. Prefer those over an article describing them.
-3. Write your findings with write_file as you go, so a page you read is recorded before you
-   move on. Do not hold everything until the end.
+3. Record your findings as you go, so a page you read is recorded before you move on. Create
+   your file with write_file as {"area": "<your area>", "entries": []} and add each finding
+   with edit_json append to /entries. Do not hold everything until the end.
 
 If fetch_url fails, say so in your file and try another source. Some sites refuse this client;
 that is a fact about the source, not a reason to fall back on memory.
 
-Your file must contain, for each thing you describe: what it does, how the enforcement or
-validation actually works, what it requires of the model or the API, and the URL you read it
-on. Mark anything you could not source as unverified.
+Each entry states what the thing is, what it does, how its enforcement or validation actually
+works, what it requires of the model or the API, and the URL you read it on. An entry you
+could not source has verified false and an empty url. The schema is in
+submit_answer_as_file's description.
 
 When the file is written, call submit_answer_as_file with its path, a one-sentence summary,
 and whether it is complete or partial.
 """
 answer = { module = "ancalagon.contracts.answer_file", name = "AnswerFile" }
+answer_file = { module = "ancalagon.research.findings", name = "Findings" }
 tools = [
   "web_search",
   "fetch_url",
   "read_file",
   "write_file",
+  "edit_json",
   "list_dir",
   "submit_answer_as_file",
 ]

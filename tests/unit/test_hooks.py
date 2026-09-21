@@ -13,6 +13,7 @@ from ancalagon.contracts.accepted import Accepted
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.function_ref import FunctionRef
+from ancalagon.contracts.no_answer_file import NoAnswerFile
 from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.reviewed import Reviewed
 from ancalagon.contracts.role import FREE_TEXT, Role
@@ -206,6 +207,7 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
         parent=1,
         depth=0,
         output_class=FreeText,
+        answer_file_class=NoAnswerFile,
         clock=SystemClock(),
         fs=fs,
         web=FakeWebClient({}),
@@ -229,6 +231,7 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
         update={
             "tools": ("ripgrep", "submit_answer_as_file"),
             "answer": ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile"),
+            "answer_file": ClassRef(module="ancalagon.contracts.free_text", name="FreeText"),
             "before": {"submit_answer": (FunctionRef(module=hooks, name="general"),)},
         }
     )
@@ -239,6 +242,7 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
         update={
             "tools": ("ripgrep", "submit_answer", "submit_answer_as_file"),
             "answer": ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile"),
+            "answer_file": ClassRef(module="ancalagon.contracts.free_text", name="FreeText"),
             "before": {"submit_answer": (FunctionRef(module=hooks, name="general"),)},
         }
     )

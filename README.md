@@ -210,7 +210,7 @@ flowchart LR
     resolve --> inc["input class"]
     resolve --> outc["answer class"]
     inc --> agentspec["the spec, re-read as a typed model"]
-    outc --> submit["the terminal submit tool the role named<br/>submit_answer takes the answer class as its schema;<br/>submit_answer_as_file takes AnswerFile and the answer class must be it"]
+    outc --> submit["the terminal submit tool the role named<br/>submit_answer takes the answer class as its schema;<br/>submit_answer_as_file takes AnswerFile and the answer class must be it;<br/>the file must validate into answer_file"]
     role --> tl["the tools list"]
     tl --> registry["registry - exactly these,<br/>plus idle"]
     role --> b["budget - turns and tool calls"]
@@ -389,6 +389,7 @@ record.
 ```toml
 [roles.record_analyst]
 answer = { module = "ancalagon.contracts.answer_file", name = "AnswerFile" }
+answer_file = { module = "example.contracts.record", name = "Record" }
 tools = ["read_file", "write_file", "edit_json", "submit_answer_as_file"]
 ```
 
@@ -398,6 +399,13 @@ rejects one that declares something else. Naming both tools is legal and means t
 replaces the other; only the named one is in the registry, so there is no second way out. A hook
 declared for a tool the role does not name is rejected too, because a gate that never runs reads
 as a gate that does.
+
+`answer_file` names the class the file holds. The tool's description shows the model that
+class's schema, and submitting reads the file and validates it into the class: a file that does
+not fit is refused with every fault listed, `/values/1: Input should be a valid integer`, and the
+agent fixes it and submits again. A role naming `submit_answer_as_file` must declare
+`answer_file`, and a role declaring it without the tool is rejected at startup, since nothing
+would check it.
 
 `watch_file` is the one that needs something else declared: a role that names `watch_for` as its
 `run` function, since that is what it queues and what tells the supervisor to run a process

@@ -21,6 +21,7 @@ from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.needs_input import NeedsInput
+from ancalagon.contracts.no_answer_file import NoAnswerFile
 from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.reviewed import Reviewed
 from ancalagon.contracts.role import Role
@@ -357,6 +358,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         parent=root_agent,
         depth=0,
         output_class=FreeText,
+        answer_file_class=NoAnswerFile,
         clock=SystemClock(),
         fs=RealFileSystem(),
         web=FakeWebClient({}),
@@ -369,6 +371,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         parent=nested_agent,
         depth=1,
         output_class=FreeText,
+        answer_file_class=NoAnswerFile,
         clock=SystemClock(),
         fs=RealFileSystem(),
         web=FakeWebClient({}),
@@ -393,6 +396,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
             parent=root_agent,
             depth=0,
             output_class=FreeText,
+            answer_file_class=NoAnswerFile,
             clock=SystemClock(),
             fs=RealFileSystem(),
             bus=bus,
@@ -417,6 +421,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         parent=root_agent,
         depth=0,
         output_class=FreeText,
+        answer_file_class=NoAnswerFile,
         clock=SystemClock(),
         bus=bus,
         fs=RealFileSystem(),
@@ -443,6 +448,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
             parent=root_agent,
             depth=0,
             output_class=FreeText,
+            answer_file_class=NoAnswerFile,
             bus=bus,
             clock=SystemClock(),
             fs=RealFileSystem(),

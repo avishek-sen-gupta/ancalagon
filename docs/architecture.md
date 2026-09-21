@@ -706,9 +706,13 @@ alternative — walking the model tree for anything that looks like `Evidence` �
 inspection what the contract can simply state.
 
 `AnswerFile` is an answer contract like any other: a Pydantic model assigned to `role.answer`.
-The file it names is outside Pydantic's reach on purpose — the structure is described by a JSON
-Schema because it is never a Python value. The harness never opens that file; it ships the three
-pointer fields (`status`, `summary`, `path`) upward, and the parent decides what to do with them.
+The file it names holds a second contract, `role.answer_file`, which `session_for` resolves and
+hands to `SubmitAnswerAsFile` at construction, exactly as `SubmitAnswer` receives its output
+class. Submitting reads the file and calls `model_validate_json`; invalid JSON and a structural
+mismatch both arrive as a `ValidationError`, rendered one fault per line and returned as a tool
+failure the agent can retry. The validated instance is not carried upward: the file is the
+answer, and the harness ships the three pointer fields (`status`, `summary`, `path`) to the
+parent.
 A hook that validates the file's contents runs before `submit_answer_as_file`, not after, and
 the schema it enforces is declared in the task's input contract rather than hard-coded anywhere.
 That hook, `submit/adheres_to_schema.py`, is the one place a parsed JSON value exists in this

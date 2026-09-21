@@ -14,6 +14,7 @@ from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.function_ref import FunctionRef
+from ancalagon.contracts.no_answer_file import NoAnswerFile
 from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.spend import Spend
@@ -227,6 +228,7 @@ def test_watch_file_is_offered_only_where_a_role_declares_the_watch_contract(
                 parent=1,
                 depth=0,
                 output_class=FreeText,
+                answer_file_class=NoAnswerFile,
                 clock=SystemClock(),
                 fs=fs,
                 web=FakeWebClient({}),

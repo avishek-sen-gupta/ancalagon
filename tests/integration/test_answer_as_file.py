@@ -10,14 +10,14 @@ from tests.integration.scripted_model import ScriptedModel
 
 GOAL = "Record the module and the values it holds."
 
-SCHEMA = {
-    "type": "object",
-    "required": ["name", "values"],
-    "properties": {
-        "name": {"type": "string"},
-        "values": {"type": "array", "items": {"type": "integer"}},
-    },
-}
+RECORD = """
+import pydantic
+
+
+class Record(pydantic.BaseModel, frozen=True):
+    name: str
+    values: tuple[int, ...]
+"""
 
 CONFIG = """
 [workspace]
@@ -44,38 +44,32 @@ strategy = "none"
 
 [roles.root]
 behaviour = "You build the answer in a file."
-input = {{ module = "ancalagon.contracts.schema_guided", name = "SchemaGuided" }}
 answer = {{ module = "ancalagon.contracts.answer_file", name = "AnswerFile" }}
+answer_file = {{ module = "filedkit.record", name = "Record" }}
 tools = ["write_file", "edit_json", "submit_answer_as_file"]
 budget = {{ turns = 6, tool_calls = 10 }}
 
-[roles.root.before]
-submit_answer_as_file = [
-  {{ module = "ancalagon.tools.submit.adheres_to_schema", name = "adheres_to_schema" }},
-]
-
 [run]
 goal_file = "{goal_file}"
-input_file = "{input_file}"
+input_file = ""
 role = "root"
 """
 
 
 def _config(tmp_path: pathlib.Path, write_root: pathlib.Path) -> pathlib.Path:
     write_root.mkdir(parents=True, exist_ok=True)
-    (write_root / "record.schema.json").write_text(json.dumps(SCHEMA))
+    package = tmp_path / "filedkit"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "record.py").write_text(RECORD)
     goal_file = tmp_path / "goal.md"
     goal_file.write_text(GOAL)
-    input_file = tmp_path / "input.json"
-    input_file.write_text(json.dumps({"output_schema": str(write_root / "record.schema.json")}))
     config = tmp_path / "ancalagon.toml"
-    config.write_text(
-        CONFIG.format(write_root=write_root, goal_file=goal_file, input_file=input_file)
-    )
+    config.write_text(CONFIG.format(write_root=write_root, goal_file=goal_file))
     return config
 
 
-def test_an_agent_builds_its_answer_in_a_file_and_the_schema_hook_gates_submitting_it(
+def test_an_agent_builds_its_answer_in_a_file_and_submitting_refuses_it_until_it_fits(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ):
     write_root = tmp_path / "ws"
@@ -146,4 +140,4 @@ def test_an_agent_builds_its_answer_in_a_file_and_the_schema_hook_gates_submitti
     assert outcome["spent"] == {"turns": 5, "tool_calls": 3}
 
     said = (run_dir / "tasks" / "root" / "transcript.jsonl").read_text()
-    assert "'values' is a required property" in said
+    assert "/values: Field required" in said

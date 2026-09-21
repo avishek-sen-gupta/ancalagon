@@ -73,10 +73,14 @@ allowed_domains = []
 # valid identifier.
 #
 # Required in each role: behaviour, tools, budget.
-# Optional: input, answer, run, before, after.
+# Optional: input, answer, answer_file, run, before, after.
 #
 # A role that runs a session must name submit_answer or submit_answer_as_file in tools, or the
 # run is refused at startup. Declaring a hook on a tool does not enable it.
+#
+# A role that names submit_answer_as_file must set answer to AnswerFile and answer_file to the
+# class its file holds, as { module = "...", name = "..." }. Submitting validates the file into
+# that class and refuses it, listing every fault, until it fits.
 #
 # The tools available, by package:
 #   files     read_file  list_dir  write_file  edit_file  append_file  delete_file

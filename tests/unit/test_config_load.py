@@ -13,6 +13,7 @@ from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.finite import Finite
 from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.infinite import Infinite
+from ancalagon.contracts.no_answer_file import NO_ANSWER_FILE
 from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.role import FREE_TEXT, Role
 from ancalagon.fs.real_file_system import RealFileSystem
@@ -143,6 +144,7 @@ def test_roles_load_with_their_contracts_and_prose_is_the_absent_default(
 [roles.analyst]
 behaviour = "Analyse."
 answer = { module = "shapekit.shapes", name = "Component" }
+answer_file = { module = "shapekit.shapes", name = "Component" }
 tools = ["read_file", "delegate_scout"]
 budget = { turns = 12, tool_calls = 30 }
 
@@ -162,6 +164,8 @@ budget = { turns = 4, tool_calls = 8 }
     assert roles["analyst"].budget == finite_budget(12, 30)
     assert roles["scout"].answer == FREE_TEXT
     assert roles["scout"].input == FREE_TEXT
+    assert roles["analyst"].answer_file == ClassRef(module="shapekit.shapes", name="Component")
+    assert roles["scout"].answer_file == NO_ANSWER_FILE
 
     spaced = tmp_path / "spaced.toml"
     spaced.write_text(
@@ -411,6 +415,45 @@ role = "analyst"
         "submit_answer_as_file submits AnswerFile in ancalagon.contracts.answer_file"
     )
 
+    answer_file_ref = ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile")
+    content = ClassRef(module="ancalagon.contracts.free_text", name="FreeText")
+    untyped = filer.model_copy(update={"answer": answer_file_ref})
+    with pytest.raises(ValueError) as no_content:
+        check_contracts(config.model_copy(update={"roles": {"filer": untyped}}), RealFileSystem())
+    assert str(no_content.value) == (
+        "[roles.filer] names submit_answer_as_file, so it must declare answer_file: "
+        "the class its answer file holds"
+    )
+
+    stray = Role(
+        behaviour="You answer.",
+        answer_file=content,
+        tools=("submit_answer",),
+        budget=finite_budget(1, 1),
+    )
+    with pytest.raises(ValueError) as unchecked:
+        check_contracts(config.model_copy(update={"roles": {"stray": stray}}), RealFileSystem())
+    assert str(unchecked.value) == (
+        "[roles.stray] declares answer_file as FreeText in ancalagon.contracts.free_text, "
+        "but does not name submit_answer_as_file, so nothing checks it"
+    )
+
+    unloadable = untyped.model_copy(
+        update={"answer_file": ClassRef(module="ancalagon.contracts.free_text", name="Missing")}
+    )
+    with pytest.raises(ValueError) as unresolved:
+        check_contracts(
+            config.model_copy(update={"roles": {"filer": unloadable}}), RealFileSystem()
+        )
+    assert str(unresolved.value) == (
+        "[roles.filer] answer_file names Missing in ancalagon.contracts.free_text, which "
+        "cannot be loaded: AttributeError: module 'ancalagon.contracts.free_text' has no "
+        "attribute 'Missing'"
+    )
+
+    typed = untyped.model_copy(update={"answer_file": content})
+    check_contracts(config.model_copy(update={"roles": {"filer": typed}}), RealFileSystem())
+
 
 WEB = """
 [web]
@@ -455,6 +498,18 @@ def test_the_example_config_this_repo_ships_satisfies_its_own_contracts():
             "need_input",
             "submit_answer",
         ),
+    }
+
+
+def test_the_research_config_this_repo_ships_types_every_answer_file():
+    path = pathlib.Path(__file__).parents[2] / "research.toml"
+    config = load_config(pathlib.PurePath(path), RealFileSystem())
+
+    check_contracts(config, RealFileSystem())
+
+    assert {name: role.answer_file for name, role in config.roles.items()} == {
+        "root": ClassRef(module="ancalagon.research.report", name="Report"),
+        "researcher": ClassRef(module="ancalagon.research.findings", name="Findings"),
     }
 
 
