@@ -35,6 +35,6 @@ else .line.message as $m | ("[\($e.run)/\($e.task)/\($m.agent)]" | cyan) as $who
   elif .kind == "tool_use" then $who + " " + ("→" | dim) + " " + (.name | yellow)
        + " " + (.arguments | gsub("\n"; " "))
   else $who + " " + ("←" | dim) + " " + (if .is_error then ("ERR" | red) + " " else "" end)
-       + (.content | gsub("\n"; " ⏎ ") | .[0:$cut] | dim)
+       + (.content | gsub("\n"; " ⏎ ") | if $cut > 0 then .[0:$cut] else . end | dim)
   end
 end'
