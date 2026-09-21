@@ -114,7 +114,6 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx", extra = ["socks"] },
-    { name = "jsonschema" },
     { name = "litellm" },
     { name = "pydantic" },
     { name = "sqlalchemy" },
@@ -137,7 +136,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", extras = ["socks"], specifier = ">=0.27" },
-    { name = "jsonschema", specifier = ">=4.26" },
     { name = "litellm", specifier = ">=1.72" },
     { name = "pydantic", specifier = ">=2.12" },
     { name = "sqlalchemy", specifier = ">=2.0" },
