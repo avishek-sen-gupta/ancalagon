@@ -157,4 +157,6 @@ fileignoreconfig:
   checksum: 502bcbfcadfb3d4d7ee5ebe660ef9562264f5abf8a41840fd079ae2aabe08e5e
 - filename: docs/superpowers/plans/2026-09-21-a-typed-answer-file.md
   checksum: a5643f956c581765ad1c16a4a999ea7e92ff7b47edfc5c00e6db8c046c568690
+- filename: docs/superpowers/plans/2026-09-22-several-write-roots.md
+  checksum: a61944ff77509ed8022c20c48d3541f693da688875d990e9f1a11dca96a5b38b
 version: "1.0"
