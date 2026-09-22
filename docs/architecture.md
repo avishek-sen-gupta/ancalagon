@@ -747,6 +747,16 @@ the trailing blanks `diff_regions` ignores, because a quote is retyped by a mode
 column padding is an artifact of the copy, where two ranges of two real files differ in leading
 whitespace only if the files do.
 
+`cite/cite.py` runs the same check a turn earlier. `evidence_resolves` asks whether an answer's
+quotes hold up, at the point where the answer is submitted; `cite` asks it of one span as the
+agent reads, and appends a `Citation` to `tasks/<id>/citations.jsonl` through the same
+`append_line` that writes `access.jsonl`. A quote absent from the lines it names is a refusal
+naming what those lines say, so a citation cannot record what the file does not contain. The file
+is the agent's own memory: it reads it back with `read_file` when it comes to answer, which is
+why nothing folds it into the turn and why there is no tool to recall it. `SourceSpan` carries
+columns where `Evidence` does not, so a citation can point at an expression, and `read_file`
+numbers only lines -- the columns are the agent's, and nothing checks them.
+
 `files/append_file.py` exists because `write_file` replaces. Adding a line with it means
 reading the file and writing it back, which loses whatever arrived in between — two agents
 posting to the same file both succeed and one entry vanishes, with nothing to say so.
@@ -847,6 +857,7 @@ ws/runs/r_20260822-121500/
         transcript.jsonl          every message, one per line, tagged by agent id and seq
         outcome-<agent>.json      the result of that attempt, kept even when superseded
         access.jsonl              every file this task read, and when that file had changed
+        citations.jsonl           a span, its quote and what the agent made of it, one per cite
         notes/<stamp>.txt         an operator's note, until the next turn folds it in
         stderr-1.log              the worker's stderr
         tools/0000-read_file.txt  every tool's full output

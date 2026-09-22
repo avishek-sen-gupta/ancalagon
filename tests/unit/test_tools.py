@@ -15,6 +15,7 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.accepted import Accepted
 from ancalagon.contracts.access import Access
 from ancalagon.contracts.agent_status import AgentStatus
+from ancalagon.contracts.citation import Citation
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.event_source import EventSource
@@ -25,6 +26,7 @@ from ancalagon.contracts.no_answer_file import NoAnswerFile
 from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.reviewed import Reviewed
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.source_span import SourceSpan
 from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text_answer import TextAnswer
@@ -45,6 +47,7 @@ from ancalagon.tools.artifacts.path_arg import PathArg
 from ancalagon.tools.artifacts.query_args import QueryArgs
 from ancalagon.tools.artifacts.query_json import QueryJson
 from ancalagon.tools.artifacts.strings_args import StringsArgs
+from ancalagon.tools.cite.cite import Cite
 from ancalagon.tools.compare.diff_args import DiffArgs
 from ancalagon.tools.compare.diff_regions import DiffRegions
 from ancalagon.tools.compare.region import Region
@@ -1253,3 +1256,60 @@ def test_a_tool_failure_is_logged_with_its_stack(
     assert caplog.records[0].exc_info is not None
     assert "ScopeError" in caplog.text
     assert "outside the read roots" in caplog.text
+
+
+def test_a_citation_is_appended_with_its_quote_checked_against_the_cited_lines(
+    tmp_path: pathlib.Path,
+):
+    ctx = _ctx(tmp_path)
+    clock = FakeClock()
+    source = pathlib.PurePath(ctx.workspace.read_roots[0]) / "engine.py"
+    ctx.workspace.write_text(source, "class Ball:\n    def step(self):\n        return self\n")
+    cite = bind_tool(Cite(clock))
+    span = f'"path": "{source}", "start_line": 2, "end_line": 3'
+
+    first = cite.invoke(
+        f'{{{span}, "start_column": 5, "end_column": 20, '
+        f'"quote": "def step(self):", "note": "the tick"}}',
+        ctx,
+    )
+    clock.sleep(60)
+    second = cite.invoke(
+        f'{{{span}, "start_column": 9, "end_column": 20, '
+        f'"quote": "return self", "note": "returns itself"}}',
+        ctx,
+    )
+
+    assert (first.ok, second.ok) == (True, True)
+    written = [
+        Citation.model_validate_json(line)
+        for line in ctx.workspace.read_text(ctx.task_dir / "citations.jsonl").splitlines()
+    ]
+    assert [c.note for c in written] == ["the tick", "returns itself"]
+    assert [c.agent for c in written] == [17, 17]
+    assert [c.ts for c in written] == ["2026-01-01T00:00:00+00:00", "2026-01-01T00:01:00+00:00"]
+    assert written[0].span == SourceSpan(
+        path=str(source), start_line=2, end_line=3, start_column=5, end_column=20
+    )
+
+    invented = cite.invoke(
+        f'{{{span}, "start_column": 1, "end_column": 2, '
+        f'"quote": "def leap(self):", "note": "made up"}}',
+        ctx,
+    )
+    elsewhere = cite.invoke(
+        f'{{"path": "{source}", "start_line": 1, "end_line": 1, "start_column": 1, '
+        f'"end_column": 5, "quote": "def step(self):", "note": "wrong lines"}}',
+        ctx,
+    )
+
+    assert (invented.ok, elsewhere.ok) == (False, False)
+    assert "def step(self):" in invented.error
+    assert ctx.workspace.read_text(ctx.task_dir / "citations.jsonl").count("\n") == 2
+
+    missing = cite.invoke(
+        f'{{"path": "{tmp_path / "outside.py"}", "start_line": 1, "end_line": 1, '
+        f'"start_column": 1, "end_column": 2, "quote": "x", "note": "outside"}}',
+        ctx,
+    )
+    assert missing.ok is False

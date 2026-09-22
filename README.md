@@ -346,6 +346,7 @@ the tool-call budget.
 | `edit_json` | change one place in a JSON file in a write root, so a large answer is built across many calls |
 | `extract_strings` | printable text out of a binary |
 | `convert_document` | docx, odt, epub, rtf and others, into text |
+| `cite` | one span of one file, quoted and annotated, appended to `citations.jsonl` for a later turn to read |
 
 | Searching | |
 |---|---|
@@ -611,6 +612,7 @@ ws/runs/r_20260822-121500/
         spec.json                 what was asked, with the whole role embedded
         transcript.jsonl          every message, one per line, tagged by agent id
         outcome-<agent>.json      the result of that attempt, kept even when superseded
+        citations.jsonl           one line per cite: a span, its quote, and what it shows
         stderr-<agent>.log        the worker's stderr
         tools/0000-read_file.txt  every tool's full output
 ```
