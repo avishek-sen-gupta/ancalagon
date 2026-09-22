@@ -59,7 +59,8 @@ def test_a_watcher_process_wakes_the_supervisor_the_way_any_child_does(
 
     (tmp_path / "watcher.toml").write_text("""
 [workspace]
-write_root = "./ws"
+home = "./ws"
+write_roots = []
 read_roots = ["./ws"]
 
 [model]

@@ -12,21 +12,31 @@ from ancalagon.workspace.workspace import Workspace
 
 def test_scoping_rejects_every_escape_and_config_round_trips(tmp_path: pathlib.Path):
     write_root = tmp_path / "ws"
+    second_root = tmp_path / "notes"
     read_only = tmp_path / "artifacts"
     outside = tmp_path / "elsewhere"
-    for d in (write_root, read_only, outside):
+    for d in (write_root, second_root, read_only, outside):
         d.mkdir()
     (read_only / "a.txt").write_text("data")
     (outside / "secret.txt").write_text("nope")
 
-    ws = Workspace(RealFileSystem(), write_root=write_root, read_roots=(read_only, write_root))
+    ws = Workspace(
+        RealFileSystem(),
+        write_roots=(write_root, second_root),
+        read_roots=(read_only, write_root),
+    )
 
     assert ws.resolve_write(write_root / "out.json") == (write_root / "out.json").resolve()
+    assert ws.resolve_write(second_root / "n.md") == (second_root / "n.md").resolve()
     assert ws.resolve_read(read_only / "a.txt") == (read_only / "a.txt").resolve()
     assert ws.resolve_read(write_root / "out.json") == (write_root / "out.json").resolve()
 
-    with pytest.raises(ScopeError):
+    with pytest.raises(ScopeError) as refused:
         ws.resolve_write(read_only / "a.txt")
+    assert str(refused.value) == (
+        f"{read_only / 'a.txt'} is outside write_roots "
+        f"{(write_root.resolve(), second_root.resolve())}"
+    )
     with pytest.raises(ScopeError):
         ws.resolve_read(outside / "secret.txt")
     with pytest.raises(ScopeError):
@@ -50,7 +60,8 @@ def test_scoping_rejects_every_escape_and_config_round_trips(tmp_path: pathlib.P
     config_path = tmp_path / "ancalagon.toml"
     config_path.write_text(f"""
 [workspace]
-write_root = "{write_root}"
+home = "{write_root}"
+write_roots = ["{second_root}"]
 read_roots = ["{read_only}"]
 
 [model]
@@ -77,15 +88,36 @@ input_file = ""
 role = ""
 """)
     config = load_config(config_path, RealFileSystem())
-    assert config.write_root == write_root
+    assert config.home == write_root
+    assert config.write_roots == (second_root,)
     assert config.read_roots == (read_only,)
     assert config.model == "claude-opus-5"
     assert config.num_retries == 3
     assert config.request_timeout_s == 300
     assert config.max_concurrent_agents == 1
     assert config.agent_timeout_s == 3600
-    resolved = Workspace.from_config(config, RealFileSystem()).resolve_read(read_only / "a.txt")
+    from_config = Workspace.from_config(config, RealFileSystem())
+    assert from_config.write_roots == (second_root.resolve(), write_root.resolve())
+    assert from_config.read_roots == (
+        read_only.resolve(),
+        second_root.resolve(),
+        write_root.resolve(),
+    )
+    resolved = from_config.resolve_read(read_only / "a.txt")
     assert pathlib.Path(resolved).exists()
+
+    config_path.write_text(
+        config_path.read_text().replace(
+            f'home = "{write_root}"\nwrite_roots = ["{second_root}"]',
+            f'write_root = "{write_root}"',
+        )
+    )
+    with pytest.raises(ValueError) as old_key:
+        load_config(config_path, RealFileSystem())
+    assert str(old_key.value) == (
+        "[workspace] write_root was split into home (where runs live) and "
+        "write_roots (where agents may write)"
+    )
 
 
 def test_config_resolves_relative_roots_against_the_config_file_not_the_cwd(
@@ -97,7 +129,8 @@ def test_config_resolves_relative_roots_against_the_config_file_not_the_cwd(
     config_path = project / "ancalagon.toml"
     config_path.write_text("""
 [workspace]
-write_root = "./ws"
+home = "./ws"
+write_roots = []
 read_roots = ["./artifacts"]
 
 [model]
@@ -128,7 +161,7 @@ role = ""
     monkeypatch.chdir(elsewhere)
 
     config = load_config(config_path, RealFileSystem())
-    assert config.write_root == (project / "ws").resolve()
+    assert config.home == (project / "ws").resolve()
     assert config.read_roots == ((project / "artifacts").resolve(),)
 
 
@@ -144,7 +177,8 @@ def test_tilde_and_relative_roots_resolve_against_home_and_the_config_file(
     config_path = project / "ancalagon.toml"
     config_path.write_text("""
 [workspace]
-write_root = "./ws"
+home = "./ws"
+write_roots = []
 read_roots = ["~/artifacts"]
 
 [model]
@@ -172,7 +206,7 @@ role = ""
 """)
     monkeypatch.chdir(tmp_path)
     config = load_config(config_path, RealFileSystem())
-    assert config.write_root == (project / "ws").resolve()
+    assert config.home == (project / "ws").resolve()
     assert config.read_roots == ((home / "artifacts").resolve(),)
 
     workspace = Workspace.from_config(config, RealFileSystem())
@@ -184,14 +218,14 @@ role = ""
 def test_config_needs_three_fields_in_code_but_a_complete_file_on_disk(
     tmp_path: pathlib.Path,
 ):
-    minimal = Config(write_root=tmp_path, read_roots=(tmp_path,), model="bedrock/some-model")
+    minimal = Config(home=tmp_path, read_roots=(tmp_path,), model="bedrock/some-model")
     assert minimal.max_concurrent_agents == 4
     assert minimal.compact_above_tokens == 60000
     assert minimal.roles == {}
 
     assert (
         Config(
-            write_root=tmp_path,
+            home=tmp_path,
             read_roots=(tmp_path,),
             model="m",
             max_concurrent_agents=7,
@@ -237,7 +271,7 @@ def test_workspace_reads_and_writes_only_inside_its_roots(tmp_path: pathlib.Path
     outside.write_text("untouched", encoding="utf-8")
 
     workspace = Workspace(
-        RealFileSystem(), write_root=write_root, read_roots=(read_only, write_root)
+        RealFileSystem(), write_roots=(write_root,), read_roots=(read_only, write_root)
     )
 
     workspace.write_text(write_root / "in.txt", "fine")

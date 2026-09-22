@@ -140,7 +140,8 @@ def test_resolvers_return_a_usable_hook_and_refuse_one_of_the_wrong_shape(
 
 CONFIG = """
 [workspace]
-write_root = "./ws"
+home = "./ws"
+write_roots = []
 read_roots = ["."]
 
 [model]
@@ -293,7 +294,7 @@ def test_check_contracts_refuses_a_role_whose_answer_disagrees_with_its_run_func
         budget=finite_budget(0, 0),
     )
     config = Config(
-        write_root=tmp_path,
+        home=tmp_path,
         read_roots=(tmp_path,),
         model="m",
         roles={"transformer": role},
@@ -312,7 +313,7 @@ def test_a_hook_sees_the_task_input_so_it_can_check_an_answer_against_what_was_a
     write_root = tmp_path / "ws"
     (write_root / "outputs").mkdir(parents=True)
     ctx = ToolContext(
-        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_roots=(write_root,), read_roots=(write_root,)),
         task_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=7,

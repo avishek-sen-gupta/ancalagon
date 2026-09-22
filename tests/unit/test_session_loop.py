@@ -80,11 +80,16 @@ def _session(
     given: pydantic.BaseModel = Verdict(answer="seed"),
     answer_class: type[pydantic.BaseModel] = Verdict,
     letterbox: Letterbox = NO_LETTERBOX,
+    extra_write_roots: tuple[pathlib.PurePath, ...] = (),
 ) -> Session:
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
     ctx = ToolContext(
-        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(
+            RealFileSystem(),
+            write_roots=(write_root, *extra_write_roots),
+            read_roots=(write_root,),
+        ),
         task_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=17,
@@ -260,7 +265,7 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
     ctx = ToolContext(
-        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_roots=(write_root,), read_roots=(write_root,)),
         task_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=parent,
@@ -319,7 +324,7 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
     ctx = ToolContext(
-        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_roots=(write_root,), read_roots=(write_root,)),
         task_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=parent,
@@ -573,6 +578,7 @@ def test_the_static_system_half_is_shared_across_items_and_the_per_item_half_is_
             finite_budget(5, 5),
             goal=goal,
             given=Verdict(answer=item),
+            extra_write_roots=(tmp_path / item / "notes",),
         )
 
     first = answering("item-0001", "Describe the first item.")
@@ -596,6 +602,7 @@ def test_the_static_system_half_is_shared_across_items_and_the_per_item_half_is_
     assert per_item.startswith("Goal: Describe the first item.")
     assert '"answer":"item-0001"' in per_item
     assert str(tmp_path / "item-0001" / "ws") in per_item
+    assert str(tmp_path / "item-0001" / "notes") in per_item
 
     assert "cache created 2048 read 1024" in caplog.text
 
@@ -606,7 +613,7 @@ def test_a_session_takes_its_behaviour_and_budget_from_its_role(tmp_path: pathli
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
     ctx = ToolContext(
-        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_roots=(write_root,), read_roots=(write_root,)),
         task_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=17,
@@ -678,7 +685,7 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
 
     children = ScriptedChildren([(2,), ()], [(), (2,)])
     ctx = ToolContext(
-        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_roots=(write_root,), read_roots=(write_root,)),
         task_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=17,
@@ -791,7 +798,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
     write_root.mkdir(parents=True, exist_ok=True)
     answer.write_text('{"values": []}')
     ctx = ToolContext(
-        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_roots=(write_root,), read_roots=(write_root,)),
         task_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=17,
@@ -842,7 +849,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
     answer_both = both / "record.json"
     answer_both.write_text('{"values": []}')
     ctx_both = ToolContext(
-        workspace=Workspace(RealFileSystem(), write_root=both, read_roots=(both,)),
+        workspace=Workspace(RealFileSystem(), write_roots=(both,), read_roots=(both,)),
         task_dir=both / "outputs",
         summary_chars=200,
         agent_id=18,
@@ -860,7 +867,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
         goal="Answer it.",
     )
     config_both = Config(
-        write_root=both,
+        home=both,
         read_roots=(),
         model="anthropic/claude",
         roles={"t2": role_both},

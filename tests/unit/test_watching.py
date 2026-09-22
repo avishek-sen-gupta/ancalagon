@@ -171,13 +171,14 @@ def test_the_command_watches_the_write_root_its_config_names(tmp_path: pathlib.P
 
     watch = watching(str(config), UNSET, RealFileSystem(), FakeClock())
 
-    assert watch.write_root == pathlib.PurePath(tmp_path / "nested" / "ws")
+    assert watch.home == pathlib.PurePath(tmp_path / "nested" / "ws")
     assert watch.tick() == ""
 
 
 CONFIG = """
 [workspace]
-write_root = "./ws"
+home = "./ws"
+write_roots = []
 read_roots = ["./ws"]
 
 [model]
@@ -233,8 +234,8 @@ def test_a_write_root_that_holds_no_runs_directory_is_called_out(tmp_path: pathl
     workspace = pathlib.PurePath(tmp_path / "ws")
     fs.mkdir(workspace / "runs", parents=True, exist_ok=True)
 
-    assert concern(missing, fs) == f"nothing to watch under {missing}; is this the write_root?"
-    assert concern(bare, fs) == f"nothing to watch under {bare}; is this the write_root?"
+    assert concern(missing, fs) == f"nothing to watch under {missing}; is this the home?"
+    assert concern(bare, fs) == f"nothing to watch under {bare}; is this the home?"
     assert concern(workspace, fs) == ""
 
 
@@ -256,7 +257,7 @@ def test_a_directory_is_watched_without_a_config(tmp_path: pathlib.Path):
 
     watch = watching(UNSET, str(tmp_path), RealFileSystem(), FakeClock())
 
-    assert watch.write_root == pathlib.PurePath(tmp_path)
+    assert watch.home == pathlib.PurePath(tmp_path)
     assert watch.tick() == ""
 
 

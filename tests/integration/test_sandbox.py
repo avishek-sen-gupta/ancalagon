@@ -26,7 +26,7 @@ def test_fence_confines_writes_and_leaves_the_toolchain_working(tmp_path: pathli
     outside.mkdir()
 
     sandbox = Fence(
-        write_root=write_root,
+        write_roots=[write_root],
         allowed_domains=[],
         run_dir=run_dir,
         fs=RealFileSystem(),
@@ -82,7 +82,7 @@ def test_a_fenced_worker_reaches_the_configured_log_socket_and_no_other(tmp_path
     allowed, refused = _listening(named), _listening(unnamed)
 
     sandbox = Fence(
-        write_root=write_root,
+        write_roots=[write_root],
         allowed_domains=[],
         run_dir=run_dir,
         fs=RealFileSystem(),

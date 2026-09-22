@@ -21,22 +21,20 @@ from ancalagon.watch_command import watch_command
 LOGGER = logging.getLogger(__name__)
 
 
-def _allocated_run_dir(
-    write_root: pathlib.PurePath, clock: Clock, fs: FileSystem
-) -> pathlib.PurePath:
-    runs = write_root / "runs"
+def _allocated_run_dir(home: pathlib.PurePath, clock: Clock, fs: FileSystem) -> pathlib.PurePath:
+    runs = home / "runs"
     fs.mkdir(runs, parents=True, exist_ok=True)
     return runs / clock.now().strftime("r_%Y%m%d-%H%M%S")
 
 
 def created_run_dir(
-    run_dir: str, write_root: pathlib.PurePath, clock: Clock, fs: FileSystem
+    run_dir: str, home: pathlib.PurePath, clock: Clock, fs: FileSystem
 ) -> pathlib.PurePath:
     if run_dir:
         named = pathlib.PurePath(run_dir)
         fs.mkdir(named, parents=True, exist_ok=True)
         return named
-    allocated = _allocated_run_dir(write_root, clock, fs)
+    allocated = _allocated_run_dir(home, clock, fs)
     fs.mkdir(allocated, parents=True)
     return allocated
 
@@ -44,7 +42,7 @@ def created_run_dir(
 def init_command(config_path: pathlib.PurePath, run_dir: str) -> int:
     fs = RealFileSystem()
     config = load_config(config_path, fs)
-    sys.stdout.write(f"{created_run_dir(run_dir, config.write_root, SystemClock(), fs)}\n")
+    sys.stdout.write(f"{created_run_dir(run_dir, config.home, SystemClock(), fs)}\n")
     return 0
 
 

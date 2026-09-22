@@ -42,7 +42,7 @@ def _ctx(tmp_path: pathlib.Path) -> ToolContext:
     scope.mkdir()
     (scope / "record.txt").write_text(SOURCE)
     workspace = Workspace(
-        RealFileSystem(), write_root=tmp_path / "ws", read_roots=(scope, tmp_path / "ws")
+        RealFileSystem(), write_roots=(tmp_path / "ws",), read_roots=(scope, tmp_path / "ws")
     )
     workspace.mkdir(tmp_path / "ws", parents=True, exist_ok=True)
     return ToolContext(workspace, tmp_path / "ws" / "task", summary_chars=400, agent_id=1)

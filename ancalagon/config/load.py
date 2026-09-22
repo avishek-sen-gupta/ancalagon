@@ -24,6 +24,11 @@ from ancalagon.sandbox.strategy import Strategy
 
 ROLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+SPLIT_WRITE_ROOT = (
+    "[workspace] write_root was split into home (where runs live) and "
+    "write_roots (where agents may write)"
+)
+
 
 # Every key is read by bracket, never .get(), so a config file must be complete:
 # Config's defaults exist for callers building one in code, not to paper over a
@@ -113,8 +118,11 @@ def load_config(path: pathlib.PurePath, fs: FileSystem) -> Config:
     workspace = raw["workspace"]
     model = raw["model"]
     limits = raw["limits"]
+    if "write_root" in workspace:
+        raise ValueError(SPLIT_WRITE_ROOT)
     return Config(
-        write_root=_root(base, workspace["write_root"], fs),
+        home=_root(base, workspace["home"], fs),
+        write_roots=tuple(_root(base, p, fs) for p in workspace["write_roots"]),
         read_roots=tuple(_root(base, p, fs) for p in workspace["read_roots"]),
         roles={
             name: _role(name, RawRole.model_validate(table))

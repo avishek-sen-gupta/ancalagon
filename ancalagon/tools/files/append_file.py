@@ -9,7 +9,7 @@ from ancalagon.workspace.scope_error import ScopeError
 class AppendFile(Tool[AppendArgs]):
     name = "append_file"
     description = (
-        "Add one line to the end of a file inside the workspace write root, creating it if "
+        "Add one line to the end of a file inside a write root, creating it if "
         "it is not there. Use this rather than write_file to add to a file others also "
         "write to: it never reads the file, so it cannot overwrite what arrived since you "
         "last read."

@@ -2,7 +2,7 @@
 # What every run under an ancalagon workspace spent, read from each run's own bus.db,
 # as JSON. Pipe it to anccosttable.zsh to read it, or to jq to slice it yourself.
 # Usage: anccost [config.toml | dir] [--output report.json]   default . and stdout
-# Given a config it reads that config's write_root, so the run and the reckoning cannot
+# Given a config it reads that config's home, so the run and the reckoning cannot
 # disagree. Given a directory it accepts either a workspace or a runs dir.
 #
 # There is no `ancalagon usage` verb on purpose: the schema is the query surface, and this
@@ -37,7 +37,7 @@ FIELDS = ("calls", "prompt", "completion", "cache_creation", "cache_read")
 def workspace(given: pathlib.Path) -> pathlib.Path:
     if not given.is_file():
         return given
-    value = pathlib.Path(tomllib.loads(given.read_text())["workspace"]["write_root"]).expanduser()
+    value = pathlib.Path(tomllib.loads(given.read_text())["workspace"]["home"]).expanduser()
     return value if value.is_absolute() else (given.resolve().parent / value).resolve()
 
 

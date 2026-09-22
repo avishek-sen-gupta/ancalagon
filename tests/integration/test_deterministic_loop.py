@@ -119,7 +119,8 @@ def parent(rounds: Rounds, ctx: RunContext) -> Outcome[Ticks]:
 
 CONFIG = """
 [workspace]
-write_root = "./ws"
+home = "./ws"
+write_roots = []
 read_roots = ["./ws"]
 
 [model]

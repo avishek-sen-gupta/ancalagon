@@ -21,7 +21,8 @@ class Record(pydantic.BaseModel, frozen=True):
 
 CONFIG = """
 [workspace]
-write_root = "{write_root}"
+home = "{write_root}"
+write_roots = []
 read_roots = ["{write_root}"]
 
 [model]

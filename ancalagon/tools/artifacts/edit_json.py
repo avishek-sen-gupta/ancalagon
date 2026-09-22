@@ -20,7 +20,7 @@ PROGRAMS: collections.abc.Mapping[JsonOp, str] = {
 class EditJson(Tool[JsonEditArgs]):
     name = "edit_json"
     description = (
-        "Change one place in a JSON file inside the write root, leaving the rest alone. "
+        "Change one place in a JSON file inside a write root, leaving the rest alone. "
         "Use this to build a large answer across many small calls instead of writing the "
         "whole file each time. set replaces what is at the pointer, append adds to the "
         "array there, remove deletes the key. The file must already exist; write_file with "

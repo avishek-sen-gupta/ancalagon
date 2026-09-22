@@ -62,7 +62,8 @@ def _config(
     config = tmp_path / "ancalagon.toml"
     config.write_text(f"""
 [workspace]
-write_root = "{write_root}"
+home = "{write_root}"
+write_roots = []
 read_roots = ["{artifacts}"]
 
 [model]

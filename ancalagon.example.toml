@@ -9,11 +9,14 @@
 
 # ── workspace ─────────────────────────────────────────────────────────── required
 [workspace]
-# The one directory agents may write to. Runs are allocated under <write_root>/runs, and a run
-# directory outside it fails the first time an agent uses a tool, because tool output is written
-# beside the task.
-write_root = "./ws"
-# Every directory agents may read. write_root is always readable and need not be listed.
+# home and write_roots replace the old write_root, which did both jobs and is now refused.
+# Where runs live: run directories are allocated under <home>/runs, and watch reads it. Agents
+# may always read and write under home, because tool output is written beside each task.
+home = "./ws"
+# Further directories agents may write under, beyond home. May be empty.
+write_roots = []
+# Every directory agents may read. home and write_roots are always readable and need not be
+# listed.
 read_roots = [".", "./ancalagon", "./docs", "./tests", "./scripts"]
 
 # ── model ─────────────────────────────────────────────────────────────── required
@@ -47,7 +50,7 @@ summary_chars = 1000
 
 # ── sandbox ───────────────────────────────────────────────────────────── required
 [sandbox]
-# "fence" confines each worker to write_root and the allowed domains above.
+# "fence" confines each worker to home, write_roots and the allowed domains above.
 # "none" removes both. Use it only to prove a failure is not the sandbox's doing.
 strategy = "fence"
 

@@ -46,7 +46,7 @@ def test_a_host_runs_one_agent_with_no_bus_and_no_subprocess(tmp_path: pathlib.P
         budget=finite_budget(2, 2),
     )
     config = Config(
-        write_root=pathlib.PurePath(write_root),
+        home=pathlib.PurePath(write_root),
         read_roots=(pathlib.PurePath(write_root),),
         model="some-provider/no-model-is-called",
         roles={"solo": role},

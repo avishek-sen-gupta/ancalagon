@@ -40,7 +40,8 @@ def _config(tmp_path: pathlib.Path, run_dir: pathlib.Path, goal: str) -> pathlib
     config = tmp_path / "ancalagon.toml"
     config.write_text(f"""
 [workspace]
-write_root = "{write_root}"
+home = "{write_root}"
+write_roots = []
 read_roots = ["{write_root}"]
 
 [model]

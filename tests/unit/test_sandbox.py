@@ -24,9 +24,10 @@ def test_fence_writes_its_policy_and_wraps_the_command(tmp_path: pathlib.Path):
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     write_root = tmp_path / "ws"
+    second_root = tmp_path / "notes"
 
     sandbox = Fence(
-        write_root=write_root,
+        write_roots=[write_root, second_root],
         allowed_domains=["bedrock-runtime.us-east-1.amazonaws.com", "*.example.com"],
         run_dir=run_dir,
         fs=RealFileSystem(),
@@ -39,7 +40,7 @@ def test_fence_writes_its_policy_and_wraps_the_command(tmp_path: pathlib.Path):
             "allowedDomains": ["bedrock-runtime.us-east-1.amazonaws.com", "*.example.com"],
             "allowUnixSockets": [],
         },
-        "filesystem": {"allowWrite": [str(write_root), str(run_dir)]},
+        "filesystem": {"allowWrite": [str(write_root), str(second_root), str(run_dir)]},
     }
 
     assert list(sandbox.wrap(["python", "-m", "ancalagon.worker"])) == [
@@ -60,7 +61,7 @@ def test_the_fence_policy_carries_the_model_endpoint_and_the_web_domains_togethe
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     config = Config(
-        write_root=tmp_path / "ws",
+        home=tmp_path / "ws",
         read_roots=(tmp_path,),
         model="m",
         allowed_domains=("endpoint.example.net",),

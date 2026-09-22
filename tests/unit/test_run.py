@@ -7,7 +7,8 @@ from ancalagon.run import CONFIG
 
 TEMPLATE = """
 [workspace]
-write_root = "./ws"
+home = "./ws"
+write_roots = []
 read_roots = ["./artifacts"]
 
 [model]

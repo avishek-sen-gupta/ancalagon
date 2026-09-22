@@ -122,9 +122,10 @@ class Session:
 
     def _scopes(self) -> str:
         readable = ", ".join(str(r) for r in self.ctx.workspace.read_roots)
+        writable = ", ".join(str(r) for r in self.ctx.workspace.write_roots)
         return (
             f"You may read under: {readable}\n"
-            f"You may write under: {self.ctx.workspace.write_root}\n"
+            f"You may write under: {writable}\n"
             f"Give tools absolute paths. A relative path resolves against the working "
             f"directory, not against these roots, and will usually fail."
         )

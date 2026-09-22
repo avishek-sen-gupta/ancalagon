@@ -21,22 +21,27 @@ def _hint(path: pathlib.PurePath) -> str:
 
 class Workspace:
     def __init__(
-        self, fs: FileSystem, write_root: pathlib.PurePath, read_roots: tuple[pathlib.PurePath, ...]
+        self,
+        fs: FileSystem,
+        write_roots: tuple[pathlib.PurePath, ...],
+        read_roots: tuple[pathlib.PurePath, ...],
     ):
         self.fs = fs
-        self.write_root = fs.resolve(fs.expanduser(write_root))
+        self.write_roots = tuple(fs.resolve(fs.expanduser(r)) for r in write_roots)
         self.read_roots = tuple(fs.resolve(fs.expanduser(r)) for r in read_roots)
 
     @classmethod
     def from_config(cls, config: "Config", fs: FileSystem) -> "Workspace":
         return cls(
-            fs, write_root=config.write_root, read_roots=(*config.read_roots, config.write_root)
+            fs,
+            write_roots=(*config.write_roots, config.home),
+            read_roots=(*config.read_roots, *config.write_roots, config.home),
         )
 
     def resolve_write(self, path: pathlib.PurePath) -> pathlib.PurePath:
         resolved = self.fs.resolve(self.fs.expanduser(path))
-        if not resolved.is_relative_to(self.write_root):
-            raise ScopeError(f"{path} is outside write_root {self.write_root}{_hint(path)}")
+        if not any(resolved.is_relative_to(root) for root in self.write_roots):
+            raise ScopeError(f"{path} is outside write_roots {self.write_roots}{_hint(path)}")
         return resolved
 
     def resolve_read(self, path: pathlib.PurePath) -> pathlib.PurePath:

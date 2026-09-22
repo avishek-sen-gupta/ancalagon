@@ -47,7 +47,7 @@ ancalagon migrate --db "$RUN_DIR/bus.db"
 ancalagon run --config ancalagon.toml --run-dir "$RUN_DIR"
 ```
 
-`init` allocates `<write_root>/runs/r_YYYYMMDD-HHMMSS`, stamped from the injected clock in UTC,
+`init` allocates `<home>/runs/r_YYYYMMDD-HHMMSS`, stamped from the injected clock in UTC,
 when `--run-dir` is absent, and creates the named
 directory when it is given. A named directory is reused if present, which is what makes a second
 invocation continue rather than start over; an allocated one must not already exist.
@@ -88,7 +88,7 @@ without a CLI in front of it.
 
 **Following a run as it happens** is `ancalagon watch` — `watch_command.py` over
 `ancalagon/watching/`, unrelated to `ancalagon/watch/` and to the `watch_file` tool despite the
-name. It globs `runs/*/tasks/*/transcript.jsonl` under the config's `write_root`, gates each file
+name. It globs `runs/*/tasks/*/transcript.jsonl` under the config's `home`, gates each file
 on `changed_at`, and re-reads only what moved, keeping a `seq` high-water mark per agent so a
 message is rendered once. One process for any number of agents: `FileSystem` has no seek and only
 `real_file_system.py` may touch a file, so there are no byte offsets — measured, parsing every
@@ -337,7 +337,7 @@ needs comes from the ambient process.
 It wraps the command it builds with an injected `Sandbox` (`ancalagon/sandbox/sandbox.py`)
 before spawning: `Fence` writes its policy as `fence.json` into the run directory, so a run
 records what it ran under, and prepends `fence -s <policy> --`; `Unsandboxed` returns the
-command unchanged. The sandbox confines writes to `write_root` but leaves reads unrestricted
+command unchanged. The sandbox confines writes to `home` and `write_roots` but leaves reads unrestricted
 — fence cannot express "deny everything except the roots" without also denying the roots
 themselves, as `docs/superpowers/specs/2026-08-16-sandbox-mode-design.md` shows. On macOS,
 fence also grants an implicit write carve-out for the whole `$TMPDIR` tree independent of the
@@ -607,6 +607,14 @@ Each tool then:
    than its contents. An import contract keeps the eight tool packages that act on
    model-supplied paths from importing `ancalagon.fs` at all; the delegate tools and `idle`
    hold the port directly, because they work on `run_dir` paths the harness built.
+
+   **Known limitation: the home is writable by agents.** `Workspace.from_config` makes `home` an
+   implicit write root, because tool output is written under `<home>/runs/.../tools/` and agents
+   read it back through the `[full output: …]` pointer. The same rule lets an agent write
+   anywhere under the home, including `bus.db` and other tasks' transcripts. This needs hardening:
+   the home should become readable by agents and written only by the harness, with
+   `ToolContext.write_output` writing the task's own output directory outside the agents' write
+   scope.
 3. Writes its full output to a file under the task's `tools/` directory and returns a
    `ToolResult` carrying that path and a **`Payload`** — a model, not a string. `TextAnswer`
    is the ordinary one and renders to exactly the text the tool produced, so a ripgrep result
@@ -617,7 +625,7 @@ Each tool then:
    branching on which it got. That write goes through
    `resolve_write` like any other, so the same roots bound a tool's own output as bound
    what it was allowed to read — and the check happens before the directory is created, so
-   a context pointed outside the write root leaves nothing behind. A `ScopeError` here is a
+   a context pointed outside a write root leaves nothing behind. A `ScopeError` here is a
    misconfigured context rather than a model mistake, so it propagates to the worker and
    becomes a `Failed` outcome; turning it into a `ToolResult` is impossible anyway, since
    reporting a failure is itself a write.
@@ -732,7 +740,7 @@ land. Three threads writing fifty entries each leave a hundred and fifty intact.
 `shell/shell.py` is the one deliberate exception to that obligation. It takes a command line and
 hands it to `/bin/sh`, so pipes, globs and substitution work and nothing about the command is
 inspectable before it executes. What bounds it is not the argument but the sandbox — `Fence`
-allows writes only to `write_root` and `run_dir`, and network only to `[model].allowed_domains`
+allows writes only to `home`, `write_roots` and `run_dir`, and network only to `[model].allowed_domains`
 and `[web].allowed_domains` together — and the directory it runs in, which is a **required**
 argument resolved through `Workspace.resolve_read` like any other path. Without it the command
 would inherit the worker's own `cwd`, which is the run directory, and an agent searching `.`

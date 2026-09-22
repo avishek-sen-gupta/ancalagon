@@ -36,7 +36,7 @@ def solo_agent(
     task_dir = write_root / "tasks" / "solo"
     fs.mkdir(pathlib.PurePath(task_dir), parents=True, exist_ok=True)
     config = Config(
-        write_root=pathlib.PurePath(write_root),
+        home=pathlib.PurePath(write_root),
         read_roots=(pathlib.PurePath(write_root),),
         model="some-provider/no-model-is-called",
         roles={"solo": SOLO, "watcher": WATCHER},

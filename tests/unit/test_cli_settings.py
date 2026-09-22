@@ -98,7 +98,7 @@ def test_the_root_spec_comes_from_its_role_and_its_two_files(
         budget=finite_budget(3, 6),
     )
     config = Config(
-        write_root=tmp_path,
+        home=tmp_path,
         read_roots=(),
         model="anthropic/claude",
         roles={"analyst": role},
@@ -124,12 +124,14 @@ def test_the_root_spec_comes_from_its_role_and_its_two_files(
 def test_sandbox_of_resolves_each_strategy_and_fence_is_the_unstated_default(
     tmp_path: pathlib.Path,
 ):
-    write_root = tmp_path / "ws"
+    home = tmp_path / "ws"
+    extra = tmp_path / "notes"
     run_dir = tmp_path / "run"
     run_dir.mkdir()
 
     defaulted = Config(
-        write_root=write_root,
+        home=home,
+        write_roots=(extra,),
         read_roots=(),
         model="anthropic/claude",
         allowed_domains=("bedrock-runtime.us-east-1.amazonaws.com",),
@@ -142,7 +144,7 @@ def test_sandbox_of_resolves_each_strategy_and_fence_is_the_unstated_default(
             "allowedDomains": ["bedrock-runtime.us-east-1.amazonaws.com"],
             "allowUnixSockets": [],
         },
-        "filesystem": {"allowWrite": [str(write_root), str(run_dir)]},
+        "filesystem": {"allowWrite": [str(extra), str(home), str(run_dir)]},
     }
 
     unsandboxed = defaulted.model_copy(update={"sandbox": Strategy.NONE})

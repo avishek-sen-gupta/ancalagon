@@ -78,7 +78,7 @@ def sandbox_of(config: Config, run_dir: pathlib.PurePath, fs: FileSystem) -> San
     if config.sandbox is Strategy.NONE:
         return Unsandboxed()
     return Fence(
-        write_root=config.write_root,
+        write_roots=(*config.write_roots, config.home),
         allowed_domains=config.allowed_domains + config.web_domains,
         run_dir=run_dir,
         fs=fs,

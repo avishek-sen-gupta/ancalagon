@@ -13,20 +13,20 @@ from ancalagon.watching.watch import TRANSCRIPTS, Watch
 UNSET = ""
 
 
-def concern(write_root: pathlib.PurePath, fs: FileSystem) -> str:
-    if fs.is_dir(write_root / "runs") or _agents_under(write_root, fs):
+def concern(home: pathlib.PurePath, fs: FileSystem) -> str:
+    if fs.is_dir(home / "runs") or _agents_under(home, fs):
         return ""
-    return f"nothing to watch under {write_root}; is this the write_root?"
+    return f"nothing to watch under {home}; is this the home?"
 
 
-def _agents_under(write_root: pathlib.PurePath, fs: FileSystem) -> bool:
-    return any(fs.glob(write_root, shape) for shape in TRANSCRIPTS)
+def _agents_under(home: pathlib.PurePath, fs: FileSystem) -> bool:
+    return any(fs.glob(home, shape) for shape in TRANSCRIPTS)
 
 
 def _root(config_path: str, watch_dir: str, fs: FileSystem) -> pathlib.PurePath:
     if watch_dir:
         return fs.resolve(pathlib.PurePath(watch_dir))
-    return load_config(pathlib.PurePath(config_path), fs).write_root
+    return load_config(pathlib.PurePath(config_path), fs).home
 
 
 def watching(config_path: str, watch_dir: str, fs: FileSystem, clock: Clock) -> Watch:
@@ -38,10 +38,10 @@ def watch_command(config_path: str, watch_dir: str, interval_s: float) -> int:
     fs = RealFileSystem()
     clock = SystemClock()
     watch = watching(config_path, watch_dir, fs, clock)
-    doubt = concern(watch.write_root, fs)
+    doubt = concern(watch.home, fs)
     if doubt:
         sys.stderr.write(f"-- {doubt} --\n")
-    sys.stderr.write(f"-- watching {watch.write_root}, existing history not replayed --\n")
+    sys.stderr.write(f"-- watching {watch.home}, existing history not replayed --\n")
     while True:
         sys.stdout.write(watch.tick())
         sys.stdout.flush()

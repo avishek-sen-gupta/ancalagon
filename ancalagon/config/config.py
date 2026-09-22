@@ -11,8 +11,9 @@ from ancalagon.sandbox.strategy import Strategy
 
 
 class Config(pydantic.BaseModel, frozen=True):
-    write_root: pathlib.PurePath
+    home: pathlib.PurePath
     read_roots: tuple[pathlib.PurePath, ...]
+    write_roots: tuple[pathlib.PurePath, ...] = ()
     model: str
     custom_llm_provider: str = ""
     roles: collections.abc.Mapping[str, Role] = {}

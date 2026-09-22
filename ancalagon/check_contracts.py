@@ -109,7 +109,7 @@ def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem, web: WebC
         build_registry(
             config,
             TaskSpec(task_id=name, role=role, goal=""),
-            config.write_root,
+            config.home,
             parent=0,
             depth=0,
             output_class=resolve_class(role.answer),

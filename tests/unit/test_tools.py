@@ -101,7 +101,7 @@ def _ctx(tmp_path: pathlib.Path) -> ToolContext:
     outputs = write_root / "outputs"
     outputs.mkdir(exist_ok=True)
     return ToolContext(
-        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_roots=(write_root,), read_roots=(write_root,)),
         task_dir=write_root,
         summary_chars=50,
         agent_id=17,
@@ -129,7 +129,7 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
     ]
     assert {s.name for s in registry.schemas()} == set(registry.names())
 
-    target = pathlib.Path(ctx.workspace.write_root) / "note.txt"
+    target = pathlib.Path(ctx.workspace.write_roots[0]) / "note.txt"
     written = registry.get("write_file").invoke(
         f'{{"path": "{target}", "content": "hello world"}}', ctx
     )
@@ -154,7 +154,7 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
     assert "not found" in missing_edit.error
     assert target.read_text() == "hello there"
 
-    listed = registry.get("list_dir").invoke(f'{{"path": "{ctx.workspace.write_root}"}}', ctx)
+    listed = registry.get("list_dir").invoke(f'{{"path": "{ctx.workspace.write_roots[0]}"}}', ctx)
     assert listed.ok is True
     assert "note.txt" in pathlib.Path(listed.path).read_text()
 
@@ -175,7 +175,7 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
     assert deleted.ok is True
     assert not target.exists()
 
-    big = pathlib.Path(ctx.workspace.write_root) / "big.txt"
+    big = pathlib.Path(ctx.workspace.write_roots[0]) / "big.txt"
     big.write_text("\n".join(f"line {i}" for i in range(60)))
     first = registry.get("read_file").invoke(f'{{"path": "{big}"}}', ctx)
     assert first.ok is True
@@ -208,7 +208,7 @@ def test_file_tools_round_trip_and_report_scope_violations_as_values(tmp_path: p
     assert "Relative paths resolve" in relative.error
 
     absent = registry.get("read_file").invoke(
-        f'{{"path": "{ctx.workspace.write_root / "nope.txt"}"}}', ctx
+        f'{{"path": "{ctx.workspace.write_roots[0] / "nope.txt"}"}}', ctx
     )
     assert absent.ok is False
     assert "no file or directory at" in absent.error
@@ -218,12 +218,12 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     tmp_path: pathlib.Path,
 ):
     ctx = _ctx(tmp_path)
-    source = pathlib.Path(ctx.workspace.write_root) / "sample.py"
+    source = pathlib.Path(ctx.workspace.write_roots[0]) / "sample.py"
     source.write_text("def alpha():\n    return 1\n\n\ndef beta():\n    return 2\n")
     before = source.read_text()
 
     found = Ripgrep().run(
-        GrepArgs(pattern="def (alpha|beta)", roots=[ctx.workspace.write_root]), ctx
+        GrepArgs(pattern="def (alpha|beta)", roots=[ctx.workspace.write_roots[0]]), ctx
     )
     assert found.ok is True
     assert [
@@ -234,7 +234,7 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     ]
 
     structured = Ripgrep().run(
-        GrepArgs(pattern="def alpha", roots=[ctx.workspace.write_root], structured=True), ctx
+        GrepArgs(pattern="def alpha", roots=[ctx.workspace.write_roots[0]], structured=True), ctx
     )
     matches = [
         r
@@ -245,11 +245,13 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     ]
     assert str(source) in [m["data"]["path"]["text"] for m in matches]
 
-    missing = Ripgrep().run(GrepArgs(pattern="zzz_absent", roots=[ctx.workspace.write_root]), ctx)
+    missing = Ripgrep().run(
+        GrepArgs(pattern="zzz_absent", roots=[ctx.workspace.write_roots[0]]), ctx
+    )
     assert missing.ok is True
     assert pathlib.Path(missing.path).read_text() == ""
 
-    legacy = pathlib.Path(ctx.workspace.write_root) / "legacy.txt"
+    legacy = pathlib.Path(ctx.workspace.write_roots[0]) / "legacy.txt"
     legacy.write_bytes(b"FOR SA-TP \xa6 CA=N\n")
     matched = Ripgrep().run(GrepArgs(pattern="SA-TP", roots=[legacy]), ctx)
     assert matched.ok is True
@@ -271,10 +273,10 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     denied = TransformFile().run(TransformArgs(script="s/a/b/", path=tmp_path / "outside.txt"), ctx)
     assert denied.ok is False
 
-    flags = pathlib.Path(ctx.workspace.write_root) / "flags.txt"
+    flags = pathlib.Path(ctx.workspace.write_roots[0]) / "flags.txt"
     flags.write_text("a line mentioning --files here\n")
 
-    literal = Ripgrep().run(GrepArgs(pattern="--files", roots=[ctx.workspace.write_root]), ctx)
+    literal = Ripgrep().run(GrepArgs(pattern="--files", roots=[ctx.workspace.write_roots[0]]), ctx)
     assert literal.ok is True
     assert [
         line.split(":", 2)[2] for line in pathlib.Path(literal.path).read_text().splitlines()
@@ -284,7 +286,7 @@ def test_search_and_parse_tools_write_outputs_and_never_let_arguments_become_opt
     assert dashed.ok is True
     assert pathlib.Path(dashed.path).read_text() == "a line mentioning --flags here\n"
 
-    tree = pathlib.Path(ctx.workspace.write_root) / "tree"
+    tree = pathlib.Path(ctx.workspace.write_roots[0]) / "tree"
     (tree / "nested").mkdir(parents=True, exist_ok=True)
     (tree / "prose.md").write_text("def alpha(): mentioned in prose\n")
     (tree / "top.py").write_text("def alpha():\n    return 1\n")
@@ -320,7 +322,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     tmp_path: pathlib.Path,
 ):
     config = ancalagon.config.config.Config(
-        write_root=tmp_path,
+        home=tmp_path,
         read_roots=(tmp_path,),
         model="claude-opus-5",
         roles={
@@ -530,7 +532,7 @@ def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pa
 
 def test_survey_and_symbol_tools_report_structure_not_mentions(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
-    root = pathlib.Path(ctx.workspace.write_root)
+    root = pathlib.Path(ctx.workspace.write_roots[0])
     (root / "widget.py").write_text(
         "class Widget:\n    def spin(self):\n        return 1\n\n\ndef make_widget():\n"
         "    return Widget()\n"
@@ -566,7 +568,7 @@ def test_survey_and_symbol_tools_report_structure_not_mentions(tmp_path: pathlib
 
 def test_diff_regions_aligns_two_ranges_and_reports_bad_ranges_as_values(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
-    root = pathlib.Path(ctx.workspace.write_root)
+    root = pathlib.Path(ctx.workspace.write_roots[0])
     left = root / "left.cpy"
     right = root / "right.cpy"
     shared = "               88  FLAG-YES  VALUE 'Y'."
@@ -645,7 +647,7 @@ def test_diff_regions_aligns_two_ranges_and_reports_bad_ranges_as_values(tmp_pat
 
 def test_artifact_and_history_tools_read_what_read_file_cannot(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
-    root = pathlib.Path(ctx.workspace.write_root)
+    root = pathlib.Path(ctx.workspace.write_roots[0])
 
     binary = root / "blob.bin"
     binary.write_bytes(b"\x00\x01\x02CONNECTION_STRING_HERE\x00\xff" * 3)
@@ -676,7 +678,7 @@ def test_artifact_and_history_tools_read_what_read_file_cannot(tmp_path: pathlib
 
 def test_tree_walking_tools_honour_gitignore_outside_a_repository(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
-    root = pathlib.Path(ctx.workspace.write_root)
+    root = pathlib.Path(ctx.workspace.write_roots[0])
     (root / "src").mkdir()
     (root / "vendored").mkdir()
     (root / ".gitignore").write_text("vendored/\n")
@@ -737,7 +739,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     assert json.loads(got.summary.text_for_model()) == {"text": long_finding}
     assert json.loads(pathlib.Path(got.path).read_text()) == {"text": long_finding}
 
-    haystack = pathlib.Path(ctx.workspace.write_root) / "haystack.txt"
+    haystack = pathlib.Path(ctx.workspace.write_roots[0]) / "haystack.txt"
     haystack.write_text("\n".join(f"needle {i}" for i in range(30)) + "\n")
     still_truncates = Ripgrep().run(GrepArgs(pattern="needle", roots=[haystack]), ctx)
     assert still_truncates.ok is True
@@ -941,7 +943,7 @@ def test_shell_executes_a_command_in_a_scoped_directory_and_bounds_a_hang(
     tmp_path: pathlib.Path,
 ):
     ctx = _ctx(tmp_path)
-    root = pathlib.Path(ctx.workspace.write_root)
+    root = pathlib.Path(ctx.workspace.write_roots[0])
     (root / "one.txt").write_text("alpha\nbeta\n")
     (root / "two.txt").write_text("gamma\n")
 
@@ -971,7 +973,7 @@ def test_ast_query_returns_every_capture_of_every_match_with_its_location_and_te
     tmp_path: pathlib.Path,
 ):
     ctx = _ctx(tmp_path)
-    tree = pathlib.Path(ctx.workspace.write_root) / "q"
+    tree = pathlib.Path(ctx.workspace.write_roots[0]) / "q"
     tree.mkdir(parents=True, exist_ok=True)
     (tree / "mod.py").write_text("def alpha(x):\n    return x + 1\n\n\ndef beta():\n    return 2\n")
     (tree / "notes.md").write_text("def alpha(): only prose\n")
@@ -1037,7 +1039,7 @@ def test_ast_query_returns_every_capture_of_every_match_with_its_location_and_te
 
 def test_a_bound_tool_lets_its_hooks_refuse_modify_or_admit_a_call(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
-    source = pathlib.Path(ctx.workspace.write_root) / "sample.py"
+    source = pathlib.Path(ctx.workspace.write_roots[0]) / "sample.py"
     source.write_text("def alpha():\n    return 1\n")
     call = f'{{"pattern": "  def alpha ", "roots": ["{source.parent}"]}}'
 
@@ -1148,7 +1150,7 @@ def test_reading_a_file_records_what_was_read_and_when_it_last_changed(
     tmp_path: pathlib.Path,
 ):
     ctx = _ctx(tmp_path)
-    root = pathlib.Path(ctx.workspace.write_root)
+    root = pathlib.Path(ctx.workspace.write_roots[0])
     board = root / "board.md"
     board.write_text("first claim\n")
     log = pathlib.Path(ctx.task_dir) / "access.jsonl"
@@ -1173,7 +1175,7 @@ def test_reading_a_file_records_what_was_read_and_when_it_last_changed(
 
 def test_appending_keeps_what_arrived_after_the_caller_last_read(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
-    board = pathlib.Path(ctx.workspace.write_root) / "board.md"
+    board = pathlib.Path(ctx.workspace.write_roots[0]) / "board.md"
 
     fresh = AppendFile().run(AppendArgs(path=board, content="first claim"), ctx)
     assert fresh.ok is True
@@ -1191,7 +1193,7 @@ def test_appending_keeps_what_arrived_after_the_caller_last_read(tmp_path: pathl
 
     denied = AppendFile().run(AppendArgs(path=tmp_path / "outside.md", content="x"), ctx)
     assert denied.ok is False
-    assert "outside write_root" in denied.error
+    assert "outside write_roots" in denied.error
 
 
 def test_check_task_collect_task_and_idle_refuse_cleanly_when_there_is_no_bus(
@@ -1220,7 +1222,7 @@ def test_a_delegate_tool_without_a_bus_keeps_its_schema_and_writes_nothing(
         tools=("submit_answer",),
         budget=finite_budget(3, 5),
     )
-    real = DelegateTo(NO_BUS, "scout", role, ctx.workspace.write_root, 1, RealFileSystem())
+    real = DelegateTo(NO_BUS, "scout", role, ctx.workspace.write_roots[0], 1, RealFileSystem())
     absent = NoDelegateTo("scout", role)
 
     assert absent.name == real.name
@@ -1232,7 +1234,7 @@ def test_a_delegate_tool_without_a_bus_keeps_its_schema_and_writes_nothing(
 
     assert refused.ok is False
     assert refused.error == "cannot queue task analyse: this session has no bus"
-    assert list(pathlib.Path(ctx.workspace.write_root / "tasks").glob("**/spec.json")) == []
+    assert list(pathlib.Path(ctx.workspace.write_roots[0] / "tasks").glob("**/spec.json")) == []
 
 
 def test_a_tool_failure_is_logged_with_its_stack(

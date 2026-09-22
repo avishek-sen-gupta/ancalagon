@@ -34,7 +34,7 @@ def _ctx(tmp_path: pathlib.Path) -> ToolContext:
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
     return ToolContext(
-        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_roots=(write_root,), read_roots=(write_root,)),
         task_dir=write_root / "outputs",
         summary_chars=200,
         agent_id=1,
@@ -54,7 +54,7 @@ def test_the_role_chooses_which_terminal_tool_it_submits_with(tmp_path: pathlib.
         budget=finite_budget(1, 1),
     )
     registry = build_registry(
-        Config(write_root=tmp_path, read_roots=(tmp_path,), model="m", roles={"root": role}),
+        Config(home=tmp_path, read_roots=(tmp_path,), model="m", roles={"root": role}),
         TaskSpec(task_id="root", role=role, goal="g"),
         tmp_path,
         parent=1,

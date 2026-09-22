@@ -26,7 +26,7 @@ def _ctx(tmp_path: pathlib.Path) -> ToolContext:
     outputs = write_root / "outputs"
     outputs.mkdir(exist_ok=True)
     return ToolContext(
-        workspace=Workspace(RealFileSystem(), write_root=write_root, read_roots=(write_root,)),
+        workspace=Workspace(RealFileSystem(), write_roots=(write_root,), read_roots=(write_root,)),
         task_dir=outputs,
         summary_chars=50,
         agent_id=17,
@@ -35,7 +35,7 @@ def _ctx(tmp_path: pathlib.Path) -> ToolContext:
 
 def test_git_history_reports_intent_and_refuses_option_injection(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
-    repo = pathlib.Path(ctx.workspace.write_root)
+    repo = pathlib.Path(ctx.workspace.write_roots[0])
     tracked = repo / "thing.py"
     tracked.write_text("x = 1\n")
     for command in (
@@ -65,7 +65,7 @@ def test_git_history_reports_intent_and_refuses_option_injection(tmp_path: pathl
 
 def test_tree_walking_tools_all_honour_gitignore(tmp_path: pathlib.Path):
     ctx = _ctx(tmp_path)
-    root = pathlib.Path(ctx.workspace.write_root)
+    root = pathlib.Path(ctx.workspace.write_roots[0])
     (root / "src").mkdir()
     (root / "vendored").mkdir()
     (root / ".gitignore").write_text("vendored/\n")

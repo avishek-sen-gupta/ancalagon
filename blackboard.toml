@@ -1,5 +1,8 @@
 [workspace]
-write_root = "./bb"
+# home and write_roots replace write_root: home holds runs/, write_roots lists further
+# directories agents may write under.
+home = "./bb"
+write_roots = []
 read_roots = [".", "./bb"]
 
 [model]

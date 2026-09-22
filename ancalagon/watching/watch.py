@@ -17,8 +17,8 @@ def _label(path: pathlib.PurePath) -> str:
 
 
 class Watch:
-    def __init__(self, write_root: pathlib.PurePath, fs: FileSystem, clock: Clock, columns: int):
-        self.write_root = write_root
+    def __init__(self, home: pathlib.PurePath, fs: FileSystem, clock: Clock, columns: int):
+        self.home = home
         self.fs = fs
         self.clock = clock
         self.columns = columns
@@ -27,7 +27,7 @@ class Watch:
         self._catch_up()
 
     def _transcripts(self) -> tuple[pathlib.PurePath, ...]:
-        found = {p for shape in TRANSCRIPTS for p in self.fs.glob(self.write_root, shape)}
+        found = {p for shape in TRANSCRIPTS for p in self.fs.glob(self.home, shape)}
         return tuple(sorted(found))
 
     def _catch_up(self) -> None:

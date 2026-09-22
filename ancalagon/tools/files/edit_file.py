@@ -1,4 +1,4 @@
-# Replaces an exact substring, refusing anything outside the workspace write root.
+# Replaces an exact substring, refusing anything outside a write root.
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.files.edit_args import EditArgs
 from ancalagon.tools.registry.tool import Tool
@@ -8,7 +8,7 @@ from ancalagon.workspace.scope_error import ScopeError
 
 class EditFile(Tool[EditArgs]):
     name = "edit_file"
-    description = "Replace an exact substring in a file inside the workspace write root."
+    description = "Replace an exact substring in a file inside a write root."
     cost = 1
     args_model = EditArgs
 

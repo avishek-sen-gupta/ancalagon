@@ -50,7 +50,8 @@ def reports_its_agent(given: Given, ctx: RunContext) -> Outcome[Produced]:
 
 CONFIG = """
 [workspace]
-write_root = "./ws"
+home = "./ws"
+write_roots = []
 read_roots = ["./ws"]
 
 [model]

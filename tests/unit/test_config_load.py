@@ -22,7 +22,8 @@ from tests.unit.conftest import finite_budget
 
 TEMPLATE = """
 [workspace]
-write_root = "./ws"
+home = "./ws"
+write_roots = []
 read_roots = ["./artifacts"]
 
 [model]
@@ -354,7 +355,8 @@ def test_a_session_role_must_name_a_submit_tool(
 
     text = """
 [workspace]
-write_root = "./ws"
+home = "./ws"
+write_roots = []
 read_roots = ["./src"]
 
 [model]

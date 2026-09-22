@@ -16,7 +16,8 @@ NOTE = "keep every field flat"
 
 CONFIG = """
 [workspace]
-write_root = "{write_root}"
+home = "{write_root}"
+write_roots = []
 read_roots = ["{write_root}"]
 
 [model]

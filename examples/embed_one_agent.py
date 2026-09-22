@@ -50,7 +50,7 @@ def _notes_in(fs: FileSystem, write_root: pathlib.PurePath) -> pathlib.PurePath:
 
 def _config_for(write_root: pathlib.PurePath) -> Config:
     return Config(
-        write_root=write_root,
+        home=write_root,
         read_roots=(write_root,),
         model=MODEL,
         roles={"analyst": ANALYST},

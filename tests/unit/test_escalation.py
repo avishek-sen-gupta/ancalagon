@@ -59,7 +59,7 @@ def _run(
         repair(load(RealFileSystem(), transcript_path)) if transcript_path.exists() else []
     )
     ctx = ToolContext(
-        workspace=Workspace(RealFileSystem(), write_root=run_dir, read_roots=(run_dir,)),
+        workspace=Workspace(RealFileSystem(), write_roots=(run_dir,), read_roots=(run_dir,)),
         task_dir=task_dir,
         summary_chars=400,
         agent_id=agent,

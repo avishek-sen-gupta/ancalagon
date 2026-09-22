@@ -26,7 +26,7 @@ contract was decided up front rather than guessed mid-run.
 
 ```bash
 uv sync
-cp ancalagon.example.toml ancalagon.toml   # edit write_root, read_roots and goal_file
+cp ancalagon.example.toml ancalagon.toml   # edit home, write_roots, read_roots and goal_file
 echo "..." > goal.md
 RUN_DIR=$(uv run ancalagon init --config ancalagon.toml)
 uv run ancalagon migrate --db "$RUN_DIR/bus.db"
@@ -38,7 +38,7 @@ side effect of starting a run.
 
 | Command | Does | Refuses |
 |---|---|---|
-| `init` | allocates `<write_root>/runs/r_YYYYMMDD-HHMMSS` from the UTC clock and prints it, or creates the directory given to `--run-dir` | an allocated directory that already exists |
+| `init` | allocates `<home>/runs/r_YYYYMMDD-HHMMSS` from the UTC clock and prints it, or creates the directory given to `--run-dir` | an allocated directory that already exists |
 | `migrate` | brings that run's database to the latest schema, creating it if absent | — |
 | `run` | starts or continues the run in `--run-dir` | a database that is absent or out of date, naming the command that fixes it |
 | `answer` | appends your answer to a stopped agent and re-queues its task | a task with no `needs_input` in its history, or one with a live agent |
@@ -122,9 +122,9 @@ turns and tool calls actually spent. A host switches on the outcome rather than 
 
 Three things fail later than you would like:
 
-- The task directory must sit under `config.write_root`. Tool output goes through the workspace,
-  so a directory outside it raises `ScopeError` at the first tool that writes, naming the tool
-  rather than the wiring.
+- The task directory must sit under `config.home` or one of `config.write_roots`. Tool output goes
+  through the workspace, so a directory outside them raises `ScopeError` at the first tool that
+  writes, naming the tool rather than the wiring.
 - `on_path(config.import_paths)` must run before `session_for`. Building a `delegate_<role>` tool
   imports that role's input contract, so a config built in Python whose `import_paths` are unset
   fails with a module error naming a module the host can import itself.
@@ -150,7 +150,7 @@ flowchart TB
     bus["bus.db<br/>tasks, agents, append-only events, model calls"]
     disk["task directory<br/>spec.json, transcript.jsonl, outcome-N.json, tools"]
     prov["model provider, via litellm"]
-    files["read_roots and write_root"]
+    files["read_roots, home and write_roots"]
     cli -->|enqueue| bus
     cli --> disk
     sup <-->|claim, append status| bus
@@ -324,7 +324,7 @@ the tool-call budget.
 | `file_type` | what a file is, before assuming it is text |
 | `transform_file` | a file read through a sed script, when it is hard to read as it stands |
 | `query_json` | a jq filter over JSON, so a large file need not enter the context |
-| `edit_json` | change one place in a JSON file in the write root, so a large answer is built across many calls |
+| `edit_json` | change one place in a JSON file in a write root, so a large answer is built across many calls |
 | `extract_strings` | printable text out of a binary |
 | `convert_document` | docx, odt, epub, rtf and others, into text |
 
@@ -631,7 +631,7 @@ ancalagon watch --dir ws/runs                    # or the runs directory itself
 ```
 
 `--config` and `--dir` are alternatives and one is required. `--config` takes the workspace from
-the config's `write_root` — resolved against the config file, not your shell's directory — so the
+the config's `home` — resolved against the config file, not your shell's directory — so the
 run and the watcher cannot disagree about where to look. `--dir` names a directory outright, and
 accepts either a workspace or a `runs/` directory, for when you have a workspace in front of you
 and no config to hand. A tool call's arguments are shown whole, never cut — they are the part of a
@@ -759,7 +759,7 @@ Both write to stdout when no `--output` is given, and `anccosttable` reads stdin
 `--input` is — the same convention `trace` and `viz` follow.
 
 Split the way `trace` and `viz` are: one reports what was spent and decides nothing about
-how to show it, the other decides only that. `anccost` reads `write_root` from a config the same
+how to show it, the other decides only that. `anccost` reads `home` from a config the same
 way `ancalagon watch` does, so the two cannot disagree about where runs live.
 
 Model calls have their own store, `MeterStore`, behind the `Meter` a session calls — a separate
@@ -774,7 +774,7 @@ watcher these scripts used to sit beside.
 
 - Runs are sandboxed by default: every worker is wrapped with `fence`
   (`brew install fencesandbox/fence/fence`). `[sandbox] strategy = "none"` opts out.
-- The sandbox confines **writes** to `write_root`. It does not restrict reads, so a sandboxed
+- The sandbox confines **writes** to `home` and `write_roots`. It does not restrict reads, so a sandboxed
   agent can still read anything you can. On macOS, fence also grants an implicit write
   carve-out for the whole `$TMPDIR` tree regardless of policy — a known limitation, not ours.
 - The `shell` tool hands a command line to `/bin/sh`, pipes and globs included, so the sandbox is

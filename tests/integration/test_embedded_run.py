@@ -54,7 +54,7 @@ def test_a_run_hands_back_the_root_outcome_as_a_typed_value(
     (tmp_path / "goal.md").write_text("Say hello.")
 
     config = Config(
-        write_root=pathlib.PurePath(tmp_path / "ws"),
+        home=pathlib.PurePath(tmp_path / "ws"),
         read_roots=(pathlib.PurePath(tmp_path / "ws"),),
         model="some-provider/no-model-is-called",
         roles={

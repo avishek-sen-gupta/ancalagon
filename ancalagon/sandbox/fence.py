@@ -27,7 +27,7 @@ class Policy(pydantic.BaseModel, frozen=True):
 class Fence(Sandbox):
     def __init__(
         self,
-        write_root: pathlib.PurePath,
+        write_roots: collections.abc.Sequence[pathlib.PurePath],
         allowed_domains: collections.abc.Sequence[str],
         run_dir: pathlib.PurePath,
         fs: FileSystem,
@@ -41,7 +41,9 @@ class Fence(Sandbox):
                     allowedDomains=list(allowed_domains),
                     allowUnixSockets=[log_socket] if log_socket else [],
                 ),
-                filesystem=Filesystem(allowWrite=[str(write_root), str(run_dir)]),
+                filesystem=Filesystem(
+                    allowWrite=[*(str(root) for root in write_roots), str(run_dir)]
+                ),
             ).model_dump_json(),
         )
 

@@ -51,7 +51,7 @@ class FakeProcess(Process):
 
 def _config(tmp_path: pathlib.Path, roles: dict[str, Role]) -> Config:
     return Config(
-        write_root=tmp_path,
+        home=tmp_path,
         read_roots=(tmp_path,),
         model="m",
         roles=roles,
@@ -146,7 +146,7 @@ def test_a_watch_resumes_from_the_read_the_agent_logged_not_from_the_file_now(
     fs.write_text(board, "a claim\n")
 
     ctx = ToolContext(
-        workspace=Workspace(fs, write_root=run_dir, read_roots=(run_dir,)),
+        workspace=Workspace(fs, write_roots=(run_dir,), read_roots=(run_dir,)),
         task_dir=run_dir,
         summary_chars=500,
         agent_id=1,
@@ -258,7 +258,7 @@ def test_two_agents_watching_the_same_file_get_a_watcher_each(tmp_path: pathlib.
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), fs)
     board = run_dir / "blackboard.md"
     fs.write_text(board, "shared\n")
-    workspace = Workspace(fs, write_root=run_dir, read_roots=(run_dir,))
+    workspace = Workspace(fs, write_roots=(run_dir,), read_roots=(run_dir,))
 
     def watching(task: str, agent: int) -> ToolContext:
         return ToolContext(
@@ -286,7 +286,7 @@ def test_a_watch_tool_without_a_bus_keeps_its_schema_and_writes_nothing(tmp_path
     board = tmp_path / "blackboard.md"
     fs.write_text(board, "claim\n")
     ctx = ToolContext(
-        workspace=Workspace(fs, write_root=tmp_path, read_roots=(tmp_path,)),
+        workspace=Workspace(fs, write_roots=(tmp_path,), read_roots=(tmp_path,)),
         task_dir=tmp_path,
         summary_chars=200,
         agent_id=1,
