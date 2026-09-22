@@ -52,6 +52,20 @@ when `--run-dir` is absent, and creates the named
 directory when it is given. A named directory is reused if present, which is what makes a second
 invocation continue rather than start over; an allocated one must not already exist.
 
+`ancalagon fork --config <toml> --from <run> --at <seq>` stands in for `init` when a run should
+begin from an earlier run's history rather than from its goal. It allocates a directory the same
+way — `created_run_dir` in `run_dir.py` serves both — and writes the source run's root messages
+below `seq` into the new `tasks/root/transcript.jsonl`. Nothing else about it is special: the
+worker finds a transcript and resumes from it exactly as it does for a run continued in place,
+so a fork costs the supervisor and the session nothing.
+
+What the fork does not carry is everything outside that file. The bus is new, so tasks the copied
+history delegated exist nowhere in it. `fork.py` finds those calls by name — `delegate_<role>`,
+built by `delegate_name` for each role the config declares — parses each call's arguments for its
+`task_id`, and when any survive the cut appends a message to the history naming them and saying
+they are gone; the ids also go to stderr. Files the source run wrote are not rewound at all, since
+they live in the write roots and not in the run directory.
+
 `main` calls `config/load.py`, which reads the TOML. Relative roots resolve against the
 **config file**, not the process cwd, so a worker started elsewhere sees the same paths. Then
 it calls `run(config, run_dir, clock, fs)`:
@@ -90,7 +104,8 @@ without a CLI in front of it.
 `ancalagon/watching/`, unrelated to `ancalagon/watch/` and to the `watch_file` tool despite the
 name. It globs `runs/*/tasks/*/transcript.jsonl` under the config's `home`, gates each file
 on `changed_at`, and re-reads only what moved, keeping a `seq` high-water mark per agent so a
-message is rendered once. One process for any number of agents: `FileSystem` has no seek and only
+message is rendered once. That `seq` is also printed, as `[run/task/agent#seq]`, because it is
+what `fork --at` takes. One process for any number of agents: `FileSystem` has no seek and only
 `real_file_system.py` may touch a file, so there are no byte offsets — measured, parsing every
 transcript in a 22-agent workspace costs 14.5 ms and statting them all costs 0.15 ms, which is
 what makes re-reading whole files affordable.
@@ -452,7 +467,8 @@ Invoked as `python -m ancalagon.worker --run-dir … --dir … --agent-id … --
 3. If a `transcript.jsonl` already exists, `transcript/history.py` loads and **repairs** it:
    a transcript ending in an unanswered tool call is rejected by the API, so interrupted
    calls get synthetic error results. This is the whole of resumption — there is no
-   "resume mode".
+   "resume mode", and it is also the whole of forking: `ancalagon fork` writes a transcript
+   and this step is what picks it up.
 4. Builds the registry, which is the only thing the `Session` is given: it holds no reference
    to any tool.
 5. Runs the session and writes its outcome to `outcome-<agent>.json`, then returns 0.
@@ -828,7 +844,7 @@ ws/runs/r_20260822-121500/
     bus.db                        tasks, agents, every event about them, every model call
     tasks/root/
         spec.json                 what was asked, with the whole role embedded
-        transcript.jsonl          every message, one per line, tagged by agent id
+        transcript.jsonl          every message, one per line, tagged by agent id and seq
         outcome-<agent>.json      the result of that attempt, kept even when superseded
         access.jsonl              every file this task read, and when that file had changed
         notes/<stamp>.txt         an operator's note, until the next turn folds it in
