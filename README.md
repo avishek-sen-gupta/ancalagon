@@ -39,6 +39,7 @@ side effect of starting a run.
 | Command | Does | Refuses |
 |---|---|---|
 | `init` | allocates `<home>/runs/r_YYYYMMDD-HHMMSS` from the UTC clock and prints it, or creates the directory given to `--run-dir` | an allocated directory that already exists |
+| `fork` | allocates a run directory as `init` does, and fills its root transcript with another run's history up to `--at` | a cut outside that transcript, or a `--from` with no root transcript |
 | `migrate` | brings that run's database to the latest schema, creating it if absent | — |
 | `run` | starts or continues the run in `--run-dir` | a database that is absent or out of date, naming the command that fixes it |
 | `answer` | appends your answer to a stopped agent and re-queues its task | a task with no `needs_input` in its history, or one with a live agent |
@@ -48,6 +49,24 @@ side effect of starting a run.
 
 `scripts/ancrun.zsh <config.toml> [run-dir]` does the first three. With no run directory it
 allocates a fresh one; pass an existing one to continue that run.
+
+`scripts/ancfork.zsh <config.toml> <from-run-dir> <at>` does the same with `fork` in place of
+`init`, so a run starts from an earlier one's history instead of from the goal alone:
+
+```bash
+scripts/ancfork.zsh pong.toml pong/runs/r_20260825-231722 21
+```
+
+The new run keeps every root message before `#21` and continues from there, so the model faces
+the same history and may choose differently. `at` is the number `watch` and `anclog.zsh` print
+after the agent — `[r_1/root/1#21]` is `--at 21` — and the message it names is the first one
+the fork replaces.
+
+A fork carries the history and nothing else. The bus is new, so tasks the copied history
+delegated do not exist in it; when the cut keeps such a delegate, `fork` names those tasks on
+stderr and appends a message to the history telling the agent they are gone and to delegate
+again if it still needs that work. Files the earlier run wrote are not rewound either — they sit
+in the write roots as it left them, so copy those first if the fork must not build on them.
 
 Two worked configs ship with the repo, each with its goal file beside it. Run any of them
 the same way, in place of `ancalagon.toml`:
@@ -675,7 +694,7 @@ the socket, so start it before the run and run one per socket.
 
 Each line is one `LogEvent` as JSON — the run's name, the task's, a timestamp, and either the
 message or the status change. The task is what tells two peers apart, so a line reads
-`[run/task/agent]` exactly as `watch` labels one. Leave `socket` unset and the sink is `NoSink`, which does nothing; set it with
+`[run/task/agent#seq]` exactly as `watch` labels one, and that `seq` is what `fork --at` takes. Leave `socket` unset and the sink is `NoSink`, which does nothing; set it with
 nothing listening and each line is dropped, because a run must not wait on its own audience. The
 record is unaffected either way: transcripts and the bus are written exactly as before, so the
 socket is a live view, never the source of truth.

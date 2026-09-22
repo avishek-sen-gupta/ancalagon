@@ -5,38 +5,20 @@ import pathlib
 import sys
 
 from ancalagon.answer_command import answer_command
-from ancalagon.clock.clock import Clock
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.load import load_config
 from ancalagon.contracts.no_outcome import NoOutcome
-from ancalagon.fs.file_system import FileSystem
+from ancalagon.fork_command import fork_command
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrate_command import migrate_command
 from ancalagon.note_command import note_command
 from ancalagon.run import run
+from ancalagon.run_dir import created_run_dir
 from ancalagon.trace_command import trace_command
 from ancalagon.viz_command import viz_command
 from ancalagon.watch_command import watch_command
 
 LOGGER = logging.getLogger(__name__)
-
-
-def _allocated_run_dir(home: pathlib.PurePath, clock: Clock, fs: FileSystem) -> pathlib.PurePath:
-    runs = home / "runs"
-    fs.mkdir(runs, parents=True, exist_ok=True)
-    return runs / clock.now().strftime("r_%Y%m%d-%H%M%S")
-
-
-def created_run_dir(
-    run_dir: str, home: pathlib.PurePath, clock: Clock, fs: FileSystem
-) -> pathlib.PurePath:
-    if run_dir:
-        named = pathlib.PurePath(run_dir)
-        fs.mkdir(named, parents=True, exist_ok=True)
-        return named
-    allocated = _allocated_run_dir(home, clock, fs)
-    fs.mkdir(allocated, parents=True)
-    return allocated
 
 
 def init_command(config_path: pathlib.PurePath, run_dir: str) -> int:
@@ -68,6 +50,10 @@ def cli() -> int:
     init = commands.add_parser("init")
     init.add_argument("--config", type=pathlib.PurePath, required=True)
     init.add_argument("--run-dir", type=str, default="")
+    fork = commands.add_parser("fork")
+    fork.add_argument("--config", type=pathlib.PurePath, required=True)
+    fork.add_argument("--from", type=pathlib.PurePath, required=True, dest="source")
+    fork.add_argument("--at", type=int, required=True)
     migrate = commands.add_parser("migrate")
     migrate.add_argument("--db", type=pathlib.PurePath, required=True)
     migrate.add_argument("--to", type=int, default=-1)
@@ -94,6 +80,8 @@ def cli() -> int:
     try:
         if args.command == "init":
             return init_command(args.config, args.run_dir)
+        if args.command == "fork":
+            return fork_command(args.config, args.source, args.at)
         if args.command == "migrate":
             return migrate_command(args.db, args.to, RealFileSystem())
         if args.command == "answer":

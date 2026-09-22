@@ -4,8 +4,8 @@ import pathlib
 
 import pytest
 
-from ancalagon import cli
-from ancalagon.cli import created_run_dir
+from ancalagon import run_dir as run_dir_module
+from ancalagon.run_dir import created_run_dir
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.config.config import Config
 from ancalagon.contracts.class_ref import ClassRef
@@ -55,7 +55,7 @@ def test_an_allocated_run_dir_refuses_a_directory_another_run_already_took(
     def race(_: pathlib.Path, __: FakeClock, ___: RealFileSystem) -> pathlib.Path:
         return taken
 
-    monkeypatch.setattr(cli, "_allocated_run_dir", race)
+    monkeypatch.setattr(run_dir_module, "_allocated_run_dir", race)
 
     with pytest.raises(FileExistsError):
         created_run_dir("", write_root, FakeClock(), RealFileSystem())

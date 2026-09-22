@@ -34,7 +34,7 @@ fileignoreconfig:
 - filename: docs/superpowers/plans/2026-08-12-one-run-per-work-item.md
   checksum: 2c8e20ac2036c40ca47ba6f2d1646694e6ee18bdd8f4da20bec4aadda532dd40
 - filename: tests/unit/test_cli_settings.py
-  checksum: cea15c3f08de5aa695d51259ce0c2baa8dcd146131798eb9b7e7127c8ae54afd
+  checksum: 75ec1bb204bb6d99351297ec8c0520e05244245a375ceff56ae123f521eaae55
 - filename: tests/integration/test_end_to_end.py
   checksum: ab158a4bf61331dd0f1268ff1d979718f83af74304dec41e81d00bac203317f6
 - filename: ancalagon/bus/bus.py
