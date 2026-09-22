@@ -26,5 +26,7 @@ def _block_line(block: Block, width: int) -> str:
 
 
 def rendered(label: str, message: Message, width: int) -> str:
-    header = f"{CYAN}[{label}/{message.agent}]{OFF} {message.role.value[0:1].upper()}\n"
+    header = (
+        f"{CYAN}[{label}/{message.agent}#{message.seq}]{OFF} {message.role.value[0:1].upper()}\n"
+    )
     return header + "".join(_block_line(block, width) for block in message.blocks)

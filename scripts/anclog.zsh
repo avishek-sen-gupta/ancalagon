@@ -30,7 +30,7 @@ def statused:
 if .line.kind == "lifecycle"
 then ("[\($e.run)/\($e.task)/\(.line.agent)]" | cyan) + " " + (.line.status | statused)
      + (if .line.summary == "" then "" else " " + (.line.summary | dim) end)
-else .line.message as $m | ("[\($e.run)/\($e.task)/\($m.agent)]" | cyan) as $who | $m.blocks[] |
+else .line.message as $m | ("[\($e.run)/\($e.task)/\($m.agent)#\($m.seq)]" | cyan) as $who | $m.blocks[] |
   if .kind == "text" then $who + " " + ($m.role[0:1] | ascii_upcase | dim) + " \(.text)"
   elif .kind == "tool_use" then $who + " " + ("→" | dim) + " " + (.name | yellow)
        + " " + (.arguments | gsub("\n"; " "))

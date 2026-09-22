@@ -37,7 +37,7 @@ def test_a_message_renders_a_header_and_one_line_per_block():
 
     lines = rendered("r_1/root", message, 40).splitlines()
 
-    assert lines[0] == f"{CYAN}[r_1/root/3]{OFF} A"
+    assert lines[0] == f"{CYAN}[r_1/root/3#7]{OFF} A"
     assert lines[1] == "  looking now"
     assert lines[2] == f'  → {YELLOW}read_file{OFF} {{"path": "/w/a.md"}}'
     assert lines[3] == "  ← payload"
@@ -59,7 +59,7 @@ def test_a_message_indents_wrapped_text_and_truncates_every_block():
 
     lines = rendered("r_1/root", message, 10).splitlines()
 
-    assert lines[0] == f"{CYAN}[r_1/root/1]{OFF} U"
+    assert lines[0] == f"{CYAN}[r_1/root/1#7]{OFF} U"
     assert lines[1] == "  first"
     assert lines[2] == "  second"
     assert lines[3] == "  " + "x" * 40
@@ -109,7 +109,7 @@ def test_an_agent_that_appears_later_is_shown_from_its_first_message(tmp_path: p
     shown = watch.tick()
 
     assert "hello" in shown
-    assert f"{CYAN}[r_1/root/1]{OFF} A" in shown
+    assert f"{CYAN}[r_1/root/1#1]{OFF} A" in shown
 
 
 def test_a_tick_shows_only_what_arrived_since_the_last_one(tmp_path: pathlib.Path):
@@ -135,9 +135,9 @@ def test_every_agent_in_every_run_is_followed(tmp_path: pathlib.Path):
 
     shown = watch.tick()
 
-    assert f"{CYAN}[r_1/root/1]{OFF}" in shown
-    assert f"{CYAN}[r_1/child/2]{OFF}" in shown
-    assert f"{CYAN}[r_2/root/1]{OFF}" in shown
+    assert f"{CYAN}[r_1/root/1#1]{OFF}" in shown
+    assert f"{CYAN}[r_1/child/2#1]{OFF}" in shown
+    assert f"{CYAN}[r_2/root/1#1]{OFF}" in shown
 
 
 class CountingFileSystem(RealFileSystem):
