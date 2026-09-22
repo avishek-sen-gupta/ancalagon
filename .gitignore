@@ -35,7 +35,6 @@ specs/**/states/
 .idea/
 
 # Personal run config; contains local paths and a chosen model.
-checkkit/
 bb/
 wake_goal.md
 wake/
