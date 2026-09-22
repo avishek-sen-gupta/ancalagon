@@ -346,7 +346,7 @@ the tool-call budget.
 | `edit_json` | change one place in a JSON file in a write root, so a large answer is built across many calls |
 | `extract_strings` | printable text out of a binary |
 | `convert_document` | docx, odt, epub, rtf and others, into text |
-| `cite` | one span of one file, quoted and annotated, appended to `citations.jsonl` for a later turn to read |
+| `cite` | one span of one file, quoted and annotated, appended to `citations.jsonl` for a later turn to read; `other_data` carries whatever else that run wants kept |
 
 | Searching | |
 |---|---|

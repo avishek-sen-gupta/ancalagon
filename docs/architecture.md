@@ -757,6 +757,19 @@ why nothing folds it into the turn and why there is no tool to recall it. `Sourc
 columns where `Evidence` does not, so a citation can point at an expression, and `read_file`
 numbers only lines -- the columns are the agent's, and nothing checks them.
 
+`Citation.other_data` is the one place in the codebase where `Any` is allowed, granted
+deliberately and scoped to the two files that declare it: `check-type-hygiene` exempts a line
+only when the path is `contracts/citation.py` or `tools/cite/cite_args.py` **and** the line
+carries `# type-hygiene: other_data`, so the marker pasted anywhere else exempts nothing. The
+field holds whatever a run wants beside a citation, and nothing validates it -- which is the
+cost being accepted, not an oversight to repair.
+
+Two checks had to be told, because they disagree by design. `check-type-hygiene` takes the
+marker. `python-fp-lint`'s `no-any-type` honours no suppression comment, so its only lever is
+`fp.json`'s `exclude`, and those two files are listed there -- which waives its other rules for
+them too. Both are declarations: five pydantic fields between them, no logic for those rules to
+catch. Anything with a body belongs in another file rather than in these.
+
 `files/append_file.py` exists because `write_file` replaces. Adding a line with it means
 reading the file and writing it back, which loses whatever arrived in between — two agents
 posting to the same file both succeed and one entry vanishes, with nothing to say so.

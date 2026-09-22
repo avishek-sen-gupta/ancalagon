@@ -1270,7 +1270,8 @@ def test_a_citation_is_appended_with_its_quote_checked_against_the_cited_lines(
 
     first = cite.invoke(
         f'{{{span}, "start_column": 5, "end_column": 20, '
-        f'"quote": "def step(self):", "note": "the tick"}}',
+        f'"quote": "def step(self):", "note": "the tick", '
+        f'"other_data": {{"kind": "method", "calls": ["self"], "depth": 2, "pure": true}}}}',
         ctx,
     )
     clock.sleep(60)
@@ -1288,6 +1289,8 @@ def test_a_citation_is_appended_with_its_quote_checked_against_the_cited_lines(
     assert [c.note for c in written] == ["the tick", "returns itself"]
     assert [c.agent for c in written] == [17, 17]
     assert [c.ts for c in written] == ["2026-01-01T00:00:00+00:00", "2026-01-01T00:01:00+00:00"]
+    assert written[0].other_data == {"kind": "method", "calls": ["self"], "depth": 2, "pure": True}
+    assert written[1].other_data == {}
     assert written[0].span == SourceSpan(
         path=str(source), start_line=2, end_line=3, start_column=5, end_column=20
     )

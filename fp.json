@@ -2,6 +2,8 @@
   "lint_rules_dir": ".python-fp-lint",
   "exclude": [
     "tests/",
+    "ancalagon/contracts/citation.py",
+    "ancalagon/tools/cite/cite_args.py",
     "ancalagon/cli.py",
     "ancalagon/check_contracts.py",
     "ancalagon/worker.py",

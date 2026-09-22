@@ -55,6 +55,7 @@ class Cite(Tool[CiteArgs]):
             span=SourceSpan.model_validate(args.model_dump()),
             quote=args.quote,
             note=args.note,
+            other_data=args.other_data,
         )
         ctx.workspace.append_line(ctx.task_dir / CITATIONS, citation.model_dump_json())
         return ctx.result(self.name, f"cited {path}:{args.start_line}-{args.end_line}")

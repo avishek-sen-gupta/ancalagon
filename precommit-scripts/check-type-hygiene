@@ -1,10 +1,16 @@
 #!/bin/bash
 # Bans explicit `Any` and `object` annotations in Python sources. Pyright strict catches
 # implicit Any and bare generics; it flags neither of these, so this covers the gap.
+#
+# One exemption exists, granted deliberately: a line marked `# type-hygiene: other_data`
+# may use Any. It is Citation.other_data, whose whole purpose is to hold whatever an agent
+# wants to keep beside a citation. The marker counts only in the two files that declare
+# that field, so pasting it anywhere else exempts nothing.
 
 set -uo pipefail
 
-ANY_HITS=$(rg -n --type py '(\bfrom typing import .*\bAny\b|\btyping\.Any\b|(:|->)\s*Any\b|\[Any[,\]]|\bAny\|)' ancalagon tests 2>/dev/null)
+EXEMPT='^(ancalagon/contracts/citation\.py|ancalagon/tools/cite/cite_args\.py):[0-9]+:.*# type-hygiene: other_data$'
+ANY_HITS=$(rg -n --type py '(\bfrom typing import .*\bAny\b|\btyping\.Any\b|(:|->)\s*Any\b|\[Any[,\]]|\bAny\|)' ancalagon tests 2>/dev/null | rg -v "$EXEMPT")
 OBJ_HITS=$(rg -n --type py '((:|->)\s*object\b|\[object[,\]]|\bobject\|)' ancalagon tests 2>/dev/null)
 JSON_HITS=$(rg -n --type py '\b(JsonValue|JsonDict|JsonObject|JsonType|AnyJson)\b' ancalagon tests 2>/dev/null)
 
