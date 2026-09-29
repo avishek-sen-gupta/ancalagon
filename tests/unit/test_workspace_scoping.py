@@ -1,5 +1,6 @@
 import pathlib
 
+import pydantic
 import pytest
 
 from ancalagon.config.config import Config
@@ -241,7 +242,7 @@ def test_config_needs_three_fields_in_code_but_a_complete_file_on_disk(
     ):
         broken = tmp_path / f"missing-{key}.toml"
         broken.write_text(_without_key(example, section, key))
-        with pytest.raises(KeyError):
+        with pytest.raises(pydantic.ValidationError):
             load_config(broken, RealFileSystem())
 
 

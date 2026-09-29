@@ -16,7 +16,7 @@ fileignoreconfig:
 - filename: tests/unit/test_workspace_scoping.py
   checksum: 1b71ea5dcdb64d0392e8a37d3cc240ab1ac3ee60c5002083e66c4afaa9681459
 - filename: tests/unit/test_config_load.py
-  checksum: f4624a41022a6ac8f37af41149ac0b0d871edff7b99b211a9b93a8acaf21ff17
+  checksum: 535d85880a097492e70b04d6f7d7732f897622d01355988d9b9584d4cb1f0965
 - filename: tests/unit/test_tools.py
   checksum: 9941dfc1f32319b406b22a820cb4bebbed13fdfa684c57f6bb6009bcf621ae61
 - filename: tests/unit/test_llm_adapter.py

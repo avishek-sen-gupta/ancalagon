@@ -103,10 +103,11 @@ def test_the_run_section_is_required_and_names_its_fields(
     assert (settings.goal_file, settings.input_file) == ("", "")
     assert settings.role == ""
 
-    with pytest.raises(KeyError):
+    with pytest.raises(pydantic.ValidationError) as absent:
         load_config(_config_file(tmp_path, "absent.toml", ""), RealFileSystem())
+    assert "run" in str(absent.value)
 
-    with pytest.raises(KeyError):
+    with pytest.raises(pydantic.ValidationError) as partial:
         load_config(
             _config_file(
                 tmp_path,
@@ -115,6 +116,31 @@ def test_the_run_section_is_required_and_names_its_fields(
             ),
             fs=RealFileSystem(),
         )
+    assert "role" in str(partial.value)
+
+
+def test_every_missing_key_is_reported_at_once(tmp_path: pathlib.Path):
+    path = tmp_path / "sparse.toml"
+    path.write_text('[workspace]\nhome = "./ws"\n')
+
+    with pytest.raises(pydantic.ValidationError) as raised:
+        load_config(pathlib.PurePath(path), RealFileSystem())
+
+    reported = str(raised.value)
+    assert "write_roots" in reported
+    assert "read_roots" in reported
+    assert "model" in reported
+    assert "limits" in reported
+    assert "run" in reported
+    assert "sandbox" in reported
+
+
+def test_a_toml_file_may_not_state_a_base(tmp_path: pathlib.Path):
+    path = tmp_path / "based.toml"
+    path.write_text('base = "/somewhere"\n' + TEMPLATE.format(run=REQUIRED_RUN, block=""))
+
+    with pytest.raises(ValueError, match="own directory is its base"):
+        load_config(pathlib.PurePath(path), RealFileSystem())
 
 
 def test_the_sandbox_strategy_and_its_domains_come_from_the_config(tmp_path: pathlib.Path):
