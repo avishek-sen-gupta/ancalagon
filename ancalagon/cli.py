@@ -24,23 +24,25 @@ from ancalagon.watch_command import watch_command
 LOGGER = logging.getLogger(__name__)
 
 
-def _chosen_config(config_path: pathlib.PurePath | None, fs: FileSystem) -> Config:
-    if config_path is None:
+def _chosen_config(config_path: pathlib.PurePath, config_json: bool, fs: FileSystem) -> Config:
+    if config_json:
         return config_from_json(document_on_stdin(sys.stdin), fs)
     return load_config(config_path, fs)
 
 
-def init_command(config_path: pathlib.PurePath | None, run_dir: str) -> int:
+def init_command(config_path: pathlib.PurePath, run_dir: str, config_json: bool = False) -> int:
     fs = RealFileSystem()
-    config = _chosen_config(config_path, fs)
+    config = _chosen_config(config_path, config_json, fs)
     sys.stdout.write(f"{created_run_dir(run_dir, config.home, SystemClock(), fs)}\n")
     return 0
 
 
-def main(config_path: pathlib.PurePath | None, run_dir: pathlib.PurePath) -> int:
+def main(
+    config_path: pathlib.PurePath, run_dir: pathlib.PurePath, config_json: bool = False
+) -> int:
     logging.basicConfig(level=logging.INFO)
     fs = RealFileSystem()
-    config = _chosen_config(config_path, fs)
+    config = _chosen_config(config_path, config_json, fs)
     try:
         produced = run(config, run_dir, SystemClock(), fs)
     except NoOutcome as exc:
@@ -55,12 +57,12 @@ def cli() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     run_parser = commands.add_parser("run")
     run_where = run_parser.add_mutually_exclusive_group(required=True)
-    run_where.add_argument("--config", type=pathlib.PurePath)
+    run_where.add_argument("--config", type=pathlib.PurePath, default=pathlib.PurePath(""))
     run_where.add_argument("--config-json", action="store_true", dest="config_json")
     run_parser.add_argument("--run-dir", type=pathlib.PurePath, required=True)
     init = commands.add_parser("init")
     init_where = init.add_mutually_exclusive_group(required=True)
-    init_where.add_argument("--config", type=pathlib.PurePath)
+    init_where.add_argument("--config", type=pathlib.PurePath, default=pathlib.PurePath(""))
     init_where.add_argument("--config-json", action="store_true", dest="config_json")
     init.add_argument("--run-dir", type=str, default="")
     fork = commands.add_parser("fork")
@@ -92,7 +94,7 @@ def cli() -> int:
     args = parser.parse_args()
     try:
         if args.command == "init":
-            return init_command(args.config, args.run_dir)
+            return init_command(args.config, args.run_dir, args.config_json)
         if args.command == "fork":
             return fork_command(args.config, args.source, args.at)
         if args.command == "migrate":
@@ -107,7 +109,7 @@ def cli() -> int:
             return viz_command(args.input, args.output, RealFileSystem())
         if args.command == "watch":
             return watch_command(args.config, args.watch_dir, args.interval)
-        return main(args.config, args.run_dir)
+        return main(args.config, args.run_dir, args.config_json)
     except ValueError as error:
         sys.stderr.write(f"{error}\n")
         return 2

@@ -113,9 +113,9 @@ validation runs in the host process, where that import succeeds.
 A caller with no dependency on `ancalagon` — a service in any language, starting many runs with a
 different model or goal each time — does not need a TOML file or the package. `ancalagon run` and
 `ancalagon init` both accept `--config-json`, a flag with no value meaning "the document is on
-stdin", mutually exclusive with `--config`. The document is the same shape `RawConfig` states,
-which `ancalagon schema` prints as JSON Schema. `config_from_json` reads it in-process the same
-way `config_from` reads a TOML file's parsed table.
+stdin", mutually exclusive with `--config`. The document is the same shape `RawConfig` states.
+`config_from_json` reads it in-process the same way `config_from` reads a TOML file's parsed
+table.
 
 ```
 doc = json.dumps({"base": str(anchor), "workspace": {...}, "model": {...},
