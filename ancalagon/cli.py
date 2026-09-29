@@ -6,9 +6,12 @@ import sys
 
 from ancalagon.answer_command import answer_command
 from ancalagon.clock.system_clock import SystemClock
+from ancalagon.config.config import Config
+from ancalagon.config.from_json import config_from_json, document_on_stdin
 from ancalagon.config.load import load_config
 from ancalagon.contracts.no_outcome import NoOutcome
 from ancalagon.fork_command import fork_command
+from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrate_command import migrate_command
 from ancalagon.note_command import note_command
@@ -21,17 +24,23 @@ from ancalagon.watch_command import watch_command
 LOGGER = logging.getLogger(__name__)
 
 
-def init_command(config_path: pathlib.PurePath, run_dir: str) -> int:
+def _chosen_config(config_path: pathlib.PurePath | None, fs: FileSystem) -> Config:
+    if config_path is None:
+        return config_from_json(document_on_stdin(sys.stdin), fs)
+    return load_config(config_path, fs)
+
+
+def init_command(config_path: pathlib.PurePath | None, run_dir: str) -> int:
     fs = RealFileSystem()
-    config = load_config(config_path, fs)
+    config = _chosen_config(config_path, fs)
     sys.stdout.write(f"{created_run_dir(run_dir, config.home, SystemClock(), fs)}\n")
     return 0
 
 
-def main(config_path: pathlib.PurePath, run_dir: pathlib.PurePath) -> int:
+def main(config_path: pathlib.PurePath | None, run_dir: pathlib.PurePath) -> int:
     logging.basicConfig(level=logging.INFO)
     fs = RealFileSystem()
-    config = load_config(config_path, fs)
+    config = _chosen_config(config_path, fs)
     try:
         produced = run(config, run_dir, SystemClock(), fs)
     except NoOutcome as exc:
@@ -45,10 +54,14 @@ def cli() -> int:
     parser = argparse.ArgumentParser(prog="ancalagon")
     commands = parser.add_subparsers(dest="command", required=True)
     run_parser = commands.add_parser("run")
-    run_parser.add_argument("--config", type=pathlib.PurePath, required=True)
+    run_where = run_parser.add_mutually_exclusive_group(required=True)
+    run_where.add_argument("--config", type=pathlib.PurePath)
+    run_where.add_argument("--config-json", action="store_true", dest="config_json")
     run_parser.add_argument("--run-dir", type=pathlib.PurePath, required=True)
     init = commands.add_parser("init")
-    init.add_argument("--config", type=pathlib.PurePath, required=True)
+    init_where = init.add_mutually_exclusive_group(required=True)
+    init_where.add_argument("--config", type=pathlib.PurePath)
+    init_where.add_argument("--config-json", action="store_true", dest="config_json")
     init.add_argument("--run-dir", type=str, default="")
     fork = commands.add_parser("fork")
     fork.add_argument("--config", type=pathlib.PurePath, required=True)

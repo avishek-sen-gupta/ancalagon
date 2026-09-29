@@ -66,9 +66,11 @@ built by `delegate_name` for each role the config declares — parses each call'
 they are gone; the ids also go to stderr. Files the source run wrote are not rewound at all, since
 they live in the write roots and not in the run directory.
 
-`main` calls `config/load.py`, which reads the TOML. Relative roots resolve against the
-**config file**, not the process cwd, so a worker started elsewhere sees the same paths. Then
-it calls `run(config, run_dir, clock, fs)`:
+`main` calls one of two readers, both of which hand a validated `RawConfig` to the shared
+`config/from_raw.py`: `config/load.py` reads a TOML file, and `config/from_json.py` reads a
+document piped in on stdin as JSON, for `--config-json`. Relative roots resolve against the
+**config file**, or against the document's `base`, not the process cwd, so a worker started
+elsewhere sees the same paths. Then it calls `run(config, run_dir, clock, fs)`:
 
 1. `check_contracts` validates the config — every contract a role names must resolve, every
    role that runs a session must name a terminal submit tool, every hook must be attachable to

@@ -108,6 +108,34 @@ hook functions live under. `load_config` sets it to the config file's own direct
 fails with a module error naming a module the host can import itself, `import_paths` is unset —
 validation runs in the host process, where that import succeeds.
 
+### Starting a run from outside the process
+
+A caller with no dependency on `ancalagon` — a service in any language, starting many runs with a
+different model or goal each time — does not need a TOML file or the package. `ancalagon run` and
+`ancalagon init` both accept `--config-json`, a flag with no value meaning "the document is on
+stdin", mutually exclusive with `--config`. The document is the same shape `RawConfig` states,
+which `ancalagon schema` prints as JSON Schema. `config_from_json` reads it in-process the same
+way `config_from` reads a TOML file's parsed table.
+
+```
+doc = json.dumps({"base": str(anchor), "workspace": {...}, "model": {...},
+                  "limits": {...}, "run": {...}, "sandbox": {...}})
+run_dir = subprocess.run(["ancalagon", "init", "--config-json"], input=doc,
+                          capture_output=True, text=True).stdout.strip()
+subprocess.run(["ancalagon", "migrate", "--db", f"{run_dir}/bus.db"])
+subprocess.run(["ancalagon", "run", "--config-json", "--run-dir", run_dir], input=doc)
+```
+
+Three spawns, the document piped to two of them, since each invocation has its own stdin. Two
+things a caller must get right:
+
+- `base` is absolute, and is the directory the document's relative paths and dotted module refs
+  resolve against — a document read from stdin has no file whose location could supply it.
+- The **same document** goes to `init` and to `run`. `init` allocates the run directory under
+  `config.home`; `run` reads `config.home` again from the document it is given. If the two
+  documents disagree, the run directory sits outside the home the second reading computes, and the
+  first tool that writes raises `ScopeError` rather than the mismatch being reported up front.
+
 ## Running one agent in your process
 
 `run` starts a whole tree. To run a single agent in your own process, with no subprocess and no
@@ -149,6 +177,10 @@ Three things fail later than you would like:
   fails with a module error naming a module the host can import itself.
 - `depth` defaults to `0`, which is a decision rather than a placeholder: `build_registry`
   withholds `delegate_<role>` once `depth` reaches `config.max_depth`.
+- A `--config-json` document given to `init` and the one given to `run` must be identical.
+  `init` allocates the run directory under the `config.home` its document names; `run` reads
+  `config.home` again from its own. If the two disagree, the run directory sits outside the home
+  `run` computes, and `ScopeError` surfaces at the first tool that writes rather than at start-up.
 
 ## How it works
 
