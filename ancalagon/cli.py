@@ -17,6 +17,7 @@ from ancalagon.migrate_command import migrate_command
 from ancalagon.note_command import note_command
 from ancalagon.run import run
 from ancalagon.run_dir import created_run_dir
+from ancalagon.schema_command import schema_command
 from ancalagon.trace_command import trace_command
 from ancalagon.viz_command import viz_command
 from ancalagon.watch_command import watch_command
@@ -84,6 +85,7 @@ def cli() -> int:
     viz = commands.add_parser("viz")
     viz.add_argument("--input", type=str, default="")
     viz.add_argument("--output", type=str, default="")
+    commands.add_parser("schema")
     watch = commands.add_parser("watch")
     where = watch.add_mutually_exclusive_group(required=True)
     where.add_argument("--config", type=str, default="")
@@ -105,6 +107,8 @@ def cli() -> int:
             return trace_command(args.run_dir, args.output, RealFileSystem())
         if args.command == "viz":
             return viz_command(args.input, args.output, RealFileSystem())
+        if args.command == "schema":
+            return schema_command(sys.stdout)
         if args.command == "watch":
             return watch_command(args.config, args.watch_dir, args.interval)
         return main(args.config, args.run_dir, args.config_json)

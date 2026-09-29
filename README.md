@@ -136,6 +136,9 @@ things a caller must get right:
   documents disagree, the run directory sits outside the home the second reading computes, and the
   first tool that writes raises `ScopeError` rather than the mismatch being reported up front.
 
+`ancalagon schema` writes `RawConfig`'s JSON Schema to stdout, so a caller generates and validates
+a document against it instead of reverse-engineering the shape from `ancalagon.example.toml` prose.
+
 ## Running one agent in your process
 
 `run` starts a whole tree. To run a single agent in your own process, with no subprocess and no
