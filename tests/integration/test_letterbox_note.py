@@ -81,7 +81,7 @@ def test_a_note_left_before_the_run_reaches_a_real_worker_on_its_first_turn(
     monkeypatch.setenv("OPENAI_API_KEY", "scripted")
 
     try:
-        assert main(_config(tmp_path), prepared_run_dir(run_dir)) == 0
+        assert main(_config(tmp_path), prepared_run_dir(run_dir), config_json=False) == 0
     finally:
         model.close()
 

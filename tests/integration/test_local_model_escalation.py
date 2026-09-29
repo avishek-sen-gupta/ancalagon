@@ -74,7 +74,7 @@ def test_a_real_model_asks_a_question_and_acts_on_the_answer(tmp_path: pathlib.P
     )
     config = _config(tmp_path, run_dir, goal)
 
-    assert main(config, prepared_run_dir(run_dir)) == 0
+    assert main(config, prepared_run_dir(run_dir), config_json=False) == 0
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
     assert any(e.status is AgentStatus.NEEDS_INPUT for e in bus.history(1)), (
         "the model did not ask; local models vary, and this test is about the resumed "
@@ -85,7 +85,7 @@ def test_a_real_model_asks_a_question_and_acts_on_the_answer(tmp_path: pathlib.P
     assert asked["question"].strip() != ""
 
     assert answer_command(run_dir, 1, "Keep both captions.") == 0
-    assert main(config, prepared_run_dir(run_dir)) == 0
+    assert main(config, prepared_run_dir(run_dir), config_json=False) == 0
 
     root_task = bus.task(run_dir / "tasks" / "root")
     newest_root = newest_agent(bus.snapshot(), root_task.id)

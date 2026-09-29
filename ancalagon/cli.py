@@ -30,16 +30,14 @@ def _chosen_config(config_path: pathlib.PurePath, config_json: bool, fs: FileSys
     return load_config(config_path, fs)
 
 
-def init_command(config_path: pathlib.PurePath, run_dir: str, config_json: bool = False) -> int:
+def init_command(config_path: pathlib.PurePath, run_dir: str, config_json: bool) -> int:
     fs = RealFileSystem()
     config = _chosen_config(config_path, config_json, fs)
     sys.stdout.write(f"{created_run_dir(run_dir, config.home, SystemClock(), fs)}\n")
     return 0
 
 
-def main(
-    config_path: pathlib.PurePath, run_dir: pathlib.PurePath, config_json: bool = False
-) -> int:
+def main(config_path: pathlib.PurePath, run_dir: pathlib.PurePath, config_json: bool) -> int:
     logging.basicConfig(level=logging.INFO)
     fs = RealFileSystem()
     config = _chosen_config(config_path, config_json, fs)

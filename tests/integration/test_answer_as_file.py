@@ -118,7 +118,9 @@ def test_an_agent_builds_its_answer_in_a_file_and_submitting_refuses_it_until_it
     monkeypatch.setenv("OPENAI_API_KEY", "scripted")
 
     try:
-        assert main(_config(tmp_path, write_root), prepared_run_dir(run_dir)) == 0
+        assert (
+            main(_config(tmp_path, write_root), prepared_run_dir(run_dir), config_json=False) == 0
+        )
     finally:
         model.close()
 

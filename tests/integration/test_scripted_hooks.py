@@ -109,7 +109,7 @@ def test_a_declared_hook_refuses_an_answer_in_a_real_worker_until_the_agent_fixe
     monkeypatch.setenv("OPENAI_API_KEY", "scripted")
 
     try:
-        assert main(_config(tmp_path, hooks), prepared_run_dir(run_dir)) == 0
+        assert main(_config(tmp_path, hooks), prepared_run_dir(run_dir), config_json=False) == 0
     finally:
         model.close()
 

@@ -115,7 +115,7 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
     config = _config(tmp_path, run_dir, ROOT)
 
     try:
-        assert main(config, prepared_run_dir(run_dir)) == 0
+        assert main(config, prepared_run_dir(run_dir), config_json=False) == 0
         bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
 
         def asked(agent: int) -> bool:
@@ -126,7 +126,7 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
         assert any(e.status is AgentStatus.COMPLETED for e in bus.history(3))
 
         assert answer_command(run_dir, 1, "keep both") == 0
-        assert main(config, prepared_run_dir(run_dir)) == 0
+        assert main(config, prepared_run_dir(run_dir), config_json=False) == 0
 
         resumed_root = active_for(bus.snapshot(), str(run_dir / "tasks" / "root"))
         assert resumed_root == ()
@@ -186,7 +186,7 @@ def test_a_supervisor_wakes_an_idling_root_once_its_child_settles(
     config = _config(tmp_path, run_dir, ROOT_IDLE)
 
     try:
-        assert main(config, prepared_run_dir(run_dir)) == 0
+        assert main(config, prepared_run_dir(run_dir), config_json=False) == 0
         bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
 
         root_task = bus.task(run_dir / "tasks" / "root")

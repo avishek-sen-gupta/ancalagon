@@ -304,7 +304,7 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
     )
     task_dir = named / "tasks" / "root"
 
-    assert main(config, prepared_run_dir(named)) == 0
+    assert main(config, prepared_run_dir(named), config_json=False) == 0
     opened = LifecycleStore.open(named / "bus.db", SystemClock(), RealFileSystem())
     task = opened.task(task_dir)
     first_agent = newest_agent(opened.snapshot(), task.id)
@@ -317,7 +317,7 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
 
     monkeypatch.setattr(SubprocessSpawner, "spawn", refuse)
 
-    assert main(config, named) == 1
+    assert main(config, named, config_json=False) == 1
     assert capsys.readouterr().out == ""
     second_agent = newest_agent(opened.snapshot(), task.id)
     assert second_agent != first_agent
@@ -329,7 +329,7 @@ def test_an_attempt_that_writes_no_outcome_never_reports_the_previous_one(
 
     monkeypatch.setattr(SubprocessSpawner, "spawn", crash)
 
-    assert main(config, named) == 1
+    assert main(config, named, config_json=False) == 1
     assert capsys.readouterr().out == ""
     third_agent = newest_agent(opened.snapshot(), task.id)
     assert third_agent != second_agent
@@ -352,12 +352,12 @@ def test_a_run_refuses_a_database_the_startup_script_has_not_migrated(tmp_path: 
     named.mkdir(parents=True)
 
     with pytest.raises(ValueError, match="ancalagon migrate"):
-        main(config, named)
+        main(config, named, config_json=False)
     assert (named / "bus.db").exists() is False
 
     migrate_file(named / "bus.db", 0, RealFileSystem())
     with pytest.raises(ValueError, match="schema version 0, not 2"):
-        main(config, named)
+        main(config, named, config_json=False)
 
     migrate_file(named / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
-    assert main(config, named) == 0
+    assert main(config, named, config_json=False) == 0
