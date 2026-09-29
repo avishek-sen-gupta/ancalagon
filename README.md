@@ -114,12 +114,16 @@ A caller with no dependency on `ancalagon` — a service in any language, starti
 different model or goal each time — does not need a TOML file or the package. `ancalagon run` and
 `ancalagon init` both accept `--config-json`, a flag with no value meaning "the document is on
 stdin", mutually exclusive with `--config`. The document is the same shape `RawConfig` states.
-`config_from_json` reads it in-process the same way `config_from` reads a TOML file's parsed
-table.
+`config_from_json` validates it into a `RawConfig` and hands that to `config_from`, the same
+function `load_config` calls once it has parsed a TOML file into one — `config_from` takes a
+`RawConfig`, never a file, so nothing below it knows or cares which format produced the document.
 
-```
+```python
 doc = json.dumps({"base": str(anchor), "workspace": {...}, "model": {...},
-                  "limits": {...}, "run": {...}, "sandbox": {...}})
+                  "limits": {...}, "run": {...}, "sandbox": {...},
+                  "roles": {"root": {"behaviour": "Answer the question you are given.",
+                                      "tools": ["read_file", "submit_answer"],
+                                      "budget": {"turns": 4, "tool_calls": 8}}}})
 run_dir = subprocess.run(["ancalagon", "init", "--config-json"], input=doc,
                           capture_output=True, text=True).stdout.strip()
 subprocess.run(["ancalagon", "migrate", "--db", f"{run_dir}/bus.db"])
@@ -135,6 +139,17 @@ things a caller must get right:
   `config.home`; `run` reads `config.home` again from the document it is given. If the two
   documents disagree, the run directory sits outside the home the second reading computes, and the
   first tool that writes raises `ScopeError` rather than the mismatch being reported up front.
+
+`fork` and `watch` were not extended to `--config-json`; they still take only `--config` and a
+TOML file on disk, so a caller that will eventually replay a run's history or tail one from
+outside still needs one.
+
+A config document grants code execution in the `ancalagon` process, exactly as a TOML file
+already does: its `base` goes onto `sys.path` via `on_path`, and a role's `run` and hook refs are
+imported while the document loads. That is not a new risk, but `--config-json` makes it easy for
+a service to accept a document from elsewhere and pipe it straight through — a config document
+must not be forwarded verbatim from an untrusted source, since it names modules `ancalagon` will
+import.
 
 `ancalagon schema` writes `RawConfig`'s JSON Schema to stdout, so a caller generates and validates
 a document against it instead of reverse-engineering the shape from `ancalagon.example.toml` prose.

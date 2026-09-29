@@ -95,6 +95,7 @@ def test_a_run_dir_allocated_from_one_document_is_reused_by_the_next_spawn(
     document = _document(tmp_path)
 
     first = _cli(document, "init", "--config-json")
+    assert first.returncode == 0, first.stderr
     second = _cli(document, "init", "--config-json", "--run-dir", first.stdout.strip())
 
     assert second.returncode == 0, second.stderr

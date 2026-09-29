@@ -1,4 +1,4 @@
-# Loads a Config from a JSON document with no file behind it.
+# A Config from a JSON document with no file behind it, and the stdin it can arrive on.
 import pathlib
 import typing
 
