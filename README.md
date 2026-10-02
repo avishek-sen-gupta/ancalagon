@@ -564,8 +564,18 @@ Which tools the session offers is decided per turn:
 | yes | none | none | the terminal submit tool, no `idle` |
 | yes | some | — | `idle`, not the terminal submit tool |
 | yes | none | some | neither — `collect_task` first |
-| no (final turn) | none | any | the terminal submit tool only, forced |
+| no (final turn) | none | some | `collect_task` only, forced, until none are left |
+| no (final turn) | none | none | the terminal submit tool only, forced |
 | no (final turn) | some | — | nothing is offered: the attempt ends `Idling` |
+
+The final turn is not necessarily one turn. A parent out of turns that still holds answers it
+never read is forced to `collect_task` before it is allowed to answer, so a child's work is not
+thrown away because its parent ran out of budget first. Those forced calls are free: the final
+turn spends no turn, and whichever tool is forced is exempt from the tool-call budget — an
+exhausted tool-call budget is one of the things that makes a turn final, so charging for the call
+that ends the attempt would make it unanswerable. A model that keeps naming a task it cannot
+collect gets two consecutive attempts before the answer is forced regardless, so a wrong argument
+cannot wedge the loop.
 
 Whichever row applies, a reply that calls no tool at all is not an answer. The session tells the
 agent that answers arrive only through the terminal submit tool and goes round again, and on the forced

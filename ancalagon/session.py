@@ -62,6 +62,10 @@ def _answer_summary(answer: pydantic.BaseModel) -> str:
 
 IDLE = "idle"
 
+COLLECT = "collect_task"
+
+COLLECT_TRIES = 2
+
 NOTE_PREFIX = "Note from the operator: "
 
 
@@ -176,7 +180,7 @@ class Session:
         return "".join(b.text for b in reply.blocks if isinstance(b, Text))
 
     def _run_tools(
-        self, uses: collections.abc.Sequence[ToolUse]
+        self, uses: collections.abc.Sequence[ToolUse], exempt: str = ""
     ) -> list[tuple[ToolUse, ToolResult]]:
         blocks: list[Block] = []
         results: list[tuple[ToolUse, ToolResult]] = []
@@ -187,7 +191,8 @@ class Session:
                 LOGGER.exception("the model called a tool that is not in the registry")
                 blocks.append(ToolResultBlock(tool_use_id=use.id, content=str(exc), is_error=True))
                 continue
-            if not self.remaining.tool_calls.permits(tool.cost):
+            cost = 0 if use.name == exempt else tool.cost
+            if not self.remaining.tool_calls.permits(cost):
                 blocks.append(
                     ToolResultBlock(
                         tool_use_id=use.id,
@@ -197,8 +202,8 @@ class Session:
                     )
                 )
                 continue
-            self.remaining = self.remaining.spend_tool_calls(tool.cost)
-            self.spent = self.spent.plus_tool_calls(tool.cost)
+            self.remaining = self.remaining.spend_tool_calls(cost)
+            self.spent = self.spent.plus_tool_calls(cost)
             try:
                 result = tool.invoke(use.arguments, self.ctx)
             except pydantic.ValidationError as exc:
@@ -217,12 +222,20 @@ class Session:
         self._record(MessageRole.USER, blocks)
         return results
 
+    def _forced(self, uncollected: collections.abc.Sequence[int], tries: int) -> str:
+        if uncollected and tries > 0:
+            return COLLECT
+        return self.submit
+
     def _declarations(
-        self, final: bool, outstanding: collections.abc.Sequence[int]
+        self,
+        final: bool,
+        outstanding: collections.abc.Sequence[int],
+        uncollected: collections.abc.Sequence[int],
+        forced: str,
     ) -> list[ToolSchema]:
         if final:
-            return [self.registry.get(self.submit).declaration]
-        uncollected = self.children.uncollected()
+            return [self.registry.get(forced).declaration]
         excluded: set[str] = ({IDLE} if not outstanding else set[str]()) | (
             {self.submit} if outstanding or uncollected else set[str]()
         )
@@ -232,7 +245,13 @@ class Session:
             if name not in excluded
         ]
 
-    def _final_instruction(self) -> str:
+    def _final_instruction(self, forced: str, uncollected: collections.abc.Sequence[int]) -> str:
+        if forced == COLLECT:
+            return (
+                f"Your budget is exhausted, and these children have answers you have never "
+                f"read: {list(uncollected)}. Call {COLLECT} for one of them now. You will be "
+                f"asked for your answer once every one of them has been collected."
+            )
         return (
             f"Your budget is exhausted. Answer now from what you already know, "
             f"using the {self.submit} tool. No other tools are available."
@@ -246,10 +265,10 @@ class Session:
             f"call it when you have your answer."
         )
 
-    def _prepare_final_turn(self) -> None:
+    def _prepare_final_turn(self, forced: str, uncollected: collections.abc.Sequence[int]) -> None:
         if self.messages and self.messages[-1].role is MessageRole.USER:
             self._record(MessageRole.ASSISTANT, [Text(text="Understood.")])
-        self._record(MessageRole.USER, [Text(text=self._final_instruction())])
+        self._record(MessageRole.USER, [Text(text=self._final_instruction(forced, uncollected))])
 
     def _outcome_of_use(
         self, summary: Payload, final: bool
@@ -314,16 +333,16 @@ class Session:
         return PENDING
 
     def _evaluate_turn(
-        self, reply: Reply, final: bool, delivered: Delivery
+        self, reply: Reply, final: bool, delivered: Delivery, forced: str
     ) -> Outcome[pydantic.BaseModel] | Pending:
         uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
         if not uses:
             return self._uncalled(reply, final, delivered)
-        ran = self._run_tools(uses)
+        ran = self._run_tools(uses, forced)
         from_uses = self._settled(ran, final)
         if not isinstance(from_uses, Pending):
             return from_uses
-        if final:
+        if final and forced != COLLECT:
             return self._ended(ran, uses)
         return PENDING
 
@@ -361,6 +380,7 @@ class Session:
             )
 
     def _loop(self) -> Outcome[pydantic.BaseModel]:
+        tries = COLLECT_TRIES
         while True:
             delivered = self._deliver()
             final = self.remaining.turns_exhausted
@@ -371,14 +391,18 @@ class Session:
                     spent=self._spent(),
                     seen_through=NO_WATERMARK,
                 )
-            declarations = self._declarations(final, outstanding)
+            before = self.children.uncollected()
+            forced = self._forced(before, tries) if final else ""
+            declarations = self._declarations(final, outstanding, before, forced)
             if final:
-                self._prepare_final_turn()
+                self._prepare_final_turn(forced, before)
             else:
                 self.remaining = self.remaining.spend_turn()
                 self.spent = self.spent.plus_turn()
-            reply = self._complete(declarations, force_tool=self.submit if final else "")
+            reply = self._complete(declarations, force_tool=forced)
             self._record(MessageRole.ASSISTANT, reply.blocks)
-            outcome = self._evaluate_turn(reply, final, delivered)
+            outcome = self._evaluate_turn(reply, final, delivered, forced)
             if not isinstance(outcome, Pending):
                 return outcome
+            if forced == COLLECT:
+                tries = COLLECT_TRIES if self.children.uncollected() != before else tries - 1

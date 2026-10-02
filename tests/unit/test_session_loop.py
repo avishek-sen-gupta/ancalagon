@@ -14,6 +14,8 @@ from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.config.config import Config
 from ancalagon.contracts.answer_file import AnswerFile
 from ancalagon.contracts.answer_status import AnswerStatus
+from ancalagon.contracts.agent_status import AgentStatus
+from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.class_ref import ClassRef
@@ -38,7 +40,7 @@ from ancalagon.letterbox.letterbox import Letterbox
 from ancalagon.letterbox.no_letterbox import NO_LETTERBOX
 from ancalagon.llm.fake_llm import FakeLLM
 from ancalagon.migrations import latest_version, migrate_file
-from ancalagon.session import NOTE_PREFIX, Session
+from ancalagon.session import COLLECT_TRIES, NOTE_PREFIX, Session
 from ancalagon.session_for import build_registry
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.files.read_file import ReadFile
@@ -683,7 +685,7 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
     write_root.mkdir(parents=True, exist_ok=True)
     (write_root / "data.txt").write_text("payload")
 
-    children = ScriptedChildren([(2,), ()], [(), (2,)])
+    children = ScriptedChildren([(2,), ()], [(), (2,), ()])
     ctx = ToolContext(
         workspace=Workspace(RealFileSystem(), write_roots=(write_root,), read_roots=(write_root,)),
         task_dir=write_root / "outputs",
@@ -930,3 +932,162 @@ def test_a_session_whose_provider_dies_returns_a_failure_carrying_what_it_spent(
     assert "Traceback (most recent call last)" in outcome.error
     assert outcome.summary == "FakeLLM exhausted"
     assert outcome.spent == Spend(turns=1, tool_calls=0)
+
+
+def _collectable_child(bus: LifecycleStore, run_dir: pathlib.Path, parent: int, text: str) -> int:
+    child_dir = run_dir / "tasks" / "c1"
+    child_dir.mkdir(parents=True)
+    child = bus.enqueue(child_dir, parent_agent=parent).id
+    (child_dir / "spec.json").write_text(
+        TaskSpec(
+            task_id="c1",
+            role=Role(
+                behaviour="Investigate.",
+                answer=ClassRef(module="ancalagon.contracts.free_text", name="FreeText"),
+                tools=("submit_answer",),
+                budget=finite_budget(2, 2),
+            ),
+            goal="Look at it.",
+        ).model_dump_json()
+    )
+    (child_dir / f"outcome-{child}.json").write_text(
+        Completed(
+            value=FreeText(text=text), summary=text, spent=Spend(turns=1, tool_calls=1)
+        ).model_dump_json()
+    )
+    bus.record(child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=2)
+    bus.record(child, AgentStatus.COMPLETED, EventSource.SUPERVISOR, summary=text)
+    return child
+
+
+def _staged_bus(run_dir: pathlib.Path) -> tuple[LifecycleStore, int, int]:
+    (run_dir / "tasks").mkdir(parents=True, exist_ok=True)
+    migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
+    bus = LifecycleStore.open(run_dir / "bus.db", FakeClock(), RealFileSystem())
+    parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN).id
+    bus.record(parent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
+    bus.record(parent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
+    child = _collectable_child(bus, run_dir, parent, "the child found it")
+    return bus, parent, child
+
+
+def _exhausted_parent(
+    tmp_path: pathlib.Path,
+    run_dir: pathlib.Path,
+    bus: LifecycleStore,
+    parent: int,
+    replies: list[Reply],
+) -> Session:
+    write_root = tmp_path / "ws"
+    write_root.mkdir(parents=True, exist_ok=True)
+    ctx = ToolContext(
+        workspace=Workspace(RealFileSystem(), write_roots=(write_root,), read_roots=(write_root,)),
+        task_dir=write_root / "outputs",
+        summary_chars=200,
+        agent_id=parent,
+    )
+    return Session(
+        spec=TaskSpec(
+            task_id="root",
+            role=Role(
+                behaviour="You coordinate.",
+                answer=ClassRef(module="verdict.py", name="Verdict"),
+                tools=(),
+                budget=finite_budget(1, 0),
+            ),
+            goal="Answer it.",
+        ),
+        input=Verdict(answer="seed"),
+        messages=[],
+        transcript=Transcript(RealFileSystem(), path=run_dir / "transcript.jsonl", agent_id=parent),
+        agent_id=parent,
+        llm=FakeLLM(replies),
+        registry=Registry(
+            [
+                bind_tool(ReadFile(FakeClock())),
+                bind_tool(CollectTask(bus, RealFileSystem())),
+                bind_tool(SubmitAnswer(Verdict)),
+            ]
+        ),
+        ctx=ctx,
+        output_class=Verdict,
+        clock=FakeClock(),
+        children=BusChildren(bus, parent),
+    )
+
+
+def test_the_final_turn_collects_every_answer_before_one_is_forced(tmp_path: pathlib.Path):
+    run_dir = tmp_path / "run"
+    bus, parent, child = _staged_bus(run_dir)
+    session = _exhausted_parent(
+        tmp_path,
+        run_dir,
+        bus,
+        parent,
+        [
+            Reply(blocks=[Text(text="still thinking")], stop_reason="stop"),
+            Reply(
+                blocks=[
+                    ToolUse(id="tu_1", name="collect_task", arguments=json.dumps({"task": child}))
+                ],
+                stop_reason="tool_calls",
+            ),
+            Reply(
+                blocks=[
+                    ToolUse(id="tu_2", name="submit_answer", arguments='{"answer": "combined"}')
+                ],
+                stop_reason="tool_calls",
+            ),
+        ],
+    )
+    outcome = session.run()
+    llm = session.llm
+    assert isinstance(llm, FakeLLM)
+
+    assert [sorted(t.name for t in offered) for offered in llm.offered] == [
+        ["collect_task", "read_file"],
+        ["collect_task"],
+        ["submit_answer"],
+    ]
+    assert llm.forced == ["", "collect_task", "submit_answer"]
+    assert isinstance(outcome, Exhausted)
+    assert outcome.value.model_dump() == {"answer": "combined"}
+    assert BusChildren(bus, parent).uncollected() == ()
+    assert outcome.spent.tool_calls == 0
+
+
+def test_a_forced_collect_that_never_lands_gives_up_and_answers_anyway(tmp_path: pathlib.Path):
+    run_dir = tmp_path / "run"
+    bus, parent, child = _staged_bus(run_dir)
+    missing = json.dumps({"task": 999})
+    session = _exhausted_parent(
+        tmp_path,
+        run_dir,
+        bus,
+        parent,
+        [
+            Reply(blocks=[Text(text="still thinking")], stop_reason="stop"),
+            *[
+                Reply(
+                    blocks=[ToolUse(id=f"tu_{n}", name="collect_task", arguments=missing)],
+                    stop_reason="tool_calls",
+                )
+                for n in range(COLLECT_TRIES)
+            ],
+            Reply(
+                blocks=[
+                    ToolUse(id="tu_z", name="submit_answer", arguments='{"answer": "gave up"}')
+                ],
+                stop_reason="tool_calls",
+            ),
+        ],
+    )
+    outcome = session.run()
+    llm = session.llm
+    assert isinstance(llm, FakeLLM)
+
+    assert llm.forced == ["", *["collect_task"] * COLLECT_TRIES, "submit_answer"]
+    assert isinstance(outcome, Exhausted)
+    assert outcome.value.model_dump() == {"answer": "gave up"}
+    assert BusChildren(bus, parent).uncollected() == (child,)
