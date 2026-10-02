@@ -241,7 +241,7 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
     assert isinstance(second, Completed)
     assert second.value.model_dump() == {"text": "both halves handled"}
 
-    collected = (root_dir / "tools").glob("*collect_task*")
+    collected = (root_dir / "tools").rglob("*collect_task*")
     assert any("the clear half is fine" in p.read_text() for p in collected)
 
     resumed_a = active_for(bus.snapshot(), str(run_dir / "tasks" / "child-a"))[0]

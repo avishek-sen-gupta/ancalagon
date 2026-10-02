@@ -664,12 +664,14 @@ ws/runs/r_20260822-121500/
         outcome-<agent>.json      the result of that attempt, kept even when superseded
         citations.jsonl           one line per cite: a span, its quote, and what it shows
         stderr-<agent>.log        the worker's stderr
-        tools/0000-read_file.txt  every tool's full output
+        tools/<agent>/0000-read_file.txt   every tool's full output, per attempt
 ```
 
 Resumption is not a mode: a worker loads whatever transcript is already in its directory. Point
 it at an existing directory to continue with history; give a new directory the same spec for a
-clean retry. Transcripts are flushed per message, so a killed agent still leaves a readable
+clean retry. Each attempt writes its tool output under its own agent id, so a resumed attempt
+never overwrites what an earlier one produced and the pointers in the transcript keep resolving to
+the bytes that were there when they were written. Transcripts are flushed per message, so a killed agent still leaves a readable
 partial history — which is what makes resumption possible at all.
 
 ## Inspecting a run

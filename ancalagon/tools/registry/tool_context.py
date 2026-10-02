@@ -31,7 +31,7 @@ class ToolContext:
     ):
         self.workspace = workspace
         self.task_dir = task_dir
-        self.output_dir = task_dir / "tools"
+        self.output_dir = task_dir / "tools" / str(agent_id)
         self.summary_chars = summary_chars
         self.agent_id = agent_id
         self.input = input

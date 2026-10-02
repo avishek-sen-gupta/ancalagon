@@ -50,7 +50,13 @@ def test_scoping_rejects_every_escape_and_config_round_trips(tmp_path: pathlib.P
 
     inside = ToolContext(workspace=ws, task_dir=write_root, summary_chars=10, agent_id=1)
     written = inside.result("read_file", "hello")
-    assert written.path == (write_root / "tools" / "0000-read_file.txt").resolve()
+    assert written.path == (write_root / "tools" / "1" / "0000-read_file.txt").resolve()
+    assert pathlib.Path(written.path).read_text() == "hello"
+
+    resumed = ToolContext(workspace=ws, task_dir=write_root, summary_chars=10, agent_id=2)
+    again = resumed.result("read_file", "goodbye")
+    assert again.path == (write_root / "tools" / "2" / "0000-read_file.txt").resolve()
+    assert pathlib.Path(again.path).read_text() == "goodbye"
     assert pathlib.Path(written.path).read_text() == "hello"
 
     escaping = ToolContext(workspace=ws, task_dir=outside, summary_chars=10, agent_id=1)
