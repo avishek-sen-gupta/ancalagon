@@ -1,4 +1,5 @@
 # The files ripgrep would search: the one definition of scope every search tool shares.
+# Sorted, so the same tree searched twice gives an agent its results in the same order.
 import collections.abc
 
 from ancalagon.tools.search.run_command import run_command
@@ -12,7 +13,7 @@ def searchable_files(
 ) -> tuple[int, list[str], str]:
     chosen = [flag for glob in globs for flag in ("-g", glob)]
     code, out, err = run_command(["rg", "--files", "--no-require-git", *chosen, *roots])
-    return code, out.splitlines(), err
+    return code, sorted(out.splitlines()), err
 
 
 def fits_in_arguments(files: collections.abc.Sequence[str]) -> bool:
