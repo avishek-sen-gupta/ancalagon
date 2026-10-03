@@ -3,8 +3,8 @@ import pathlib
 import typing
 
 from ancalagon.config.config import Config
-from ancalagon.config.from_raw import config_from
-from ancalagon.config.raw_config import RawConfig
+from ancalagon.config.document_from_config import DocumentFromConfig
+from ancalagon.config.from_document import config_from
 from ancalagon.fs.file_system import FileSystem
 
 JSON_STATES_ITS_BASE = (
@@ -25,7 +25,7 @@ STDIN_IS_A_TERMINAL = (
 )
 
 
-def _stated_base(raw: RawConfig) -> str:
+def _stated_base(raw: DocumentFromConfig) -> str:
     if not raw.base:
         raise ValueError(JSON_STATES_ITS_BASE)
     return raw.base
@@ -40,7 +40,7 @@ def _resolvable_base(base: pathlib.PurePath, fs: FileSystem) -> pathlib.PurePath
 
 
 def config_from_json(document: str, fs: FileSystem) -> Config:
-    raw = RawConfig.model_validate_json(document)
+    raw = DocumentFromConfig.model_validate_json(document)
     base = fs.expanduser(pathlib.PurePath(_stated_base(raw)))
     return config_from(raw, fs.resolve(_resolvable_base(base, fs)), fs)
 

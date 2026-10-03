@@ -5,9 +5,9 @@ import re
 import typing
 
 from ancalagon.config.config import Config
+from ancalagon.config.document_from_config import DocumentFromConfig, RunFromConfig
 from ancalagon.config.on_path import on_path
-from ancalagon.config.raw_config import RawConfig, RawRun
-from ancalagon.config.raw_role import RawClassRef, RawRole
+from ancalagon.config.role_from_config import ClassRefFromConfig, RoleFromConfig
 from ancalagon.contracts.allowance import Allowance
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
@@ -33,7 +33,7 @@ def _optional_root(base: pathlib.PurePath, value: str, fs: FileSystem) -> str:
     return str(_root(base, value, fs)) if value else ""
 
 
-def _run_settings(base: pathlib.PurePath, run: RawRun, fs: FileSystem) -> RunSettings:
+def _run_settings(base: pathlib.PurePath, run: RunFromConfig, fs: FileSystem) -> RunSettings:
     return RunSettings(
         goal_file=_optional_root(base, run.goal_file, fs),
         input_file=_optional_root(base, run.input_file, fs),
@@ -41,12 +41,12 @@ def _run_settings(base: pathlib.PurePath, run: RawRun, fs: FileSystem) -> RunSet
     )
 
 
-def _class_ref(raw: RawClassRef) -> ClassRef:
+def _class_ref(raw: ClassRefFromConfig) -> ClassRef:
     return ClassRef(module=raw.module, name=raw.name)
 
 
 def _hooks(
-    raw: collections.abc.Mapping[str, collections.abc.Sequence[RawClassRef]],
+    raw: collections.abc.Mapping[str, collections.abc.Sequence[ClassRefFromConfig]],
 ) -> dict[str, tuple[FunctionRef, ...]]:
     return {
         tool: tuple(FunctionRef(module=ref.module, name=ref.name) for ref in refs)
@@ -54,7 +54,7 @@ def _hooks(
     }
 
 
-def _contracts(name: str, raw: RawRole) -> tuple[FunctionRef, ClassRef, ClassRef]:
+def _contracts(name: str, raw: RoleFromConfig) -> tuple[FunctionRef, ClassRef, ClassRef]:
     if not raw.run.module:
         return (
             NO_RUN,
@@ -77,7 +77,7 @@ def _allowance(given: int | typing.Literal["infinite"]) -> Allowance:
     return Infinite()
 
 
-def _role(name: str, raw: RawRole) -> Role:
+def _role(name: str, raw: RoleFromConfig) -> Role:
     if not ROLE_NAME.match(name):
         raise ValueError(
             f"[roles.{name}]: a role name becomes the tool name delegate_{name}, "
@@ -100,7 +100,7 @@ def _role(name: str, raw: RawRole) -> Role:
     )
 
 
-def config_from(raw: RawConfig, base: pathlib.PurePath, fs: FileSystem) -> Config:
+def config_from(raw: DocumentFromConfig, base: pathlib.PurePath, fs: FileSystem) -> Config:
     on_path((base,))
     return Config(
         home=_root(base, raw.workspace.home, fs),

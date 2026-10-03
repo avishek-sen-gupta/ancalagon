@@ -113,10 +113,11 @@ validation runs in the host process, where that import succeeds.
 A caller with no dependency on `ancalagon` — a service in any language, starting many runs with a
 different model or goal each time — does not need a TOML file or the package. `ancalagon run` and
 `ancalagon init` both accept `--config-json`, a flag with no value meaning "the document is on
-stdin", mutually exclusive with `--config`. The document is the same shape `RawConfig` states.
-`config_from_json` validates it into a `RawConfig` and hands that to `config_from`, the same
-function `load_config` calls once it has parsed a TOML file into one — `config_from` takes a
-`RawConfig`, never a file, so nothing below it knows or cares which format produced the document.
+stdin", mutually exclusive with `--config`. The document is the same shape
+`DocumentFromConfig` states. `config_from_json` validates it into a `DocumentFromConfig` and
+hands that to `config_from`, the same function `load_config` calls once it has parsed a TOML
+file into one — `config_from` takes a `DocumentFromConfig`, never a file, so nothing below it
+knows or cares which format produced the document.
 
 ```python
 doc = json.dumps({"base": str(anchor), "workspace": {...}, "model": {...},
@@ -151,8 +152,9 @@ a service to accept a document from elsewhere and pipe it straight through — a
 must not be forwarded verbatim from an untrusted source, since it names modules `ancalagon` will
 import.
 
-`ancalagon schema` writes `RawConfig`'s JSON Schema to stdout, so a caller generates and validates
-a document against it instead of reverse-engineering the shape from `ancalagon.example.toml` prose.
+`ancalagon schema` writes `DocumentFromConfig`'s JSON Schema to stdout, so a caller generates
+and validates a document against it instead of reverse-engineering the shape from
+`ancalagon.example.toml` prose.
 
 ## Running one agent in your process
 
