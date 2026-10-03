@@ -47,6 +47,15 @@ class DiffRegions(Tool[DiffArgs]):
             right = ctx.workspace.resolve_read(args.right.path)
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
+        return self._both(args, left, right, ctx)
+
+    def _both(
+        self,
+        args: DiffArgs,
+        left: pathlib.PurePath,
+        right: pathlib.PurePath,
+        ctx: ToolContext,
+    ) -> ToolResult:
         absent = [missing_hint(path) for path in (left, right) if not ctx.workspace.is_file(path)]
         if absent:
             return ctx.failure(self.name, absent[0])

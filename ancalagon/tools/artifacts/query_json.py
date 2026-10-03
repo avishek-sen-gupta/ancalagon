@@ -1,10 +1,18 @@
 # Queries a JSON or JSONL file with jq, so a large document need not be read whole.
+import collections.abc
+
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.artifacts.query_args import QueryArgs
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.run_command import run_command
 from ancalagon.workspace.scope_error import ScopeError
+
+
+def _option_fault(expression: str) -> str:
+    if expression.startswith("-"):
+        return f"filter may not begin with '-': {expression!r}"
+    return ""
 
 
 class QueryJson(Tool[QueryArgs]):
@@ -18,13 +26,16 @@ class QueryJson(Tool[QueryArgs]):
     args_model = QueryArgs
 
     def run(self, args: QueryArgs, ctx: ToolContext) -> ToolResult:
-        if args.filter.startswith("-"):
-            return ctx.failure(self.name, f"filter may not begin with '-': {args.filter!r}")
+        if fault := _option_fault(args.filter):
+            return ctx.failure(self.name, fault)
         try:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
-        code, out, err = run_command(["jq", "-r", args.filter, str(path)])
+        return self._queried(["jq", "-r", args.filter, str(path)], ctx)
+
+    def _queried(self, command: collections.abc.Sequence[str], ctx: ToolContext) -> ToolResult:
+        code, out, err = run_command(command)
         if code != 0:
             return ctx.failure(self.name, err)
         return ctx.result(self.name, out)

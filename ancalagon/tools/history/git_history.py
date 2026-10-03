@@ -1,4 +1,7 @@
 # Asks git why code looks the way it does, which no amount of reading the present tense answers.
+import collections.abc
+import pathlib
+
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.history.git_operation import GitOperation
 from ancalagon.tools.history.history_args import HistoryArgs
@@ -7,6 +10,12 @@ from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.search.run_command import run_command
 from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.workspace.workspace import missing_hint
+
+
+def _rev_fault(args: HistoryArgs) -> str:
+    if args.operation is GitOperation.SHOW and not args.rev:
+        return "show needs a rev"
+    return ""
 
 
 class GitHistory(Tool[HistoryArgs]):
@@ -37,16 +46,22 @@ class GitHistory(Tool[HistoryArgs]):
         return ["git", "-C", repo, "show", "--stat", "--date=short", args.rev]
 
     def run(self, args: HistoryArgs, ctx: ToolContext) -> ToolResult:
-        if args.operation is GitOperation.SHOW and not args.rev:
-            return ctx.failure(self.name, "show needs a rev")
+        if fault := _rev_fault(args):
+            return ctx.failure(self.name, fault)
         try:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
             return ctx.failure(self.name, str(exc))
+        return self._at(args, path, ctx)
+
+    def _at(self, args: HistoryArgs, path: pathlib.PurePath, ctx: ToolContext) -> ToolResult:
         if not ctx.workspace.exists(path):
             return ctx.failure(self.name, missing_hint(path))
         repo = str(path if ctx.workspace.is_dir(path) else path.parent)
-        code, out, err = run_command(self._command(args, str(path), repo))
+        return self._asked(self._command(args, str(path), repo), ctx)
+
+    def _asked(self, command: collections.abc.Sequence[str], ctx: ToolContext) -> ToolResult:
+        code, out, err = run_command(command)
         if code != 0:
             return ctx.failure(self.name, err)
         return ctx.result(self.name, out)
