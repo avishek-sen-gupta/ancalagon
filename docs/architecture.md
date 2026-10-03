@@ -452,7 +452,7 @@ Invoked as `python -m ancalagon.worker --run-dir … --dir … --agent-id … --
 
 `main` opens the transcript **first**, so even a failure mid-setup leaves a record, then:
 
-1. Reads `spec.json` as `TaskSpec` — `task_id`, `role: Role` and `goal`, the scalars and the
+1. Reads `spec.json` as `TaskSpec` — `task_id`, `role: SerialisableRole` and `goal`, the scalars and the
    whole role, since the `input`'s class is named by the role itself and so cannot be known
    before reading it.
 2. `contracts/resolve.py` takes the role's `answer` and `input` — each a `ClassRef`, a module

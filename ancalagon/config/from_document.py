@@ -1,24 +1,15 @@
 # Turns a validated config document into the Config a run is given.
-import collections.abc
 import pathlib
 import re
-import typing
 
 from ancalagon.config.config import Config
 from ancalagon.config.document_from_config import DocumentFromConfig, RunFromConfig
 from ancalagon.config.on_path import on_path
-from ancalagon.config.role_from_config import ClassRefFromConfig, RoleFromConfig
-from ancalagon.contracts.allowance import Allowance
-from ancalagon.contracts.budget import Budget
-from ancalagon.contracts.class_ref import ClassRef
-from ancalagon.contracts.finite import Finite
-from ancalagon.contracts.function_ref import FunctionRef
-from ancalagon.contracts.infinite import Infinite
-from ancalagon.contracts.no_answer_file import NO_ANSWER_FILE
 from ancalagon.contracts.no_run import NO_RUN
-from ancalagon.contracts.role import FREE_TEXT, Role
+from ancalagon.contracts.role import FREE_TEXT
 from ancalagon.contracts.run_contracts import run_contracts
 from ancalagon.contracts.run_settings import RunSettings
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.fs.file_system import FileSystem
 
 ROLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -41,63 +32,25 @@ def _run_settings(base: pathlib.PurePath, run: RunFromConfig, fs: FileSystem) ->
     )
 
 
-def _class_ref(raw: ClassRefFromConfig) -> ClassRef:
-    return ClassRef(module=raw.module, name=raw.name)
-
-
-def _hooks(
-    raw: collections.abc.Mapping[str, collections.abc.Sequence[ClassRefFromConfig]],
-) -> dict[str, tuple[FunctionRef, ...]]:
-    return {
-        tool: tuple(FunctionRef(module=ref.module, name=ref.name) for ref in refs)
-        for tool, refs in raw.items()
-    }
-
-
-def _contracts(name: str, raw: RoleFromConfig) -> tuple[FunctionRef, ClassRef, ClassRef]:
-    if not raw.run.module:
-        return (
-            NO_RUN,
-            _class_ref(raw.input) if raw.input.module else FREE_TEXT,
-            _class_ref(raw.answer) if raw.answer.module else FREE_TEXT,
-        )
-    if raw.input.module or raw.answer.module:
+def _derived(name: str, written: SerialisableRole) -> SerialisableRole:
+    if written.run == NO_RUN:
+        return written
+    if written.input != FREE_TEXT or written.answer != FREE_TEXT:
         raise ValueError(
             f"[roles.{name}]: a role that declares run states its contracts in that "
             f"function's signature, so it must not also declare input or answer"
         )
-    ref = FunctionRef(module=raw.run.module, name=raw.run.name)
-    given, produced = run_contracts(ref)
-    return ref, given, produced
+    given, produced = run_contracts(written.run)
+    return written.model_copy(update={"input": given, "answer": produced})
 
 
-def _allowance(given: int | typing.Literal["infinite"]) -> Allowance:
-    if isinstance(given, int):
-        return Finite(value=given)
-    return Infinite()
-
-
-def _role(name: str, raw: RoleFromConfig) -> Role:
+def _role(name: str, written: SerialisableRole) -> SerialisableRole:
     if not ROLE_NAME.match(name):
         raise ValueError(
             f"[roles.{name}]: a role name becomes the tool name delegate_{name}, "
             f"so it must match {ROLE_NAME.pattern}"
         )
-    run, given, produced = _contracts(name, raw)
-    return Role(
-        behaviour=raw.behaviour,
-        input=given,
-        answer=produced,
-        answer_file=_class_ref(raw.answer_file) if raw.answer_file.module else NO_ANSWER_FILE,
-        run=run,
-        tools=tuple(raw.tools),
-        budget=Budget(
-            turns=_allowance(raw.budget.turns),
-            tool_calls=_allowance(raw.budget.tool_calls),
-        ),
-        before=_hooks(raw.before),
-        after=_hooks(raw.after),
-    )
+    return _derived(name, written)
 
 
 def config_from(raw: DocumentFromConfig, base: pathlib.PurePath, fs: FileSystem) -> Config:

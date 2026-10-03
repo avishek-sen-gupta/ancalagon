@@ -25,12 +25,13 @@ from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.no_answer_file import NoAnswerFile
 from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.reviewed import Reviewed
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.role_of import role_of
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.source_span import SourceSpan
 from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.task_spec import TaskSpec
-from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.text_answer import TextAnswer
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrations import latest_version, migrate_file
@@ -96,7 +97,7 @@ from ancalagon.tools.survey.stats_args import StatsArgs
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.workspace.workspace import Workspace
-from tests.unit.conftest import finite_budget, settle
+from tests.unit.conftest import settle, written_budget
 
 
 def _ctx(tmp_path: pathlib.Path) -> ToolContext:
@@ -330,12 +331,12 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         read_roots=(tmp_path,),
         model="claude-opus-5",
         roles={
-            "scout": Role(behaviour="Look.", tools=(), budget=finite_budget(4, 8)),
-            "unreachable": Role(
+            "scout": SerialisableRole(behaviour="Look.", tools=(), budget=written_budget(4, 8)),
+            "unreachable": SerialisableRole(
                 behaviour="Never spawned.",
                 input=ClassRef(module="no_such_shapes", name="Query"),
                 tools=(),
-                budget=finite_budget(4, 8),
+                budget=written_budget(4, 8),
             ),
         },
         max_tokens=100,
@@ -352,10 +353,10 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), RealFileSystem())
     root_agent = bus.enqueue(tmp_path / "root-agent", parent_agent=HUMAN).id
     nested_agent = bus.enqueue(tmp_path / "nested-agent", parent_agent=HUMAN).id
-    full_role = Role(
+    full_role = SerialisableRole(
         behaviour="Coordinate.",
         tools=("delegate_scout", "need_input", "submit_answer"),
-        budget=finite_budget(1, 1),
+        budget=written_budget(1, 1),
     )
     at_root = build_registry(
         config,
@@ -391,10 +392,10 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
             config,
             TaskSpec(
                 task_id="root",
-                role=Role(
+                role=SerialisableRole(
                     behaviour="Shell.",
                     tools=("shell", "ast_query", "submit_answer"),
-                    budget=finite_budget(1, 1),
+                    budget=written_budget(1, 1),
                 ),
                 goal="g",
             ),
@@ -426,7 +427,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         t.spec.category for t in at_root.tools.values() if t.spec.category is ToolCategory.DELEGATE
     ] == [ToolCategory.DELEGATE]
 
-    narrow_role = Role(
+    narrow_role = SerialisableRole(
         behaviour="Search.",
         tools=("read_file", "ripgrep", "diff_regions", "submit_answer"),
         budget=full_role.budget,
@@ -452,7 +453,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         "submit_answer",
     }
 
-    unknown_role = Role(
+    unknown_role = SerialisableRole(
         behaviour="Search.",
         tools=("read_file", "rigrep", "grep", "delegate_ghost"),
         budget=full_role.budget,
@@ -503,7 +504,7 @@ def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pa
     )
     run_dir = tmp_path / "run"
     run_dir.mkdir()
-    role = Role(behaviour="b", tools=(), budget=finite_budget(3, 5))
+    role = SerialisableRole(behaviour="b", tools=(), budget=written_budget(3, 5))
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
     delegate = DelegateTo(bus, "analyst", role, run_dir, parent=1, fs=RealFileSystem())
@@ -538,7 +539,7 @@ def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pa
 
     written = TaskSpec.model_validate_json((task_dir / "spec.json").read_text())
     assert written.role.behaviour == "b"
-    assert written.role.budget == finite_budget(3, 5)
+    assert written.role.budget == written_budget(3, 5)
     assert json.loads((task_dir / "spec.json").read_text())["input"] == {"text": "look at this"}
 
     with pytest.raises(pydantic.ValidationError):
@@ -720,7 +721,7 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
-    role = Role(behaviour="b", tools=(), budget=finite_budget(20, 60))
+    role = SerialisableRole(behaviour="b", tools=(), budget=written_budget(20, 60))
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
     delegate = DelegateTo(bus, "worker", role, run_dir, parent=1, fs=RealFileSystem())
     collect = CollectTask(bus, RealFileSystem())
@@ -865,7 +866,7 @@ def test_collect_task_named_by_a_stale_agent_id_records_collected_on_the_newest_
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
-    role = Role(behaviour="b", tools=(), budget=finite_budget(20, 60))
+    role = SerialisableRole(behaviour="b", tools=(), budget=written_budget(20, 60))
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
     delegate = DelegateTo(bus, "worker", role, run_dir, parent=1, fs=RealFileSystem())
     collect = CollectTask(bus, RealFileSystem())
@@ -907,21 +908,25 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     )
     importable(tmp_path)
     roles = {
-        "analyst": Role(
+        "analyst": SerialisableRole(
             behaviour="Analyse.",
             input=ClassRef(module="querykit.shapes", name="Query"),
             tools=("read_file",),
-            budget=finite_budget(12, 30),
+            budget=written_budget(12, 30),
         ),
-        "scout": Role(behaviour="Look.", tools=("read_file",), budget=finite_budget(4, 8)),
+        "scout": SerialisableRole(
+            behaviour="Look.", tools=("read_file",), budget=written_budget(4, 8)
+        ),
     }
     run_dir = tmp_path / "run"
     (run_dir / "tasks").mkdir(parents=True)
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(run_dir / "bus.db", FakeClock(), RealFileSystem())
 
-    caller = Role(behaviour="Coordinate.", tools=(), budget=finite_budget(1, 1))
-    tools = delegate_tools(roles, caller, run_dir=run_dir, parent=1, fs=RealFileSystem(), bus=bus)
+    caller = SerialisableRole(behaviour="Coordinate.", tools=(), budget=written_budget(1, 1))
+    tools = delegate_tools(
+        roles, role_of(caller), run_dir=run_dir, parent=1, fs=RealFileSystem(), bus=bus
+    )
 
     assert [t.spec.declaration.name for t in tools] == ["delegate_analyst", "delegate_scout"]
     shown = tools[0].spec.declaration.parameters.model_json_schema()
@@ -1232,10 +1237,10 @@ def test_a_delegate_tool_without_a_bus_keeps_its_schema_and_writes_nothing(
     tmp_path: pathlib.Path,
 ):
     ctx = _ctx(tmp_path)
-    role = Role(
+    role = SerialisableRole(
         behaviour="Investigate.",
         tools=("submit_answer",),
-        budget=finite_budget(3, 5),
+        budget=written_budget(3, 5),
     )
     real = DelegateTo(NO_BUS, "scout", role, ctx.workspace.write_roots[0], 1, RealFileSystem())
     absent = NoDelegateTo("scout", role)

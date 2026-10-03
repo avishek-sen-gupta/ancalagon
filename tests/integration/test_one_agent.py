@@ -5,7 +5,7 @@ from ancalagon.config.config import Config
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.reply import Reply
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use import ToolUse
@@ -16,7 +16,7 @@ from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.web.real_web_client import RealWebClient
 from ancalagon.workspace.workspace import Workspace
-from tests.unit.conftest import finite_budget
+from tests.unit.conftest import written_budget
 
 DELEGATED = Reply(
     blocks=[
@@ -40,10 +40,10 @@ def test_a_host_runs_one_agent_with_no_bus_and_no_subprocess(tmp_path: pathlib.P
     write_root = tmp_path / "ws"
     task_dir = write_root / "tasks" / "solo"
     fs.mkdir(pathlib.PurePath(task_dir), parents=True, exist_ok=True)
-    role = Role(
+    role = SerialisableRole(
         behaviour="Answer the question you are given.",
         tools=("delegate_solo", "submit_answer"),
-        budget=finite_budget(2, 2),
+        budget=written_budget(2, 2),
     )
     config = Config(
         home=pathlib.PurePath(write_root),

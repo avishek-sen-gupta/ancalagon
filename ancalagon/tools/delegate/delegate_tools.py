@@ -5,6 +5,7 @@ import pathlib
 from ancalagon.bus.bus import Bus
 from ancalagon.bus.no_bus import NO_BUS
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.tools.delegate.delegate_args import DelegateArgs
 from ancalagon.tools.delegate.delegate_to import DelegateTo
@@ -17,7 +18,7 @@ from ancalagon.tools.registry.tool import Tool
 def _delegate(
     bus: Bus,
     name: str,
-    role: Role,
+    role: SerialisableRole,
     run_dir: pathlib.PurePath,
     parent: int,
     fs: FileSystem,
@@ -28,7 +29,7 @@ def _delegate(
 
 
 def delegate_tools(
-    roles: collections.abc.Mapping[str, Role],
+    roles: collections.abc.Mapping[str, SerialisableRole],
     caller: Role,
     run_dir: pathlib.PurePath,
     parent: int,

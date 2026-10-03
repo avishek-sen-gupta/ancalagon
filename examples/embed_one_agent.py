@@ -6,10 +6,8 @@ import tempfile
 
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
-from ancalagon.contracts.allowance import Finite
-from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.free_text import FreeText
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.serialisable_role import SerialisableBudget, SerialisableRole
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
@@ -22,14 +20,14 @@ from ancalagon.workspace.workspace import Workspace
 
 MODEL = "bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
-ANALYST = Role(
+ANALYST = SerialisableRole(
     behaviour=(
         "You are given a directory of short notes. Read them, work out which one contradicts "
         "the others, and submit an answer naming that file and the contradiction in one or two "
         "sentences. Use list_dir and read_file. Do not answer without reading."
     ),
     tools=("list_dir", "read_file", "submit_answer"),
-    budget=Budget(turns=Finite(value=12), tool_calls=Finite(value=20)),
+    budget=SerialisableBudget(turns=12, tool_calls=20),
 )
 
 NOTES: collections.abc.Mapping[str, str] = {

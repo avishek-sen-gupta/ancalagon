@@ -2,7 +2,7 @@
 import pydantic
 
 from ancalagon.contracts.resolve import resolve_class
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.tools.delegate.delegate_args import DelegateArgs
 
 
@@ -10,7 +10,7 @@ def delegate_name(role_name: str) -> str:
     return f"delegate_{role_name}"
 
 
-def delegate_description(role_name: str, role: Role) -> str:
+def delegate_description(role_name: str, role: SerialisableRole) -> str:
     return (
         f"Queue a {role_name} task. Returns its task id immediately without waiting. "
         f"That agent is told: {role.behaviour} "
@@ -19,7 +19,7 @@ def delegate_description(role_name: str, role: Role) -> str:
     )
 
 
-def delegate_args(role_name: str, role: Role) -> type[DelegateArgs]:
+def delegate_args(role_name: str, role: SerialisableRole) -> type[DelegateArgs]:
     return pydantic.create_model(
         f"DelegateTo{role_name.title().replace('_', '')}Args",
         __base__=DelegateArgs,

@@ -8,7 +8,9 @@ from ancalagon.contracts.no_answer_file import NO_ANSWER_FILE
 from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.role_of import role_of
 from ancalagon.contracts.run_contracts import run_contracts
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
@@ -99,7 +101,10 @@ def _content_fault(name: str, role: Role) -> str:
     )
 
 
-def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem, web: WebClient) -> str:
+def _hook_fault(
+    name: str, written: SerialisableRole, config: Config, fs: FileSystem, web: WebClient
+) -> str:
+    role = role_of(written)
     named = set(role.before) | set(role.after)
     not_in_role = named - set(role.tools) - {Idle.name}
     if not_in_role:
@@ -107,7 +112,7 @@ def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem, web: WebC
     try:
         build_registry(
             config,
-            TaskSpec(task_id=name, role=role, goal=""),
+            TaskSpec(task_id=name, role=written, goal=""),
             config.home,
             parent=0,
             depth=0,
@@ -126,10 +131,11 @@ def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem, web: WebC
 def check_contracts(
     config: Config, fs: FileSystem = RealFileSystem(), web: WebClient = RealWebClient()
 ) -> None:
+    resolved = {name: role_of(written) for name, written in config.roles.items()}
     faults = (
         [
             fault
-            for name, role in config.roles.items()
+            for name, role in resolved.items()
             for field, ref in (
                 ("input", role.input),
                 ("answer", role.answer),
@@ -137,18 +143,14 @@ def check_contracts(
             )
             if (fault := _contract_fault(name, field, ref))
         ]
-        or [fault for name, role in config.roles.items() if (fault := _run_fault(name, role))]
-        or [fault for name, role in config.roles.items() if (fault := _submit_fault(name, role))]
+        or [fault for name, role in resolved.items() if (fault := _run_fault(name, role))]
+        or [fault for name, role in resolved.items() if (fault := _submit_fault(name, role))]
+        or [fault for name, role in resolved.items() if (fault := _answer_file_fault(name, role))]
+        or [fault for name, role in resolved.items() if (fault := _content_fault(name, role))]
         or [
             fault
-            for name, role in config.roles.items()
-            if (fault := _answer_file_fault(name, role))
-        ]
-        or [fault for name, role in config.roles.items() if (fault := _content_fault(name, role))]
-        or [
-            fault
-            for name, role in config.roles.items()
-            if (fault := _hook_fault(name, role, config, fs, web))
+            for name, written in config.roles.items()
+            if (fault := _hook_fault(name, written, config, fs, web))
         ]
     )
     if faults:

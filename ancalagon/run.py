@@ -12,8 +12,8 @@ from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.no_outcome import NoOutcome
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.resolve import resolve_class
-from ancalagon.contracts.role import Role
 from ancalagon.contracts.run_settings import RunSettings
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.env.real_environment import RealEnvironment
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.sandbox.fence import Fence
@@ -45,7 +45,9 @@ def goal_of(settings: RunSettings, fs: FileSystem) -> str:
     return goal
 
 
-def _from_goal(input_class: type[pydantic.BaseModel], role: Role, goal: str) -> pydantic.BaseModel:
+def _from_goal(
+    input_class: type[pydantic.BaseModel], role: SerialisableRole, goal: str
+) -> pydantic.BaseModel:
     try:
         return input_class.model_validate({"text": goal})
     except pydantic.ValidationError as error:

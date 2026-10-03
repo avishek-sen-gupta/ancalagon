@@ -1,7 +1,7 @@
 # One config document exactly as TOML or JSON presents it, before paths are resolved.
 import pydantic
 
-from ancalagon.config.role_from_config import RoleFromConfig
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.sandbox.strategy import Strategy
 
 
@@ -61,4 +61,4 @@ class DocumentFromConfig(pydantic.BaseModel, frozen=True):
     )
     log: LogFromConfig = LogFromConfig()
     web: WebFromConfig = WebFromConfig()
-    roles: dict[str, RoleFromConfig] = {}
+    roles: dict[str, SerialisableRole] = {}

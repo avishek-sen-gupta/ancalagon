@@ -5,7 +5,7 @@ from ancalagon.children.no_children import NO_CHILDREN
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.config.config import Config
 from ancalagon.contracts.free_text import FreeText
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.letterbox.no_letterbox import NO_LETTERBOX
@@ -17,15 +17,15 @@ from ancalagon.transcript.transcript import Transcript
 from ancalagon.watch.watch_for import WATCH_FOR
 from ancalagon.web.real_web_client import RealWebClient
 from ancalagon.workspace.workspace import Workspace
-from tests.unit.conftest import finite_budget
+from tests.unit.conftest import written_budget
 
-SOLO = Role(
+SOLO = SerialisableRole(
     behaviour="Work alone.",
     tools=("delegate_solo", "watch_file", "idle", "submit_answer"),
-    budget=finite_budget(4, 8),
+    budget=written_budget(4, 8),
 )
 
-WATCHER = Role(behaviour="Watch.", run=WATCH_FOR, tools=(), budget=finite_budget(0, 0))
+WATCHER = SerialisableRole(behaviour="Watch.", run=WATCH_FOR, tools=(), budget=written_budget(0, 0))
 
 
 def solo_agent(

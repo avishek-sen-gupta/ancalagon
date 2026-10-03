@@ -13,6 +13,8 @@ from ancalagon.config.config import Config
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.role_of import role_of
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.fs.file_system import FileSystem
@@ -78,7 +80,11 @@ def _idle(bus: Bus, agent: int) -> Tool[IdleArgs]:
 
 
 def _watch(
-    bus: Bus, watcher: Role, run_dir: pathlib.PurePath, parent: int, fs: FileSystem
+    bus: Bus,
+    watcher: SerialisableRole,
+    run_dir: pathlib.PurePath,
+    parent: int,
+    fs: FileSystem,
 ) -> Tool[WatchArgs]:
     if bus is NO_BUS:
         return NoWatchFile()
@@ -87,7 +93,7 @@ def _watch(
 
 def available_tools(
     role: Role,
-    roles: collections.abc.Mapping[str, Role],
+    roles: collections.abc.Mapping[str, SerialisableRole],
     run_dir: pathlib.PurePath,
     parent: int,
     output_class: type[pydantic.BaseModel],
@@ -135,7 +141,7 @@ def available_tools(
 
 # A role that runs watch_for is a watcher, and its existence is what makes watch_file
 # offerable: without one there is nothing for the tool to queue.
-def watcher_in(roles: collections.abc.Mapping[str, Role]) -> list[Role]:
+def watcher_in(roles: collections.abc.Mapping[str, SerialisableRole]) -> list[SerialisableRole]:
     return [role for role in roles.values() if role.run == WATCH_FOR]
 
 
@@ -156,9 +162,18 @@ def build_registry(
         name: role for name, role in config.roles.items() if f"delegate_{name}" in spec.role.tools
     }
     available = available_tools(
-        spec.role, spawnable, run_dir, parent, output_class, answer_file_class, clock, fs, web, bus
+        role_of(spec.role),
+        spawnable,
+        run_dir,
+        parent,
+        output_class,
+        answer_file_class,
+        clock,
+        fs,
+        web,
+        bus,
     ) + [
-        bound_for(_watch(bus, watcher, run_dir, parent, fs), spec.role)
+        bound_for(_watch(bus, watcher, run_dir, parent, fs), role_of(spec.role))
         for watcher in watcher_in(config.roles)[:1]
     ]
     wanted = set(spec.role.tools) | {Idle.name}

@@ -16,7 +16,8 @@ from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.no_answer_file import NoAnswerFile
 from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.reviewed import Reviewed
-from ancalagon.contracts.role import FREE_TEXT, Role
+from ancalagon.contracts.role import FREE_TEXT
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.session_for import build_registry
@@ -30,7 +31,7 @@ from ancalagon.tools.search.transform_args import TransformArgs
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.workspace.workspace import Workspace
-from tests.unit.conftest import finite_budget
+from tests.unit.conftest import written_budget
 
 MODULE = """
 from __future__ import annotations
@@ -298,13 +299,13 @@ def test_check_contracts_refuses_a_role_whose_answer_disagrees_with_its_run_func
     (package / "runners.py").write_text(RUNKIT)
     importable(tmp_path)
 
-    role = Role(
+    role = SerialisableRole(
         behaviour="Run it.",
         run=FunctionRef(module="runkit.runners", name="echo"),
         input=ClassRef(module="runkit.runners", name="Given"),
         answer=FREE_TEXT,
         tools=(),
-        budget=finite_budget(0, 0),
+        budget=written_budget(0, 0),
     )
     config = Config(
         home=tmp_path,

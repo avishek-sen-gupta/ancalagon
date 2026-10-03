@@ -5,8 +5,8 @@ import pathlib
 
 import pydantic
 
-from ancalagon.contracts.role import Role
 from ancalagon.contracts.run_settings import RunSettings
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.sandbox.strategy import Strategy
 
 
@@ -16,7 +16,7 @@ class Config(pydantic.BaseModel, frozen=True):
     write_roots: tuple[pathlib.PurePath, ...] = ()
     model: str
     custom_llm_provider: str = ""
-    roles: collections.abc.Mapping[str, Role] = {}
+    roles: collections.abc.Mapping[str, SerialisableRole] = {}
     max_tokens: int = 8000
     num_retries: int = 3
     request_timeout_s: int = 300

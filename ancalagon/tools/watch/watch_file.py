@@ -6,7 +6,7 @@ from ancalagon.contracts.access import Access
 from ancalagon.contracts.agent_ref import AgentRef
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.no_agent_ref import NoAgentRef
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.contracts.watch_request import WatchRequest
@@ -39,7 +39,12 @@ class WatchFile(Tool[WatchArgs]):
     args_model = WatchArgs
 
     def __init__(
-        self, bus: Bus, role: Role, run_dir: pathlib.PurePath, parent: int, fs: FileSystem
+        self,
+        bus: Bus,
+        role: SerialisableRole,
+        run_dir: pathlib.PurePath,
+        parent: int,
+        fs: FileSystem,
     ):
         self.bus = bus
         self.role = role

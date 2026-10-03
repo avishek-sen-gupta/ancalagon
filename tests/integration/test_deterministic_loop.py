@@ -10,11 +10,9 @@ from ancalagon.bus.lifecycle_store import HUMAN, LifecycleStore
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
-from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
-from ancalagon.contracts.finite import Finite
 from ancalagon.contracts.function_ref import FunctionRef
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.serialisable_role import SerialisableBudget, SerialisableRole
 from ancalagon.env.real_environment import RealEnvironment
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.sandbox.unsandboxed import Unsandboxed
@@ -32,18 +30,16 @@ import pydantic
 from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.agent_status import AgentStatus
-from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
+from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.event_source import EventSource
-from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.nothing import NOTHING
 from ancalagon.contracts.outcome import Outcome
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.serialisable_role import SerialisableBudget, SerialisableRole
 from ancalagon.deterministic.run_context import RunContext
 from ancalagon.schedule.newest_agent import newest_agent
-from ancalagon.contracts.finite import Finite
 
 MODULE = "loopkit.rounds"
 COUNTER = "rounds"
@@ -70,13 +66,13 @@ def _spawn(n: int, ctx: RunContext) -> int:
     ctx.fs.mkdir(child_dir, parents=True, exist_ok=True)
     spec = AgentSpec[Tick](
         task_id=child_dir.name,
-        role=Role(
+        role=SerialisableRole(
             behaviour="Tick once.",
             run=FunctionRef(module=MODULE, name="child"),
             input=ClassRef(module=MODULE, name="Tick"),
             answer=ClassRef(module=MODULE, name="Tick"),
             tools=(),
-            budget=Budget(turns=Finite(value=0), tool_calls=Finite(value=0)),
+            budget=SerialisableBudget(turns=0, tool_calls=0),
         ),
         goal=f"Tick {n}.",
         input=Tick(n=n),
@@ -176,13 +172,13 @@ def test_a_deterministic_parent_is_woken_once_per_child_it_spawns(
     given = rounds_class(total=ROUNDS)
     spec = AgentSpec[rounds_class](
         task_id="looper",
-        role=Role(
+        role=SerialisableRole(
             behaviour="Spawn a child, wait for it, repeat.",
             run=FunctionRef(module="loopkit.rounds", name="parent"),
             input=ClassRef(module="loopkit.rounds", name="Rounds"),
             answer=ClassRef(module="loopkit.rounds", name="Ticks"),
             tools=(),
-            budget=Budget(turns=Finite(value=0), tool_calls=Finite(value=0)),
+            budget=SerialisableBudget(turns=0, tool_calls=0),
         ),
         goal=f"Spawn {ROUNDS} children, one at a time.",
         input=given,

@@ -5,18 +5,18 @@ import pathlib
 import pytest
 
 from ancalagon import run_dir as run_dir_module
-from ancalagon.run_dir import created_run_dir
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.config.config import Config
 from ancalagon.contracts.class_ref import ClassRef
-from ancalagon.contracts.role import Role
 from ancalagon.contracts.run_settings import RunSettings
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.run import goal_of, root_spec, sandbox_of
+from ancalagon.run_dir import created_run_dir
 from ancalagon.sandbox.fence import Fence
 from ancalagon.sandbox.strategy import Strategy
 from ancalagon.sandbox.unsandboxed import Unsandboxed
-from tests.unit.conftest import finite_budget
+from tests.unit.conftest import written_budget
 
 
 def test_a_named_run_dir_is_created_verbatim_and_an_unnamed_one_is_stamped(
@@ -91,11 +91,11 @@ def test_the_root_spec_comes_from_its_role_and_its_two_files(
     importable(tmp_path)
     (tmp_path / "goal.md").write_text("map it")
     (tmp_path / "input.json").write_text('{"area": "bus"}')
-    role = Role(
+    role = SerialisableRole(
         behaviour="Analyse.",
         input=ClassRef(module="querykit.shapes", name="Query"),
         tools=("read_file", "submit_answer"),
-        budget=finite_budget(3, 6),
+        budget=written_budget(3, 6),
     )
     config = Config(
         home=tmp_path,

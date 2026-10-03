@@ -5,7 +5,7 @@ from ancalagon.bus.bus import Bus
 from ancalagon.contracts.agent_ref import AgentRef
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.no_agent_ref import NoAgentRef
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.fs.file_system import FileSystem
@@ -29,7 +29,7 @@ class DelegateTo(Tool[DelegateArgs]):
         self,
         bus: Bus,
         role_name: str,
-        role: Role,
+        role: SerialisableRole,
         run_dir: pathlib.PurePath,
         parent: int,
         fs: FileSystem,

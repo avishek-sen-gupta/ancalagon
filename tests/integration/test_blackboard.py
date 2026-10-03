@@ -9,10 +9,8 @@ from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.load import load_config
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.agent_status import AgentStatus
-from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.class_ref import ClassRef
-from ancalagon.contracts.finite import Finite
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.serialisable_role import SerialisableBudget, SerialisableRole
 from ancalagon.contracts.watch_request import WatchRequest
 from ancalagon.contracts.watched import Watched
 from ancalagon.env.real_environment import RealEnvironment
@@ -41,13 +39,13 @@ def test_a_watcher_process_wakes_the_supervisor_the_way_any_child_does(
     fs.mkdir(task_dir, parents=True, exist_ok=True)
     spec = AgentSpec[WatchRequest](
         task_id="watcher",
-        role=Role(
+        role=SerialisableRole(
             behaviour="Wait for the blackboard.",
             run=WATCH_FOR,
             input=WATCHING,
             answer=WATCHED,
             tools=(),
-            budget=Budget(turns=Finite(value=0), tool_calls=Finite(value=0)),
+            budget=SerialisableBudget(turns=0, tool_calls=0),
         ),
         goal="Wake me when the blackboard changes.",
         input=WatchRequest(path=str(board), since=fs.changed_at(board), poll_s=0.05),

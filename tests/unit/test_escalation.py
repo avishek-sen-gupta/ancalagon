@@ -16,7 +16,8 @@ from ancalagon.contracts.message import Message
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.reply import Reply
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.role_of import role_of
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use import ToolUse
@@ -37,14 +38,14 @@ from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.transcript.history import load, repair
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.workspace.workspace import Workspace
-from tests.unit.conftest import finite_budget
+from tests.unit.conftest import written_budget
 
 
 def _call(id: str, name: str, **arguments: str | int) -> ToolUse:
     return ToolUse(id=id, name=name, arguments=json.dumps(arguments))
 
 
-INVESTIGATE = Role(behaviour="You investigate.", tools=(), budget=finite_budget(5, 5))
+INVESTIGATE = SerialisableRole(behaviour="You investigate.", tools=(), budget=written_budget(5, 5))
 
 
 def _run(
@@ -78,7 +79,7 @@ def _run(
             [
                 *delegate_tools(
                     {"investigate": INVESTIGATE},
-                    INVESTIGATE,
+                    role_of(INVESTIGATE),
                     run_dir=run_dir,
                     parent=agent,
                     fs=RealFileSystem(),

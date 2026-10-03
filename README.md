@@ -507,14 +507,14 @@ Give it `NO_WATERMARK` and it is woken for any child with an answer it has not c
 including one that had already finished when it idled — a wake it can act on, and one that
 stops once that child is collected or the last live child settles.
 
-The child's role needs no entry in the config. Build one in Python from `Role`, `FunctionRef`,
-`ClassRef` and `Budget`, the way `tests/integration/test_blackboard.py` does. Contract
-derivation from a run function's signature is a config-loader concern, so a hand-built `Role`
+The child's role needs no entry in the config. Build one in Python from `SerialisableRole`,
+`FunctionRef`, `ClassRef` and `SerialisableBudget`, the way `tests/integration/test_blackboard.py` does. Contract
+derivation from a run function's signature is a config-loader concern, so a hand-built role
 must state its `input` and `answer` itself.
 
 The harness does not check that a role graph makes sense:
 
-| Role holds | But lacks | Consequence |
+| A role holds | But lacks | Consequence |
 |---|---|---|
 | `delegate_x` | `collect_task` | can spawn children it can never read, and `submit_answer` stays withheld — it always runs out its budget and finishes `Exhausted` |
 | — | `answer_task` | children that call `need_input` wait until they time out |

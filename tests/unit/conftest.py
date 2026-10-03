@@ -10,6 +10,7 @@ from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.finite import Finite
+from ancalagon.contracts.serialisable_role import SerialisableBudget
 
 
 def settle(
@@ -37,3 +38,7 @@ def importable() -> collections.abc.Iterator[collections.abc.Callable[[pathlib.P
 
 def finite_budget(turns: int, tool_calls: int) -> Budget:
     return Budget(turns=Finite(value=turns), tool_calls=Finite(value=tool_calls))
+
+
+def written_budget(turns: int, tool_calls: int) -> SerialisableBudget:
+    return SerialisableBudget(turns=turns, tool_calls=tool_calls)

@@ -24,6 +24,7 @@ from ancalagon.contracts.outcome import SUMMARY_CHARS, Outcome
 from ancalagon.contracts.payload import Payload
 from ancalagon.contracts.pending import PENDING, Pending
 from ancalagon.contracts.reply import Reply
+from ancalagon.contracts.role_of import role_of
 from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.submitted import Submitted
 from ancalagon.contracts.task_spec import TaskSpec
@@ -98,6 +99,7 @@ class Session:
         meter: Meter = UNMETERED,
     ):
         self.spec = spec
+        self.role = role_of(spec.role)
         self.input = input
         self.messages = list(messages)
         self.transcript = transcript
@@ -112,10 +114,10 @@ class Session:
         self.letterbox = letterbox
         self.compact_above_tokens = compact_above_tokens
         self.keep_recent_messages = keep_recent_messages
-        self.remaining = spec.role.budget
+        self.remaining = self.role.budget
         self.spent = Spend(turns=0, tool_calls=0)
         self.seq = len(messages)
-        self.submit = submitting(spec.role.tools)
+        self.submit = submitting(self.role.tools)
         if not self.messages:
             self._record(
                 MessageRole.USER, [Text(text=f"{spec.goal}\n\nInput: {input.model_dump_json()}")]
@@ -138,7 +140,7 @@ class Session:
         schema = self.output_class.model_json_schema(schema_generator=Inlined)
         return SystemPrompt(
             static=(
-                f"{self.spec.role.behaviour}\n\n"
+                f"{self.role.behaviour}\n\n"
                 f"When you have the answer, call the {self.submit} tool with it. That tool is "
                 f"the only way to answer; a reply without it is taken as more work to do. "
                 f"Your answer must match this schema: {schema}"

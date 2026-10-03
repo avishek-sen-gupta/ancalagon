@@ -9,7 +9,7 @@ from ancalagon.config.config import Config
 from ancalagon.contracts.answer_file import AnswerFile
 from ancalagon.contracts.answer_status import AnswerStatus
 from ancalagon.contracts.class_ref import ClassRef
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.submitted import Submitted
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.real_file_system import RealFileSystem
@@ -20,7 +20,7 @@ from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.tools.submit.submitting import submitting
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.workspace.workspace import Workspace
-from tests.unit.conftest import finite_budget
+from tests.unit.conftest import written_budget
 
 ANSWER_FILE = ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile")
 
@@ -46,12 +46,12 @@ def test_the_role_chooses_which_terminal_tool_it_submits_with(tmp_path: pathlib.
     assert submitting(("read_file", "submit_answer_as_file")) == SubmitAnswerAsFile.name
     assert submitting(("submit_answer", "submit_answer_as_file")) == SubmitAnswerAsFile.name
 
-    role = Role(
+    role = SerialisableRole(
         behaviour="You answer.",
         answer=ANSWER_FILE,
         answer_file=ClassRef(module=__name__, name="Record"),
         tools=("read_file", "submit_answer", "submit_answer_as_file"),
-        budget=finite_budget(1, 1),
+        budget=written_budget(1, 1),
     )
     registry = build_registry(
         Config(home=tmp_path, read_roots=(tmp_path,), model="m", roles={"root": role}),

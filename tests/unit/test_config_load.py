@@ -5,6 +5,7 @@ import sys
 import pydantic
 import pytest
 
+from ancalagon.contracts.role_of import role_of
 from ancalagon.check_contracts import check_contracts
 from ancalagon.config.load import load_config
 from ancalagon.config.on_path import on_path
@@ -15,10 +16,11 @@ from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.infinite import Infinite
 from ancalagon.contracts.no_answer_file import NO_ANSWER_FILE
 from ancalagon.contracts.no_run import NO_RUN
-from ancalagon.contracts.role import FREE_TEXT, Role
+from ancalagon.contracts.role import FREE_TEXT
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.sandbox.strategy import Strategy
-from tests.unit.conftest import finite_budget
+from tests.unit.conftest import finite_budget, written_budget
 
 TEMPLATE = """
 [workspace]
@@ -188,7 +190,7 @@ budget = { turns = 4, tool_calls = 8 }
     assert roles["analyst"].behaviour == "Analyse."
     assert roles["analyst"].answer == ClassRef(module="shapekit.shapes", name="Component")
     assert roles["analyst"].tools == ("read_file", "delegate_scout")
-    assert roles["analyst"].budget == finite_budget(12, 30)
+    assert role_of(roles["analyst"]).budget == finite_budget(12, 30)
     assert roles["scout"].answer == FREE_TEXT
     assert roles["scout"].input == FREE_TEXT
     assert roles["analyst"].answer_file == ClassRef(module="shapekit.shapes", name="Component")
@@ -430,10 +432,10 @@ role = "analyst"
     assert "submit_answer" in str(raised.value)
     assert "[roles.transformer]" not in str(raised.value)
 
-    filer = Role(
+    filer = SerialisableRole(
         behaviour="You file.",
         tools=("submit_answer_as_file",),
-        budget=finite_budget(1, 1),
+        budget=written_budget(1, 1),
     )
     with pytest.raises(ValueError) as wrong_answer:
         check_contracts(config.model_copy(update={"roles": {"filer": filer}}), RealFileSystem())
@@ -453,11 +455,11 @@ role = "analyst"
         "the class its answer file holds"
     )
 
-    stray = Role(
+    stray = SerialisableRole(
         behaviour="You answer.",
         answer_file=content,
         tools=("submit_answer",),
-        budget=finite_budget(1, 1),
+        budget=written_budget(1, 1),
     )
     with pytest.raises(ValueError) as unchecked:
         check_contracts(config.model_copy(update={"roles": {"stray": stray}}), RealFileSystem())
@@ -552,7 +554,7 @@ budget = { turns = "infinite", tool_calls = 30 }
 def test_a_role_may_declare_a_budget_with_no_turn_limit(tmp_path: pathlib.Path):
     roles = load_config(_written(tmp_path, UNLIMITED_ROLE), RealFileSystem()).roles
 
-    assert roles["scout"].budget == Budget(turns=Infinite(), tool_calls=Finite(value=30))
+    assert role_of(roles["scout"]).budget == Budget(turns=Infinite(), tool_calls=Finite(value=30))
 
 
 def test_the_log_socket_is_optional_and_read_from_the_log_section(tmp_path: pathlib.Path):

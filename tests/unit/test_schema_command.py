@@ -17,12 +17,13 @@ def test_the_schema_names_every_required_table_and_the_role_shape():
         "sandbox",
         "workspace",
     ]
-    assert "RoleFromConfig" in schema["$defs"]
+    assert "SerialisableRole" in schema["$defs"]
     assert schema["$defs"]["Strategy"]["enum"] == ["none", "fence"]
     assert "absolute" in schema["properties"]["base"]["description"].lower()
     assert {name: sorted(d.get("required", [])) for name, d in schema["$defs"].items()} == {
-        "BudgetFromConfig": ["tool_calls", "turns"],
-        "ClassRefFromConfig": [],
+        "ClassRef": ["module", "name"],
+        "FunctionRef": ["module", "name"],
+        "SerialisableBudget": ["tool_calls", "turns"],
         "LimitsFromConfig": [
             "agent_timeout_s",
             "compact_above_tokens",
@@ -39,7 +40,7 @@ def test_the_schema_names_every_required_table_and_the_role_shape():
             "num_retries",
             "request_timeout_s",
         ],
-        "RoleFromConfig": ["behaviour", "budget", "tools"],
+        "SerialisableRole": ["behaviour", "budget", "tools"],
         "RunFromConfig": ["goal_file", "input_file", "role"],
         "SandboxFromConfig": ["strategy"],
         "WebFromConfig": [],

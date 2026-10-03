@@ -1,5 +1,5 @@
 # The delegate tool a session gets when it has no bus: same schema, nothing queued, nothing written.
-from ancalagon.contracts.role import Role
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.delegate.delegate_args import DelegateArgs
@@ -16,7 +16,7 @@ class NoDelegateTo(Tool[DelegateArgs]):
     category = ToolCategory.DELEGATE
     cost = 1
 
-    def __init__(self, role_name: str, role: Role):
+    def __init__(self, role_name: str, role: SerialisableRole):
         self.name = delegate_name(role_name)
         self.description = delegate_description(role_name, role)
         self.args_model = delegate_args(role_name, role)
