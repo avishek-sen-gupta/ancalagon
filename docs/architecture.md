@@ -535,24 +535,25 @@ a dead process. `KeyboardInterrupt` and `SystemExit` still propagate.
 
 ```
 while True:
-    final = out of turns
-    outstanding = children.outstanding()
-    final and outstanding? ─────────▶ Idling  (turns ran out while children were still working)
-    declare idle / terminal submit tool per outstanding() and uncollected(), or terminal submit tool only if final
-    final? record _final_instruction()
-    reply = llm.complete(_system(), messages, schemas, forcing self.submit if final)
+    turn = _turn(_deliver(), tries)        # the frozen value every decision reads
+    profile.halts(turn)?     ────────▶ that outcome  (Answering: Idling, if out of turns with children live)
+    forced = profile.forces(turn) if turn.final else NO_TOOL
+    schemas = profile.offers(turn)         # withholds idle, or the submit tool, or all but forced
+    turn.final? record profile.instructs(turn)
+    reply = llm.complete(_system(turn), messages, schemas, forcing forced's declaration)
     record it
     did it call tools?
         yes ─▶ _run_tools()
                idle called?              ──▶ Idling
                need_input.question set?  ──▶ NeedsInput
-               submit.answer set?        ──▶ Completed, or Exhausted if final
+               submit.answer set?        ──▶ Completed, or Exhausted if turn.final
                loop
-        no  ─▶ tell it to call the terminal submit tool and loop, or Failed if final
+        no  ─▶ record profile.nudges(turn) and loop, or Failed if turn.final
 ```
 
-There is no separate final-turn code path any more — the last turn is this same loop with two
-flags set, `final` and `force_tool`. Seven things worth knowing:
+There is no separate final-turn code path any more — the last turn is this same loop with
+`turn.final` set, and the profile answering differently because of it. Seven things worth
+knowing:
 
 - **The run ends in one of three places.** Before the model is even called, if the turn budget
   is exhausted while a child is still outstanding (`Idling`, spending no turn at all). Through
@@ -574,12 +575,13 @@ flags set, `final` and `force_tool`. Seven things worth knowing:
   gates one of them, which is not a gate.
 - **`_run_tools` refuses calls past the budget** rather than letting it go negative, and
   returns the refusal to the model as an error result.
-- **A tool called with bad arguments is caught** and becomes an error result, so the model
-  reads its own mistake and corrects it. Only `pydantic.ValidationError` is caught, which is
-  what `bind_tool` raises when the model's JSON does not match the tool's args model. Anything
-  else a tool raises is a defect rather than a move the model made, and it propagates to the
-  worker, where it becomes a `Failed` outcome carrying the traceback — visible, rather than
-  handed back as a tool error the agent burns turns retrying against.
+- **A tool called with bad arguments is caught where the parsing happens.** `bind_tool` wraps
+  its own `model_validate_json` and returns the faults as a tool failure, one per line, so the
+  model reads its own mistake and corrects it. `Session` catches nothing: only
+  `pydantic.ValidationError` from that one call is a move the model made. Anything else a tool
+  raises is a defect, and it propagates to the worker, where it becomes a `Failed` outcome
+  carrying the traceback — visible, rather than handed back as a tool error the agent burns
+  turns retrying against.
 - **The final turn is forced, not merely offered.** `_prepare_final_turn` records
   `profile.instructs(turn)`, injecting a synthetic assistant turn first if the last message was a
   user turn — providers reject two consecutive user turns — and `_complete` is called with the
@@ -897,8 +899,10 @@ with scripted replies, which is what makes the entire loop testable offline.
 
 `adapters/litellm_client.py` carries `num_retries` and `timeout` from config, so a transient 429 or 5xx is retried rather than killing the task. It translates in both directions: our `Message` objects become
 `wire_message.py` models dumped to OpenAI-shaped dicts, and the response becomes `Text` and
-`ToolUse` blocks. The `adapters/` directory is quarantined in `pyrightconfig.json` — it is
-the only place third-party type gaps are tolerated.
+`ToolUseFromModel` blocks. `complete` takes the tool to force as a `ToolSchema | NoTool`, and
+this is where it becomes the name `tool_choice` wants. The `adapters/` directory is
+quarantined in `pyrightconfig.json` — it is the only place third-party type gaps are
+tolerated.
 
 ## What a run leaves behind
 
