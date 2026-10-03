@@ -19,6 +19,7 @@ from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.profiles.answering import ANSWERING
 from tests.unit.conftest import written_budget
 
 
@@ -28,6 +29,7 @@ def _turn(tmp_path: pathlib.Path, budget: Budget, tries: int = 2) -> Turn:
         spec=TaskSpec(
             task_id="t1",
             role=SerialisableRole(
+                profile=ANSWERING,
                 behaviour="Look.",
                 answer=ClassRef(module="ancalagon.contracts.free_text", name="FreeText"),
                 tools=("ripgrep", "submit_answer"),

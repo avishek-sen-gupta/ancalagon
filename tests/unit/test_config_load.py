@@ -20,6 +20,8 @@ from ancalagon.contracts.role_of import role_of
 from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.sandbox.strategy import Strategy
+from ancalagon.profiles.answering import ANSWERING
+from ancalagon.profiles.answering_as_file import ANSWERING_AS_FILE
 from tests.unit.conftest import finite_budget, written_budget
 
 TEMPLATE = """
@@ -171,6 +173,7 @@ def test_roles_load_with_their_contracts_and_prose_is_the_absent_default(
         tmp_path,
         """
 [roles.analyst]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = "Analyse."
 answer = { module = "shapekit.shapes", name = "Component" }
 answer_file = { module = "shapekit.shapes", name = "Component" }
@@ -178,6 +181,7 @@ tools = ["read_file", "delegate_scout"]
 budget = { turns = 12, tool_calls = 30 }
 
 [roles.scout]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = "Investigate."
 tools = ["read_file"]
 budget = { turns = 4, tool_calls = 8 }
@@ -200,7 +204,9 @@ budget = { turns = 4, tool_calls = 8 }
     spaced.write_text(
         TEMPLATE.format(
             run=REQUIRED_RUN,
-            block='[roles."field scout"]\nbehaviour = "Look."\ntools = []\n'
+            block='[roles."field scout"]\n'
+            'profile = { module = "ancalagon.profiles.answering", name = "Answering" }\n'
+            'behaviour = "Look."\ntools = []\n'
             "budget = { turns = 4, tool_calls = 8 }\n",
         )
     )
@@ -213,6 +219,7 @@ def test_a_config_naming_a_file_path_is_refused_at_load(tmp_path: pathlib.Path):
         tmp_path,
         """
 [roles.analyst]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = "Analyse."
 answer = { module = "./shapes.py", name = "Component" }
 tools = ["read_file"]
@@ -292,6 +299,7 @@ def _with_run(tmp_path: pathlib.Path, name: str, extra: str = "") -> pathlib.Pat
         tmp_path,
         f"""
 [roles.transformer]
+profile = {{ module = "ancalagon.profiles.deterministic", name = "Deterministic" }}
 behaviour = "Transform it."
 run = {{ module = "runkit.runners", name = "{name}" }}
 tools = []
@@ -366,6 +374,7 @@ def test_load_config_puts_the_file_s_own_directory_on_the_path_before_parsing_ro
 
 PROSE_ROLE = """
 [roles.scout]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = "Investigate."
 tools = ["read_file"]
 budget = { turns = 4, tool_calls = 8 }
@@ -406,11 +415,13 @@ summary_chars = 1000
 strategy = "fence"
 
 [roles.analyst]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = "You answer."
 tools = ["read_file"]
 budget = { turns = 3, tool_calls = 3 }
 
 [roles.transformer]
+profile = { module = "ancalagon.profiles.deterministic", name = "Deterministic" }
 behaviour = "You transform."
 run = { module = "runkit.runners", name = "good" }
 tools = []
@@ -433,6 +444,7 @@ role = "analyst"
     assert "[roles.transformer]" not in str(raised.value)
 
     filer = SerialisableRole(
+        profile=ANSWERING_AS_FILE,
         behaviour="You file.",
         tools=("submit_answer_as_file",),
         budget=written_budget(1, 1),
@@ -456,6 +468,7 @@ role = "analyst"
     )
 
     stray = SerialisableRole(
+        profile=ANSWERING,
         behaviour="You answer.",
         answer_file=content,
         tools=("submit_answer",),
@@ -545,6 +558,7 @@ def test_the_research_config_this_repo_ships_types_every_answer_file():
 
 UNLIMITED_ROLE = """
 [roles.scout]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = "Investigate."
 tools = ["read_file"]
 budget = { turns = "infinite", tool_calls = 30 }

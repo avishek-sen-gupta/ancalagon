@@ -14,6 +14,7 @@ from ancalagon.contracts.serialisable_role import SerialisableBudget, Serialisab
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.run import run
 from ancalagon.sandbox.strategy import Strategy
+from ancalagon.profiles.deterministic import DETERMINISTIC
 from tests.integration.prepared_run import prepared_run_dir
 
 KIT = """
@@ -58,6 +59,7 @@ def test_a_run_hands_back_the_root_outcome_as_a_typed_value(
         model="some-provider/no-model-is-called",
         roles={
             "root": SerialisableRole(
+                profile=DETERMINISTIC,
                 behaviour="Say it.",
                 run=FunctionRef(module="speechkit.speech", name="speaks"),
                 answer=ClassRef(module="speechkit.speech", name="Said"),

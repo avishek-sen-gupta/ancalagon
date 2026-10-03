@@ -40,11 +40,13 @@ summary_chars = 1000
 strategy = "none"
 
 [roles.engine]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = "You write the engine."
 tools = ["read_file", "submit_answer"]
 budget = { turns = 10, tool_calls = 20 }
 
 [roles.root]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = "You delegate."
 tools = ["delegate_engine", "submit_answer"]
 budget = { turns = 10, tool_calls = 20 }

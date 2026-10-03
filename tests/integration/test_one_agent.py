@@ -16,6 +16,7 @@ from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.web.real_web_client import RealWebClient
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.profiles.answering import ANSWERING
 from tests.unit.conftest import written_budget
 
 DELEGATED = Reply(
@@ -41,6 +42,7 @@ def test_a_host_runs_one_agent_with_no_bus_and_no_subprocess(tmp_path: pathlib.P
     task_dir = write_root / "tasks" / "solo"
     fs.mkdir(pathlib.PurePath(task_dir), parents=True, exist_ok=True)
     role = SerialisableRole(
+        profile=ANSWERING,
         behaviour="Answer the question you are given.",
         tools=("delegate_solo", "submit_answer"),
         budget=written_budget(2, 2),

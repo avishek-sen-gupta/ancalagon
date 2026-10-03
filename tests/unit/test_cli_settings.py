@@ -16,6 +16,7 @@ from ancalagon.run_dir import created_run_dir
 from ancalagon.sandbox.fence import Fence
 from ancalagon.sandbox.strategy import Strategy
 from ancalagon.sandbox.unsandboxed import Unsandboxed
+from ancalagon.profiles.answering import ANSWERING
 from tests.unit.conftest import written_budget
 
 
@@ -92,6 +93,7 @@ def test_the_root_spec_comes_from_its_role_and_its_two_files(
     (tmp_path / "goal.md").write_text("map it")
     (tmp_path / "input.json").write_text('{"area": "bus"}')
     role = SerialisableRole(
+        profile=ANSWERING,
         behaviour="Analyse.",
         input=ClassRef(module="querykit.shapes", name="Query"),
         tools=("read_file", "submit_answer"),

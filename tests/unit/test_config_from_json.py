@@ -40,6 +40,7 @@ socket = "/tmp/anc.sock"
 allowed_domains = ["*.example.com"]
 
 [roles.analyst]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = "Analyse."
 answer = { module = "shapekit.shapes", name = "Component" }
 tools = ["read_file", "delegate_scout", "submit_answer"]
@@ -49,6 +50,7 @@ budget = { turns = 12, tool_calls = 30 }
 submit_answer = [{ module = "shapekit.shapes", name = "always_fine" }]
 
 [roles.scout]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = "Investigate."
 tools = ["read_file", "submit_answer"]
 budget = { turns = "infinite", tool_calls = 8 }

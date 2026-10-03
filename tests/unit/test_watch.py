@@ -36,6 +36,8 @@ from ancalagon.tools.watch.watch_file import WatchFile
 from ancalagon.watch.watch_for import WATCH_FOR, watch_for
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.profiles.answering import ANSWERING
+from ancalagon.profiles.deterministic import DETERMINISTIC
 from tests.unit.conftest import written_budget
 
 
@@ -59,7 +61,7 @@ def _config(tmp_path: pathlib.Path, roles: dict[str, SerialisableRole]) -> Confi
     )
 
 
-ROLE = SerialisableRole(behaviour="Wait.", tools=(), budget=written_budget(0, 0))
+ROLE = SerialisableRole(profile=ANSWERING, behaviour="Wait.", tools=(), budget=written_budget(0, 0))
 
 
 class WritingClock(Clock):
@@ -201,6 +203,7 @@ def test_watch_file_is_offered_only_where_a_role_declares_the_watch_contract(
     migrate_file(tmp_path / "bus.db", latest_version(fs), fs)
     bus = LifecycleStore.open(tmp_path / "bus.db", SystemClock(), fs)
     watcher = SerialisableRole(
+        profile=DETERMINISTIC,
         behaviour="Wait.",
         input=ClassRef(module=WatchRequest.__module__, name="WatchRequest"),
         run=WATCH_FOR,
@@ -208,12 +211,14 @@ def test_watch_file_is_offered_only_where_a_role_declares_the_watch_contract(
         budget=written_budget(0, 0),
     )
     undeclared_run = SerialisableRole(
+        profile=ANSWERING,
         behaviour="Wait.",
         input=ClassRef(module=WatchRequest.__module__, name="WatchRequest"),
         tools=(),
         budget=written_budget(0, 0),
     )
     participant = SerialisableRole(
+        profile=ANSWERING,
         behaviour="Collaborate.",
         tools=("read_file", "watch_file", "submit_answer"),
         budget=written_budget(4, 8),

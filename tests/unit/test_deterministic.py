@@ -78,6 +78,7 @@ input_file = ""
 role = "transformer"
 
 [roles.transformer]
+profile = { module = "ancalagon.profiles.deterministic", name = "Deterministic" }
 behaviour = "Read the file you are given."
 run = { module = "runkit.runners", name = "%s" }
 tools = []

@@ -47,6 +47,7 @@ summary_chars = 400
 strategy = "none"
 
 [roles.root]
+profile = {{ module = "ancalagon.profiles.answering", name = "Answering" }}
 behaviour = "You investigate and answer the goal you are given."
 tools = ["need_input", "submit_answer"]
 

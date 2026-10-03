@@ -20,6 +20,7 @@ from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.tools.submit.submitting import submitting
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.profiles.answering_as_file import ANSWERING_AS_FILE
 from tests.unit.conftest import written_budget
 
 ANSWER_FILE = ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile")
@@ -47,6 +48,7 @@ def test_the_role_chooses_which_terminal_tool_it_submits_with(tmp_path: pathlib.
     assert submitting(("submit_answer", "submit_answer_as_file")) == SubmitAnswerAsFile.name
 
     role = SerialisableRole(
+        profile=ANSWERING_AS_FILE,
         behaviour="You answer.",
         answer=ANSWER_FILE,
         answer_file=ClassRef(module=__name__, name="Record"),

@@ -40,7 +40,7 @@ def test_the_schema_names_every_required_table_and_the_role_shape():
             "num_retries",
             "request_timeout_s",
         ],
-        "SerialisableRole": ["behaviour", "budget", "tools"],
+        "SerialisableRole": ["behaviour", "budget", "profile", "tools"],
         "RunFromConfig": ["goal_file", "input_file", "role"],
         "SandboxFromConfig": ["strategy"],
         "WebFromConfig": [],

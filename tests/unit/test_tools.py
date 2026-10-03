@@ -97,6 +97,7 @@ from ancalagon.tools.survey.stats_args import StatsArgs
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.profiles.answering import ANSWERING
 from tests.unit.conftest import settle, written_budget
 
 
@@ -331,8 +332,11 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         read_roots=(tmp_path,),
         model="claude-opus-5",
         roles={
-            "scout": SerialisableRole(behaviour="Look.", tools=(), budget=written_budget(4, 8)),
+            "scout": SerialisableRole(
+                profile=ANSWERING, behaviour="Look.", tools=(), budget=written_budget(4, 8)
+            ),
             "unreachable": SerialisableRole(
+                profile=ANSWERING,
                 behaviour="Never spawned.",
                 input=ClassRef(module="no_such_shapes", name="Query"),
                 tools=(),
@@ -354,6 +358,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     root_agent = bus.enqueue(tmp_path / "root-agent", parent_agent=HUMAN).id
     nested_agent = bus.enqueue(tmp_path / "nested-agent", parent_agent=HUMAN).id
     full_role = SerialisableRole(
+        profile=ANSWERING,
         behaviour="Coordinate.",
         tools=("delegate_scout", "need_input", "submit_answer"),
         budget=written_budget(1, 1),
@@ -393,6 +398,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
             TaskSpec(
                 task_id="root",
                 role=SerialisableRole(
+                    profile=ANSWERING,
                     behaviour="Shell.",
                     tools=("shell", "ast_query", "submit_answer"),
                     budget=written_budget(1, 1),
@@ -428,6 +434,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     ] == [ToolCategory.DELEGATE]
 
     narrow_role = SerialisableRole(
+        profile=ANSWERING,
         behaviour="Search.",
         tools=("read_file", "ripgrep", "diff_regions", "submit_answer"),
         budget=full_role.budget,
@@ -454,6 +461,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     }
 
     unknown_role = SerialisableRole(
+        profile=ANSWERING,
         behaviour="Search.",
         tools=("read_file", "rigrep", "grep", "delegate_ghost"),
         budget=full_role.budget,
@@ -504,7 +512,7 @@ def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pa
     )
     run_dir = tmp_path / "run"
     run_dir.mkdir()
-    role = SerialisableRole(behaviour="b", tools=(), budget=written_budget(3, 5))
+    role = SerialisableRole(profile=ANSWERING, behaviour="b", tools=(), budget=written_budget(3, 5))
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
     delegate = DelegateTo(bus, "analyst", role, run_dir, parent=1, fs=RealFileSystem())
@@ -721,7 +729,9 @@ def test_collect_task_returns_a_typed_answer_and_explains_every_other_ending(
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
-    role = SerialisableRole(behaviour="b", tools=(), budget=written_budget(20, 60))
+    role = SerialisableRole(
+        profile=ANSWERING, behaviour="b", tools=(), budget=written_budget(20, 60)
+    )
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
     delegate = DelegateTo(bus, "worker", role, run_dir, parent=1, fs=RealFileSystem())
     collect = CollectTask(bus, RealFileSystem())
@@ -866,7 +876,9 @@ def test_collect_task_named_by_a_stale_agent_id_records_collected_on_the_newest_
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
-    role = SerialisableRole(behaviour="b", tools=(), budget=written_budget(20, 60))
+    role = SerialisableRole(
+        profile=ANSWERING, behaviour="b", tools=(), budget=written_budget(20, 60)
+    )
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
     delegate = DelegateTo(bus, "worker", role, run_dir, parent=1, fs=RealFileSystem())
     collect = CollectTask(bus, RealFileSystem())
@@ -909,13 +921,14 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     importable(tmp_path)
     roles = {
         "analyst": SerialisableRole(
+            profile=ANSWERING,
             behaviour="Analyse.",
             input=ClassRef(module="querykit.shapes", name="Query"),
             tools=("read_file",),
             budget=written_budget(12, 30),
         ),
         "scout": SerialisableRole(
-            behaviour="Look.", tools=("read_file",), budget=written_budget(4, 8)
+            profile=ANSWERING, behaviour="Look.", tools=("read_file",), budget=written_budget(4, 8)
         ),
     }
     run_dir = tmp_path / "run"
@@ -923,7 +936,9 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(run_dir / "bus.db", FakeClock(), RealFileSystem())
 
-    caller = SerialisableRole(behaviour="Coordinate.", tools=(), budget=written_budget(1, 1))
+    caller = SerialisableRole(
+        profile=ANSWERING, behaviour="Coordinate.", tools=(), budget=written_budget(1, 1)
+    )
     tools = delegate_tools(
         roles, role_of(caller), run_dir=run_dir, parent=1, fs=RealFileSystem(), bus=bus
     )
@@ -1238,6 +1253,7 @@ def test_a_delegate_tool_without_a_bus_keeps_its_schema_and_writes_nothing(
 ):
     ctx = _ctx(tmp_path)
     role = SerialisableRole(
+        profile=ANSWERING,
         behaviour="Investigate.",
         tools=("submit_answer",),
         budget=written_budget(3, 5),

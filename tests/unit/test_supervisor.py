@@ -33,6 +33,7 @@ from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.idle.idle_args import IdleArgs
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.profiles.answering import ANSWERING
 from tests.unit.conftest import written_budget
 
 
@@ -382,7 +383,9 @@ def test_a_startup_kill_leaves_a_close_that_collect_task_can_report(tmp_path: pa
     clock = FakeClock()
     bus = LifecycleStore.open(run_dir / "bus.db", clock, RealFileSystem())
     ctx = _ctx(tmp_path)
-    role = SerialisableRole(behaviour="b", tools=(), budget=written_budget(20, 60))
+    role = SerialisableRole(
+        profile=ANSWERING, behaviour="b", tools=(), budget=written_budget(20, 60)
+    )
     delegate = DelegateTo(bus, "worker", role, run_dir, parent=HUMAN, fs=RealFileSystem())
     args = delegate.args_model(task_id="wedged", goal="g", input=FreeText(text="go"))
     assert delegate.run(args, ctx).ok is True

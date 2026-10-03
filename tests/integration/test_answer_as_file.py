@@ -44,6 +44,7 @@ summary_chars = 400
 strategy = "none"
 
 [roles.root]
+profile = {{ module = "ancalagon.profiles.answering_as_file", name = "AnsweringAsFile" }}
 behaviour = "You build the answer in a file."
 answer = {{ module = "ancalagon.contracts.answer_file", name = "AnswerFile" }}
 answer_file = {{ module = "filedkit.record", name = "Record" }}

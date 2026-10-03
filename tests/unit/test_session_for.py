@@ -17,15 +17,20 @@ from ancalagon.transcript.transcript import Transcript
 from ancalagon.watch.watch_for import WATCH_FOR
 from ancalagon.web.real_web_client import RealWebClient
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.profiles.answering import ANSWERING
+from ancalagon.profiles.deterministic import DETERMINISTIC
 from tests.unit.conftest import written_budget
 
 SOLO = SerialisableRole(
+    profile=ANSWERING,
     behaviour="Work alone.",
     tools=("delegate_solo", "watch_file", "idle", "submit_answer"),
     budget=written_budget(4, 8),
 )
 
-WATCHER = SerialisableRole(behaviour="Watch.", run=WATCH_FOR, tools=(), budget=written_budget(0, 0))
+WATCHER = SerialisableRole(
+    profile=DETERMINISTIC, behaviour="Watch.", run=WATCH_FOR, tools=(), budget=written_budget(0, 0)
+)
 
 
 def solo_agent(

@@ -207,6 +207,7 @@ input_file = ""
 role = "solo"
 
 [roles.solo]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = "Answer it."
 tools = ["submit_answer"]
 

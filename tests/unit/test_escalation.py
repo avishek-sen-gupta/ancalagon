@@ -38,6 +38,7 @@ from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.transcript.history import load, repair
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.profiles.answering import ANSWERING
 from tests.unit.conftest import written_budget
 
 
@@ -45,7 +46,9 @@ def _call(id: str, name: str, **arguments: str | int) -> ToolUseFromModel:
     return ToolUseFromModel(id=id, name=name, arguments=json.dumps(arguments))
 
 
-INVESTIGATE = SerialisableRole(behaviour="You investigate.", tools=(), budget=written_budget(5, 5))
+INVESTIGATE = SerialisableRole(
+    profile=ANSWERING, behaviour="You investigate.", tools=(), budget=written_budget(5, 5)
+)
 
 
 def _run(
@@ -132,6 +135,10 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
                 "task_id": "root",
                 "role": {
                     "behaviour": "You coordinate.",
+                    "profile": {
+                        "module": "ancalagon.profiles.answering",
+                        "name": "Answering",
+                    },
                     "answer": {"module": "free_text.py", "name": "FreeText"},
                     "tools": [
                         "delegate_investigate",

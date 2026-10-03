@@ -4,6 +4,7 @@ import typing
 import pydantic
 
 from ancalagon.contracts.any_tool import AnyTool
+from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.delivery import Delivery
 from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.no_watermark import NO_WATERMARK
@@ -20,6 +21,8 @@ from ancalagon.tools.idle.no_idle import NoIdle
 from ancalagon.tools.registry.bound_tool import BoundTool
 from ancalagon.tools.registry.no_tool import NoTool
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
+
+ANSWERING = ClassRef(module="ancalagon.profiles.answering", name="Answering")
 
 TURNS_GONE = "turns exhausted while children ran"
 

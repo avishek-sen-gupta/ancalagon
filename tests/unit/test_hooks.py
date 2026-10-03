@@ -31,6 +31,7 @@ from ancalagon.tools.search.transform_args import TransformArgs
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.profiles.deterministic import DETERMINISTIC
 from tests.unit.conftest import written_budget
 
 MODULE = """
@@ -164,6 +165,7 @@ summary_chars = 100
 strategy = "none"
 
 [roles.root]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = "Look."
 tools = ["ripgrep", "submit_answer"]
 budget = { turns = 2, tool_calls = 4 }
@@ -300,6 +302,7 @@ def test_check_contracts_refuses_a_role_whose_answer_disagrees_with_its_run_func
     importable(tmp_path)
 
     role = SerialisableRole(
+        profile=DETERMINISTIC,
         behaviour="Run it.",
         run=FunctionRef(module="runkit.runners", name="echo"),
         input=ClassRef(module="runkit.runners", name="Given"),

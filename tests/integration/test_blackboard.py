@@ -21,6 +21,7 @@ from ancalagon.supervisor.spawn_by_run import SpawnByRun
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
 from ancalagon.watch.watch_for import WATCH_FOR
+from ancalagon.profiles.deterministic import DETERMINISTIC
 from tests.integration.prepared_run import prepared_run_dir
 
 WATCHING = ClassRef(module=WatchRequest.__module__, name="WatchRequest")
@@ -40,6 +41,7 @@ def test_a_watcher_process_wakes_the_supervisor_the_way_any_child_does(
     spec = AgentSpec[WatchRequest](
         task_id="watcher",
         role=SerialisableRole(
+            profile=DETERMINISTIC,
             behaviour="Wait for the blackboard.",
             run=WATCH_FOR,
             input=WATCHING,
@@ -80,6 +82,7 @@ summary_chars = 1000
 strategy = "fence"
 
 [roles.blackboard_watcher]
+profile = { module = "ancalagon.profiles.deterministic", name = "Deterministic" }
 behaviour = "Wait for the blackboard."
 run = { module = "ancalagon.watch.watch_for", name = "watch_for" }
 tools = []

@@ -54,6 +54,8 @@ from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.profiles.answering import ANSWERING
+from ancalagon.profiles.answering_as_file import ANSWERING_AS_FILE
 from tests.unit.conftest import written_budget
 
 
@@ -99,6 +101,7 @@ def _session(
     spec = TaskSpec(
         task_id="t1",
         role=SerialisableRole(
+            profile=ANSWERING,
             behaviour="You answer questions.",
             answer=ClassRef(module="verdict.py", name="Verdict"),
             tools=(),
@@ -319,6 +322,7 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
     spec = TaskSpec(
         task_id="t1",
         role=SerialisableRole(
+            profile=ANSWERING,
             behaviour="You answer questions.",
             answer=ClassRef(module="verdict.py", name="Verdict"),
             tools=(),
@@ -378,6 +382,7 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
     spec = TaskSpec(
         task_id="t1",
         role=SerialisableRole(
+            profile=ANSWERING,
             behaviour="You answer questions.",
             answer=ClassRef(module="verdict.py", name="Verdict"),
             tools=(),
@@ -669,7 +674,10 @@ def test_the_static_system_half_is_shared_across_items_and_the_per_item_half_is_
 
 def test_a_session_takes_its_behaviour_and_budget_from_its_role(tmp_path: pathlib.Path):
     role = SerialisableRole(
-        behaviour="You investigate.", tools=("read_file",), budget=written_budget(2, 4)
+        profile=ANSWERING,
+        behaviour="You investigate.",
+        tools=("read_file",),
+        budget=written_budget(2, 4),
     )
     spec = TaskSpec(task_id="t", role=role, goal="find it")
     write_root = tmp_path / "ws"
@@ -759,6 +767,7 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
     spec = TaskSpec(
         task_id="t1",
         role=SerialisableRole(
+            profile=ANSWERING,
             behaviour="You answer questions.",
             answer=ClassRef(module="verdict.py", name="Verdict"),
             tools=(),
@@ -878,6 +887,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
     spec = TaskSpec(
         task_id="t1",
         role=SerialisableRole(
+            profile=ANSWERING_AS_FILE,
             behaviour="You answer questions.",
             answer=ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile"),
             tools=("submit_answer_as_file",),
@@ -929,6 +939,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
         agent_id=18,
     )
     role_both = SerialisableRole(
+        profile=ANSWERING_AS_FILE,
         behaviour="You answer questions.",
         answer=ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile"),
         answer_file=ClassRef(module=__name__, name="Values"),
@@ -1018,6 +1029,7 @@ def _collectable_child(bus: LifecycleStore, run_dir: pathlib.Path, parent: int, 
         TaskSpec(
             task_id="c1",
             role=SerialisableRole(
+                profile=ANSWERING,
                 behaviour="Investigate.",
                 answer=ClassRef(module="ancalagon.contracts.free_text", name="FreeText"),
                 tools=("submit_answer",),
@@ -1068,6 +1080,7 @@ def _exhausted_parent(
         spec=TaskSpec(
             task_id="root",
             role=SerialisableRole(
+                profile=ANSWERING,
                 behaviour="You coordinate.",
                 answer=ClassRef(module="verdict.py", name="Verdict"),
                 tools=(),

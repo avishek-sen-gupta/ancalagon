@@ -25,6 +25,7 @@ from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
+from ancalagon.profiles.answering import ANSWERING
 from tests.unit.conftest import finite_budget, written_budget
 
 
@@ -43,6 +44,7 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
     assert finite_budget(0, 5).turns_exhausted is True
 
     role = SerialisableRole(
+        profile=ANSWERING,
         behaviour="You summarise.",
         input=ClassRef(module="node_summary", name="NodeSummary"),
         answer=ClassRef(module="node_summary", name="NodeSummary"),
@@ -122,12 +124,16 @@ def test_a_role_defaults_to_prose_and_resolves_the_contracts_it_names(
     importable(tmp_path)
 
     prose = SerialisableRole(
-        behaviour="Investigate.", tools=("read_file",), budget=written_budget(4, 8)
+        profile=ANSWERING,
+        behaviour="Investigate.",
+        tools=("read_file",),
+        budget=written_budget(4, 8),
     )
     assert resolve_class(prose.input) is FreeText
     assert resolve_class(prose.answer) is FreeText
 
     named = SerialisableRole(
+        profile=ANSWERING,
         behaviour="Analyse.",
         answer=ClassRef(module="shapekit.shapes", name="Component"),
         tools=("read_file",),

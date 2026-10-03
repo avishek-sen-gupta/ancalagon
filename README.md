@@ -123,6 +123,8 @@ knows or cares which format produced the document.
 doc = json.dumps({"base": str(anchor), "workspace": {...}, "model": {...},
                   "limits": {...}, "run": {...}, "sandbox": {...},
                   "roles": {"root": {"behaviour": "Answer the question you are given.",
+                                      "profile": {"module": "ancalagon.profiles.answering",
+                                                  "name": "Answering"},
                                       "tools": ["read_file", "submit_answer"],
                                       "budget": {"turns": 4, "tool_calls": 8}}}})
 run_dir = subprocess.run(["ancalagon", "init", "--config-json"], input=doc,
@@ -240,16 +242,18 @@ flowchart TB
 
 ## Roles
 
-Everything an agent *is* — behaviour, input shape, answer shape, tools, budget — is a role in
-the config. Nothing about an agent is authored at runtime.
+Everything an agent *is* — behaviour, profile, input shape, answer shape, tools, budget — is a
+role in the config. Nothing about an agent is authored at runtime.
 
 ```toml
 [roles.root]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = "You investigate a codebase or a set of artifacts to answer the goal you are given."
 tools = ["read_file", "ripgrep", "ast_grep", "list_dir", "delegate_component_analyst", "collect_task"]
 budget = { turns = 20, tool_calls = 60 }
 
 [roles.component_analyst]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = "Read before concluding. Cite the files you read."
 input  = { module = "shapekit.shapes", name = "ComponentQuery" }
 answer = { module = "shapekit.shapes", name = "Component" }
@@ -290,6 +294,10 @@ flowchart LR
 
 Rules that follow from that wiring:
 
+- `profile` is required and has no default. It names the class deciding what that kind of
+  agent may do: `Answering` for one that submits an answer, `AnsweringAsFile` for one that
+  points at a file it wrote, `Deterministic` for one that is a Python function. Deriving it
+  from `tools` would restore the coupling naming it removes.
 - Omitting `input` or `answer` means `FreeText` — that is how a role opts into prose.
 - A role a worker may spawn gets a `delegate_<role>` tool built from *that role's* input
   contract, so a parent sees the child's real schema. A worker builds them only for the roles

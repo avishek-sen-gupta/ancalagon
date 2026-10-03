@@ -41,6 +41,10 @@ def _document(base: pathlib.Path) -> str:
             "roles": {
                 "root": {
                     "behaviour": BEHAVIOUR,
+                    "profile": {
+                        "module": "ancalagon.profiles.answering",
+                        "name": "Answering",
+                    },
                     "tools": ["read_file", "submit_answer"],
                     "budget": {"turns": 2, "tool_calls": 4},
                 }

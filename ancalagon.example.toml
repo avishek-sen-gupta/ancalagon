@@ -105,6 +105,7 @@ allowed_domains = []
 #   input     need_input
 
 [roles.root]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = """
 You coordinate an investigation of a codebase. Delegate each self-contained question
 to a subagent rather than answering it yourself, then combine what they return.
@@ -127,6 +128,7 @@ budget = { turns = 25, tool_calls = 70 }
 submit_answer = [{ module = "checkkit.checks", name = "covers_every_subsystem" }]
 
 [roles.investigator]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = """
 You investigate one subsystem of a codebase and report what you find. Read the code
 before concluding, prefer evidence from the files over recall, and cite every file

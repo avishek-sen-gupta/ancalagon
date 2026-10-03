@@ -25,6 +25,7 @@ strategy = "fence"
 
 # The root only starts the others and reads what they left. It does not analyse anything.
 [roles.root]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = """
 You are convening three analysts around a shared file, the blackboard. Delegate one
 analyst per subsystem below, giving each its subsystem and the blackboard's path in the
@@ -44,6 +45,7 @@ budget = { turns = 200, tool_calls = 400 }
 
 # Each analyst reads what the others have posted, adds its own, and waits for more.
 [roles.analyst]
+profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = """
 You study one subsystem of a codebase alongside two other analysts, and you talk to them
 only through a shared append-only file called the blackboard.
@@ -80,6 +82,7 @@ budget = { turns = 200, tool_calls = 400 }
 # Declaring this role is what makes watch_file available and what tells the supervisor to
 # run a process rather than a session. It has no behaviour, because no model reads it.
 [roles.blackboard_watcher]
+profile = { module = "ancalagon.profiles.deterministic", name = "Deterministic" }
 behaviour = "Wait for the blackboard to change."
 run = { module = "ancalagon.watch.watch_for", name = "watch_for" }
 tools = []

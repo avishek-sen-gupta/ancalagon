@@ -454,7 +454,11 @@ Invoked as `python -m ancalagon.worker --run-dir … --dir … --agent-id … --
 
 1. Reads `spec.json` as `TaskSpec` — `task_id`, `role: SerialisableRole` and `goal`, the scalars and the
    whole role, since the `input`'s class is named by the role itself and so cannot be known
-   before reading it.
+   before reading it. A role also names its **profile** — `ancalagon/profiles/` — a `ClassRef`
+   to the class deciding what that kind of agent may do. `Answering` submits an answer,
+   `AnsweringAsFile` points at a file it wrote, `Deterministic` is a Python function and decides
+   nothing. The field is required and has no default: deriving it from `tools` would restore the
+   coupling that naming it removes.
 2. `contracts/resolve.py` takes the role's `answer` and `input` — each a `ClassRef`, a module
    *path* and a class name — imports that module from the path the config named when the role
    was declared, and returns each class. Nothing is copied and nothing is defended against: the

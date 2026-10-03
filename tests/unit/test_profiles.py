@@ -33,9 +33,8 @@ from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.profiles.answering import ANSWERING
 from tests.unit.conftest import written_budget
-
-ANSWERING = ClassRef(module="ancalagon.profiles.answering", name="Answering")
 
 WORKING = (
     bind_tool(Ripgrep()),
@@ -68,6 +67,7 @@ def _turn(
         spec=TaskSpec(
             task_id="t1",
             role=SerialisableRole(
+                profile=ANSWERING,
                 behaviour="Look.",
                 answer=ClassRef(module="ancalagon.contracts.free_text", name="FreeText"),
                 tools=("ripgrep",),

@@ -85,6 +85,7 @@ summary_chars = 1000
 strategy = "none"
 
 [roles.{role_name}]
+profile = {{ module = "ancalagon.profiles.answering", name = "Answering" }}
 behaviour = "{ROOT_BEHAVIOUR}"
 {input_line}tools = ["read_file", "submit_answer"]
 

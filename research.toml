@@ -29,6 +29,7 @@ strategy = "fence"
 allowed_domains = ["*"]
 
 [roles.root]
+profile = { module = "ancalagon.profiles.answering_as_file", name = "AnsweringAsFile" }
 behaviour = """
 You coordinate a three-part survey. The goal names three areas; delegate exactly one
 researcher per area and do no research yourself.
@@ -64,6 +65,7 @@ tools = [
 budget = { turns = 60, tool_calls = 120 }
 
 [roles.researcher]
+profile = { module = "ancalagon.profiles.answering_as_file", name = "AnsweringAsFile" }
 behaviour = """
 You research one area of a survey and write what you find to a JSON file.
 

@@ -20,6 +20,7 @@ from ancalagon.schedule.newest_agent import newest_agent
 from ancalagon.supervisor.spawn_by_run import SpawnByRun
 from ancalagon.supervisor.subprocess_spawner import SubprocessSpawner
 from ancalagon.supervisor.supervisor import Supervisor
+from ancalagon.profiles.deterministic import DETERMINISTIC
 from tests.integration.prepared_run import prepared_run_dir
 
 ROUNDS = 5
@@ -39,6 +40,7 @@ from ancalagon.contracts.nothing import NOTHING
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.serialisable_role import SerialisableBudget, SerialisableRole
 from ancalagon.deterministic.run_context import RunContext
+from ancalagon.profiles.deterministic import DETERMINISTIC
 from ancalagon.schedule.newest_agent import newest_agent
 
 MODULE = "loopkit.rounds"
@@ -67,6 +69,7 @@ def _spawn(n: int, ctx: RunContext) -> int:
     spec = AgentSpec[Tick](
         task_id=child_dir.name,
         role=SerialisableRole(
+            profile=DETERMINISTIC,
             behaviour="Tick once.",
             run=FunctionRef(module=MODULE, name="child"),
             input=ClassRef(module=MODULE, name="Tick"),
@@ -138,6 +141,7 @@ summary_chars = 1000
 strategy = "fence"
 
 [roles.looper]
+profile = { module = "ancalagon.profiles.deterministic", name = "Deterministic" }
 behaviour = "Spawn a child, wait for it, repeat."
 run = { module = "loopkit.rounds", name = "parent" }
 tools = []
@@ -173,6 +177,7 @@ def test_a_deterministic_parent_is_woken_once_per_child_it_spawns(
     spec = AgentSpec[rounds_class](
         task_id="looper",
         role=SerialisableRole(
+            profile=DETERMINISTIC,
             behaviour="Spawn a child, wait for it, repeat.",
             run=FunctionRef(module="loopkit.rounds", name="parent"),
             input=ClassRef(module="loopkit.rounds", name="Rounds"),

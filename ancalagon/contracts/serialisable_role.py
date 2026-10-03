@@ -17,6 +17,7 @@ class SerialisableBudget(pydantic.BaseModel, frozen=True):
 
 class SerialisableRole(pydantic.BaseModel, frozen=True):
     behaviour: str
+    profile: ClassRef
     input: ClassRef = FREE_TEXT
     answer: ClassRef = FREE_TEXT
     answer_file: ClassRef = NO_ANSWER_FILE

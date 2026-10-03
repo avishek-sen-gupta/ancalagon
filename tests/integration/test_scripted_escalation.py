@@ -63,6 +63,7 @@ summary_chars = 400
 strategy = "none"
 
 [roles.root]
+profile = {{ module = "ancalagon.profiles.answering", name = "Answering" }}
 behaviour = "You investigate, delegating a focused subtask to escalate a question."
 tools = ["delegate_investigate", "need_input", "answer_task", "submit_answer"]
 
@@ -71,6 +72,7 @@ turns = 6
 tool_calls = 20
 
 [roles.investigate]
+profile = {{ module = "ancalagon.profiles.answering", name = "Answering" }}
 behaviour = "You investigate."
 tools = ["need_input", "submit_answer"]
 

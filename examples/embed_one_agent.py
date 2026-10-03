@@ -12,6 +12,7 @@ from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient
+from ancalagon.profiles.answering import ANSWERING
 from ancalagon.session_for import session_for
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.transcript.transcript import Transcript
@@ -21,6 +22,7 @@ from ancalagon.workspace.workspace import Workspace
 MODEL = "bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
 ANALYST = SerialisableRole(
+    profile=ANSWERING,
     behaviour=(
         "You are given a directory of short notes. Read them, work out which one contradicts "
         "the others, and submit an answer naming that file and the contradiction in one or two "
