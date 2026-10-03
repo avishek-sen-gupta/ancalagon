@@ -15,7 +15,7 @@ from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.session_for import build_registry
 from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
-from ancalagon.tools.submit.submitting import TERMINAL_TOOLS, submitting
+from ancalagon.tools.submit.submitting import TERMINAL_TOOLS
 from ancalagon.web.real_web_client import RealWebClient
 from ancalagon.web.web_client import WebClient
 
@@ -57,11 +57,19 @@ ANSWER_FILE = ClassRef(module=AnswerFile.__module__, name=AnswerFile.__name__)
 
 
 def _submit_fault(name: str, role: Role) -> str:
-    if role.run != NO_RUN or set(role.tools) & TERMINAL_TOOLS:
+    if role.run != NO_RUN:
         return ""
+    terminal = set(role.tools) & TERMINAL_TOOLS
+    if len(terminal) == 1:
+        return ""
+    if not terminal:
+        return (
+            f"[roles.{name}] tools: a role that runs a session must name one of "
+            f"{sorted(TERMINAL_TOOLS)}; named: {sorted(role.tools)}"
+        )
     return (
-        f"[roles.{name}] tools: a role that runs a session must name one of "
-        f"{sorted(TERMINAL_TOOLS)}; named: {sorted(role.tools)}"
+        f"[roles.{name}] tools: a role that runs a session must name only one of "
+        f"{sorted(TERMINAL_TOOLS)}; named: {sorted(terminal)}"
     )
 
 
@@ -93,16 +101,7 @@ def _content_fault(name: str, role: Role) -> str:
 
 def _hook_fault(name: str, role: Role, config: Config, fs: FileSystem, web: WebClient) -> str:
     named = set(role.before) | set(role.after)
-    withheld = TERMINAL_TOOLS - {submitting(role.tools)}
-    in_role_but_withheld = named & set(role.tools) & withheld
     not_in_role = named - set(role.tools) - {Idle.name}
-    if in_role_but_withheld:
-        tool = sorted(in_role_but_withheld)[0]
-        chosen = submitting(role.tools)
-        return (
-            f"[roles.{name}] names a hook for {tool}, but that tool is not among its tools "
-            f"because it named {chosen}"
-        )
     if not_in_role:
         return f"[roles.{name}] names a hook for {sorted(not_in_role)[0]}, which it does not use"
     try:

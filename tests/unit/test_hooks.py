@@ -239,6 +239,16 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
     with pytest.raises(ValueError, match="names a hook for submit_answer, which it does not use"):
         check_contracts(config.model_copy(update={"roles": {"root": other_submit}}))
 
+    no_submit = role.model_copy(update={"tools": ("ripgrep",), "before": {}, "after": {}})
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"must name one of \['submit_answer', 'submit_answer_as_file'\]; "
+            r"named: \['ripgrep'\]"
+        ),
+    ):
+        check_contracts(config.model_copy(update={"roles": {"root": no_submit}}))
+
     both_submits = role.model_copy(
         update={
             "tools": ("ripgrep", "submit_answer", "submit_answer_as_file"),
@@ -249,7 +259,10 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
     )
     with pytest.raises(
         ValueError,
-        match="names a hook for submit_answer, but that tool is not among its tools because it named submit_answer_as_file",
+        match=(
+            r"must name only one of \['submit_answer', 'submit_answer_as_file'\]; "
+            r"named: \['submit_answer', 'submit_answer_as_file'\]"
+        ),
     ):
         check_contracts(config.model_copy(update={"roles": {"root": both_submits}}))
 
