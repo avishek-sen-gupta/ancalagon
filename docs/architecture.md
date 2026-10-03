@@ -595,6 +595,17 @@ flags set, `final` and `force_tool`. Seven things worth knowing:
   came back: a profile decides what to send, the session decides what a reply meant. `Answering`
   is the profile that submits an answer, `AnsweringAsFile` the one that points at a file, and the
   base class's defaults never halt, never force and offer everything the role declared.
+- **`Standing` is an agent that never answers**, and it is the base class's defaults almost
+  exactly: it overrides only what it supplies — `idle` — what it refuses in a role, and the
+  paragraph telling the model it does not finish. Which says something the old shape hid:
+  answering is the specialised behaviour and persisting is the base case. Such an agent works,
+  writes to the files it owns, and calls `idle`; the attempt ends `Idling` with its transcript
+  on disk, and the next agent against that task dir resumes the same conversation. `idle` no
+  longer refuses when no child is live, because whether it is offered is the profile's answer
+  now, and `Idled` says *idling until something arrives* when it is waiting for nothing in
+  particular. Nothing in the harness wakes it: `has_news` only wakes a parent whose child
+  settled, so an external loop decides when to start it again, by whatever fitness function
+  it has.
 - **The exhausted-turns idle records `NO_WATERMARK`, not a measured one.** It never called
   `idle`, so it has no snapshot to take a watermark from, and `-1` says that rather than
   claiming it had seen nothing. The cost is that such a parent also wakes for a child that had

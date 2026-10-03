@@ -59,6 +59,7 @@ from ancalagon.workspace.workspace import Workspace
 from ancalagon.profiles.answering import ANSWERING, Answering
 from ancalagon.profiles.catalogue import Catalogue
 from ancalagon.profiles.profile import Profile
+from ancalagon.profiles.standing import MECHANICS, STANDING, Standing
 from ancalagon.profiles.answering_as_file import ANSWERING_AS_FILE, AnsweringAsFile
 from tests.unit.conftest import written_budget
 
@@ -1250,3 +1251,66 @@ def test_a_forced_collect_that_never_lands_gives_up_and_answers_anyway(tmp_path:
     assert isinstance(bare_outcome, Exhausted)
     assert bare_outcome.value.model_dump() == {"answer": "no collect"}
     assert BusChildren(bare_bus, bare_parent).uncollected() == (bare_child,)
+
+
+def test_a_standing_session_runs_out_of_turns_without_being_told_to_answer(
+    tmp_path: pathlib.Path,
+):
+    run_dir = tmp_path / "run"
+    (run_dir / "tasks").mkdir(parents=True)
+    migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
+    bus = LifecycleStore.open(run_dir / "bus.db", FakeClock(), RealFileSystem())
+    parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN).id
+
+    write_root = tmp_path / "ws"
+    write_root.mkdir(parents=True, exist_ok=True)
+    ctx = ToolContext(
+        workspace=Workspace(RealFileSystem(), write_roots=(write_root,), read_roots=(write_root,)),
+        task_dir=write_root / "outputs",
+        summary_chars=200,
+        agent_id=parent,
+    )
+    tools = [bind_tool(ReadFile(FakeClock())), bind_tool(Idle(bus, agent=parent))]
+    llm = FakeLLM(
+        [
+            Reply(
+                blocks=[ToolUseFromModel(id="i1", name="idle", arguments="{}")],
+                stop_reason="tool_calls",
+            )
+        ]
+    )
+    session = Session(
+        spec=TaskSpec(
+            task_id="t1",
+            role=SerialisableRole(
+                profile=STANDING,
+                behaviour="You stand by.",
+                tools=("read_file",),
+                budget=written_budget(0, 4),
+            ),
+            goal="Keep a note.",
+        ),
+        input=FreeText(text="go"),
+        messages=[],
+        transcript=Transcript(
+            RealFileSystem(), path=tmp_path / "transcript.jsonl", agent_id=parent
+        ),
+        agent_id=parent,
+        llm=llm,
+        registry=Registry(tools),
+        profile=Standing(Catalogue(tools)),
+        ctx=ctx,
+        output_class=FreeText,
+        clock=FakeClock(),
+        children=BusChildren(bus, parent),
+    )
+
+    outcome = session.run()
+
+    assert isinstance(outcome, Idling)
+    # The turn budget was already spent, and nothing told it to answer: it never was going to.
+    said = [b.text for m in llm.seen[-1] for b in m.blocks if isinstance(b, Text)]
+    assert said == ['Keep a note.\n\nInput: {"text":"go"}']
+    assert llm.forced == [""]
+    assert sorted(s.name for s in llm.offered[0]) == ["idle", "read_file"]
+    assert llm.systems[0].static == f"You stand by.\n\n{MECHANICS}"

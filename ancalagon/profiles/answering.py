@@ -43,14 +43,14 @@ class Answering(Profile):
     terminal_tool: typing.ClassVar[type[AnyTool]] = SubmitAnswer
 
     def __init__(self, catalogue: Catalogue) -> None:
+        super().__init__(catalogue)
         self.terminal = catalogue.spec_for(self.terminal_tool)
         self.collect = catalogue.spec_for(CollectTask)
         self.idle = catalogue.spec_for(Idle, NoIdle)
-        self.tools = (self.terminal, self.idle)
 
     @classmethod
-    def brings(cls) -> frozenset[str]:
-        return frozenset({Idle.name, SubmitAnswer.name})
+    def supplies(cls) -> tuple[tuple[type[AnyTool], ...], ...]:
+        return ((cls.terminal_tool,), (Idle, NoIdle))
 
     @classmethod
     def faults(cls, name: str, role: SerialisableRole, /) -> str:

@@ -26,6 +26,7 @@ from ancalagon.profiles.catalogue import Catalogue
 from ancalagon.profiles.deterministic import DETERMINISTIC, Deterministic
 from ancalagon.profiles.profile import Profile
 from ancalagon.profiles.resolve_profile import resolve_profile
+from ancalagon.profiles.standing import MECHANICS, STANDING, Standing
 from ancalagon.profiles.turn import Turn
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.idle.idle import Idle
@@ -275,4 +276,41 @@ def test_each_profile_refuses_a_role_that_does_not_fit_the_kind_of_agent_it_is()
         "[roles.watcher] declares answer as FreeText in ancalagon.contracts.free_text, but its "
         "run function watch_for in ancalagon.watch.watch_for states answer as Watched in "
         "ancalagon.contracts.watched"
+    )
+
+
+def test_a_standing_profile_never_answers_and_withholds_nothing(tmp_path: pathlib.Path):
+    profile = Standing(CATALOGUE)
+
+    assert _brought(profile) == sorted(Standing.brings()) == ["idle"]
+
+    waiting = _turn(tmp_path, outstanding=(4,))
+    assert profile.halts(waiting) is PENDING
+    assert profile.forces(waiting) is NO_TOOL
+    assert profile.offers(waiting) == OFFERED
+    assert profile.instructs(waiting) == ""
+    assert profile.nudges(waiting) == ""
+    assert profile.mechanics(waiting) == MECHANICS
+
+    # A standing agent is not released from the loop by running out of turns with children live.
+    final = _turn(tmp_path, turns=0, outstanding=(4,))
+    assert profile.halts(final) is PENDING
+    assert profile.offers(final) == OFFERED
+
+    assert Standing.faults("watcher", _role(profile=STANDING)) == ""
+    assert Standing.faults("watcher", _role(profile=STANDING, run=RUN)) == (
+        "[roles.watcher] is Standing but names run watch_for in ancalagon.watch.watch_for; "
+        "a role that runs a function holds no session to answer in"
+    )
+    answering = _role(
+        profile=STANDING,
+        answer=ClassRef(module="ancalagon.contracts.watched", name="Watched"),
+    )
+    assert Standing.faults("watcher", answering) == (
+        "[roles.watcher] declares answer as Watched in ancalagon.contracts.watched, but "
+        "Standing never answers, so nothing would submit it"
+    )
+    assert Standing.faults("watcher", _role(profile=STANDING, answer_file=FREE_TEXT_REF)) == (
+        "[roles.watcher] declares answer_file as FreeText in ancalagon.contracts.free_text, "
+        "but Standing never answers, so nothing would check it"
     )

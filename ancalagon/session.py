@@ -241,9 +241,12 @@ class Session:
         return [tool.spec.declaration for tool in self.profile.offers(turn)]
 
     def _prepare_final_turn(self, turn: Turn) -> None:
+        said = self.profile.instructs(turn)
+        if not said:
+            return
         if self.messages and self.messages[-1].role is MessageRole.USER:
             self._record(MessageRole.ASSISTANT, [Text(text="Understood.")])
-        self._record(MessageRole.USER, [Text(text=self.profile.instructs(turn))])
+        self._record(MessageRole.USER, [Text(text=said)])
 
     def _outcome_of_use(
         self, summary: Payload, final: bool

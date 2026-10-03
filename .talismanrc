@@ -173,4 +173,6 @@ fileignoreconfig:
   checksum: c9e1c88de398e9ce3e62e258359a9fe51ec2025fd94624e22b99b4081b174864
 - filename: docs/superpowers/specs/2026-10-03-a-profile-decides-what-an-agent-may-do-design.md
   checksum: ea36d96e1e4b558a52b517c856c79e3085f420801bf72a34910b6d48e1a95ec0
+- filename: tests/integration/test_standing_agent.py
+  checksum: d33d55ee0a7bdbd7703a7b98c1b410b91efd0d632c18b7d0c4f2d33b289f43b0
 version: "1.0"

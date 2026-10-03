@@ -80,9 +80,11 @@ allowed_domains = []
 #
 # profile names the class that decides what this kind of agent may do, and it has no default.
 # Answering submits its answer through submit_answer. AnsweringAsFile writes a file and submits
-# the path through submit_answer_as_file. Deterministic is a Python function rather than a
-# conversation, and must name run. The profile brings its own terminal tool and idle, so tools
-# lists neither. Declaring a hook on a tool does not enable it.
+# the path through submit_answer_as_file. Standing never answers at all: it works, and calls
+# idle when there is nothing left to do, to be started again with the same conversation.
+# Deterministic is a Python function rather than a conversation, and must name run. A profile
+# brings its own terminal tool and idle, so tools lists neither. Declaring a hook on a tool
+# does not enable it.
 #
 # A role whose profile is AnsweringAsFile must set answer to AnswerFile and answer_file to the
 # class its file holds, as { module = "...", name = "..." }. Submitting validates the file into

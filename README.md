@@ -299,8 +299,9 @@ Rules that follow from that wiring:
 
 - `profile` is required and has no default. It names the class deciding what that kind of
   agent may do: `Answering` for one that submits an answer, `AnsweringAsFile` for one that
-  points at a file it wrote, `Deterministic` for one that is a Python function. Deriving it
-  from `tools` would restore the coupling naming it removes.
+  points at a file it wrote, `Standing` for one that never answers, `Deterministic` for one
+  that is a Python function. Deriving it from `tools` would restore the coupling that naming
+  it removes.
 - Omitting `input` or `answer` means `FreeText` — that is how a role opts into prose.
 - A role a worker may spawn gets a `delegate_<role>` tool built from *that role's* input
   contract, so a parent sees the child's real schema. A worker builds them only for the roles

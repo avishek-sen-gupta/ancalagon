@@ -21,6 +21,7 @@ from ancalagon.contracts.completed import Completed
 from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.free_text import FreeText
+from ancalagon.contracts.idled import Idled
 from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.no_answer_file import NoAnswerFile
 from ancalagon.contracts.refused import Refused
@@ -490,22 +491,33 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     assert "ripgrep" in str(refused.value)
 
 
-def test_idle_refuses_once_its_children_have_settled(tmp_path: pathlib.Path):
+def test_idle_stops_an_attempt_whether_or_not_a_child_is_still_running(tmp_path: pathlib.Path):
     run_dir = tmp_path / "run"
     (run_dir / "tasks").mkdir(parents=True)
     migrate_file(run_dir / "bus.db", latest_version(RealFileSystem()), RealFileSystem())
     bus = LifecycleStore.open(run_dir / "bus.db", FakeClock(), RealFileSystem())
     parent = bus.enqueue(run_dir / "tasks" / "root", parent_agent=HUMAN).id
     child = bus.enqueue(run_dir / "tasks" / "c", parent_agent=parent).id
+    idle = bind_tool(Idle(bus, agent=parent))
+
+    waiting = idle.invoke("{}", _ctx(tmp_path))
+
+    assert waiting.ok is True
+    assert isinstance(waiting.summary, Idled)
+    assert waiting.summary.waiting_for == (child,)
+    assert waiting.summary.text_for_model() == f"idling until one of agents [{child}] finishes"
+
     bus.record(child, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(child, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=1)
     bus.record(child, AgentStatus.COMPLETED, EventSource.SUPERVISOR)
 
-    idle = bind_tool(Idle(bus, agent=parent))
-    refused = idle.invoke("{}", _ctx(tmp_path))
+    # An agent that never answers idles with nothing live, so this is no longer a refusal.
+    settled = idle.invoke("{}", _ctx(tmp_path))
 
-    assert refused.ok is False
-    assert refused.error == "nothing to wait for: no live children"
+    assert settled.ok is True
+    assert isinstance(settled.summary, Idled)
+    assert settled.summary.waiting_for == ()
+    assert settled.summary.text_for_model() == "idling until something arrives"
 
 
 def test_delegate_to_refuses_a_live_task_and_retries_a_finished_one(tmp_path: pathlib.Path):

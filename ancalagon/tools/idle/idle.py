@@ -1,4 +1,5 @@
-# Stops an attempt to wait for a live child; there is nothing to wait for once none remain.
+# Stops an attempt until something arrives for it: a child finishing, or whatever an agent
+# that never answers is standing by for.
 from ancalagon.bus.bus import Bus
 from ancalagon.contracts.idled import Idled
 from ancalagon.contracts.tool_category import ToolCategory
@@ -12,9 +13,9 @@ from ancalagon.tools.registry.tool_context import ToolContext
 class Idle(Tool[IdleArgs]):
     name = "idle"
     description = (
-        "Stop and wait for a delegated child to finish. Use when your children are still "
-        "working and you have nothing left to do until one of them reports back. This does "
-        "not consume your tool-call budget."
+        "Stop and wait. Use when you have nothing left to do: your children are still working "
+        "and you need one of them to report back, or there is nothing for you until something "
+        "arrives. This does not consume your tool-call budget."
     )
     category = ToolCategory.LIFECYCLE
     cost = 0
@@ -26,10 +27,7 @@ class Idle(Tool[IdleArgs]):
 
     def run(self, args: IdleArgs, ctx: ToolContext) -> ToolResult:
         snapshot = self.bus.snapshot()
-        live = live_children(snapshot, self.agent)
-        if not live:
-            return ctx.failure(self.name, "nothing to wait for: no live children")
         seen = max((e.id for events in snapshot.events.values() for e in events), default=0)
-        payload = Idled(waiting_for=live, seen_through=seen)
+        payload = Idled(waiting_for=live_children(snapshot, self.agent), seen_through=seen)
         path = ctx.write_output(self.name, payload.text_for_model(), ".txt")
         return ToolResult(ok=True, summary=payload, path=path)

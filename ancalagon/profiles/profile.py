@@ -1,10 +1,12 @@
 # What an agent of this kind may do. The defaults are an agent that works and never answers.
+# supplies names the tools it is given whatever its role asked for: one inner tuple per
+# tool, holding every class that could be the one actually built for it.
 import pydantic
 
+from ancalagon.contracts.any_tool import AnyTool
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.pending import PENDING, Pending
 from ancalagon.contracts.serialisable_role import SerialisableRole
-from ancalagon.contracts.tool_spec import ToolSpec
 from ancalagon.profiles.catalogue import Catalogue
 from ancalagon.profiles.turn import Turn
 from ancalagon.tools.registry.bound_tool import BoundTool
@@ -12,14 +14,16 @@ from ancalagon.tools.registry.no_tool import NO_TOOL, NoTool
 
 
 class Profile:
-    tools: tuple[ToolSpec, ...] = ()
-
     def __init__(self, catalogue: Catalogue) -> None:
-        return None
+        self.tools = tuple(catalogue.spec_for(*slot) for slot in self.supplies())
+
+    @classmethod
+    def supplies(cls) -> tuple[tuple[type[AnyTool], ...], ...]:
+        return ()
 
     @classmethod
     def brings(cls) -> frozenset[str]:
-        return frozenset[str]()
+        return frozenset(source.name for slot in cls.supplies() for source in slot)
 
     @classmethod
     def faults(cls, name: str, role: SerialisableRole, /) -> str:

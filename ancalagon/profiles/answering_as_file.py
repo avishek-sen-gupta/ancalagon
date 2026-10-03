@@ -7,7 +7,6 @@ from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.no_answer_file import NO_ANSWER_FILE
 from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.profiles.answering import Answering, run_ref_fault
-from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 
 ANSWERING_AS_FILE = ClassRef(module="ancalagon.profiles.answering_as_file", name="AnsweringAsFile")
@@ -35,10 +34,6 @@ def _content_fault(name: str, kind: str, role: SerialisableRole) -> str:
 
 class AnsweringAsFile(Answering):
     terminal_tool: typing.ClassVar[type[AnyTool]] = SubmitAnswerAsFile
-
-    @classmethod
-    def brings(cls) -> frozenset[str]:
-        return frozenset({Idle.name, SubmitAnswerAsFile.name})
 
     @classmethod
     def faults(cls, name: str, role: SerialisableRole, /) -> str:
