@@ -17,7 +17,8 @@ class Profile:
     def __init__(self, catalogue: Catalogue) -> None:
         return None
 
-    def faults(self, name: str, role: SerialisableRole, /) -> str:
+    @classmethod
+    def faults(cls, name: str, role: SerialisableRole, /) -> str:
         return ""
 
     def halts(self, turn: Turn, /) -> Outcome[pydantic.BaseModel] | Pending:

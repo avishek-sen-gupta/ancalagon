@@ -2,21 +2,18 @@
 from ancalagon.bus.no_bus import NO_BUS
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
-from ancalagon.contracts.answer_file import AnswerFile
 from ancalagon.contracts.class_ref import ClassRef
-from ancalagon.contracts.no_answer_file import NO_ANSWER_FILE
 from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.role_of import role_of
-from ancalagon.contracts.run_contracts import run_contracts
 from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
+from ancalagon.profiles.resolve_profile import resolve_profile
 from ancalagon.session_for import assemble
 from ancalagon.tools.idle.idle import Idle
-from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.tools.submit.submitting import TERMINAL_TOOLS
 from ancalagon.web.real_web_client import RealWebClient
 from ancalagon.web.web_client import WebClient
@@ -33,29 +30,12 @@ def _contract_fault(name: str, field: str, ref: ClassRef) -> str:
         )
 
 
-def _run_fault(name: str, role: Role) -> str:
-    if role.run == NO_RUN:
-        return ""
-    given, produced = run_contracts(role.run)
-    disagreements = [
-        (field, declared, derived)
-        for field, declared, derived in (
-            ("input", role.input, given),
-            ("answer", role.answer, produced),
-        )
-        if declared != derived
-    ]
-    if not disagreements:
-        return ""
-    field, declared, derived = disagreements[0]
-    return (
-        f"[roles.{name}] declares {field} as {declared.name} in {declared.module}, but its "
-        f"run function {role.run.name} in {role.run.module} states {field} as "
-        f"{derived.name} in {derived.module}"
-    )
-
-
-ANSWER_FILE = ClassRef(module=AnswerFile.__module__, name=AnswerFile.__name__)
+def _profile_fault(name: str, written: SerialisableRole) -> str:
+    try:
+        kind = resolve_profile(written.profile)
+    except Exception as error:
+        return f"[roles.{name}] profile: {error}"
+    return kind.faults(name, written)
 
 
 def _submit_fault(name: str, role: Role) -> str:
@@ -72,32 +52,6 @@ def _submit_fault(name: str, role: Role) -> str:
     return (
         f"[roles.{name}] tools: a role that runs a session must name only one of "
         f"{sorted(TERMINAL_TOOLS)}; named: {sorted(terminal)}"
-    )
-
-
-def _answer_file_fault(name: str, role: Role) -> str:
-    if SubmitAnswerAsFile.name not in role.tools or role.answer == ANSWER_FILE:
-        return ""
-    return (
-        f"[roles.{name}] declares answer as {role.answer.name} in {role.answer.module}, but "
-        f"{SubmitAnswerAsFile.name} submits {ANSWER_FILE.name} in {ANSWER_FILE.module}"
-    )
-
-
-def _content_fault(name: str, role: Role) -> str:
-    names_tool = SubmitAnswerAsFile.name in role.tools
-    declares = role.answer_file != NO_ANSWER_FILE
-    if names_tool == declares:
-        return ""
-    if names_tool:
-        return (
-            f"[roles.{name}] names {SubmitAnswerAsFile.name}, so it must declare answer_file: "
-            "the class its answer file holds"
-        )
-    return (
-        f"[roles.{name}] declares answer_file as {role.answer_file.name} in "
-        f"{role.answer_file.module}, but does not name {SubmitAnswerAsFile.name}, so nothing "
-        "checks it"
     )
 
 
@@ -143,10 +97,12 @@ def check_contracts(
             )
             if (fault := _contract_fault(name, field, ref))
         ]
-        or [fault for name, role in resolved.items() if (fault := _run_fault(name, role))]
+        or [
+            fault
+            for name, written in config.roles.items()
+            if (fault := _profile_fault(name, written))
+        ]
         or [fault for name, role in resolved.items() if (fault := _submit_fault(name, role))]
-        or [fault for name, role in resolved.items() if (fault := _answer_file_fault(name, role))]
-        or [fault for name, role in resolved.items() if (fault := _content_fault(name, role))]
         or [
             fault
             for name, written in config.roles.items()

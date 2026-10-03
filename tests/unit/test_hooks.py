@@ -31,6 +31,7 @@ from ancalagon.tools.search.transform_args import TransformArgs
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.workspace.workspace import Workspace
+from ancalagon.profiles.answering_as_file import ANSWERING_AS_FILE
 from ancalagon.profiles.deterministic import DETERMINISTIC
 from tests.unit.conftest import written_budget
 
@@ -233,6 +234,7 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
 
     other_submit = role.model_copy(
         update={
+            "profile": ANSWERING_AS_FILE,
             "tools": ("ripgrep", "submit_answer_as_file"),
             "answer": ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile"),
             "answer_file": ClassRef(module="ancalagon.contracts.free_text", name="FreeText"),
@@ -254,6 +256,7 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
 
     both_submits = role.model_copy(
         update={
+            "profile": ANSWERING_AS_FILE,
             "tools": ("ripgrep", "submit_answer", "submit_answer_as_file"),
             "answer": ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile"),
             "answer_file": ClassRef(module="ancalagon.contracts.free_text", name="FreeText"),

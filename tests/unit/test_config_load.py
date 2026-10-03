@@ -454,7 +454,7 @@ role = "analyst"
 
     assert str(wrong_answer.value) == (
         "[roles.filer] declares answer as FreeText in ancalagon.contracts.free_text, but "
-        "submit_answer_as_file submits AnswerFile in ancalagon.contracts.answer_file"
+        "AnsweringAsFile answers with AnswerFile in ancalagon.contracts.answer_file"
     )
 
     answer_file_ref = ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile")
@@ -463,7 +463,7 @@ role = "analyst"
     with pytest.raises(ValueError) as no_content:
         check_contracts(config.model_copy(update={"roles": {"filer": untyped}}), RealFileSystem())
     assert str(no_content.value) == (
-        "[roles.filer] names submit_answer_as_file, so it must declare answer_file: "
+        "[roles.filer] is AnsweringAsFile, so it must declare answer_file: "
         "the class its answer file holds"
     )
 
@@ -478,7 +478,7 @@ role = "analyst"
         check_contracts(config.model_copy(update={"roles": {"stray": stray}}), RealFileSystem())
     assert str(unchecked.value) == (
         "[roles.stray] declares answer_file as FreeText in ancalagon.contracts.free_text, "
-        "but does not name submit_answer_as_file, so nothing checks it"
+        "but Answering answers with the value itself, so nothing checks it"
     )
 
     unloadable = untyped.model_copy(
@@ -502,6 +502,39 @@ WEB = """
 [web]
 allowed_domains = ["*.example.com", "lite.duckduckgo.com"]
 """
+
+
+def test_a_role_must_name_a_profile_and_it_must_be_one(tmp_path: pathlib.Path):
+    nameless = _written(
+        tmp_path,
+        """
+[roles.scout]
+behaviour = "Investigate."
+tools = ["submit_answer"]
+budget = { turns = 4, tool_calls = 8 }
+""",
+    )
+    with pytest.raises(ValueError) as missing:
+        load_config(nameless, RealFileSystem())
+    assert "roles.scout.profile" in str(missing.value)
+    assert "Field required" in str(missing.value)
+
+    impostor = _written(
+        tmp_path,
+        """
+[roles.scout]
+profile = { module = "ancalagon.contracts.free_text", name = "FreeText" }
+behaviour = "Investigate."
+tools = ["submit_answer"]
+budget = { turns = 4, tool_calls = 8 }
+""",
+    )
+    config = load_config(impostor, RealFileSystem())
+    with pytest.raises(ValueError) as refused:
+        check_contracts(config, RealFileSystem())
+    assert str(refused.value) == (
+        "[roles.scout] profile: FreeText in ancalagon.contracts.free_text is not a profile"
+    )
 
 
 def test_a_config_without_a_web_table_declares_no_web_domains(tmp_path: pathlib.Path):

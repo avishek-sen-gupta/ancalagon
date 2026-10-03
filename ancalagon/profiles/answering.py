@@ -7,9 +7,12 @@ from ancalagon.contracts.any_tool import AnyTool
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.delivery import Delivery
 from ancalagon.contracts.idling import Idling
+from ancalagon.contracts.no_answer_file import NO_ANSWER_FILE
+from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.no_watermark import NO_WATERMARK
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.pending import PENDING, Pending
+from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.tool_spec import ToolSpec
 from ancalagon.llm.inlined import Inlined
 from ancalagon.profiles.catalogue import Catalogue
@@ -27,6 +30,15 @@ ANSWERING = ClassRef(module="ancalagon.profiles.answering", name="Answering")
 TURNS_GONE = "turns exhausted while children ran"
 
 
+def run_ref_fault(name: str, kind: str, role: SerialisableRole) -> str:
+    if role.run == NO_RUN:
+        return ""
+    return (
+        f"[roles.{name}] is {kind} but names run {role.run.name} in "
+        f"{role.run.module}; a role that runs a function holds no session to answer in"
+    )
+
+
 class Answering(Profile):
     terminal_tool: typing.ClassVar[type[AnyTool]] = SubmitAnswer
 
@@ -35,6 +47,18 @@ class Answering(Profile):
         self.collect = catalogue.spec_for(CollectTask)
         self.idle = catalogue.spec_for(Idle, NoIdle)
         self.tools = (self.terminal, self.idle)
+
+    @classmethod
+    def faults(cls, name: str, role: SerialisableRole, /) -> str:
+        if fault := run_ref_fault(name, cls.__name__, role):
+            return fault
+        if role.answer_file == NO_ANSWER_FILE:
+            return ""
+        return (
+            f"[roles.{name}] declares answer_file as {role.answer_file.name} in "
+            f"{role.answer_file.module}, but {cls.__name__} answers with the value "
+            "itself, so nothing checks it"
+        )
 
     def halts(self, turn: Turn, /) -> Outcome[pydantic.BaseModel] | Pending:
         if turn.final and turn.outstanding:

@@ -9,7 +9,9 @@ from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.delivery import Delivery
 from ancalagon.contracts.finite import Finite
 from ancalagon.contracts.free_text import FreeText
+from ancalagon.contracts.function_ref import FunctionRef
 from ancalagon.contracts.idling import Idling
+from ancalagon.contracts.no_answer_file import NO_ANSWER_FILE
 from ancalagon.contracts.no_watermark import NO_WATERMARK
 from ancalagon.contracts.pending import PENDING
 from ancalagon.contracts.serialisable_role import SerialisableRole
@@ -17,9 +19,11 @@ from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.llm.inlined import Inlined
-from ancalagon.profiles.answering import TURNS_GONE, Answering
-from ancalagon.profiles.answering_as_file import AnsweringAsFile
+from ancalagon.profiles.answering import ANSWERING, TURNS_GONE, Answering
+from ancalagon.profiles.answering_as_file import ANSWERING_AS_FILE, AnsweringAsFile
+from ancalagon.profiles.answering_as_file import ANSWER_FILE
 from ancalagon.profiles.catalogue import Catalogue
+from ancalagon.profiles.deterministic import DETERMINISTIC, Deterministic
 from ancalagon.profiles.profile import Profile
 from ancalagon.profiles.resolve_profile import resolve_profile
 from ancalagon.profiles.turn import Turn
@@ -208,3 +212,65 @@ def test_a_catalogue_finds_a_tool_by_either_class_that_could_have_filled_its_slo
 
     with pytest.raises(LookupError, match="this agent has no Idle"):
         CATALOGUE.spec_for(Idle)
+
+
+RUN = FunctionRef(module="ancalagon.watch.watch_for", name="watch_for")
+
+FREE_TEXT_REF = ClassRef(module="ancalagon.contracts.free_text", name="FreeText")
+
+
+def _role(**changes: ClassRef | FunctionRef) -> SerialisableRole:
+    base = SerialisableRole(
+        profile=ANSWERING,
+        behaviour="Look.",
+        tools=("ripgrep",),
+        budget=written_budget(3, 9),
+    )
+    return base.model_copy(update=changes)
+
+
+def test_each_profile_refuses_a_role_that_does_not_fit_the_kind_of_agent_it_is():
+    assert Answering.faults("scout", _role()) == ""
+    assert Answering.faults("scout", _role(run=RUN)) == (
+        "[roles.scout] is Answering but names run watch_for in ancalagon.watch.watch_for; "
+        "a role that runs a function holds no session to answer in"
+    )
+    assert Answering.faults("stray", _role(answer_file=FREE_TEXT_REF)) == (
+        "[roles.stray] declares answer_file as FreeText in ancalagon.contracts.free_text, "
+        "but Answering answers with the value itself, so nothing checks it"
+    )
+
+    filing = _role(profile=ANSWERING_AS_FILE, answer=ANSWER_FILE, answer_file=FREE_TEXT_REF)
+    assert AnsweringAsFile.faults("filer", filing) == ""
+    assert AnsweringAsFile.faults(
+        "filer", filing.model_copy(update={"answer_file": NO_ANSWER_FILE})
+    ) == (
+        "[roles.filer] is AnsweringAsFile, so it must declare answer_file: "
+        "the class its answer file holds"
+    )
+    assert AnsweringAsFile.faults("filer", filing.model_copy(update={"answer": FREE_TEXT_REF})) == (
+        "[roles.filer] declares answer as FreeText in ancalagon.contracts.free_text, but "
+        "AnsweringAsFile answers with AnswerFile in ancalagon.contracts.answer_file"
+    )
+    assert AnsweringAsFile.faults("filer", filing.model_copy(update={"run": RUN})) == (
+        "[roles.filer] is AnsweringAsFile but names run watch_for in ancalagon.watch.watch_for; "
+        "a role that runs a function holds no session to answer in"
+    )
+
+    assert Deterministic.faults("ticker", _role(profile=DETERMINISTIC)) == (
+        "[roles.ticker] is Deterministic, so it must name a run function"
+    )
+    watching = _role(
+        profile=DETERMINISTIC,
+        run=RUN,
+        input=ClassRef(module="ancalagon.contracts.watch_request", name="WatchRequest"),
+        answer=ClassRef(module="ancalagon.contracts.watched", name="Watched"),
+    )
+    assert Deterministic.faults("watcher", watching) == ""
+    assert Deterministic.faults(
+        "watcher", watching.model_copy(update={"answer": FREE_TEXT_REF})
+    ) == (
+        "[roles.watcher] declares answer as FreeText in ancalagon.contracts.free_text, but its "
+        "run function watch_for in ancalagon.watch.watch_for states answer as Watched in "
+        "ancalagon.contracts.watched"
+    )

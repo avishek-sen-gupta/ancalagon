@@ -75,6 +75,14 @@ elsewhere sees the same paths. Then it calls `run(config, run_dir, clock, fs)`:
 1. `check_contracts` validates the config — every contract a role names must resolve, every
    role that runs a session must name a terminal submit tool, every hook must be attachable to
    the tool it names. Any fault raises `ValueError` before anything is written.
+
+   Whether a role fits the kind of agent it claims to be is the profile's question, not
+   `check_contracts`'. Each profile answers `faults(name, role)`, so `Answering` refuses a role
+   that names a run function or declares an `answer_file` nothing would read, `AnsweringAsFile`
+   requires `answer` to be `AnswerFile` and an `answer_file` to be declared, and `Deterministic`
+   requires a run function whose signature agrees with the contracts the role states. `faults`
+   is a classmethod: it reads only the role, so it runs before a single tool has been built, and
+   `cls.__name__` is what the message calls the kind.
 2. `run_dir/config.json` is written as `config.model_dump_json()`. This is the copy every
    worker this run spawns will read, not the source TOML — the config is fixed for the rest of
    this invocation from here on.
@@ -438,6 +446,12 @@ which files that task actually opened.
 function itself states the input and answer contracts it works with, in its signature, and the
 loader fills the role's `input` and `answer` from that signature rather than the role stating
 them separately. `Spawner` stays the protocol it was.
+
+That is a second source of truth, kept deliberately. A role's profile already says which kind of
+agent it is, so `SpawnByRun` could ask the profile instead of asking `run`. It does not, and the
+gap is closed by validation rather than by construction: `Deterministic.faults` requires a run
+function and `Answering.faults` refuses one, so a role whose profile and `run` disagree never
+reaches a spawner. Weaker than making it unexpressible, and recorded here rather than fixed.
 
 `clock/` holds the last: one `Clock`, with `now()` for the instant a row or a message is
 stamped with and `time()`/`sleep()` for how long an agent has been running. The supervisor,
