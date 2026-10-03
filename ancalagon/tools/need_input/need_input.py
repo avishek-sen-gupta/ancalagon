@@ -1,5 +1,6 @@
 # Ends a run with a question; there is no channel to ask a live parent by design.
 from ancalagon.contracts.asked import Asked
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.need_input.need_input_args import NeedInputArgs
 from ancalagon.tools.registry.tool import Tool
@@ -12,6 +13,7 @@ class NeedInput(Tool[NeedInputArgs]):
         "Stop and hand a question back to whoever launched this task. "
         "Use when you cannot proceed without information you have no way to obtain. This does not consume your tool-call budget."
     )
+    category = ToolCategory.LIFECYCLE
     cost = 0
     args_model = NeedInputArgs
 

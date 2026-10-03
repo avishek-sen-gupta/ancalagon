@@ -1,6 +1,7 @@
 # Edits a JSON file in place with jq, so a large structure is built across many small calls.
 import collections.abc
 
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.artifacts.json_edit_args import JsonEditArgs
 from ancalagon.tools.artifacts.json_op import JsonOp
@@ -26,6 +27,7 @@ class EditJson(Tool[JsonEditArgs]):
         "array there, remove deletes the key. The file must already exist; write_file with "
         "{} creates it."
     )
+    category = ToolCategory.ARTIFACTS
     cost = 1
     args_model = JsonEditArgs
 

@@ -1,4 +1,5 @@
 # Deletes a file, refusing anything outside a write root.
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.files.path_args import PathArgs
 from ancalagon.tools.registry.tool import Tool
@@ -9,6 +10,7 @@ from ancalagon.workspace.scope_error import ScopeError
 class DeleteFile(Tool[PathArgs]):
     name = "delete_file"
     description = "Delete a file inside a write root."
+    category = ToolCategory.FILES
     cost = 1
     args_model = PathArgs
 

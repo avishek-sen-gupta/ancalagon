@@ -9,6 +9,7 @@ from ancalagon.tools.registry.tool_context import ToolContext
 class NoIdle(Tool[IdleArgs]):
     name = Idle.name
     description = Idle.description
+    category = Idle.category
     cost = Idle.cost
     args_model = Idle.args_model
 

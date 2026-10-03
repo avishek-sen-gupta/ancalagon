@@ -7,7 +7,7 @@ from ancalagon.tools.registry.bound_tool import BoundTool
 
 class Registry:
     def __init__(self, tools: collections.abc.Sequence[BoundTool]):
-        self.tools = {t.name: t for t in tools}
+        self.tools = {t.spec.declaration.name: t for t in tools}
 
     def get(self, name: str) -> BoundTool:
         if name not in self.tools:
@@ -18,4 +18,4 @@ class Registry:
         return list(self.tools)
 
     def schemas(self) -> list[ToolSchema]:
-        return [t.declaration for t in self.tools.values()]
+        return [t.spec.declaration for t in self.tools.values()]

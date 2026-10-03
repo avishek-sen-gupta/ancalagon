@@ -7,6 +7,7 @@ from ancalagon.contracts.agent_ref import AgentRef
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.no_agent_ref import NoAgentRef
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.contracts.watch_request import WatchRequest
 from ancalagon.fs.file_system import FileSystem
@@ -33,6 +34,7 @@ class WatchFile(Tool[WatchArgs]):
         "Wait for a file to grow. Queues a watcher that ends the moment the file is larger "
         "than it is right now, which wakes you once you idle. Its size is measured for you."
     )
+    category = ToolCategory.WATCH
     cost = 1
     args_model = WatchArgs
 

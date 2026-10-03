@@ -1,4 +1,5 @@
 # A reshaped view of a file, for reading. The original is never touched: sed without -i.
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -15,6 +16,7 @@ class TransformFile(Tool[TransformArgs]):
         "the result back as a new file you can read. The original is never changed, so this "
         "cannot edit anything -- use edit_file or append_file for that."
     )
+    category = ToolCategory.SEARCH
     cost = 1
     args_model = TransformArgs
 

@@ -1,4 +1,5 @@
 # Pulls printable runs out of a binary: the fastest way to guess what one does.
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.artifacts.strings_args import StringsArgs
 from ancalagon.tools.registry.tool import Tool
@@ -14,6 +15,7 @@ class ExtractStrings(Tool[StringsArgs]):
         "min_length to cut noise; embedded paths, messages and format strings often "
         "reveal what the thing does."
     )
+    category = ToolCategory.ARTIFACTS
     cost = 1
     args_model = StringsArgs
 

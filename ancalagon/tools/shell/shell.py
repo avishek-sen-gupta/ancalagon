@@ -1,4 +1,5 @@
 # An unrestricted shell command, scoped by the directory it runs in and bounded by a timeout.
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -17,6 +18,7 @@ class Shell(Tool[ShellArgs]):
         "Run a shell command line in a directory and capture its output. "
         f"Killed after {TIMEOUT_S} seconds."
     )
+    category = ToolCategory.SHELL
     cost = 1
     args_model = ShellArgs
 

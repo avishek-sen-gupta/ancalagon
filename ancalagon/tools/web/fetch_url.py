@@ -1,4 +1,5 @@
 # Fetches a page and writes its article text to the task directory.
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -26,6 +27,7 @@ class FetchUrl(Tool[FetchArgs]):
         "Fetch an https page and return its article text, with navigation and markup removed. "
         "Fails on anything it cannot take prose from, such as a PDF or a JSON endpoint."
     )
+    category = ToolCategory.WEB
     cost = 1
     args_model = FetchArgs
 

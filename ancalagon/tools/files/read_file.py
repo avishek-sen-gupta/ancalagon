@@ -1,5 +1,6 @@
 # Reads a file, refusing anything outside the configured read roots.
 from ancalagon.clock.clock import Clock
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.files.read_args import ReadArgs
 from ancalagon.tools.registry.tool import Tool
@@ -17,6 +18,7 @@ class ReadFile(Tool[ReadArgs]):
         "file is larger than one reply can carry, call again with offset set past the last "
         "line shown."
     )
+    category = ToolCategory.FILES
     cost = 1
     args_model = ReadArgs
 

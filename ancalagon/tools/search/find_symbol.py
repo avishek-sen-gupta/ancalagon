@@ -1,6 +1,7 @@
 # Locates definitions with ctags over the files ripgrep would search, so both honour .gitignore.
 import collections.abc
 
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -43,6 +44,7 @@ class FindSymbol(Tool[SymbolArgs]):
         "line itself. Unlike a text search this returns definitions rather than every "
         "mention. Omit name to list every definition in the given roots."
     )
+    category = ToolCategory.SEARCH
     cost = 1
     args_model = SymbolArgs
 

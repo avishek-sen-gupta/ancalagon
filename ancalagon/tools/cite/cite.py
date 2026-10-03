@@ -4,6 +4,7 @@ import pathlib
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.citation import Citation
 from ancalagon.contracts.source_span import SourceSpan
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.cite.cite_args import CiteArgs
 from ancalagon.tools.registry.tool import Tool
@@ -35,6 +36,7 @@ class Cite(Tool[CiteArgs]):
         f"fails when it does not. Every citation is appended to {CITATIONS} in your task "
         f"directory; read that file when you are ready to answer."
     )
+    category = ToolCategory.CITE
     cost = 1
     args_model = CiteArgs
 

@@ -1,4 +1,5 @@
 # Converts a document into a readable or structured form with pandoc.
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.artifacts.convert_args import ConvertArgs
 from ancalagon.tools.artifacts.document_format import DocumentFormat
@@ -22,6 +23,7 @@ class ConvertDocument(Tool[ConvertArgs]):
         "markdown, plain text, html, or pandoc's JSON abstract syntax tree. Use json "
         "when you need the document's structure rather than its prose."
     )
+    category = ToolCategory.ARTIFACTS
     cost = 1
     args_model = ConvertArgs
 

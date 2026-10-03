@@ -1,4 +1,5 @@
 # Writes a file, refusing anything outside a write root.
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.files.write_args import WriteArgs
 from ancalagon.tools.registry.tool import Tool
@@ -9,6 +10,7 @@ from ancalagon.workspace.scope_error import ScopeError
 class WriteFile(Tool[WriteArgs]):
     name = "write_file"
     description = "Write a file inside a write root."
+    category = ToolCategory.FILES
     cost = 1
     args_model = WriteArgs
 

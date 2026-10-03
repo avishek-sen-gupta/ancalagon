@@ -2,6 +2,7 @@
 from ancalagon.answer import answer_task
 from ancalagon.bus.bus import Bus
 from ancalagon.clock.clock import Clock
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.tools.delegate.answer_args import AnswerArgs
@@ -16,6 +17,7 @@ class AnswerTask(Tool[AnswerArgs]):
         "left off with your answer and everything it had already worked out. Read the "
         "question with check_task first. Only a task that is waiting can be answered."
     )
+    category = ToolCategory.TASKS
     cost = 1
     args_model = AnswerArgs
 

@@ -3,6 +3,7 @@ import collections.abc
 import pathlib
 
 from ancalagon.clock.clock import Clock
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.compare.alignment import align
 from ancalagon.tools.compare.diff_args import DiffArgs
@@ -35,6 +36,7 @@ class DiffRegions(Tool[DiffArgs]):
         "nothing else is. Use it to decide whether two declarations are the same instead of "
         "reading both and comparing them by eye."
     )
+    category = ToolCategory.COMPARE
     cost = 2
     args_model = DiffArgs
 

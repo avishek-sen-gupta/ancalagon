@@ -14,6 +14,7 @@ from ancalagon.contracts.message import Message
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.role import Role
 from ancalagon.contracts.task_spec import TaskSpec
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.letterbox.letterbox import Letterbox
 from ancalagon.letterbox.no_letterbox import NO_LETTERBOX
@@ -161,20 +162,20 @@ def build_registry(
         for watcher in watcher_in(config.roles)[:1]
     ]
     wanted = set(spec.role.tools) | {Idle.name}
-    unknown = wanted - {t.name for t in available}
+    unknown = wanted - {t.spec.declaration.name for t in available}
     if unknown:
         raise ValueError(
             f"role names unknown tools: {sorted(unknown)}; "
-            f"available: {sorted(t.name for t in available)}"
+            f"available: {sorted(t.spec.declaration.name for t in available)}"
         )
     depth_capped = depth >= config.max_depth
     withheld = TERMINAL_TOOLS - {submitting(spec.role.tools)}
     permitted = [
         t
         for t in available
-        if t.name in wanted
-        and not (depth_capped and t.name.startswith("delegate_"))
-        and t.name not in withheld
+        if t.spec.declaration.name in wanted
+        and not (depth_capped and t.spec.category is ToolCategory.DELEGATE)
+        and t.spec.declaration.name not in withheld
     ]
     return Registry(permitted)
 

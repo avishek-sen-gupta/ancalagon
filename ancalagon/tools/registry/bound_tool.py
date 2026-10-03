@@ -4,12 +4,10 @@ import collections.abc
 import pydantic
 
 from ancalagon.contracts.tool_result import ToolResult
-from ancalagon.contracts.tool_schema import ToolSchema
+from ancalagon.contracts.tool_spec import ToolSpec
 from ancalagon.tools.registry.tool_context import ToolContext
 
 
 class BoundTool(pydantic.BaseModel, frozen=True):
-    name: str
-    cost: int
-    declaration: ToolSchema
+    spec: ToolSpec
     invoke: collections.abc.Callable[[str, ToolContext], ToolResult]

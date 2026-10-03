@@ -2,6 +2,7 @@
 import pydantic
 import tree_sitter
 
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.parse.ast_node import AstNode
 from ancalagon.tools.parse.languages import GRAMMARS, language_of
@@ -27,6 +28,7 @@ def _walk(node: tree_sitter.Node) -> list[AstNode]:
 class TreeSitter(Tool[ParseArgs]):
     name = "treesitter"
     description = "Parse a source file and emit its AST nodes as JSON."
+    category = ToolCategory.PARSE
     cost = 1
     args_model = ParseArgs
 

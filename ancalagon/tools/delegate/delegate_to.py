@@ -6,6 +6,7 @@ from ancalagon.contracts.agent_ref import AgentRef
 from ancalagon.contracts.agent_spec import AgentSpec
 from ancalagon.contracts.no_agent_ref import NoAgentRef
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.schedule.active_for import active_for
@@ -21,6 +22,7 @@ from ancalagon.tools.registry.tool_context import ToolContext
 
 
 class DelegateTo(Tool[DelegateArgs]):
+    category = ToolCategory.DELEGATE
     cost = 1
 
     def __init__(

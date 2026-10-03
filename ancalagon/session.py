@@ -191,13 +191,13 @@ class Session:
                 LOGGER.exception("the model called a tool that is not in the registry")
                 blocks.append(ToolResultBlock(tool_use_id=use.id, content=str(exc), is_error=True))
                 continue
-            cost = 0 if use.name == exempt else tool.cost
+            cost = 0 if use.name == exempt else tool.spec.cost
             if not self.remaining.tool_calls.permits(cost):
                 blocks.append(
                     ToolResultBlock(
                         tool_use_id=use.id,
                         content=f"tool-call budget exhausted; {use.name} costs "
-                        f"{tool.cost} and {self.remaining.tool_calls} remain",
+                        f"{tool.spec.cost} and {self.remaining.tool_calls} remain",
                         is_error=True,
                     )
                 )
@@ -235,12 +235,12 @@ class Session:
         forced: str,
     ) -> list[ToolSchema]:
         if final:
-            return [self.registry.get(forced).declaration]
+            return [self.registry.get(forced).spec.declaration]
         excluded: set[str] = ({IDLE} if not outstanding else set[str]()) | (
             {self.submit} if outstanding or uncollected else set[str]()
         )
         return [
-            self.registry.get(name).declaration
+            self.registry.get(name).spec.declaration
             for name in self.registry.names()
             if name not in excluded
         ]

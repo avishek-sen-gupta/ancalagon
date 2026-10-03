@@ -1,4 +1,5 @@
 # Surveys a tree with scc: what languages, how much of each, where the complexity sits.
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -14,6 +15,7 @@ class CodeStats(Tool[StatsArgs]):
         "estimated complexity score. Set by_file=true to see which individual files "
         "carry the most complexity, which is usually where to start reading."
     )
+    category = ToolCategory.SURVEY
     cost = 1
     args_model = StatsArgs
 

@@ -1,6 +1,7 @@
 # Queries a JSON or JSONL file with jq, so a large document need not be read whole.
 import collections.abc
 
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.artifacts.query_args import QueryArgs
 from ancalagon.tools.registry.tool import Tool
@@ -22,6 +23,7 @@ class QueryJson(Tool[QueryArgs]):
         "document need not be read whole. Add --slurp semantics yourself if the file "
         "is JSONL. Example filters: '.nodes[].id', 'keys', '.[] | select(.kind)'."
     )
+    category = ToolCategory.ARTIFACTS
     cost = 1
     args_model = QueryArgs
 

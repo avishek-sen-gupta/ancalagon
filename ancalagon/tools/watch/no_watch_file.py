@@ -9,6 +9,7 @@ from ancalagon.tools.watch.watch_file import WatchFile
 class NoWatchFile(Tool[WatchArgs]):
     name = WatchFile.name
     description = WatchFile.description
+    category = WatchFile.category
     cost = WatchFile.cost
     args_model = WatchFile.args_model
 

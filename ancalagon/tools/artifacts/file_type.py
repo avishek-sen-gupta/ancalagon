@@ -1,4 +1,5 @@
 # Identifies what an artifact actually is, before anything tries to read it as text.
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.artifacts.path_arg import PathArg
 from ancalagon.tools.registry.tool import Tool
@@ -13,6 +14,7 @@ class FileType(Tool[PathArg]):
         "Identify what a file is -- text, binary, archive, image, database -- before "
         "trying to read it. Use this first on anything whose format you do not know."
     )
+    category = ToolCategory.ARTIFACTS
     cost = 1
     args_model = PathArg
 

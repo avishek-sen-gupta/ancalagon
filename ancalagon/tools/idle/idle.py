@@ -1,6 +1,7 @@
 # Stops an attempt to wait for a live child; there is nothing to wait for once none remain.
 from ancalagon.bus.bus import Bus
 from ancalagon.contracts.idled import Idled
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.schedule.live_children import live_children
 from ancalagon.tools.idle.idle_args import IdleArgs
@@ -15,6 +16,7 @@ class Idle(Tool[IdleArgs]):
         "working and you have nothing left to do until one of them reports back. This does "
         "not consume your tool-call budget."
     )
+    category = ToolCategory.LIFECYCLE
     cost = 0
     args_model = IdleArgs
 

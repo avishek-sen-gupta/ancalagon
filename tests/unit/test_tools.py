@@ -29,6 +29,7 @@ from ancalagon.contracts.role import Role
 from ancalagon.contracts.source_span import SourceSpan
 from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.task_spec import TaskSpec
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.text_answer import TextAnswer
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.fs.real_file_system import RealFileSystem
@@ -411,8 +412,19 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
     assert "need_input" in at_root.names()
     assert "delegate_scout" not in at_limit.names()
     assert "need_input" in at_limit.names()
-    answer_shape = at_root.get("submit_answer").declaration.parameters.model_json_schema()
+    answer_shape = at_root.get("submit_answer").spec.declaration.parameters.model_json_schema()
     assert set(answer_shape["properties"]) == {"text"}
+
+    assert at_root.get("delegate_scout").spec.category is ToolCategory.DELEGATE
+    assert at_root.get("submit_answer").spec.category is ToolCategory.SUBMIT
+    assert at_root.get("idle").spec.category is ToolCategory.LIFECYCLE
+    assert at_root.get("need_input").spec.category is ToolCategory.LIFECYCLE
+    assert [
+        t.spec.category for t in at_limit.tools.values() if t.spec.category is ToolCategory.DELEGATE
+    ] == []
+    assert [
+        t.spec.category for t in at_root.tools.values() if t.spec.category is ToolCategory.DELEGATE
+    ] == [ToolCategory.DELEGATE]
 
     narrow_role = Role(
         behaviour="Search.",
@@ -911,8 +923,8 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     caller = Role(behaviour="Coordinate.", tools=(), budget=finite_budget(1, 1))
     tools = delegate_tools(roles, caller, run_dir=run_dir, parent=1, fs=RealFileSystem(), bus=bus)
 
-    assert [t.name for t in tools] == ["delegate_analyst", "delegate_scout"]
-    shown = tools[0].declaration.parameters.model_json_schema()
+    assert [t.spec.declaration.name for t in tools] == ["delegate_analyst", "delegate_scout"]
+    shown = tools[0].spec.declaration.parameters.model_json_schema()
     assert sorted(shown["properties"]) == ["goal", "input", "task_id"]
     assert sorted(shown["$defs"]["Query"]["properties"]) == ["area", "depth"]
 
@@ -926,7 +938,7 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     assert spec["input"] == {"area": "bus", "depth": 2}
     assert spec["role"]["budget"] == {"turns": 12, "tool_calls": 30}
 
-    prose = tools[1].declaration.parameters.model_json_schema()
+    prose = tools[1].spec.declaration.parameters.model_json_schema()
     assert sorted(prose["$defs"]["FreeText"]["properties"]) == ["text"]
     looked = tools[1].invoke(
         '{"task_id": "t3", "goal": "look around", "input": {"text": "start at the bus"}}', ctx

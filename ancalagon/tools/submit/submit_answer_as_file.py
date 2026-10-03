@@ -7,6 +7,7 @@ import pydantic_core
 
 from ancalagon.contracts.answer_file import AnswerFile
 from ancalagon.contracts.submitted import Submitted
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -36,6 +37,7 @@ def _content_fault(
 
 class SubmitAnswerAsFile(Tool[AnswerFile]):
     name = "submit_answer_as_file"
+    category = ToolCategory.SUBMIT
     cost = 0
     args_model = AnswerFile
 

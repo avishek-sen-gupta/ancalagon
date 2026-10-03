@@ -1,6 +1,7 @@
 # Structural search by AST pattern, over the files ripgrep would search.
 import collections.abc
 
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -13,6 +14,7 @@ from ancalagon.workspace.scope_error import ScopeError
 class AstGrep(Tool[GrepArgs]):
     name = "ast_grep"
     description = "Structural code search by AST pattern."
+    category = ToolCategory.SEARCH
     cost = 1
     args_model = GrepArgs
 

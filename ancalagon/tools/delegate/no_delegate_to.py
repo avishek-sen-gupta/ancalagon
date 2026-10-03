@@ -1,5 +1,6 @@
 # The delegate tool a session gets when it has no bus: same schema, nothing queued, nothing written.
 from ancalagon.contracts.role import Role
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.delegate.delegate_args import DelegateArgs
 from ancalagon.tools.delegate.delegating import (
@@ -12,6 +13,7 @@ from ancalagon.tools.registry.tool_context import ToolContext
 
 
 class NoDelegateTo(Tool[DelegateArgs]):
+    category = ToolCategory.DELEGATE
     cost = 1
 
     def __init__(self, role_name: str, role: Role):

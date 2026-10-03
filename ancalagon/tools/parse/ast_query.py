@@ -5,6 +5,7 @@ import pathlib
 import pydantic
 import tree_sitter
 
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.parse.ast_query_args import AstQueryArgs
 from ancalagon.tools.parse.capture import Capture
@@ -50,6 +51,7 @@ class AstQuery(Tool[AstQueryArgs]):
         "capture's node type, byte range, row and column, and its text. Use this rather than "
         "ast_grep when the parts of a match need naming, or their exact locations are wanted."
     )
+    category = ToolCategory.PARSE
     cost = 1
     args_model = AstQueryArgs
 

@@ -18,6 +18,7 @@ from ancalagon.contracts.needs_input import NeedsInput
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.resolve import resolve_class
 from ancalagon.contracts.task_spec import TaskSpec
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.schedule.addressed import addressed
@@ -50,6 +51,7 @@ class CollectTask(Tool[TaskArgs]):
         "Read a finished task's answer. Returns the answer itself, not a wrapper. "
         "Reports an error if the task is unfinished or did not produce one."
     )
+    category = ToolCategory.TASKS
     cost = 1
     args_model = TaskArgs
 

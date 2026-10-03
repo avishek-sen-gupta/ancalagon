@@ -1,4 +1,5 @@
 # Adds a line to the end of a file without reading it, so a concurrent writer is not lost.
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.files.append_args import AppendArgs
 from ancalagon.tools.registry.tool import Tool
@@ -14,6 +15,7 @@ class AppendFile(Tool[AppendArgs]):
         "write to: it never reads the file, so it cannot overwrite what arrived since you "
         "last read."
     )
+    category = ToolCategory.FILES
     cost = 1
     args_model = AppendArgs
 

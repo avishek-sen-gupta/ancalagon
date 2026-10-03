@@ -4,6 +4,7 @@ import pydantic
 from ancalagon.contracts.accepted import Accepted
 from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.tool_result import ToolResult
+from ancalagon.contracts.tool_spec import ToolSpec
 from ancalagon.llm.schema_of import schema_of
 from ancalagon.tools.registry.after import After
 from ancalagon.tools.registry.before import Before
@@ -59,8 +60,10 @@ def _invoked(
 
 def bind_tool(tool: Tool[ArgsT], before: Before = NO_BEFORE, after: After = NO_AFTER) -> BoundTool:
     return BoundTool(
-        name=tool.name,
-        cost=tool.cost,
-        declaration=schema_of(tool.name, tool.description, tool.args_model),
+        spec=ToolSpec(
+            category=tool.category,
+            cost=tool.cost,
+            declaration=schema_of(tool.name, tool.description, tool.args_model),
+        ),
         invoke=lambda arguments, ctx: _invoked(tool, before, after, arguments, ctx),
     )

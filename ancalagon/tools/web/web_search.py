@@ -1,4 +1,5 @@
 # Searches the web and writes the ranked results to the task directory.
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -31,6 +32,7 @@ class WebSearch(Tool[SearchArgs]):
         "Search the web. Returns ranked results, each a title, a URL and a snippet. Follow a "
         "result with fetch_url to read the page itself; the snippet alone is not evidence."
     )
+    category = ToolCategory.WEB
     cost = 1
     args_model = SearchArgs
 

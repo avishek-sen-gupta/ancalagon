@@ -1,4 +1,5 @@
 # Lists a directory, refusing anything outside the configured read roots.
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.files.path_args import PathArgs
 from ancalagon.tools.registry.tool import Tool
@@ -10,6 +11,7 @@ from ancalagon.workspace.workspace import missing_hint
 class ListDir(Tool[PathArgs]):
     name = "list_dir"
     description = "List a directory inside the configured read roots."
+    category = ToolCategory.FILES
     cost = 1
     args_model = PathArgs
 

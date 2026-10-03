@@ -1,4 +1,5 @@
 # Regex search. Compact path:line:text by default; structured=true for JSON records.
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.registry.tool import Tool
 from ancalagon.tools.registry.tool_context import ToolContext
@@ -13,6 +14,7 @@ class Ripgrep(Tool[GrepArgs]):
         "Search files by regular expression. Returns path:line:text per match. "
         "Set structured=true for one JSON record per match instead."
     )
+    category = ToolCategory.SEARCH
     cost = 1
     args_model = GrepArgs
 

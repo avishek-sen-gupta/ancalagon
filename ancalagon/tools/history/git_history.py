@@ -2,6 +2,7 @@
 import collections.abc
 import pathlib
 
+from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.history.git_operation import GitOperation
 from ancalagon.tools.history.history_args import HistoryArgs
@@ -25,6 +26,7 @@ class GitHistory(Tool[HistoryArgs]):
         "it, newest first; blame attributes every line to a commit; show displays one "
         "commit given rev. Commit messages often state intent that the code cannot."
     )
+    category = ToolCategory.HISTORY
     cost = 1
     args_model = HistoryArgs
 
