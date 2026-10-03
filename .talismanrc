@@ -167,4 +167,6 @@ fileignoreconfig:
   checksum: 68d0b95dd181bd4b3ec4e7176475c6993e0ae0e82dfb0114b55a455c55cc2327
 - filename: docs/superpowers/specs/2026-10-03-an-agent-that-never-answers-design.md
   checksum: 87b24b81307531fe6ead10d1145fe2c900bb0a9ffcb80dbc2d3181d901197ad7
+- filename: docs/superpowers/specs/2026-10-03-a-profile-per-kind-of-agent-design.md
+  checksum: 993aaff60d62c81eca3986ba5c73b3f571c5a69ccd235779a848fb36b779f1f3
 version: "1.0"
