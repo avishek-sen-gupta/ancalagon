@@ -2,7 +2,7 @@
 import enum
 
 
-class AgentStatus(enum.StrEnum):
+class AgentStatus(enum.Enum):
     QUEUED = "queued"
     CLAIMED = "claimed"
     RUNNING = "running"

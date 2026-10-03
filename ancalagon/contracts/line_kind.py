@@ -2,6 +2,6 @@
 import enum
 
 
-class LineKind(enum.StrEnum):
+class LineKind(enum.Enum):
     MESSAGE = "message"
     LIFECYCLE = "lifecycle"

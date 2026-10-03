@@ -2,7 +2,7 @@
 import enum
 
 
-class DocumentFormat(enum.StrEnum):
+class DocumentFormat(enum.Enum):
     MARKDOWN = "markdown"
     PLAIN = "plain"
     JSON = "json"

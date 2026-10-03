@@ -55,7 +55,10 @@ DRAWN: collections.abc.Mapping[EdgeKind, collections.abc.Callable[[Edge, Lanes],
 
 
 def _ending(agent: AgentNode) -> tuple[str, str]:
-    return (agent.ended, f"{INDENT}Note over t{agent.task}: agent {agent.id} {agent.last_status}")
+    return (
+        agent.ended,
+        f"{INDENT}Note over t{agent.task}: agent {agent.id} {agent.last_status.value}",
+    )
 
 
 def mermaid(trace: Trace) -> str:

@@ -6,7 +6,7 @@ from ancalagon.trace.node_kind import NodeKind
 
 
 class ToolCallNode(pydantic.BaseModel, frozen=True):
-    kind: typing.Literal[NodeKind.TOOL_CALL] = NodeKind.TOOL_CALL
+    kind: typing.Literal["tool_call"] = NodeKind.TOOL_CALL.value
     id: int
     agent: int
     name: str

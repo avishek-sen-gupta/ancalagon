@@ -7,7 +7,7 @@ from ancalagon.contracts.spend import Spend
 
 
 class NeedsInput(pydantic.BaseModel, frozen=True):
-    kind: typing.Literal[OutcomeKind.NEEDS_INPUT] = OutcomeKind.NEEDS_INPUT
+    kind: typing.Literal["needs_input"] = OutcomeKind.NEEDS_INPUT.value
     question: str
     summary: str
     spent: Spend

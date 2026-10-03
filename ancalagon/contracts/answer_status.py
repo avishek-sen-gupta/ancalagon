@@ -2,6 +2,6 @@
 import enum
 
 
-class AnswerStatus(enum.StrEnum):
+class AnswerStatus(enum.Enum):
     COMPLETE = "complete"
     PARTIAL = "partial"

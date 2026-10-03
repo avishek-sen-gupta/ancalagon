@@ -6,7 +6,7 @@ from ancalagon.trace.node_kind import NodeKind
 
 
 class TaskNode(pydantic.BaseModel, frozen=True):
-    kind: typing.Literal[NodeKind.TASK] = NodeKind.TASK
+    kind: typing.Literal["task"] = NodeKind.TASK.value
     id: int
     dir: str
     parent_agent: int

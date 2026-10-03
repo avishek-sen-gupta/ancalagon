@@ -7,7 +7,7 @@ from ancalagon.contracts.spend import Spend
 
 
 class Failed(pydantic.BaseModel, frozen=True):
-    kind: typing.Literal[OutcomeKind.FAILED] = OutcomeKind.FAILED
+    kind: typing.Literal["failed"] = OutcomeKind.FAILED.value
     error: str
     summary: str
     spent: Spend

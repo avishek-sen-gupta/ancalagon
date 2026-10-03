@@ -306,7 +306,7 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
     outcome = session.run()
 
     assert isinstance(outcome, Idling)
-    assert outcome.kind is OutcomeKind.IDLING
+    assert outcome.kind == OutcomeKind.IDLING.value
     assert outcome.summary == f"idling until one of agents [{child}] finishes"
     assert outcome.spent == Spend(turns=1, tool_calls=0)
     highest = max(e.id for events in bus.snapshot().events.values() for e in events)
@@ -363,7 +363,7 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
     )
     outcome = session.run()
 
-    assert outcome.kind is OutcomeKind.IDLING
+    assert outcome.kind == OutcomeKind.IDLING.value
     assert outcome.spent == Spend(turns=1, tool_calls=0)
     assert isinstance(outcome, Idling)
     assert outcome.seen_through == NO_WATERMARK
@@ -758,7 +758,7 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
         ["collect_task", "read_file"],
         ["submit_answer"],
     ]
-    assert outcome.kind is OutcomeKind.EXHAUSTED
+    assert outcome.kind == OutcomeKind.EXHAUSTED.value
 
 
 def test_a_hook_gates_every_answer_and_prose_cannot_evade_it(tmp_path: pathlib.Path):

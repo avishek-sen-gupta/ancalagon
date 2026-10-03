@@ -2,7 +2,7 @@
 import enum
 
 
-class JsonOp(enum.StrEnum):
+class JsonOp(enum.Enum):
     SET = "set"
     APPEND = "append"
     REMOVE = "remove"

@@ -88,9 +88,7 @@ class CollectTask(Tool[TaskArgs]):
         outcome = adapter.validate_json(self.fs.read_text(task_dir / f"outcome-{newest}.json"))
         if isinstance(outcome, (Completed, Exhausted)):
             return ctx.full_result(self.name, outcome.value.model_dump_json(), ".json")
-        return ctx.failure(
-            self.name, f"agent {newest} ended as {outcome.kind.value}: {_detail(outcome)}"
-        )
+        return ctx.failure(self.name, f"agent {newest} ended as {outcome.kind}: {_detail(outcome)}")
 
     def _read_lost(
         self,

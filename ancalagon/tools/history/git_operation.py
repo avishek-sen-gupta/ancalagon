@@ -2,7 +2,7 @@
 import enum
 
 
-class GitOperation(enum.StrEnum):
+class GitOperation(enum.Enum):
     LOG = "log"
     BLAME = "blame"
     SHOW = "show"

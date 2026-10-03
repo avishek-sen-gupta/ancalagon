@@ -1,6 +1,13 @@
 #!/bin/bash
-# Bans explicit `Any` and `object` annotations in Python sources. Pyright strict catches
-# implicit Any and bare generics; it flags neither of these, so this covers the gap.
+# Bans explicit `Any` and `object` annotations, JSON-blob aliases, and `enum.StrEnum`, in
+# Python sources. Pyright strict catches implicit Any and bare generics; it flags none of
+# these, so this covers the gap.
+#
+# StrEnum is banned because its members compare equal to their own values and interpolate
+# without `.value`, so a name crosses a boundary without anything saying it did. A plain
+# `enum.Enum` makes every crossing explicit. A discriminator that must be a JSON tag uses
+# `typing.Literal["<value>"] = TheEnum.MEMBER.value`, which keeps the enum as the one
+# definition of the string and fails at import if the two ever disagree.
 #
 # One exemption exists, granted deliberately: a line marked `# type-hygiene: other_data`
 # may use Any. It is Citation.other_data, whose whole purpose is to hold whatever an agent
@@ -13,6 +20,7 @@ EXEMPT='^(ancalagon/contracts/citation\.py|ancalagon/tools/cite/cite_args\.py):[
 ANY_HITS=$(rg -n --type py '(\bfrom typing import .*\bAny\b|\btyping\.Any\b|(:|->)\s*Any\b|\[Any[,\]]|\bAny\|)' ancalagon tests 2>/dev/null | rg -v "$EXEMPT")
 OBJ_HITS=$(rg -n --type py '((:|->)\s*object\b|\[object[,\]]|\bobject\|)' ancalagon tests 2>/dev/null)
 JSON_HITS=$(rg -n --type py '\b(JsonValue|JsonDict|JsonObject|JsonType|AnyJson)\b' ancalagon tests 2>/dev/null)
+STRENUM_HITS=$(rg -n --type py '(\benum\.StrEnum\b|\bfrom enum import .*\bStrEnum\b|\(str, *enum\.Enum\))' ancalagon tests 2>/dev/null)
 
 STATUS=0
 
@@ -36,6 +44,16 @@ if [ -n "$JSON_HITS" ]; then
   echo "               model_validate_json makes it a concrete model. Where the class is"
   echo "               generated at runtime, make the container generic and resolve by import."
   echo "$JSON_HITS"
+  echo ""
+  STATUS=1
+fi
+
+if [ -n "$STRENUM_HITS" ]; then
+  echo "[type-hygiene] 'StrEnum' is banned, and so is a (str, Enum) mixin. Its members compare"
+  echo "               equal to their own values, so a name crosses a boundary unannounced."
+  echo "               Use enum.Enum, and for a JSON discriminator write"
+  echo "               typing.Literal[\"<value>\"] = TheEnum.MEMBER.value."
+  echo "$STRENUM_HITS"
   echo ""
   STATUS=1
 fi

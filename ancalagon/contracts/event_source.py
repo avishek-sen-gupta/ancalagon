@@ -2,6 +2,6 @@
 import enum
 
 
-class EventSource(enum.StrEnum):
+class EventSource(enum.Enum):
     SUPERVISOR = "supervisor"
     WORKER = "worker"

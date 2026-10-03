@@ -104,9 +104,7 @@ def _run(
     )
     outcome = session.run()
     (task_dir / f"outcome-{agent}.json").write_text(outcome.model_dump_json())
-    bus.record(
-        agent, AgentStatus(outcome.kind.value), EventSource.SUPERVISOR, summary=outcome.summary
-    )
+    bus.record(agent, AgentStatus(outcome.kind), EventSource.SUPERVISOR, summary=outcome.summary)
     return outcome
 
 

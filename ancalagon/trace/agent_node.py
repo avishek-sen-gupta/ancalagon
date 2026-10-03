@@ -7,7 +7,7 @@ from ancalagon.trace.node_kind import NodeKind
 
 
 class AgentNode(pydantic.BaseModel, frozen=True):
-    kind: typing.Literal[NodeKind.AGENT] = NodeKind.AGENT
+    kind: typing.Literal["agent"] = NodeKind.AGENT.value
     id: int
     task: int
     last_status: AgentStatus

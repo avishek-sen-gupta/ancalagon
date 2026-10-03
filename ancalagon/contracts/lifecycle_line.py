@@ -9,7 +9,7 @@ from ancalagon.contracts.line_kind import LineKind
 
 
 class LifecycleLine(pydantic.BaseModel, frozen=True):
-    kind: typing.Literal[LineKind.LIFECYCLE] = LineKind.LIFECYCLE
+    kind: typing.Literal["lifecycle"] = LineKind.LIFECYCLE.value
     agent: int
     status: AgentStatus
     source: EventSource

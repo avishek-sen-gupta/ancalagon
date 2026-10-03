@@ -2,6 +2,6 @@
 import enum
 
 
-class Strategy(enum.StrEnum):
+class Strategy(enum.Enum):
     NONE = "none"
     FENCE = "fence"

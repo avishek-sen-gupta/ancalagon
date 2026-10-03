@@ -7,7 +7,7 @@ from ancalagon.contracts.spend import Spend
 
 
 class Completed[OutT: pydantic.BaseModel](pydantic.BaseModel, frozen=True):
-    kind: typing.Literal[OutcomeKind.COMPLETED] = OutcomeKind.COMPLETED
+    kind: typing.Literal["completed"] = OutcomeKind.COMPLETED.value
     value: OutT
     summary: str
     spent: Spend

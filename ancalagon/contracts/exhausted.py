@@ -7,7 +7,7 @@ from ancalagon.contracts.spend import Spend
 
 
 class Exhausted[OutT: pydantic.BaseModel](pydantic.BaseModel, frozen=True):
-    kind: typing.Literal[OutcomeKind.EXHAUSTED] = OutcomeKind.EXHAUSTED
+    kind: typing.Literal["exhausted"] = OutcomeKind.EXHAUSTED.value
     value: OutT
     summary: str
     spent: Spend

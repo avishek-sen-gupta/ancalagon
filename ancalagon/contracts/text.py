@@ -6,5 +6,5 @@ from ancalagon.contracts.block_kind import BlockKind
 
 
 class Text(pydantic.BaseModel, frozen=True):
-    kind: typing.Literal[BlockKind.TEXT] = BlockKind.TEXT
+    kind: typing.Literal["text"] = BlockKind.TEXT.value
     text: str

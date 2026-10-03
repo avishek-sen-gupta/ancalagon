@@ -7,7 +7,7 @@ from ancalagon.contracts.block_kind import BlockKind
 
 
 class ToolUse(pydantic.BaseModel, frozen=True):
-    kind: typing.Literal[BlockKind.TOOL_USE] = BlockKind.TOOL_USE
+    kind: typing.Literal["tool_use"] = BlockKind.TOOL_USE.value
     id: str
     name: str
     arguments: str

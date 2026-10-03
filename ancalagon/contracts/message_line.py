@@ -8,5 +8,5 @@ from ancalagon.contracts.message import Message
 
 
 class MessageLine(pydantic.BaseModel, frozen=True):
-    kind: typing.Literal[LineKind.MESSAGE] = LineKind.MESSAGE
+    kind: typing.Literal["message"] = LineKind.MESSAGE.value
     message: Message

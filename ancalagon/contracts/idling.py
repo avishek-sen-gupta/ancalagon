@@ -8,7 +8,7 @@ from ancalagon.contracts.spend import Spend
 
 
 class Idling(pydantic.BaseModel, frozen=True):
-    kind: typing.Literal[OutcomeKind.IDLING] = OutcomeKind.IDLING
+    kind: typing.Literal["idling"] = OutcomeKind.IDLING.value
     summary: str
     spent: Spend
     seen_through: int

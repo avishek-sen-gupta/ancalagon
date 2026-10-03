@@ -1,7 +1,7 @@
 import enum
 
 
-class EdgeKind(enum.StrEnum):
+class EdgeKind(enum.Enum):
     SPAWNED = "spawned"
     WOKE = "woke"
     CALLED = "called"

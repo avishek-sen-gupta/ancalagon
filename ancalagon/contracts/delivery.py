@@ -2,6 +2,6 @@
 import enum
 
 
-class Delivery(enum.StrEnum):
+class Delivery(enum.Enum):
     NOTHING = "nothing"
     NOTE = "note"
