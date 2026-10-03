@@ -40,7 +40,7 @@ fileignoreconfig:
 - filename: ancalagon/bus/bus.py
   checksum: facce559e5bc923708d6a1371d04be24fcfbedbb4053d0eeaa8ebd426bde49bf
 - filename: docs/architecture.md
-  checksum: 4683c22819b038e939d2c811962d75c82192ec78b38e841e807ab837bf4d20c2
+  checksum: bff174737498720ea77e31cfdad2a020ac9059838b355d0d257b232581d16690
 - filename: ancalagon/tools/delegate/delegate_args.py
   checksum: 374eb9fc49fe06f498fb9d1c713c03c99a5ff7555c4a7bb00d4e1628f506792f
 - filename: ancalagon/tools/delegate/answer_task.py

@@ -591,12 +591,12 @@ knowing:
   not the same as choosing to skip reading a child's answer.
 - **Six of the loop's decisions belong to the role's profile, not to `Session`.** `halts`,
   `forces`, `offers`, `mechanics`, `instructs` and `nudges` each take a `Turn` and return what to
-  send. A `Turn` is frozen and rebuilt once per pass of the loop. It carries the tools on offer.
-  It carries what remains of the budget and what has been spent. It carries the outstanding and
-  uncollected children, and whether a note was delivered. `Session` keeps the loop and the classification of what
-  came back: a profile decides what to send, the session decides what a reply meant. `Answering`
-  is the profile that submits an answer, `AnsweringAsFile` the one that points at a file, and the
-  base class's defaults never halt, never force and offer everything the role declared.
+  send. A `Turn` is frozen, rebuilt once per pass of the loop, and holds the tools on offer, the
+  budget left, the spend so far, the outstanding and uncollected children, and whether a note was
+  delivered. `Session` keeps the loop and the classification of what came back: a profile decides
+  what to send, the session decides what a reply meant. `Answering` is the profile that submits an
+  answer, `AnsweringAsFile` the one that points at a file, and the base class's defaults never
+  halt, never force and offer everything the role declared.
 - **`Standing` is an agent that never answers**, and it is the base class's defaults almost
   exactly: it overrides only what it supplies — `idle` — what it refuses in a role, and the
   paragraph telling the model it does not finish. Which says something the old shape hid:
