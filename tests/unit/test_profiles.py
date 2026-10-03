@@ -111,7 +111,7 @@ def test_an_answering_profile_withholds_idle_and_submit_until_it_is_time_for_eac
 ):
     profile = Answering(CATALOGUE)
 
-    assert _brought(profile) == ["idle", "submit_answer"]
+    assert _brought(profile) == sorted(Answering.brings()) == ["idle", "submit_answer"]
 
     alone = _turn(tmp_path)
     assert profile.halts(alone) is PENDING
@@ -161,7 +161,9 @@ def test_answering_as_a_file_changes_only_which_tool_ends_the_run(tmp_path: path
     profile = AnsweringAsFile(CATALOGUE)
 
     assert profile.terminal.declaration.name == "submit_answer_as_file"
-    assert _brought(profile) == ["idle", "submit_answer_as_file"]
+    assert (
+        _brought(profile) == sorted(AnsweringAsFile.brings()) == ["idle", "submit_answer_as_file"]
+    )
 
     final = _turn(tmp_path, turns=0, offered=OFFERED_FILE)
     assert _forced(profile, final) == "submit_answer_as_file"

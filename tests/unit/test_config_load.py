@@ -381,7 +381,7 @@ budget = { turns = 4, tool_calls = 8 }
 """
 
 
-def test_a_session_role_must_name_a_submit_tool(
+def test_an_answering_as_file_role_must_type_the_file_it_submits(
     tmp_path: pathlib.Path, importable: collections.abc.Callable[[pathlib.Path], None]
 ):
     package = tmp_path / "runkit"
@@ -436,12 +436,8 @@ role = "analyst"
     path.write_text(text)
     config = load_config(pathlib.PurePath(path), RealFileSystem())
 
-    with pytest.raises(ValueError) as raised:
-        check_contracts(config, RealFileSystem())
-
-    assert "[roles.analyst]" in str(raised.value)
-    assert "submit_answer" in str(raised.value)
-    assert "[roles.transformer]" not in str(raised.value)
+    # Neither role names a submit tool, and neither needs to: its profile brings one.
+    check_contracts(config, RealFileSystem())
 
     filer = SerialisableRole(
         profile=ANSWERING_AS_FILE,
@@ -562,7 +558,6 @@ def test_the_example_config_this_repo_ships_satisfies_its_own_contracts():
             "check_task",
             "collect_task",
             "answer_task",
-            "submit_answer",
         ),
         "investigator": (
             "read_file",
@@ -572,8 +567,11 @@ def test_the_example_config_this_repo_ships_satisfies_its_own_contracts():
             "find_symbol",
             "shell",
             "need_input",
-            "submit_answer",
         ),
+    }
+    assert {name: role.profile for name, role in config.roles.items()} == {
+        "root": ANSWERING,
+        "investigator": ANSWERING,
     }
 
 

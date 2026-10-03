@@ -39,7 +39,6 @@ tools = [
   "delegate_analyst",
   "check_task",
   "collect_task",
-  "submit_answer",
 ]
 budget = { turns = 200, tool_calls = 400 }
 
@@ -75,7 +74,6 @@ tools = [
   "find_symbol",
   "shell",
   "watch_file",
-  "submit_answer",
 ]
 budget = { turns = 200, tool_calls = 400 }
 

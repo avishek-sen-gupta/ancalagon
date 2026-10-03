@@ -75,15 +75,16 @@ allowed_domains = []
 # it may spend. Every role becomes a tool named delegate_<role>, so a role's name must be a
 # valid identifier.
 #
-# Required in each role: behaviour, tools, budget.
+# Required in each role: profile, behaviour, tools, budget.
 # Optional: input, answer, answer_file, run, before, after.
 #
-# A role that runs a session must name exactly one of submit_answer or submit_answer_as_file in
-# tools. Naming neither is refused at startup, and so is naming both -- the two differ in how the
-# answer travels, so a role wanting both has not decided. Declaring a hook on a tool does not
-# enable it.
+# profile names the class that decides what this kind of agent may do, and it has no default.
+# Answering submits its answer through submit_answer. AnsweringAsFile writes a file and submits
+# the path through submit_answer_as_file. Deterministic is a Python function rather than a
+# conversation, and must name run. The profile brings its own terminal tool and idle, so tools
+# lists neither. Declaring a hook on a tool does not enable it.
 #
-# A role that names submit_answer_as_file must set answer to AnswerFile and answer_file to the
+# A role whose profile is AnsweringAsFile must set answer to AnswerFile and answer_file to the
 # class its file holds, as { module = "...", name = "..." }. Submitting validates the file into
 # that class and refuses it, listing every fault, until it fits.
 #
@@ -100,8 +101,6 @@ allowed_domains = []
 #   web       fetch_url  web_search          (need [web] allowed_domains)
 #   watch     watch_file
 #   delegate  check_task  collect_task  answer_task  delegate_<role>
-#   submit    submit_answer  submit_answer_as_file
-#   idle      idle
 #   input     need_input
 
 [roles.root]
@@ -117,7 +116,6 @@ tools = [
   "check_task",
   "collect_task",
   "answer_task",
-  "submit_answer",
 ]
 # Turns and tool calls. Either may be the string "infinite" instead of a number.
 budget = { turns = 25, tool_calls = 70 }
@@ -142,7 +140,6 @@ tools = [
   "find_symbol",
   "shell",
   "need_input",
-  "submit_answer",
 ]
 budget = { turns = 14, tool_calls = 35 }
 
@@ -167,7 +164,7 @@ shell = [{ module = "checkkit.checks", name = "produced_output" }]
 # behaviour = "Audit one module and report what you found."
 # input = { module = "mypkg.contracts", name = "AuditRequest" }
 # answer = { module = "mypkg.contracts", name = "AuditFinding" }
-# tools = ["read_file", "ripgrep", "submit_answer"]
+# tools = ["read_file", "ripgrep"]
 # budget = { turns = "infinite", tool_calls = 40 }
 
 # ── a deterministic role ──────────────────────────────────────────────── OPTIONAL

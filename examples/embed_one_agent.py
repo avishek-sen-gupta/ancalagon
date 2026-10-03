@@ -28,7 +28,7 @@ ANALYST = SerialisableRole(
         "the others, and submit an answer naming that file and the contradiction in one or two "
         "sentences. Use list_dir and read_file. Do not answer without reading."
     ),
-    tools=("list_dir", "read_file", "submit_answer"),
+    tools=("list_dir", "read_file"),
     budget=SerialisableBudget(turns=12, tool_calls=20),
 )
 

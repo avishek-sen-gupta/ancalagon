@@ -168,7 +168,7 @@ strategy = "none"
 [roles.root]
 profile = { module = "ancalagon.profiles.answering", name = "Answering" }
 behaviour = "Look."
-tools = ["ripgrep", "submit_answer"]
+tools = ["ripgrep"]
 budget = { turns = 2, tool_calls = 4 }
 
 [roles.root.before]
@@ -232,45 +232,23 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
     with pytest.raises(ValueError, match="names a hook for transform_file, which it does not use"):
         check_contracts(config.model_copy(update={"roles": {"root": unknown}}))
 
-    other_submit = role.model_copy(
+    # The terminal tool is brought by the profile, so a hook on it resolves although
+    # tools never names it.
+    gated = role.model_copy(
+        update={"before": {"submit_answer": (FunctionRef(module=hooks, name="general"),)}}
+    )
+    check_contracts(config.model_copy(update={"roles": {"root": gated}}))
+
+    # The same hook on a role whose profile brings the other terminal tool is refused.
+    other_submit = gated.model_copy(
         update={
             "profile": ANSWERING_AS_FILE,
-            "tools": ("ripgrep", "submit_answer_as_file"),
             "answer": ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile"),
             "answer_file": ClassRef(module="ancalagon.contracts.free_text", name="FreeText"),
-            "before": {"submit_answer": (FunctionRef(module=hooks, name="general"),)},
         }
     )
     with pytest.raises(ValueError, match="names a hook for submit_answer, which it does not use"):
         check_contracts(config.model_copy(update={"roles": {"root": other_submit}}))
-
-    no_submit = role.model_copy(update={"tools": ("ripgrep",), "before": {}, "after": {}})
-    with pytest.raises(
-        ValueError,
-        match=(
-            r"must name one of \['submit_answer', 'submit_answer_as_file'\]; "
-            r"named: \['ripgrep'\]"
-        ),
-    ):
-        check_contracts(config.model_copy(update={"roles": {"root": no_submit}}))
-
-    both_submits = role.model_copy(
-        update={
-            "profile": ANSWERING_AS_FILE,
-            "tools": ("ripgrep", "submit_answer", "submit_answer_as_file"),
-            "answer": ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile"),
-            "answer_file": ClassRef(module="ancalagon.contracts.free_text", name="FreeText"),
-            "before": {"submit_answer": (FunctionRef(module=hooks, name="general"),)},
-        }
-    )
-    with pytest.raises(
-        ValueError,
-        match=(
-            r"must name only one of \['submit_answer', 'submit_answer_as_file'\]; "
-            r"named: \['submit_answer', 'submit_answer_as_file'\]"
-        ),
-    ):
-        check_contracts(config.model_copy(update={"roles": {"root": both_submits}}))
 
 
 RUNKIT = """

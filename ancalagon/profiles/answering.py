@@ -49,6 +49,10 @@ class Answering(Profile):
         self.tools = (self.terminal, self.idle)
 
     @classmethod
+    def brings(cls) -> frozenset[str]:
+        return frozenset({Idle.name, SubmitAnswer.name})
+
+    @classmethod
     def faults(cls, name: str, role: SerialisableRole, /) -> str:
         if fault := run_ref_fault(name, cls.__name__, role):
             return fault

@@ -125,7 +125,7 @@ doc = json.dumps({"base": str(anchor), "workspace": {...}, "model": {...},
                   "roles": {"root": {"behaviour": "Answer the question you are given.",
                                       "profile": {"module": "ancalagon.profiles.answering",
                                                   "name": "Answering"},
-                                      "tools": ["read_file", "submit_answer"],
+                                      "tools": ["read_file"],
                                       "budget": {"turns": 4, "tool_calls": 8}}}})
 run_dir = subprocess.run(["ancalagon", "init", "--config-json"], input=doc,
                           capture_output=True, text=True).stdout.strip()
@@ -172,7 +172,8 @@ outcome = session.run()
 
 The caller owns the `ToolContext` and the `Transcript`, and closes the transcript when it is done.
 `examples/embed_one_agent.py` is the worked version of this section: it builds all four from a
-`Config` written in Python, hands one agent `list_dir`, `read_file` and `submit_answer`, and sets
+`Config` written in Python, hands one agent `list_dir` and `read_file` — `submit_answer` comes
+from its profile — and sets
 it to find the contradiction among four notes. Run it with `uv run python examples/embed_one_agent.py`
 once your provider credentials are in the environment, and change `MODEL` at the top of the file to
 point at a different one. `tests/integration/test_one_agent.py` is the same shape with a scripted
@@ -285,9 +286,11 @@ flowchart LR
     resolve --> inc["input class"]
     resolve --> outc["answer class"]
     inc --> agentspec["the spec, re-read as a typed model"]
-    outc --> submit["the terminal submit tool the role named<br/>submit_answer takes the answer class as its schema;<br/>submit_answer_as_file takes AnswerFile and the answer class must be it;<br/>the file must validate into answer_file"]
+    outc --> submit["the terminal submit tool the role's profile brings<br/>submit_answer takes the answer class as its schema;<br/>submit_answer_as_file takes AnswerFile and the answer class must be it;<br/>the file must validate into answer_file"]
+    role --> prof["the profile"]
+    prof --> registry
     role --> tl["the tools list"]
-    tl --> registry["registry - exactly these,<br/>plus idle"]
+    tl --> registry["registry - exactly these,<br/>plus what the profile brings"]
     role --> b["budget - turns and tool calls"]
     b --> registry
 ```
@@ -302,9 +305,10 @@ Rules that follow from that wiring:
 - A role a worker may spawn gets a `delegate_<role>` tool built from *that role's* input
   contract, so a parent sees the child's real schema. A worker builds them only for the roles
   its own `tools` list names. A role name becomes a tool name, so it must be a Python identifier.
-- `tools = []` means *no tools*, not all of them. `idle` arrives regardless; a terminal submit
-  tool does not — a role that runs a session names one, and `check_contracts` rejects a role
-  that names none. There is one way out of a run and the role chooses which.
+- `tools = []` means *no tools*, not all of them. What the role's profile brings arrives
+  regardless: `idle`, and the one terminal submit tool that profile answers through. A role
+  therefore never names a submit tool, and there is one way out of a run because the profile
+  chooses it.
 - There is no global default budget or tool list. Only what each role states.
 - The config is fixed for the duration of one `run()` invocation: it is materialised into
   `config.json` in the run directory, and every worker reads that copy rather than the source
@@ -444,32 +448,32 @@ the tool-call budget.
 
 ### Two ways to submit
 
-A role names one of two terminal tools: `submit_answer` carries the answer in its arguments, so
-its parameter schema is the answer contract and the whole answer must fit in one completion;
-`submit_answer_as_file` carries a status, a sentence and a path, so the answer is built on disk
-across many `edit_json` calls and a parent collecting it pays three fields instead of the whole
-record.
+A role's profile names one of two terminal tools. `Answering` brings `submit_answer`, which
+carries the answer in its arguments, so its parameter schema is the answer contract and the whole
+answer must fit in one completion. `AnsweringAsFile` brings `submit_answer_as_file`, which carries
+a status, a sentence and a path, so the answer is built on disk across many `edit_json` calls and
+a parent collecting it pays three fields instead of the whole record.
 
 ```toml
 [roles.record_analyst]
+profile = { module = "ancalagon.profiles.answering_as_file", name = "AnsweringAsFile" }
 answer = { module = "ancalagon.contracts.answer_file", name = "AnswerFile" }
 answer_file = { module = "example.contracts.record", name = "Record" }
-tools = ["read_file", "write_file", "edit_json", "submit_answer_as_file"]
+tools = ["read_file", "write_file", "edit_json"]
 ```
 
 The `answer` line is not decoration: `submit_answer_as_file` submits an `AnswerFile` whatever the
-role says, so a role naming that tool must declare `AnswerFile` as its `answer`, and startup
-rejects one that declares something else. Naming both tools is legal and means the file route
-replaces the other; only the named one is in the registry, so there is no second way out. A hook
-declared for a tool the role does not name is rejected too, because a gate that never runs reads
-as a gate that does.
+role says, so an `AnsweringAsFile` role must declare `AnswerFile` as its `answer`, and startup
+rejects one that declares something else. A role that also lists a submit tool in `tools` is not
+refused, but one its profile does not bring is withheld, so there is no second way out. A hook
+declared for a tool the role neither names nor gets from its profile is rejected, because a gate
+that never runs reads as a gate that does.
 
 `answer_file` names the class the file holds. The tool's description shows the model that
 class's schema, and submitting reads the file and validates it into the class: a file that does
 not fit is refused with every fault listed, `/values/1: Input should be a valid integer`, and the
-agent fixes it and submits again. A role naming `submit_answer_as_file` must declare
-`answer_file`, and a role declaring it without the tool is rejected at startup, since nothing
-would check it.
+agent fixes it and submits again. An `AnsweringAsFile` role must declare `answer_file`, and a
+role declaring it under any other profile is rejected at startup, since nothing would check it.
 
 `watch_file` is the one that needs something else declared: a role that names `watch_for` as its
 `run` function, since that is what it queues and what tells the supervisor to run a process
@@ -567,7 +571,7 @@ sequenceDiagram
   had to kill is still collectable: the outcome is read from the bus event that closed it,
   since no file was ever written.
 
-Which tools the session offers is decided per turn:
+Which tools are offered is decided per turn, by the role's profile:
 
 | Turns left? | Children outstanding | Children settled but uncollected | Offered |
 |---|---|---|---|

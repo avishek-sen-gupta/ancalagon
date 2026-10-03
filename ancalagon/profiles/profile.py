@@ -18,6 +18,10 @@ class Profile:
         return None
 
     @classmethod
+    def brings(cls) -> frozenset[str]:
+        return frozenset[str]()
+
+    @classmethod
     def faults(cls, name: str, role: SerialisableRole, /) -> str:
         return ""
 

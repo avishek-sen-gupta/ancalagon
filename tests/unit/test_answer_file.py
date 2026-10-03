@@ -17,10 +17,10 @@ from ancalagon.session_for import assemble
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
-from ancalagon.tools.submit.submitting import submitting
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.workspace.workspace import Workspace
-from ancalagon.profiles.answering_as_file import ANSWERING_AS_FILE
+from ancalagon.profiles.answering import Answering
+from ancalagon.profiles.answering_as_file import ANSWERING_AS_FILE, AnsweringAsFile
 from tests.unit.conftest import written_budget
 
 ANSWER_FILE = ClassRef(module="ancalagon.contracts.answer_file", name="AnswerFile")
@@ -42,17 +42,16 @@ def _ctx(tmp_path: pathlib.Path) -> ToolContext:
     )
 
 
-def test_the_role_chooses_which_terminal_tool_it_submits_with(tmp_path: pathlib.Path):
-    assert submitting(("read_file", "submit_answer")) == SubmitAnswer.name
-    assert submitting(("read_file", "submit_answer_as_file")) == SubmitAnswerAsFile.name
-    assert submitting(("submit_answer", "submit_answer_as_file")) == SubmitAnswerAsFile.name
+def test_the_profile_brings_the_terminal_tool_the_role_does_not_name(tmp_path: pathlib.Path):
+    assert Answering.brings() == {"idle", SubmitAnswer.name}
+    assert AnsweringAsFile.brings() == {"idle", SubmitAnswerAsFile.name}
 
     role = SerialisableRole(
         profile=ANSWERING_AS_FILE,
         behaviour="You answer.",
         answer=ANSWER_FILE,
         answer_file=ClassRef(module=__name__, name="Record"),
-        tools=("read_file", "submit_answer", "submit_answer_as_file"),
+        tools=("read_file",),
         budget=written_budget(1, 1),
     )
     assembled = assemble(

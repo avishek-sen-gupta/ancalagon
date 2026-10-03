@@ -3,9 +3,7 @@ from ancalagon.bus.no_bus import NO_BUS
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.config.config import Config
 from ancalagon.contracts.class_ref import ClassRef
-from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.resolve import resolve_class
-from ancalagon.contracts.role import Role
 from ancalagon.contracts.role_of import role_of
 from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.task_spec import TaskSpec
@@ -13,8 +11,6 @@ from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.profiles.resolve_profile import resolve_profile
 from ancalagon.session_for import assemble
-from ancalagon.tools.idle.idle import Idle
-from ancalagon.tools.submit.submitting import TERMINAL_TOOLS
 from ancalagon.web.real_web_client import RealWebClient
 from ancalagon.web.web_client import WebClient
 
@@ -38,29 +34,12 @@ def _profile_fault(name: str, written: SerialisableRole) -> str:
     return kind.faults(name, written)
 
 
-def _submit_fault(name: str, role: Role) -> str:
-    if role.run != NO_RUN:
-        return ""
-    terminal = set(role.tools) & TERMINAL_TOOLS
-    if len(terminal) == 1:
-        return ""
-    if not terminal:
-        return (
-            f"[roles.{name}] tools: a role that runs a session must name one of "
-            f"{sorted(TERMINAL_TOOLS)}; named: {sorted(role.tools)}"
-        )
-    return (
-        f"[roles.{name}] tools: a role that runs a session must name only one of "
-        f"{sorted(TERMINAL_TOOLS)}; named: {sorted(terminal)}"
-    )
-
-
 def _hook_fault(
     name: str, written: SerialisableRole, config: Config, fs: FileSystem, web: WebClient
 ) -> str:
     role = role_of(written)
     named = set(role.before) | set(role.after)
-    not_in_role = named - set(role.tools) - {Idle.name}
+    not_in_role = named - set(role.tools) - resolve_profile(written.profile).brings()
     if not_in_role:
         return f"[roles.{name}] names a hook for {sorted(not_in_role)[0]}, which it does not use"
     try:
@@ -102,7 +81,6 @@ def check_contracts(
             for name, written in config.roles.items()
             if (fault := _profile_fault(name, written))
         ]
-        or [fault for name, role in resolved.items() if (fault := _submit_fault(name, role))]
         or [
             fault
             for name, written in config.roles.items()
