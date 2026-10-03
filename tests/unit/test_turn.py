@@ -59,6 +59,10 @@ def test_a_turn_derives_finality_and_finds_a_bound_tool_by_its_spec(tmp_path: pa
     grep = next(t for t in turn.offered if t.spec.declaration.name == "ripgrep")
     assert turn.bound(grep.spec) is grep
 
+    assert [t.spec.source for t in turn.offered] == [Ripgrep, SubmitAnswer]
+    by_class = {t.spec.source: t for t in turn.offered}
+    assert turn.bound(by_class[SubmitAnswer].spec) is by_class[SubmitAnswer]
+
     unheld = bind_tool(SubmitAnswer(pydantic.create_model("Other", answer=(str, ...)))).spec
     assert turn.bound(unheld) is NO_TOOL
 

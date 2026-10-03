@@ -61,6 +61,7 @@ def _invoked(
 def bind_tool(tool: Tool[ArgsT], before: Before = NO_BEFORE, after: After = NO_AFTER) -> BoundTool:
     return BoundTool(
         spec=ToolSpec(
+            source=type(tool),
             category=tool.category,
             cost=tool.cost,
             declaration=schema_of(tool.name, tool.description, tool.args_model),
