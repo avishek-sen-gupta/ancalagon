@@ -38,6 +38,7 @@ from ancalagon.tools.delegate.answer_task import AnswerTask
 from ancalagon.tools.delegate.check_task import CheckTask
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.delegate.delegate_tools import delegate_tools
+from ancalagon.tools.delegate.delegating import delegate_name
 from ancalagon.tools.files.append_file import AppendFile
 from ancalagon.tools.files.delete_file import DeleteFile
 from ancalagon.tools.files.edit_file import EditFile
@@ -161,7 +162,7 @@ def assemble(
     bus: Bus,
 ) -> Assembly:
     spawnable = {
-        name: role for name, role in config.roles.items() if f"delegate_{name}" in spec.role.tools
+        name: role for name, role in config.roles.items() if delegate_name(name) in spec.role.tools
     }
     available = available_tools(
         role_of(spec.role),
