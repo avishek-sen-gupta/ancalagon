@@ -503,19 +503,19 @@ never left uncollectable. This is the one catch-all in the codebase and it is de
 is the outermost frame of a process, and a worker that dies without an `outcome-<agent>.json` is
 indistinguishable to `collect_task` from one still working, for ever.
 
-`assemble` decides which tools an agent's registry can serve at all, not which of them
-it is offered on a given turn: the role's own `tools` filters the list, every `delegate_<name>`
-entry is withheld once `bus/depth_of.py` reports the task is at `max_depth`, and whatever the
-role's profile brings is added to that list — `idle` and the one terminal submit tool, so a role
-author who left `idle` out never chose to crash the harness, or to spawn children it could never
-wait for. A submit tool the role names but its profile does not bring is withheld, since there is
-one way out of a run and the profile chooses which. `assemble` returns both the registry and the
+`assemble` decides which tools an agent's registry can serve at all, not which of them it is
+offered on a given turn: the role's own `tools` filters the list, every `delegate_<name>` entry is
+withheld once `bus/depth_of.py` reports the task is at `max_depth`, and whatever the role's
+profile brings is added to that list — `idle` and the one terminal submit tool, so a role author
+who left `idle` out never chose to crash the harness, or to spawn children it could never wait
+for. A submit tool the role names but its profile does not bring is withheld, since there is one
+way out of a run and the profile chooses which. `assemble` returns both the registry and the
 profile, because the profile is built from a `Catalogue` of every tool that could have been built
-and there is no second place holding that list. A name in `tools`
-that no tool answers to raises, naming both the unknown entries and the available set. An empty
-`tools` list now means no tools at all, the inverse of the old global `[tools] enabled = []`,
-which meant every tool — a role written against the old default gets a much smaller toolset than
-its author expects, silently, unless `tools` is filled in.
+and there is no second place holding that list. A name in `tools` that no tool answers to raises,
+naming both the unknown entries and the available set. An empty `tools` list now means no tools at
+all, the inverse of the old global `[tools] enabled = []`, which meant every tool — a role written
+against the old default gets a much smaller toolset than its author expects, silently, unless
+`tools` is filled in.
 
 Which of `idle` and the terminal submit tool the model actually sees changes every turn. `Session`
 learns the facts it needs through an injected `Children` port (`ancalagon/children/`) —
