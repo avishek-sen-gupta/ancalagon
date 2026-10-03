@@ -60,6 +60,7 @@ layers = [
     "ancalagon.worker",
     "ancalagon.session_for : ancalagon.watch",
     "ancalagon.supervisor : ancalagon.session",
+    "ancalagon.profiles",
     "ancalagon.tools",
     "ancalagon.children : ancalagon.letterbox",
     "ancalagon.answer",

@@ -14,6 +14,9 @@ class Registry:
             raise KeyError(f"unknown tool {name}")
         return self.tools[name]
 
+    def bound(self) -> tuple[BoundTool, ...]:
+        return tuple(self.tools.values())
+
     def names(self) -> list[str]:
         return list(self.tools)
 

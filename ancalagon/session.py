@@ -40,6 +40,7 @@ from ancalagon.llm.llm import LLM
 from ancalagon.llm.meter import Meter
 from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.unmetered import UNMETERED
+from ancalagon.profiles.turn import Turn
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.resolved import resolved
 from ancalagon.tools.registry.tool_use import ToolUse
@@ -228,35 +229,29 @@ class Session:
         self._record(MessageRole.USER, blocks)
         return results
 
-    def _forced(self, uncollected: collections.abc.Sequence[int], tries: int) -> str:
-        if uncollected and tries > 0 and COLLECT in self.registry.names():
+    def _forced(self, turn: Turn) -> str:
+        if turn.uncollected and turn.tries > 0 and COLLECT in self.registry.names():
             return COLLECT
         return self.submit
 
-    def _declarations(
-        self,
-        final: bool,
-        outstanding: collections.abc.Sequence[int],
-        uncollected: collections.abc.Sequence[int],
-        forced: str,
-    ) -> list[ToolSchema]:
-        if final:
+    def _declarations(self, turn: Turn, forced: str) -> list[ToolSchema]:
+        if turn.final:
             return [self.registry.get(forced).spec.declaration]
-        excluded: set[str] = ({IDLE} if not outstanding else set[str]()) | (
-            {self.submit} if outstanding or uncollected else set[str]()
+        excluded: set[str] = ({IDLE} if not turn.outstanding else set[str]()) | (
+            {self.submit} if turn.outstanding or turn.uncollected else set[str]()
         )
         return [
-            self.registry.get(name).spec.declaration
-            for name in self.registry.names()
-            if name not in excluded
+            tool.spec.declaration
+            for tool in turn.offered
+            if tool.spec.declaration.name not in excluded
         ]
 
-    def _final_instruction(self, forced: str, uncollected: collections.abc.Sequence[int]) -> str:
+    def _final_instruction(self, turn: Turn, forced: str) -> str:
         if forced == COLLECT:
             return (
                 f"Your budget is exhausted, and these children have answers you have never "
-                f"read: {list(uncollected)}. Call {COLLECT} for one of them now. You will be "
-                f"asked for your answer once every one of them has been collected."
+                f"read: {list(turn.uncollected)}. Call {COLLECT} for one of them now. You will "
+                f"be asked for your answer once every one of them has been collected."
             )
         return (
             f"Your budget is exhausted. Answer now from what you already know, "
@@ -271,10 +266,10 @@ class Session:
             f"call it when you have your answer."
         )
 
-    def _prepare_final_turn(self, forced: str, uncollected: collections.abc.Sequence[int]) -> None:
+    def _prepare_final_turn(self, turn: Turn, forced: str) -> None:
         if self.messages and self.messages[-1].role is MessageRole.USER:
             self._record(MessageRole.ASSISTANT, [Text(text="Understood.")])
-        self._record(MessageRole.USER, [Text(text=self._final_instruction(forced, uncollected))])
+        self._record(MessageRole.USER, [Text(text=self._final_instruction(turn, forced))])
 
     def _outcome_of_use(
         self, summary: Payload, final: bool
@@ -385,30 +380,44 @@ class Session:
                 spent=self._spent(),
             )
 
+    def _turn(self, delivered: Delivery, tries: int) -> Turn:
+        return Turn(
+            spec=self.spec,
+            agent_id=self.agent_id,
+            output_class=self.output_class,
+            offered=self.registry.bound(),
+            remaining=self.remaining,
+            spent=self.spent,
+            outstanding=self.children.outstanding(),
+            uncollected=self.children.uncollected(),
+            tries=tries,
+            delivered=delivered,
+            workspace=self.ctx.workspace,
+        )
+
     def _loop(self) -> Outcome[pydantic.BaseModel]:
         tries = COLLECT_TRIES
         while True:
-            delivered = self._deliver()
-            final = self.remaining.turns_exhausted
-            outstanding = self.children.outstanding()
-            if final and outstanding:
+            turn = self._turn(self._deliver(), tries)
+            if turn.final and turn.outstanding:
                 return Idling(
                     summary="turns exhausted while children ran",
                     spent=self._spent(),
                     seen_through=NO_WATERMARK,
                 )
-            before = self.children.uncollected()
-            forced = self._forced(before, tries) if final else ""
-            declarations = self._declarations(final, outstanding, before, forced)
-            if final:
-                self._prepare_final_turn(forced, before)
+            forced = self._forced(turn) if turn.final else ""
+            declarations = self._declarations(turn, forced)
+            if turn.final:
+                self._prepare_final_turn(turn, forced)
             else:
                 self.remaining = self.remaining.spend_turn()
                 self.spent = self.spent.plus_turn()
             reply = self._complete(declarations, force_tool=forced)
             self._record(MessageRole.ASSISTANT, reply.blocks)
-            outcome = self._evaluate_turn(reply, final, delivered, forced)
+            outcome = self._evaluate_turn(reply, turn.final, turn.delivered, forced)
             if not isinstance(outcome, Pending):
                 return outcome
             if forced == COLLECT:
-                tries = COLLECT_TRIES if self.children.uncollected() != before else tries - 1
+                tries = (
+                    COLLECT_TRIES if self.children.uncollected() != turn.uncollected else tries - 1
+                )
