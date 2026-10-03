@@ -1,4 +1,5 @@
 # Searches the web and writes the ranked results to the task directory.
+from ancalagon.contracts.any_tool import AnyTool
 from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.registry.tool import Tool
@@ -17,13 +18,13 @@ def _rendered(result: Result) -> str:
     return f"{result.rank}. {result.title}\n{result.url}\n{result.snippet}"
 
 
-def _searched(page: Page, args: SearchArgs, name: str, ctx: ToolContext) -> ToolResult:
+def _searched(page: Page, args: SearchArgs, tool: AnyTool, ctx: ToolContext) -> ToolResult:
     if page.status != 200:
-        return ctx.failure(name, f"{ENDPOINT} answered {page.status} for {args.query!r}")
+        return ctx.failure(tool, f"{ENDPOINT} answered {page.status} for {args.query!r}")
     found = results_in(page.body, args.count)
     if not found:
-        return ctx.failure(name, f"no results for {args.query!r}")
-    return ctx.result(name, "\n\n".join(_rendered(r) for r in found))
+        return ctx.failure(tool, f"no results for {args.query!r}")
+    return ctx.result(tool, "\n\n".join(_rendered(r) for r in found))
 
 
 class WebSearch(Tool[SearchArgs]):
@@ -43,5 +44,5 @@ class WebSearch(Tool[SearchArgs]):
         try:
             page = self.client.post_form(ENDPOINT, {"q": args.query})
         except Unreachable as exc:
-            return ctx.failure(self.name, str(exc))
-        return _searched(page, args, self.name, ctx)
+            return ctx.failure(self, str(exc))
+        return _searched(page, args, self, ctx)

@@ -14,4 +14,4 @@ class NoWatchFile(Tool[WatchArgs]):
     args_model = WatchFile.args_model
 
     def run(self, args: WatchArgs, ctx: ToolContext) -> ToolResult:
-        return ctx.failure(self.name, f"cannot watch {args.path}: this session has no bus")
+        return ctx.failure(self, f"cannot watch {args.path}: this session has no bus")

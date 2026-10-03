@@ -22,4 +22,4 @@ class NoDelegateTo(Tool[DelegateArgs]):
         self.args_model = delegate_args(role_name, role)
 
     def run(self, args: DelegateArgs, ctx: ToolContext) -> ToolResult:
-        return ctx.failure(self.name, f"cannot queue task {args.task_id}: this session has no bus")
+        return ctx.failure(self, f"cannot queue task {args.task_id}: this session has no bus")

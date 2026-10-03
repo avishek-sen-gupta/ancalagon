@@ -29,5 +29,5 @@ class Idle(Tool[IdleArgs]):
         snapshot = self.bus.snapshot()
         seen = max((e.id for events in snapshot.events.values() for e in events), default=0)
         payload = Idled(waiting_for=live_children(snapshot, self.agent), seen_through=seen)
-        path = ctx.write_output(self.name, payload.text_for_model(), ".txt")
+        path = ctx.write_output(self, payload.text_for_model(), ".txt")
         return ToolResult(ok=True, summary=payload, path=path)

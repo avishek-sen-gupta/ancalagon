@@ -57,11 +57,11 @@ class AstQuery(Tool[AstQueryArgs]):
 
     def run(self, args: AstQueryArgs, ctx: ToolContext) -> ToolResult:
         if args.language not in GRAMMARS:
-            return ctx.failure(self.name, f"unsupported language {args.language}")
+            return ctx.failure(self, f"unsupported language {args.language}")
         try:
             roots = [str(ctx.workspace.resolve_read(r)) for r in args.roots]
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         return self._over(roots, args, ctx)
 
     def _over(
@@ -69,9 +69,9 @@ class AstQuery(Tool[AstQueryArgs]):
     ) -> ToolResult:
         listed, files, err = searchable_files(roots, args.globs)
         if listed not in (0, 1):
-            return ctx.failure(self.name, err)
+            return ctx.failure(self, err)
         if not files:
-            return ctx.result(self.name, "[]", ".json")
+            return ctx.result(self, "[]", ".json")
         return self._matched(files, args, ctx)
 
     def _matched(
@@ -81,7 +81,7 @@ class AstQuery(Tool[AstQueryArgs]):
         try:
             query = tree_sitter.Query(language, args.query)
         except tree_sitter.QueryError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         parser = tree_sitter.Parser(language)
         found = [match for path in files for match in _in_file(parser, query, path, ctx)]
-        return ctx.result(self.name, MATCHES.dump_json(found, indent=2).decode(), ".json")
+        return ctx.result(self, MATCHES.dump_json(found, indent=2).decode(), ".json")

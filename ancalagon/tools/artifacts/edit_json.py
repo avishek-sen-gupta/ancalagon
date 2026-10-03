@@ -35,7 +35,7 @@ class EditJson(Tool[JsonEditArgs]):
         try:
             path = ctx.workspace.resolve_write(args.path)
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         value = [] if args.op is JsonOp.REMOVE else ["--argjson", "v", args.value]
         code, out, err = run_command(
             [
@@ -49,6 +49,6 @@ class EditJson(Tool[JsonEditArgs]):
             ]
         )
         if code != 0:
-            return ctx.failure(self.name, err)
+            return ctx.failure(self, err)
         ctx.workspace.write_text(path, out)
-        return ctx.result(self.name, f"{args.op} at {args.pointer or '/'} in {path}")
+        return ctx.result(self, f"{args.op} at {args.pointer or '/'} in {path}")

@@ -49,21 +49,21 @@ class GitHistory(Tool[HistoryArgs]):
 
     def run(self, args: HistoryArgs, ctx: ToolContext) -> ToolResult:
         if fault := _rev_fault(args):
-            return ctx.failure(self.name, fault)
+            return ctx.failure(self, fault)
         try:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         return self._at(args, path, ctx)
 
     def _at(self, args: HistoryArgs, path: pathlib.PurePath, ctx: ToolContext) -> ToolResult:
         if not ctx.workspace.exists(path):
-            return ctx.failure(self.name, missing_hint(path))
+            return ctx.failure(self, missing_hint(path))
         repo = str(path if ctx.workspace.is_dir(path) else path.parent)
         return self._asked(self._command(args, str(path), repo), ctx)
 
     def _asked(self, command: collections.abc.Sequence[str], ctx: ToolContext) -> ToolResult:
         code, out, err = run_command(command)
         if code != 0:
-            return ctx.failure(self.name, err)
-        return ctx.result(self.name, out)
+            return ctx.failure(self, err)
+        return ctx.result(self, out)

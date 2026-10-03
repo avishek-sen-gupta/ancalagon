@@ -23,9 +23,9 @@ class CodeStats(Tool[StatsArgs]):
         try:
             roots = [str(ctx.workspace.resolve_read(r)) for r in args.roots]
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         flags = ["--by-file"] if args.by_file else []
         code, out, err = run_command(["scc", "--no-cocomo", *flags, *roots])
         if code != 0:
-            return ctx.failure(self.name, err)
-        return ctx.result(self.name, out)
+            return ctx.failure(self, err)
+        return ctx.result(self, out)

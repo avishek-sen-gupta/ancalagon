@@ -56,7 +56,7 @@ class WatchFile(Tool[WatchArgs]):
         try:
             watched = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         return self._queued(args, watched, _last_seen(watched, ctx), ctx)
 
     def _queued(
@@ -65,7 +65,7 @@ class WatchFile(Tool[WatchArgs]):
         task_dir = self.run_dir / "tasks" / f"{args.task_id}-{ctx.task_dir.name}"
         active = active_for(self.bus.snapshot(), str(task_dir))
         if active:
-            return ctx.failure(self.name, f"{task_dir.name} is already running as {active[0]}")
+            return ctx.failure(self, f"{task_dir.name} is already running as {active[0]}")
         self.fs.mkdir(task_dir, parents=True, exist_ok=True)
         spec = AgentSpec[WatchRequest](
             task_id=task_dir.name,
@@ -87,8 +87,8 @@ class WatchFile(Tool[WatchArgs]):
         match queued:
             case AgentRef(id=agent_id):
                 return ctx.result(
-                    self.name,
+                    self,
                     f"queued agent {agent_id} watching {watched} for changes after {seen}",
                 )
             case NoAgentRef():
-                return ctx.failure(self.name, f"no bus to queue a watcher for {watched}")
+                return ctx.failure(self, f"no bus to queue a watcher for {watched}")

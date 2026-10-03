@@ -56,10 +56,10 @@ class SubmitAnswerAsFile(Tool[AnswerFile]):
         try:
             path = ctx.workspace.resolve_write(args.path)
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         fault = _content_fault(self.content_class, ctx, path)
         if fault:
-            return ctx.failure(self.name, fault)
+            return ctx.failure(self, fault)
         payload = Submitted(answer=args)
-        written = ctx.write_output(self.name, payload.text_for_model(), ".txt")
+        written = ctx.write_output(self, payload.text_for_model(), ".txt")
         return ToolResult(ok=True, summary=payload, path=written)

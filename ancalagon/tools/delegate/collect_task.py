@@ -62,7 +62,7 @@ class CollectTask(Tool[TaskArgs]):
     def run(self, args: TaskArgs, ctx: ToolContext) -> ToolResult:
         snapshot = self.bus.snapshot()
         if args.task not in snapshot.task_by_agent:
-            return ctx.failure(self.name, f"no agent {args.task}")
+            return ctx.failure(self, f"no agent {args.task}")
         return self._answered(self.bus, ctx, snapshot, args.task)
 
     def _answered(self, bus: Bus, ctx: ToolContext, snapshot: Snapshot, asked: int) -> ToolResult:
@@ -74,7 +74,7 @@ class CollectTask(Tool[TaskArgs]):
             case Lost(close=close):
                 return self._read_lost(bus, ctx, snapshot, task, newest, close)
             case unsettled:
-                return ctx.failure(self.name, _unready(newest, unsettled))
+                return ctx.failure(self, _unready(newest, unsettled))
 
     def _read_closed(
         self, bus: Bus, ctx: ToolContext, snapshot: Snapshot, task: int, newest: int
@@ -89,8 +89,8 @@ class CollectTask(Tool[TaskArgs]):
         )
         outcome = adapter.validate_json(self.fs.read_text(task_dir / f"outcome-{newest}.json"))
         if isinstance(outcome, (Completed, Exhausted)):
-            return ctx.full_result(self.name, outcome.value.model_dump_json(), ".json")
-        return ctx.failure(self.name, f"agent {newest} ended as {outcome.kind}: {_detail(outcome)}")
+            return ctx.full_result(self, outcome.value.model_dump_json(), ".json")
+        return ctx.failure(self, f"agent {newest} ended as {outcome.kind}: {_detail(outcome)}")
 
     def _read_lost(
         self,
@@ -108,6 +108,6 @@ class CollectTask(Tool[TaskArgs]):
             key=lambda event: event.id,
         )
         return ctx.failure(
-            self.name,
+            self,
             f"agent {newest} ended as {close.value}: {closing.summary}",
         )

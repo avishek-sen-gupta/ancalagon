@@ -34,13 +34,13 @@ class TreeSitter(Tool[ParseArgs]):
 
     def run(self, args: ParseArgs, ctx: ToolContext) -> ToolResult:
         if args.language not in GRAMMARS:
-            return ctx.failure(self.name, f"unsupported language {args.language}")
+            return ctx.failure(self, f"unsupported language {args.language}")
         try:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         language = language_of(args.language)
         parser = tree_sitter.Parser(language)
         tree = parser.parse(ctx.workspace.read_bytes(path))
         nodes = pydantic.TypeAdapter(list[AstNode]).dump_json(_walk(tree.root_node), indent=2)
-        return ctx.result(self.name, nodes.decode(), ".json")
+        return ctx.result(self, nodes.decode(), ".json")

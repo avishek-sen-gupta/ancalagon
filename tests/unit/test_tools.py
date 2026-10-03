@@ -987,8 +987,11 @@ def test_a_delegate_tool_exists_per_role_and_shows_that_role_s_input_schema(
     assert scouted["input"] == {"text": "start at the bus"}
     assert scouted["role"]["budget"] == {"turns": 4, "tool_calls": 8}
 
-    with pytest.raises(pydantic.ValidationError, match="depth"):
-        tools[0].invoke('{"task_id": "t2", "goal": "g", "input": {"area": "bus"}}', ctx)
+    incomplete = tools[0].invoke('{"task_id": "t2", "goal": "g", "input": {"area": "bus"}}', ctx)
+    assert incomplete.ok is False
+    assert incomplete.error == (
+        "delegate_analyst arguments are invalid:\n  input.depth: Field required"
+    )
     assert (run_dir / "tasks" / "t2").exists() is False
 
 
@@ -1300,7 +1303,7 @@ def test_a_tool_failure_is_logged_with_its_stack(
         try:
             raise ScopeError("outside the read roots")
         except ScopeError as exc:
-            result = ctx.failure("read_file", str(exc))
+            result = ctx.failure(ReadFile(FakeClock()), str(exc))
 
     assert result.ok is False
     assert len(caplog.records) == 1

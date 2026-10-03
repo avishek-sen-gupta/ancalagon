@@ -52,7 +52,7 @@ class FindSymbol(Tool[SymbolArgs]):
         try:
             roots = [str(ctx.workspace.resolve_read(r)) for r in args.roots]
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         return self._over(roots, args.name, ctx)
 
     def _over(
@@ -60,9 +60,9 @@ class FindSymbol(Tool[SymbolArgs]):
     ) -> ToolResult:
         listed, files, err = searchable_files(roots, ())
         if listed not in (0, 1):
-            return ctx.failure(self.name, err)
+            return ctx.failure(self, err)
         if not files:
-            return ctx.result(self.name, "")
+            return ctx.result(self, "")
         return self._tagged(files, name, ctx)
 
     def _tagged(
@@ -70,5 +70,5 @@ class FindSymbol(Tool[SymbolArgs]):
     ) -> ToolResult:
         code, tagged, failure = run_command(["ctags", "-x", "-L", "-"], stdin="\n".join(files))
         if code != 0:
-            return ctx.failure(self.name, failure)
-        return ctx.result(self.name, _named(tagged, name))
+            return ctx.failure(self, failure)
+        return ctx.result(self, _named(tagged, name))

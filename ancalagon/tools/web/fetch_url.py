@@ -1,4 +1,5 @@
 # Fetches a page and writes its article text to the task directory.
+from ancalagon.contracts.any_tool import AnyTool
 from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.tools.registry.tool import Tool
@@ -10,15 +11,15 @@ from ancalagon.web.unreachable import Unreachable
 from ancalagon.web.web_client import WebClient
 
 
-def _fetched(page: Page, name: str, ctx: ToolContext) -> ToolResult:
+def _fetched(page: Page, tool: AnyTool, ctx: ToolContext) -> ToolResult:
     if page.status != 200:
-        return ctx.failure(name, f"{page.url} answered {page.status}")
+        return ctx.failure(tool, f"{page.url} answered {page.status}")
     text = extracted(page.body)
     if not text:
         return ctx.failure(
-            name, f"extracted no text from {page.url} ({page.status}, {page.content_type})"
+            tool, f"extracted no text from {page.url} ({page.status}, {page.content_type})"
         )
-    return ctx.result(name, text)
+    return ctx.result(tool, text)
 
 
 class FetchUrl(Tool[FetchArgs]):
@@ -38,5 +39,5 @@ class FetchUrl(Tool[FetchArgs]):
         try:
             page = self.client.get(args.url)
         except Unreachable as exc:
-            return ctx.failure(self.name, str(exc))
-        return _fetched(page, self.name, ctx)
+            return ctx.failure(self, str(exc))
+        return _fetched(page, self, ctx)

@@ -29,11 +29,11 @@ class ReadFile(Tool[ReadArgs]):
         try:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         if not ctx.workspace.is_file(path):
-            return ctx.failure(self.name, missing_hint(path))
+            return ctx.failure(self, missing_hint(path))
         ctx.record(path, self.clock)
         lines = ctx.workspace.read_text(path).splitlines()
         end = len(lines) if args.limit <= 0 else min(len(lines), args.offset + args.limit)
         shown = lines[args.offset : end]
-        return ctx.paged(self.name, shown, args.offset, len(lines))
+        return ctx.paged(self, shown, args.offset, len(lines))

@@ -19,5 +19,5 @@ class NeedInput(Tool[NeedInputArgs]):
 
     def run(self, args: NeedInputArgs, ctx: ToolContext) -> ToolResult:
         payload = Asked(question=args.question)
-        path = ctx.write_output(self.name, payload.text_for_model(), ".txt")
+        path = ctx.write_output(self, payload.text_for_model(), ".txt")
         return ToolResult(ok=True, summary=payload, path=path)

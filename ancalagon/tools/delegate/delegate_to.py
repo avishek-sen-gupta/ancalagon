@@ -51,7 +51,7 @@ class DelegateTo(Tool[DelegateArgs]):
             agent = active[0]
             status = latest_event(snapshot, agent).status
             return ctx.failure(
-                self.name,
+                self,
                 f"task {args.task_id} is already {status.value} as agent {agent}",
             )
         self.fs.mkdir(task_dir, parents=True, exist_ok=True)
@@ -71,8 +71,6 @@ class DelegateTo(Tool[DelegateArgs]):
     ) -> ToolResult:
         match queued:
             case AgentRef(id=agent_id):
-                return ctx.result(
-                    self.name, f"queued agent {agent_id} for task {task_id} at {task_dir}"
-                )
+                return ctx.result(self, f"queued agent {agent_id} for task {task_id} at {task_dir}")
             case NoAgentRef():
-                return ctx.failure(self.name, f"no bus to queue task {task_id} at {task_dir}")
+                return ctx.failure(self, f"no bus to queue task {task_id} at {task_dir}")

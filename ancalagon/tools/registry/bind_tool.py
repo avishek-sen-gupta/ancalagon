@@ -2,6 +2,7 @@
 import pydantic
 
 from ancalagon.contracts.accepted import Accepted
+from ancalagon.contracts.any_tool import AnyTool
 from ancalagon.contracts.refused import Refused
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.contracts.tool_spec import ToolSpec
@@ -18,13 +19,21 @@ NO_BEFORE = CompositeBefore(())
 NO_AFTER = CompositeAfter(())
 
 
-def _wrong(name: str, hook: str, got: pydantic.BaseModel, wanted: str) -> str:
-    return f"{name}'s {hook} hook returned {type(got).__name__}, not {wanted}"
+def _wrong(tool: AnyTool, hook: str, got: pydantic.BaseModel, wanted: str) -> str:
+    return f"{tool.name}'s {hook} hook returned {type(got).__name__}, not {wanted}"
 
 
-def _as_result(name: str, given: pydantic.BaseModel, ctx: ToolContext) -> ToolResult:
+def _faults(tool: AnyTool, exc: pydantic.ValidationError) -> str:
+    listed = "\n".join(
+        f"  {'.'.join(str(part) for part in problem['loc'])}: {problem['msg']}"
+        for problem in exc.errors(include_input=False)
+    )
+    return f"{tool.name} arguments are invalid:\n{listed}"
+
+
+def _as_result(tool: AnyTool, given: pydantic.BaseModel, ctx: ToolContext) -> ToolResult:
     if not isinstance(given, ToolResult):
-        return ctx.failure(name, _wrong(name, "after", given, "ToolResult"))
+        return ctx.failure(tool, _wrong(tool, "after", given, "ToolResult"))
     return given
 
 
@@ -33,9 +42,9 @@ def _reviewed(
 ) -> ToolResult:
     match after(args, ran, ctx):
         case Refused(reason=reason):
-            return ctx.failure(tool.name, reason)
+            return ctx.failure(tool, reason)
         case Accepted(value=accepted):
-            return _as_result(tool.name, accepted, ctx)
+            return _as_result(tool, accepted, ctx)
 
 
 def _ran(
@@ -43,19 +52,28 @@ def _ran(
 ) -> ToolResult:
     if not isinstance(given, tool.args_model):
         wanted = tool.args_model.__name__
-        return ctx.failure(tool.name, _wrong(tool.name, "before", given, wanted))
+        return ctx.failure(tool, _wrong(tool, "before", given, wanted))
     return _reviewed(tool, after, given, tool.run(given, ctx), ctx)
+
+
+def _gated(
+    tool: Tool[ArgsT], before: Before, after: After, args: ArgsT, ctx: ToolContext
+) -> ToolResult:
+    match before(args, ctx):
+        case Refused(reason=reason):
+            return ctx.failure(tool, reason)
+        case Accepted(value=accepted):
+            return _ran(tool, after, accepted, ctx)
 
 
 def _invoked(
     tool: Tool[ArgsT], before: Before, after: After, arguments: str, ctx: ToolContext
 ) -> ToolResult:
-    args = tool.args_model.model_validate_json(arguments)
-    match before(args, ctx):
-        case Refused(reason=reason):
-            return ctx.failure(tool.name, reason)
-        case Accepted(value=accepted):
-            return _ran(tool, after, accepted, ctx)
+    try:
+        args = tool.args_model.model_validate_json(arguments)
+    except pydantic.ValidationError as exc:
+        return ctx.failure(tool, _faults(tool, exc))
+    return _gated(tool, before, after, args, ctx)
 
 
 def bind_tool(tool: Tool[ArgsT], before: Before = NO_BEFORE, after: After = NO_AFTER) -> BoundTool:

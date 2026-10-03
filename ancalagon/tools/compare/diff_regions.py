@@ -48,7 +48,7 @@ class DiffRegions(Tool[DiffArgs]):
             left = ctx.workspace.resolve_read(args.left.path)
             right = ctx.workspace.resolve_read(args.right.path)
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         return self._both(args, left, right, ctx)
 
     def _both(
@@ -60,7 +60,7 @@ class DiffRegions(Tool[DiffArgs]):
     ) -> ToolResult:
         absent = [missing_hint(path) for path in (left, right) if not ctx.workspace.is_file(path)]
         if absent:
-            return ctx.failure(self.name, absent[0])
+            return ctx.failure(self, absent[0])
         ctx.record(left, self.clock)
         ctx.record(right, self.clock)
         left_lines = ctx.workspace.read_text(left).splitlines()
@@ -74,7 +74,7 @@ class DiffRegions(Tool[DiffArgs]):
             if (fault := _fault(path, region, len(lines)))
         ]
         if faults:
-            return ctx.failure(self.name, faults[0])
+            return ctx.failure(self, faults[0])
         aligned = align(
             _slice(left_lines, args.left),
             _slice(right_lines, args.right),
@@ -89,4 +89,4 @@ class DiffRegions(Tool[DiffArgs]):
             f"{len(aligned.rows)} rows: {aligned.matching} matching, "
             f"{aligned.only_left} only left, {aligned.only_right} only right"
         )
-        return ctx.result(self.name, "\n".join([header, *aligned.rows, footer]) + "\n")
+        return ctx.result(self, "\n".join([header, *aligned.rows, footer]) + "\n")

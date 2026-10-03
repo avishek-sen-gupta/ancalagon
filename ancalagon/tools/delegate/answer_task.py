@@ -38,7 +38,7 @@ class AnswerTask(Tool[AnswerArgs]):
                 fs=self.fs,
             )
         except KeyError as no_agent:
-            return ctx.failure(self.name, str(no_agent.args[0]))
+            return ctx.failure(self, str(no_agent.args[0]))
         except ValueError as refusal:
-            return ctx.failure(self.name, str(refusal))
-        return ctx.result(self.name, f"answered agent {args.task}; queued agent {resumed.id}")
+            return ctx.failure(self, str(refusal))
+        return ctx.result(self, f"answered agent {args.task}; queued agent {resumed.id}")

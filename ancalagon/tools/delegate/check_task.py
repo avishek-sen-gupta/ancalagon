@@ -22,10 +22,10 @@ class CheckTask(Tool[TaskArgs]):
     def run(self, args: TaskArgs, ctx: ToolContext) -> ToolResult:
         snapshot = self.bus.snapshot()
         if args.task not in snapshot.task_by_agent:
-            return ctx.failure(self.name, f"no agent {args.task}")
+            return ctx.failure(self, f"no agent {args.task}")
         newest = addressed(snapshot, args.task)
         latest = latest_event(snapshot, newest)
         return ctx.result(
-            self.name,
+            self,
             f"its newest agent is {newest}, which is {latest.status.value}: {latest.summary}",
         )

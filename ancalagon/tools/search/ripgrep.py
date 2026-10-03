@@ -22,11 +22,11 @@ class Ripgrep(Tool[GrepArgs]):
         try:
             roots = [str(ctx.workspace.resolve_read(r)) for r in args.roots]
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         chosen = ["--json"] if args.structured else ["--line-number", "--no-heading"]
         globs = [flag for glob in args.globs for flag in ("-g", glob)]
         flags = [*chosen, "--no-require-git", *globs]
         code, out, err = run_command(["rg", *flags, "-e", args.pattern, "--", *roots])
         if code not in (0, 1):
-            return ctx.failure(self.name, err)
-        return ctx.result(self.name, out, ".jsonl" if args.structured else ".txt")
+            return ctx.failure(self, err)
+        return ctx.result(self, out, ".jsonl" if args.structured else ".txt")

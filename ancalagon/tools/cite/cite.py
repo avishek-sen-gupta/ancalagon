@@ -47,10 +47,10 @@ class Cite(Tool[CiteArgs]):
         try:
             path = ctx.workspace.resolve_read(pathlib.PurePath(args.path))
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         fault = _fault(args, path, ctx)
         if fault:
-            return ctx.failure(self.name, fault)
+            return ctx.failure(self, fault)
         citation = Citation(
             ts=self.clock.now().isoformat(),
             agent=ctx.agent_id,
@@ -60,4 +60,4 @@ class Cite(Tool[CiteArgs]):
             other_data=args.other_data,
         )
         ctx.workspace.append_line(ctx.task_dir / CITATIONS, citation.model_dump_json())
-        return ctx.result(self.name, f"cited {path}:{args.start_line}-{args.end_line}")
+        return ctx.result(self, f"cited {path}:{args.start_line}-{args.end_line}")

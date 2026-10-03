@@ -28,5 +28,5 @@ class SubmitAnswer(Tool[pydantic.BaseModel]):
 
     def run(self, args: pydantic.BaseModel, ctx: ToolContext) -> ToolResult:
         payload = Submitted(answer=args)
-        path = ctx.write_output(self.name, payload.text_for_model(), ".txt")
+        path = ctx.write_output(self, payload.text_for_model(), ".txt")
         return ToolResult(ok=True, summary=payload, path=path)

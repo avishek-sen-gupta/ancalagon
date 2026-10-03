@@ -31,8 +31,8 @@ class ConvertDocument(Tool[ConvertArgs]):
         try:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         code, out, err = run_command(["pandoc", "-t", args.to.value, str(path)])
         if code != 0:
-            return ctx.failure(self.name, err)
-        return ctx.result(self.name, out, SUFFIX[args.to])
+            return ctx.failure(self, err)
+        return ctx.result(self, out, SUFFIX[args.to])

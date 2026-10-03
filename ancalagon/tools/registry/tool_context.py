@@ -8,6 +8,7 @@ import pydantic
 
 from ancalagon.clock.clock import Clock
 from ancalagon.contracts.access import Access
+from ancalagon.contracts.any_tool import AnyTool
 from ancalagon.contracts.free_text import FreeText
 from ancalagon.contracts.text_answer import TextAnswer
 from ancalagon.contracts.tool_result import ToolResult
@@ -46,16 +47,16 @@ class ToolContext:
         )
         self.workspace.append_line(self.task_dir / "access.jsonl", seen.model_dump_json())
 
-    def write_output(self, tool_name: str, text: str, suffix: str) -> pathlib.PurePath:
+    def write_output(self, tool: AnyTool, text: str, suffix: str) -> pathlib.PurePath:
         path = self.workspace.resolve_write(
-            self.output_dir / f"{next(self.counter):04d}-{tool_name}{suffix}"
+            self.output_dir / f"{next(self.counter):04d}-{tool.name}{suffix}"
         )
         self.workspace.mkdir(path.parent, parents=True, exist_ok=True)
         self.workspace.write_text(path, text)
         return path
 
-    def result(self, tool_name: str, text: str, suffix: str = ".txt") -> ToolResult:
-        path = self.write_output(tool_name, text, suffix)
+    def result(self, tool: AnyTool, text: str, suffix: str = ".txt") -> ToolResult:
+        path = self.write_output(tool, text, suffix)
         return ToolResult(
             ok=True,
             summary=TextAnswer(text=text[: self.summary_chars]),
@@ -64,8 +65,8 @@ class ToolContext:
             truncated=len(text) > self.summary_chars,
         )
 
-    def full_result(self, tool_name: str, text: str, suffix: str = ".txt") -> ToolResult:
-        path = self.write_output(tool_name, text, suffix)
+    def full_result(self, tool: AnyTool, text: str, suffix: str = ".txt") -> ToolResult:
+        path = self.write_output(tool, text, suffix)
         return ToolResult(
             ok=True,
             summary=TextAnswer(text=text),
@@ -76,7 +77,7 @@ class ToolContext:
 
     def paged(
         self,
-        tool_name: str,
+        tool: AnyTool,
         lines: collections.abc.Sequence[str],
         offset: int,
         total: int,
@@ -95,7 +96,7 @@ class ToolContext:
             f"; call again with offset={last} for more]" if last < total else "; end of file]"
         )
         whole = "\n".join(numbered)
-        path = self.write_output(tool_name, whole, ".txt")
+        path = self.write_output(tool, whole, ".txt")
         return ToolResult(
             ok=True,
             summary=TextAnswer(text=f"{body}\n{note}"),
@@ -104,9 +105,9 @@ class ToolContext:
             truncated=last < total,
         )
 
-    def failure(self, tool_name: str, error: str) -> ToolResult:
-        LOGGER.error("%s failed: %s", tool_name, error, exc_info=True)
-        path = self.write_output(tool_name, error, ".err.txt")
+    def failure(self, tool: AnyTool, error: str) -> ToolResult:
+        LOGGER.error("%s failed: %s", tool.name, error, exc_info=True)
+        path = self.write_output(tool, error, ".err.txt")
         return ToolResult(
             ok=False,
             summary=TextAnswer(text=error[: self.summary_chars]),

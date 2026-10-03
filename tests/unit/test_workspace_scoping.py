@@ -6,6 +6,8 @@ import pytest
 from ancalagon.config.config import Config
 from ancalagon.config.load import load_config
 from ancalagon.fs.real_file_system import RealFileSystem
+from ancalagon.clock.fake_clock import FakeClock
+from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.workspace.scope_error import ScopeError
 from ancalagon.workspace.workspace import Workspace
@@ -49,19 +51,19 @@ def test_scoping_rejects_every_escape_and_config_round_trips(tmp_path: pathlib.P
         ws.resolve_write(link / "secret.txt")
 
     inside = ToolContext(workspace=ws, task_dir=write_root, summary_chars=10, agent_id=1)
-    written = inside.result("read_file", "hello")
+    written = inside.result(ReadFile(FakeClock()), "hello")
     assert written.path == (write_root / "tools" / "1" / "0000-read_file.txt").resolve()
     assert pathlib.Path(written.path).read_text() == "hello"
 
     resumed = ToolContext(workspace=ws, task_dir=write_root, summary_chars=10, agent_id=2)
-    again = resumed.result("read_file", "goodbye")
+    again = resumed.result(ReadFile(FakeClock()), "goodbye")
     assert again.path == (write_root / "tools" / "2" / "0000-read_file.txt").resolve()
     assert pathlib.Path(again.path).read_text() == "goodbye"
     assert pathlib.Path(written.path).read_text() == "hello"
 
     escaping = ToolContext(workspace=ws, task_dir=outside, summary_chars=10, agent_id=1)
     with pytest.raises(ScopeError):
-        escaping.result("read_file", "hello")
+        escaping.result(ReadFile(FakeClock()), "hello")
     assert not (outside / "tools").exists()
 
     config_path = tmp_path / "ancalagon.toml"

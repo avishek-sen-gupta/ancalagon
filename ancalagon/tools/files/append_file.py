@@ -23,5 +23,5 @@ class AppendFile(Tool[AppendArgs]):
         try:
             ctx.workspace.append_line(args.path, args.content)
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
-        return ctx.result(self.name, f"appended {len(args.content)} chars to {args.path}")
+            return ctx.failure(self, str(exc))
+        return ctx.result(self, f"appended {len(args.content)} chars to {args.path}")

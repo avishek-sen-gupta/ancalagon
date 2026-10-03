@@ -250,5 +250,9 @@ def test_a_non_https_url_is_refused_by_the_schema_not_by_the_tool(tmp_path: path
         FetchArgs(url="http://example.com/article")
 
     bound = bind_tool(FetchUrl(_serving(PAGE)))
-    with pytest.raises(pydantic.ValidationError, match="url"):
-        bound.invoke('{"url": "ftp://example.com/article"}', _ctx(tmp_path))
+    refused = bound.invoke('{"url": "ftp://example.com/article"}', _ctx(tmp_path))
+
+    assert refused.ok is False
+    assert refused.error == (
+        "fetch_url arguments are invalid:\n  url: String should match pattern '^https://'"
+    )

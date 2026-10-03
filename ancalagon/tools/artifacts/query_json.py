@@ -29,15 +29,15 @@ class QueryJson(Tool[QueryArgs]):
 
     def run(self, args: QueryArgs, ctx: ToolContext) -> ToolResult:
         if fault := _option_fault(args.filter):
-            return ctx.failure(self.name, fault)
+            return ctx.failure(self, fault)
         try:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         return self._queried(["jq", "-r", args.filter, str(path)], ctx)
 
     def _queried(self, command: collections.abc.Sequence[str], ctx: ToolContext) -> ToolResult:
         code, out, err = run_command(command)
         if code != 0:
-            return ctx.failure(self.name, err)
-        return ctx.result(self.name, out)
+            return ctx.failure(self, err)
+        return ctx.result(self, out)

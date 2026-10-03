@@ -79,15 +79,6 @@ def _answering(forced: BoundTool | NoTool) -> bool:
     return isinstance(forced, BoundTool) and forced.spec.category is ToolCategory.SUBMIT
 
 
-def _faults(name: str, exc: pydantic.ValidationError) -> str:
-    problems = exc.errors(include_input=False)
-    listed = "\n".join(
-        f"  {'.'.join(str(part) for part in problem['loc'])}: {problem['msg']}"
-        for problem in problems
-    )
-    return f"{name} arguments are invalid:\n{listed}"
-
-
 class Session:
     def __init__(
         self,
@@ -219,11 +210,7 @@ class Session:
                 continue
             self.remaining = self.remaining.spend_tool_calls(cost)
             self.spent = self.spent.plus_tool_calls(cost)
-            try:
-                result = call.tool.invoke(call.arguments, self.ctx)
-            except pydantic.ValidationError as exc:
-                LOGGER.exception("tool %s was called with bad arguments", name)
-                result = self.ctx.failure(name, _faults(name, exc))
+            result = call.tool.invoke(call.arguments, self.ctx)
             results.append((call, result))
             blocks.append(
                 ToolResultBlock(

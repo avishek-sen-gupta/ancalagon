@@ -14,4 +14,4 @@ class NoIdle(Tool[IdleArgs]):
     args_model = Idle.args_model
 
     def run(self, args: IdleArgs, ctx: ToolContext) -> ToolResult:
-        return ctx.failure(self.name, "nothing to wait for: this session has no bus")
+        return ctx.failure(self, "nothing to wait for: this session has no bus")

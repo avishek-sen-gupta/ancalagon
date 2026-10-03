@@ -22,7 +22,7 @@ class AstGrep(Tool[GrepArgs]):
         try:
             roots = [str(ctx.workspace.resolve_read(r)) for r in args.roots]
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         return self._over(roots, args, ctx)
 
     def _over(
@@ -30,9 +30,9 @@ class AstGrep(Tool[GrepArgs]):
     ) -> ToolResult:
         listed, files, err = searchable_files(roots, args.globs)
         if listed not in (0, 1):
-            return ctx.failure(self.name, err)
+            return ctx.failure(self, err)
         if not files:
-            return ctx.result(self.name, "")
+            return ctx.result(self, "")
         return self._matched(files if fits_in_arguments(files) else roots, args.pattern, ctx)
 
     def _matched(
@@ -40,5 +40,5 @@ class AstGrep(Tool[GrepArgs]):
     ) -> ToolResult:
         code, found, failure = run_command(["ast-grep", "run", "--pattern", pattern, *targets])
         if code not in (0, 1):
-            return ctx.failure(self.name, failure)
-        return ctx.result(self.name, found)
+            return ctx.failure(self, failure)
+        return ctx.result(self, found)

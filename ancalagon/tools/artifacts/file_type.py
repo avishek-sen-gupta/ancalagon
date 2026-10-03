@@ -22,8 +22,8 @@ class FileType(Tool[PathArg]):
         try:
             path = ctx.workspace.resolve_read(args.path)
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         code, out, err = run_command(["file", "-b", str(path)])
         if code != 0:
-            return ctx.failure(self.name, err)
-        return ctx.result(self.name, out)
+            return ctx.failure(self, err)
+        return ctx.result(self, out)

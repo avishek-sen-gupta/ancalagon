@@ -29,18 +29,16 @@ class Shell(Tool[ShellArgs]):
         try:
             cwd = ctx.workspace.resolve_read(args.cwd)
         except ScopeError as exc:
-            return ctx.failure(self.name, str(exc))
+            return ctx.failure(self, str(exc))
         return self._reported(run_shell(args.command, cwd, self.timeout_s), args.command, ctx)
 
     def _reported(
         self, executed: Execution | TimedOut, command: str, ctx: ToolContext
     ) -> ToolResult:
         if isinstance(executed, TimedOut):
-            return ctx.failure(
-                self.name, f"{self.name} timed out after {executed.seconds}s: {command}"
-            )
+            return ctx.failure(self, f"{self.name} timed out after {executed.seconds}s: {command}")
         if executed.exit_code != 0:
             return ctx.failure(
-                self.name, f"exit {executed.exit_code}\n{executed.stdout}{executed.stderr}"
+                self, f"exit {executed.exit_code}\n{executed.stdout}{executed.stderr}"
             )
-        return ctx.result(self.name, executed.stdout)
+        return ctx.result(self, executed.stdout)
