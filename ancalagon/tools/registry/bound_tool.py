@@ -4,7 +4,7 @@ import collections.abc
 import pydantic
 
 from ancalagon.contracts.tool_result import ToolResult
-from ancalagon.llm.tool_schema import ToolSchema
+from ancalagon.contracts.tool_schema import ToolSchema
 from ancalagon.tools.registry.tool_context import ToolContext
 
 

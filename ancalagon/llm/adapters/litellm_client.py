@@ -9,6 +9,7 @@ from ancalagon.contracts.message import Message
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
+from ancalagon.contracts.tool_schema import ToolSchema
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.llm.adapters.wire_function import WireFunction
 from ancalagon.llm.adapters.wire_message import WireMessage
@@ -18,7 +19,6 @@ from ancalagon.llm.adapters.wire_usage import WireUsage
 from ancalagon.llm.inlined import Inlined
 from ancalagon.llm.llm import LLM
 from ancalagon.llm.system_prompt import SystemPrompt
-from ancalagon.llm.tool_schema import ToolSchema
 
 if typing.TYPE_CHECKING:
     from litellm.types.utils import (

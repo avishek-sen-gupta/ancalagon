@@ -12,14 +12,14 @@ from ancalagon.children.bus_children import BusChildren
 from ancalagon.children.children import Children
 from ancalagon.clock.fake_clock import FakeClock
 from ancalagon.config.config import Config
+from ancalagon.contracts.agent_status import AgentStatus
 from ancalagon.contracts.answer_file import AnswerFile
 from ancalagon.contracts.answer_status import AnswerStatus
-from ancalagon.contracts.agent_status import AgentStatus
-from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.class_ref import ClassRef
 from ancalagon.contracts.completed import Completed
+from ancalagon.contracts.event_source import EventSource
 from ancalagon.contracts.exhausted import Exhausted
 from ancalagon.contracts.failed import Failed
 from ancalagon.contracts.free_text import FreeText

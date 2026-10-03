@@ -30,6 +30,7 @@ from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.contracts.tool_result_block import ToolResultBlock
+from ancalagon.contracts.tool_schema import ToolSchema
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.letterbox.letterbox import Letterbox
 from ancalagon.letterbox.no_letterbox import NO_LETTERBOX
@@ -37,7 +38,6 @@ from ancalagon.llm.inlined import Inlined
 from ancalagon.llm.llm import LLM
 from ancalagon.llm.meter import Meter
 from ancalagon.llm.system_prompt import SystemPrompt
-from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.llm.unmetered import UNMETERED
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext

@@ -4,8 +4,8 @@ import typing
 
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.reply import Reply
+from ancalagon.contracts.tool_schema import ToolSchema
 from ancalagon.llm.system_prompt import SystemPrompt
-from ancalagon.llm.tool_schema import ToolSchema
 
 
 class LLM(typing.Protocol):

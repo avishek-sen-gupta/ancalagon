@@ -10,10 +10,10 @@ from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
+from ancalagon.contracts.tool_schema import ToolSchema
 from ancalagon.contracts.tool_use import ToolUse
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient, to_wire
 from ancalagon.llm.system_prompt import SystemPrompt
-from ancalagon.llm.tool_schema import ToolSchema
 from ancalagon.tools.search.grep_args import GrepArgs
 
 WireDict = dict[str, str | list[dict[str, str | dict[str, str]]]]

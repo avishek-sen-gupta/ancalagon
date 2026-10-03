@@ -1,7 +1,7 @@
 # The tools one agent may call, looked up by the name the model uses.
 import collections.abc
 
-from ancalagon.llm.tool_schema import ToolSchema
+from ancalagon.contracts.tool_schema import ToolSchema
 from ancalagon.tools.registry.bound_tool import BoundTool
 
 
