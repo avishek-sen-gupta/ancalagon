@@ -1,5 +1,6 @@
 # Ancalagon
 
+
 There are many agent harnesses, but this one is mine.
 **Ancalagon** is an agent harness with a typed contract-first approach.
 
