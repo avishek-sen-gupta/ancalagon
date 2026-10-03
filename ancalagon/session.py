@@ -223,7 +223,7 @@ class Session:
         return results
 
     def _forced(self, uncollected: collections.abc.Sequence[int], tries: int) -> str:
-        if uncollected and tries > 0:
+        if uncollected and tries > 0 and COLLECT in self.registry.names():
             return COLLECT
         return self.submit
 

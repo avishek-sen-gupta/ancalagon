@@ -978,6 +978,7 @@ def _exhausted_parent(
     bus: LifecycleStore,
     parent: int,
     replies: list[Reply],
+    with_collect: bool = True,
 ) -> Session:
     write_root = tmp_path / "ws"
     write_root.mkdir(parents=True, exist_ok=True)
@@ -1004,11 +1005,8 @@ def _exhausted_parent(
         agent_id=parent,
         llm=FakeLLM(replies),
         registry=Registry(
-            [
-                bind_tool(ReadFile(FakeClock())),
-                bind_tool(CollectTask(bus, RealFileSystem())),
-                bind_tool(SubmitAnswer(Verdict)),
-            ]
+            [bind_tool(ReadFile(FakeClock())), bind_tool(SubmitAnswer(Verdict))]
+            + ([bind_tool(CollectTask(bus, RealFileSystem()))] if with_collect else [])
         ),
         ctx=ctx,
         output_class=Verdict,
@@ -1091,3 +1089,29 @@ def test_a_forced_collect_that_never_lands_gives_up_and_answers_anyway(tmp_path:
     assert isinstance(outcome, Exhausted)
     assert outcome.value.model_dump() == {"answer": "gave up"}
     assert BusChildren(bus, parent).uncollected() == (child,)
+
+    bare_dir = tmp_path / "bare"
+    bare_bus, bare_parent, bare_child = _staged_bus(bare_dir)
+    bare = _exhausted_parent(
+        tmp_path / "bare_ws",
+        bare_dir,
+        bare_bus,
+        bare_parent,
+        [
+            Reply(blocks=[Text(text="still thinking")], stop_reason="stop"),
+            Reply(
+                blocks=[
+                    ToolUse(id="tu_b", name="submit_answer", arguments='{"answer": "no collect"}')
+                ],
+                stop_reason="tool_calls",
+            ),
+        ],
+        with_collect=False,
+    )
+    bare_outcome = bare.run()
+    bare_llm = bare.llm
+    assert isinstance(bare_llm, FakeLLM)
+    assert bare_llm.forced == ["", "submit_answer"]
+    assert isinstance(bare_outcome, Exhausted)
+    assert bare_outcome.value.model_dump() == {"answer": "no collect"}
+    assert BusChildren(bare_bus, bare_parent).uncollected() == (bare_child,)
