@@ -171,4 +171,6 @@ fileignoreconfig:
   checksum: 993aaff60d62c81eca3986ba5c73b3f571c5a69ccd235779a848fb36b779f1f3
 - filename: docs/superpowers/specs/2026-10-03-strings-only-at-the-seams-design.md
   checksum: c9e1c88de398e9ce3e62e258359a9fe51ec2025fd94624e22b99b4081b174864
+- filename: docs/superpowers/specs/2026-10-03-a-profile-decides-what-an-agent-may-do-design.md
+  checksum: ea36d96e1e4b558a52b517c856c79e3085f420801bf72a34910b6d48e1a95ec0
 version: "1.0"
