@@ -42,7 +42,7 @@ from ancalagon.contracts.tool_category import ToolCategory
 from ancalagon.profiles.profile import Profile
 from ancalagon.profiles.turn import Turn
 from ancalagon.tools.registry.bound_tool import BoundTool
-from ancalagon.tools.registry.no_tool import NO_TOOL, NoTool
+from ancalagon.contracts.no_tool import NO_TOOL, NoTool
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.resolved import resolved
 from ancalagon.tools.registry.tool_use import ToolUse
@@ -161,8 +161,8 @@ class Session:
         tools: collections.abc.Sequence[ToolSchema],
         forced: BoundTool | NoTool,
     ) -> Reply:
-        name = forced.spec.declaration.name if isinstance(forced, BoundTool) else ""
-        reply = self.llm.complete(self._system(turn), self._wire(), tools, force_tool=name)
+        wanted = forced.spec.declaration if isinstance(forced, BoundTool) else NO_TOOL
+        reply = self.llm.complete(self._system(turn), self._wire(), tools, force_tool=wanted)
         self.meter.record(self.agent_id, reply.usage)
         LOGGER.info(
             "in %s out %s cache created %s read %s",

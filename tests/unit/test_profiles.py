@@ -32,7 +32,7 @@ from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.idle.no_idle import NoIdle
 from ancalagon.tools.registry.bind_tool import bind_tool
 from ancalagon.tools.registry.bound_tool import BoundTool
-from ancalagon.tools.registry.no_tool import NO_TOOL
+from ancalagon.contracts.no_tool import NO_TOOL
 from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile

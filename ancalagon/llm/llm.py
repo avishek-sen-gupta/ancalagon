@@ -3,6 +3,7 @@ import collections.abc
 import typing
 
 from ancalagon.contracts.message import Message
+from ancalagon.contracts.no_tool import NO_TOOL, NoTool
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.tool_schema import ToolSchema
 from ancalagon.llm.system_prompt import SystemPrompt
@@ -14,5 +15,5 @@ class LLM(typing.Protocol):
         system: SystemPrompt,
         messages: collections.abc.Sequence[Message],
         tools: collections.abc.Sequence[ToolSchema],
-        force_tool: str = "",
+        force_tool: ToolSchema | NoTool = NO_TOOL,
     ) -> Reply: ...

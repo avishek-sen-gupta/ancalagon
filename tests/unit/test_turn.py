@@ -10,7 +10,7 @@ from ancalagon.contracts.infinite import Infinite
 from ancalagon.contracts.spend import Spend
 from ancalagon.profiles.turn import Turn
 from ancalagon.tools.registry.bind_tool import bind_tool
-from ancalagon.tools.registry.no_tool import NO_TOOL
+from ancalagon.contracts.no_tool import NO_TOOL
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.submit.submit_answer import SubmitAnswer

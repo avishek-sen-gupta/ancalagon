@@ -33,6 +33,7 @@ from ancalagon.contracts.serialisable_role import SerialisableBudget, Serialisab
 from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
+from ancalagon.contracts.tool_schema import ToolSchema
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.fs.real_file_system import RealFileSystem
@@ -79,6 +80,10 @@ class Values(pydantic.BaseModel, frozen=True):
 class Sited(pydantic.BaseModel):
     answer: str
     where: Where
+
+
+def _forced(llm: FakeLLM) -> list[str]:
+    return [f.name if isinstance(f, ToolSchema) else "" for f in llm.forced]
 
 
 def _profile(
@@ -562,7 +567,7 @@ def test_final_turn_forces_submit_answer_and_keeps_a_rejected_payload(tmp_path: 
 
     fake = session.llm
     assert isinstance(fake, FakeLLM)
-    assert fake.forced == ["submit_answer"]
+    assert _forced(fake) == ["submit_answer"]
 
     assert isinstance(outcome, Failed)
     assert "wrapped by mistake" in outcome.summary
@@ -958,7 +963,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
 
     outcome = session.run()
 
-    assert llm.forced == ["submit_answer_as_file"]
+    assert _forced(llm) == ["submit_answer_as_file"]
     assert [sorted(s.name for s in seen) for seen in llm.offered] == [["submit_answer_as_file"]]
     assert isinstance(outcome, Exhausted)
     assert outcome.value == AnswerFile(
@@ -1180,7 +1185,7 @@ def test_the_final_turn_collects_every_answer_before_one_is_forced(tmp_path: pat
         ["collect_task"],
         ["submit_answer"],
     ]
-    assert llm.forced == ["", "collect_task", "submit_answer"]
+    assert _forced(llm) == ["", "collect_task", "submit_answer"]
     assert isinstance(outcome, Exhausted)
     assert outcome.value.model_dump() == {"answer": "combined"}
     assert BusChildren(bus, parent).uncollected() == ()
@@ -1219,7 +1224,7 @@ def test_a_forced_collect_that_never_lands_gives_up_and_answers_anyway(tmp_path:
     llm = session.llm
     assert isinstance(llm, FakeLLM)
 
-    assert llm.forced == ["", *["collect_task"] * COLLECT_TRIES, "submit_answer"]
+    assert _forced(llm) == ["", *["collect_task"] * COLLECT_TRIES, "submit_answer"]
     assert isinstance(outcome, Exhausted)
     assert outcome.value.model_dump() == {"answer": "gave up"}
     assert BusChildren(bus, parent).uncollected() == (child,)
@@ -1247,7 +1252,7 @@ def test_a_forced_collect_that_never_lands_gives_up_and_answers_anyway(tmp_path:
     bare_outcome = bare.run()
     bare_llm = bare.llm
     assert isinstance(bare_llm, FakeLLM)
-    assert bare_llm.forced == ["", "submit_answer"]
+    assert _forced(bare_llm) == ["", "submit_answer"]
     assert isinstance(bare_outcome, Exhausted)
     assert bare_outcome.value.model_dump() == {"answer": "no collect"}
     assert BusChildren(bare_bus, bare_parent).uncollected() == (bare_child,)
@@ -1311,6 +1316,6 @@ def test_a_standing_session_runs_out_of_turns_without_being_told_to_answer(
     # The turn budget was already spent, and nothing told it to answer: it never was going to.
     said = [b.text for m in llm.seen[-1] for b in m.blocks if isinstance(b, Text)]
     assert said == ['Keep a note.\n\nInput: {"text":"go"}']
-    assert llm.forced == [""]
+    assert _forced(llm) == [""]
     assert sorted(s.name for s in llm.offered[0]) == ["idle", "read_file"]
     assert llm.systems[0].static == f"You stand by.\n\n{MECHANICS}"

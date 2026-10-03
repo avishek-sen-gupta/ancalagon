@@ -4,13 +4,13 @@
 import pydantic
 
 from ancalagon.contracts.any_tool import AnyTool
+from ancalagon.contracts.no_tool import NO_TOOL, NoTool
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.pending import PENDING, Pending
 from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.profiles.catalogue import Catalogue
 from ancalagon.profiles.turn import Turn
 from ancalagon.tools.registry.bound_tool import BoundTool
-from ancalagon.tools.registry.no_tool import NO_TOOL, NoTool
 
 
 class Profile:

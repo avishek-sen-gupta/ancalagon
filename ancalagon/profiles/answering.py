@@ -9,6 +9,7 @@ from ancalagon.contracts.delivery import Delivery
 from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.no_answer_file import NO_ANSWER_FILE
 from ancalagon.contracts.no_run import NO_RUN
+from ancalagon.contracts.no_tool import NoTool
 from ancalagon.contracts.no_watermark import NO_WATERMARK
 from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.pending import PENDING, Pending
@@ -22,7 +23,6 @@ from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.idle.no_idle import NoIdle
 from ancalagon.tools.registry.bound_tool import BoundTool
-from ancalagon.tools.registry.no_tool import NoTool
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 
 ANSWERING = ClassRef(module="ancalagon.profiles.answering", name="Answering")

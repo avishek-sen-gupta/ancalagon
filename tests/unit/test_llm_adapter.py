@@ -121,7 +121,8 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
     assert seen == {"num_retries": 4, "timeout": 99}
     assert chosen == ["auto"]
 
-    client.complete(SystemPrompt(static="sys"), [assistant], [], force_tool="submit_answer")
+    submitting = ToolSchema(name="submit_answer", description="d", parameters=ReportArgs)
+    client.complete(SystemPrompt(static="sys"), [assistant], [], force_tool=submitting)
     assert chosen[1] == {"type": "function", "function": {"name": "submit_answer"}}
 
     configured = LiteLLMClient(

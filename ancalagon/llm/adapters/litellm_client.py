@@ -6,6 +6,7 @@ import typing
 from ancalagon.contracts.block import Block
 from ancalagon.contracts.call_usage import CallUsage
 from ancalagon.contracts.message import Message
+from ancalagon.contracts.no_tool import NO_TOOL, NoTool
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
@@ -90,7 +91,7 @@ class LiteLLMClient(LLM):
         system: SystemPrompt,
         messages: collections.abc.Sequence[Message],
         tools: collections.abc.Sequence[ToolSchema],
-        force_tool: str = "",
+        force_tool: ToolSchema | NoTool = NO_TOOL,
     ) -> Reply:
         import litellm
 
@@ -111,7 +112,9 @@ class LiteLLMClient(LLM):
             for t in tools
         ]
         wanted: str | dict[str, str | dict[str, str]] = (
-            {"type": "function", "function": {"name": force_tool}} if force_tool else "auto"
+            "auto"
+            if isinstance(force_tool, NoTool)
+            else {"type": "function", "function": {"name": force_tool.name}}
         )
         response = litellm.completion(
             model=self.model,

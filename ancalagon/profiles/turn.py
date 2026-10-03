@@ -7,10 +7,10 @@ import pydantic
 
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.delivery import Delivery
+from ancalagon.contracts.no_tool import NO_TOOL, NoTool
 from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.tool_spec import ToolSpec
 from ancalagon.tools.registry.bound_tool import BoundTool
-from ancalagon.tools.registry.no_tool import NO_TOOL, NoTool
 
 
 @dataclasses.dataclass(frozen=True)

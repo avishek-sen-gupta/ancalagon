@@ -2,6 +2,7 @@
 import collections.abc
 
 from ancalagon.contracts.message import Message
+from ancalagon.contracts.no_tool import NO_TOOL, NoTool
 from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.tool_schema import ToolSchema
 from ancalagon.llm.llm import LLM
@@ -13,7 +14,7 @@ class FakeLLM(LLM):
         self.replies = list(replies)
         self.systems: list[SystemPrompt] = []
         self.seen: list[list[Message]] = []
-        self.forced: list[str] = []
+        self.forced: list[ToolSchema | NoTool] = []
         self.offered: list[list[ToolSchema]] = []
 
     def complete(
@@ -21,7 +22,7 @@ class FakeLLM(LLM):
         system: SystemPrompt,
         messages: collections.abc.Sequence[Message],
         tools: collections.abc.Sequence[ToolSchema],
-        force_tool: str = "",
+        force_tool: ToolSchema | NoTool = NO_TOOL,
     ) -> Reply:
         self.systems = [*self.systems, system]
         self.seen = [*self.seen, list(messages)]
