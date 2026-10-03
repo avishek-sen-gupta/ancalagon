@@ -20,7 +20,7 @@ from ancalagon.contracts.role import FREE_TEXT
 from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.real_file_system import RealFileSystem
-from ancalagon.session_for import build_registry
+from ancalagon.session_for import assemble
 from ancalagon.tools.registry.accepts import accepts
 from ancalagon.tools.registry.bind_tool import bind_tool
 from ancalagon.tools.registry.resolve_after import resolve_after
@@ -204,7 +204,7 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
     assert role.after == {"ripgrep": (FunctionRef(module=hooks, name="reviewing"),)}
     check_contracts(config)
 
-    registry = build_registry(
+    assembled = assemble(
         config,
         TaskSpec(task_id="root", role=role, goal="g"),
         tmp_path,
@@ -217,7 +217,7 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
         web=FakeWebClient({}),
         bus=NO_BUS,
     )
-    assert sorted(registry.names()) == ["idle", "ripgrep", "submit_answer"]
+    assert sorted(assembled.registry.names()) == ["idle", "ripgrep", "submit_answer"]
 
     mismatched = role.model_copy(
         update={"before": {"ripgrep": (FunctionRef(module=hooks, name="other_tool"),)}}

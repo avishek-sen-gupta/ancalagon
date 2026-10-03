@@ -23,6 +23,9 @@ from ancalagon.letterbox.no_letterbox import NO_LETTERBOX
 from ancalagon.llm.llm import LLM
 from ancalagon.llm.meter import Meter
 from ancalagon.llm.unmetered import UNMETERED
+from ancalagon.profiles.assembly import Assembly
+from ancalagon.profiles.catalogue import Catalogue
+from ancalagon.profiles.resolve_profile import resolve_profile
 from ancalagon.session import Session
 from ancalagon.tools.artifacts.convert_document import ConvertDocument
 from ancalagon.tools.artifacts.edit_json import EditJson
@@ -60,7 +63,6 @@ from ancalagon.tools.search.transform_file import TransformFile
 from ancalagon.tools.shell.shell import Shell
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
-from ancalagon.tools.submit.submitting import TERMINAL_TOOLS, submitting
 from ancalagon.tools.survey.code_stats import CodeStats
 from ancalagon.tools.watch.no_watch_file import NoWatchFile
 from ancalagon.tools.watch.watch_args import WatchArgs
@@ -145,7 +147,7 @@ def watcher_in(roles: collections.abc.Mapping[str, SerialisableRole]) -> list[Se
     return [role for role in roles.values() if role.run == WATCH_FOR]
 
 
-def build_registry(
+def assemble(
     config: Config,
     spec: TaskSpec,
     run_dir: pathlib.PurePath,
@@ -157,7 +159,7 @@ def build_registry(
     fs: FileSystem,
     web: WebClient,
     bus: Bus,
-) -> Registry:
+) -> Assembly:
     spawnable = {
         name: role for name, role in config.roles.items() if f"delegate_{name}" in spec.role.tools
     }
@@ -176,7 +178,8 @@ def build_registry(
         bound_for(_watch(bus, watcher, run_dir, parent, fs), role_of(spec.role))
         for watcher in watcher_in(config.roles)[:1]
     ]
-    wanted = set(spec.role.tools) | {Idle.name}
+    profile = resolve_profile(spec.role.profile)(Catalogue(available))
+    wanted = set(spec.role.tools) | {s.declaration.name for s in profile.tools}
     unknown = wanted - {t.spec.declaration.name for t in available}
     if unknown:
         raise ValueError(
@@ -184,15 +187,15 @@ def build_registry(
             f"available: {sorted(t.spec.declaration.name for t in available)}"
         )
     depth_capped = depth >= config.max_depth
-    withheld = TERMINAL_TOOLS - {submitting(spec.role.tools)}
+    brought = set(profile.tools)
     permitted = [
         t
         for t in available
         if t.spec.declaration.name in wanted
         and not (depth_capped and t.spec.category is ToolCategory.DELEGATE)
-        and t.spec.declaration.name not in withheld
+        and not (t.spec.category is ToolCategory.SUBMIT and t.spec not in brought)
     ]
-    return Registry(permitted)
+    return Assembly(registry=Registry(permitted), profile=profile)
 
 
 def session_for(
@@ -216,6 +219,19 @@ def session_for(
     history: collections.abc.Sequence[Message] = (
         repair(load(fs, transcript.path)) if fs.exists(transcript.path) else []
     )
+    assembled = assemble(
+        config,
+        spec,
+        run_dir,
+        parent=ctx.agent_id,
+        depth=depth,
+        output_class=output_class,
+        answer_file_class=answer_file_class,
+        clock=clock,
+        fs=fs,
+        web=web,
+        bus=bus,
+    )
     return Session(
         spec=spec,
         input=ctx.input,
@@ -223,19 +239,8 @@ def session_for(
         transcript=transcript,
         agent_id=ctx.agent_id,
         llm=llm,
-        registry=build_registry(
-            config,
-            spec,
-            run_dir,
-            parent=ctx.agent_id,
-            depth=depth,
-            output_class=output_class,
-            answer_file_class=answer_file_class,
-            clock=clock,
-            fs=fs,
-            web=web,
-            bus=bus,
-        ),
+        registry=assembled.registry,
+        profile=assembled.profile,
         ctx=ctx,
         output_class=output_class,
         clock=clock,

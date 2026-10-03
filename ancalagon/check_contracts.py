@@ -14,7 +14,7 @@ from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.file_system import FileSystem
 from ancalagon.fs.real_file_system import RealFileSystem
-from ancalagon.session_for import build_registry
+from ancalagon.session_for import assemble
 from ancalagon.tools.idle.idle import Idle
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.tools.submit.submitting import TERMINAL_TOOLS
@@ -110,7 +110,7 @@ def _hook_fault(
     if not_in_role:
         return f"[roles.{name}] names a hook for {sorted(not_in_role)[0]}, which it does not use"
     try:
-        build_registry(
+        assemble(
             config,
             TaskSpec(task_id=name, role=written, goal=""),
             config.home,

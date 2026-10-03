@@ -115,7 +115,7 @@ what makes re-reading whole files affordable.
 **`run` is not the only seam.** `run` starts a tree: a run directory, a migrated `bus.db`, a
 supervisor polling it, and a subprocess per agent. A host that wants one agent and none of that
 calls `session_for` instead — `ancalagon/session_for.py`, which also holds `available_tools` and
-`build_registry`, so one module knows how an agent is assembled and `worker.main` is its first
+`assemble`, so one module knows how an agent is assembled and `worker.main` is its first
 caller rather than a second copy of it. Nine arguments are required and five default to the null
 objects that make an agent run alone: `NO_BUS`, `NO_CHILDREN`, `NO_LETTERBOX`, `UNMETERED` and
 `depth=0`. Under `NO_BUS` the registry offers `NoDelegateTo`, `NoWatchFile` and `NoIdle` — same
@@ -489,12 +489,15 @@ never left uncollectable. This is the one catch-all in the codebase and it is de
 is the outermost frame of a process, and a worker that dies without an `outcome-<agent>.json` is
 indistinguishable to `collect_task` from one still working, for ever.
 
-`build_registry` decides which tools an agent's registry can serve at all, not which of them
+`assemble` decides which tools an agent's registry can serve at all, not which of them
 it is offered on a given turn: the role's own `tools` filters the list, every `delegate_<name>`
-entry is withheld once `bus/depth_of.py` reports the task is at `max_depth`, and `idle` is added
-unconditionally — a role author who left it out never chose to crash the harness, or to spawn
-children it could never wait for. The submit tool is named by the role rather than added for it,
-and `check_contracts` catches a role that names none before any agent starts. A name in `tools`
+entry is withheld once `bus/depth_of.py` reports the task is at `max_depth`, and whatever the
+role's profile brings is added to that list — `idle` and the one terminal submit tool, so a role
+author who left `idle` out never chose to crash the harness, or to spawn children it could never
+wait for. A submit tool the role names but its profile does not bring is withheld, since there is
+one way out of a run and the profile chooses which. `assemble` returns both the registry and the
+profile, because the profile is built from a `Catalogue` of every tool that could have been built
+and there is no second place holding that list. A name in `tools`
 that no tool answers to raises, naming both the unknown entries and the available set. An empty
 `tools` list now means no tools at all, the inverse of the old global `[tools] enabled = []`,
 which meant every tool — a role written against the old default gets a much smaller toolset than
@@ -564,13 +567,20 @@ flags set, `final` and `force_tool`. Seven things worth knowing:
   worker, where it becomes a `Failed` outcome carrying the traceback — visible, rather than
   handed back as a tool error the agent burns turns retrying against.
 - **The final turn is forced, not merely offered.** `_prepare_final_turn` records
-  `_final_instruction()`, injecting a synthetic assistant turn first if the last message was a
-  user turn — providers reject two consecutive user turns — and `_complete` is called with
-  `force_tool=self.submit`. `_declarations` also collapses to `self.submit` alone on that turn,
-  and `self.submit` is the name `submitting(role.tools)` returned rather than a constant, so the
-  role's choice reaches the forced final turn. The tool is offered regardless of whether every
-  child has been collected: being cut off by the budget is not the same as choosing to skip
-  reading a child's answer.
+  `profile.instructs(turn)`, injecting a synthetic assistant turn first if the last message was a
+  user turn — providers reject two consecutive user turns — and `_complete` is called with the
+  tool `profile.forces(turn)` returned. `profile.offers(turn)` collapses to that one tool on that
+  turn, so the profile's choice reaches the forced final turn rather than a constant. The tool is
+  offered regardless of whether every child has been collected: being cut off by the budget is
+  not the same as choosing to skip reading a child's answer.
+- **Six of the loop's decisions belong to the role's profile, not to `Session`.** `halts`,
+  `forces`, `offers`, `mechanics`, `instructs` and `nudges` each take a `Turn` and return what to
+  send. A `Turn` is frozen and rebuilt once per pass of the loop. It carries the tools on offer.
+  It carries what remains of the budget and what has been spent. It carries the outstanding and
+  uncollected children, and whether a note was delivered. `Session` keeps the loop and the classification of what
+  came back: a profile decides what to send, the session decides what a reply meant. `Answering`
+  is the profile that submits an answer, `AnsweringAsFile` the one that points at a file, and the
+  base class's defaults never halt, never force and offer everything the role declared.
 - **The exhausted-turns idle records `NO_WATERMARK`, not a measured one.** It never called
   `idle`, so it has no snapshot to take a watermark from, and `-1` says that rather than
   claiming it had seen nothing. The cost is that such a parent also wakes for a child that had
@@ -927,7 +937,7 @@ the one edge that needs an argument, and `TaskArgs` parses it.
 | Question | File |
 |---|---|
 | How does an agent turn work? | `session.py` |
-| What can an agent do? | `worker.py`, `build_registry` |
+| What can an agent do? | `worker.py`, `assemble`, `profiles/` |
 | How does work get scheduled? | `supervisor/supervisor.py` |
 | What crosses a boundary? | `contracts/` |
 | How is a provider called? | `llm/adapters/litellm_client.py` |

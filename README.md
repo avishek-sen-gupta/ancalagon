@@ -197,7 +197,7 @@ Three things fail later than you would like:
 - `on_path(config.import_paths)` must run before `session_for`. Building a `delegate_<role>` tool
   imports that role's input contract, so a config built in Python whose `import_paths` are unset
   fails with a module error naming a module the host can import itself.
-- `depth` defaults to `0`, which is a decision rather than a placeholder: `build_registry`
+- `depth` defaults to `0`, which is a decision rather than a placeholder: `assemble`
   withholds `delegate_<role>` once `depth` reaches `config.max_depth`.
 - A `--config-json` document given to `init` and the one given to `run` must be identical.
   `init` allocates the run directory under the `config.home` its document names; `run` reads

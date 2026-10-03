@@ -46,7 +46,7 @@ SUBMITS = bind_tool(SubmitAnswer(FreeText))
 
 SUBMITS_FILE = bind_tool(SubmitAnswerAsFile(FreeText))
 
-# available_tools builds both submit tools; build_registry offers a role only the one it uses.
+# available_tools builds both submit tools; assemble offers a role only the one it uses.
 CATALOGUE = Catalogue((*WORKING, SUBMITS, SUBMITS_FILE))
 
 OFFERED = (*WORKING, SUBMITS)
@@ -107,11 +107,7 @@ def test_an_answering_profile_withholds_idle_and_submit_until_it_is_time_for_eac
 ):
     profile = Answering(CATALOGUE)
 
-    assert _brought(profile) == [
-        "collect_task",
-        "idle",
-        "submit_answer",
-    ]
+    assert _brought(profile) == ["idle", "submit_answer"]
 
     alone = _turn(tmp_path)
     assert profile.halts(alone) is PENDING
@@ -161,11 +157,7 @@ def test_answering_as_a_file_changes_only_which_tool_ends_the_run(tmp_path: path
     profile = AnsweringAsFile(CATALOGUE)
 
     assert profile.terminal.declaration.name == "submit_answer_as_file"
-    assert _brought(profile) == [
-        "collect_task",
-        "idle",
-        "submit_answer_as_file",
-    ]
+    assert _brought(profile) == ["idle", "submit_answer_as_file"]
 
     final = _turn(tmp_path, turns=0, offered=OFFERED_FILE)
     assert _forced(profile, final) == "submit_answer_as_file"
@@ -189,7 +181,7 @@ def test_a_profile_that_overrides_nothing_never_answers_and_withholds_nothing(
     class Bare(Profile):
         pass
 
-    profile = Bare()
+    profile = Bare(CATALOGUE)
     turn = _turn(tmp_path, turns=0, outstanding=(4,), uncollected=(5,))
 
     assert profile.tools == ()

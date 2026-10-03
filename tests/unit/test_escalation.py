@@ -30,6 +30,7 @@ from ancalagon.tools.delegate.answer_task import AnswerTask
 from ancalagon.tools.delegate.check_task import CheckTask
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.delegate.delegate_tools import delegate_tools
+from ancalagon.tools.idle.no_idle import NoIdle
 from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.registry.bind_tool import bind_tool
 from ancalagon.tools.registry.registry import Registry
@@ -38,7 +39,8 @@ from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.transcript.history import load, repair
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.workspace.workspace import Workspace
-from ancalagon.profiles.answering import ANSWERING
+from ancalagon.profiles.answering import ANSWERING, Answering
+from ancalagon.profiles.catalogue import Catalogue
 from tests.unit.conftest import written_budget
 
 
@@ -71,6 +73,22 @@ def _run(
     bus = LifecycleStore.open(run_dir / "bus.db", SystemClock(), RealFileSystem())
     bus.record(agent, AgentStatus.CLAIMED, EventSource.SUPERVISOR)
     bus.record(agent, AgentStatus.RUNNING, EventSource.SUPERVISOR, pid=100 + agent)
+    tools = [
+        *delegate_tools(
+            {"investigate": INVESTIGATE},
+            role_of(INVESTIGATE),
+            run_dir=run_dir,
+            parent=agent,
+            fs=RealFileSystem(),
+            bus=bus,
+        ),
+        bind_tool(CheckTask(bus)),
+        bind_tool(CollectTask(bus, RealFileSystem())),
+        bind_tool(AnswerTask(bus=bus, parent=agent, clock=SystemClock(), fs=RealFileSystem())),
+        bind_tool(NeedInput()),
+        bind_tool(NoIdle()),
+        bind_tool(SubmitAnswer(FreeText)),
+    ]
     session = Session(
         spec=spec,
         input=FreeText(text="go"),
@@ -78,30 +96,8 @@ def _run(
         transcript=Transcript(RealFileSystem(), path=transcript_path, agent_id=agent),
         agent_id=agent,
         llm=FakeLLM(replies),
-        registry=Registry(
-            [
-                *delegate_tools(
-                    {"investigate": INVESTIGATE},
-                    role_of(INVESTIGATE),
-                    run_dir=run_dir,
-                    parent=agent,
-                    fs=RealFileSystem(),
-                    bus=bus,
-                ),
-                bind_tool(CheckTask(bus)),
-                bind_tool(CollectTask(bus, RealFileSystem())),
-                bind_tool(
-                    AnswerTask(
-                        bus=bus,
-                        parent=agent,
-                        clock=SystemClock(),
-                        fs=RealFileSystem(),
-                    )
-                ),
-                bind_tool(NeedInput()),
-                bind_tool(SubmitAnswer(FreeText)),
-            ]
-        ),
+        registry=Registry(tools),
+        profile=Answering(Catalogue(tools)),
         ctx=ctx,
         output_class=FreeText,
         clock=SystemClock(),

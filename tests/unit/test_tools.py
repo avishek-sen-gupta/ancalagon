@@ -39,7 +39,7 @@ from ancalagon.schedule.active_for import active_for
 from ancalagon.schedule.newest_agent import newest_agent
 from ancalagon.schedule.task_of import task_of
 from ancalagon.schedule.uncollected import uncollected
-from ancalagon.session_for import build_registry
+from ancalagon.session_for import assemble
 from ancalagon.tools.artifacts.convert_args import ConvertArgs
 from ancalagon.tools.artifacts.convert_document import ConvertDocument
 from ancalagon.tools.artifacts.document_format import DocumentFormat
@@ -363,7 +363,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         tools=("delegate_scout", "need_input", "submit_answer"),
         budget=written_budget(1, 1),
     )
-    at_root = build_registry(
+    at_root = assemble(
         config,
         TaskSpec(task_id="root", role=full_role, goal="g"),
         tmp_path,
@@ -376,7 +376,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         web=FakeWebClient({}),
         bus=bus,
     )
-    at_limit = build_registry(
+    at_limit = assemble(
         config,
         TaskSpec(task_id="root", role=full_role, goal="g"),
         tmp_path,
@@ -390,10 +390,10 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         bus=bus,
     )
 
-    assert "delegate_scout" in at_root.names()
-    assert "delegate_unreachable" not in at_root.names()
+    assert "delegate_scout" in at_root.registry.names()
+    assert "delegate_unreachable" not in at_root.registry.names()
     assert sorted(
-        build_registry(
+        assemble(
             config,
             TaskSpec(
                 task_id="root",
@@ -414,23 +414,29 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
             fs=RealFileSystem(),
             bus=bus,
             web=FakeWebClient({}),
-        ).names()
+        ).registry.names()
     ) == ["ast_query", "idle", "shell", "submit_answer"]
-    assert "need_input" in at_root.names()
-    assert "delegate_scout" not in at_limit.names()
-    assert "need_input" in at_limit.names()
-    answer_shape = at_root.get("submit_answer").spec.declaration.parameters.model_json_schema()
+    assert "need_input" in at_root.registry.names()
+    assert "delegate_scout" not in at_limit.registry.names()
+    assert "need_input" in at_limit.registry.names()
+    answer_shape = at_root.registry.get(
+        "submit_answer"
+    ).spec.declaration.parameters.model_json_schema()
     assert set(answer_shape["properties"]) == {"text"}
 
-    assert at_root.get("delegate_scout").spec.category is ToolCategory.DELEGATE
-    assert at_root.get("submit_answer").spec.category is ToolCategory.SUBMIT
-    assert at_root.get("idle").spec.category is ToolCategory.LIFECYCLE
-    assert at_root.get("need_input").spec.category is ToolCategory.LIFECYCLE
+    assert at_root.registry.get("delegate_scout").spec.category is ToolCategory.DELEGATE
+    assert at_root.registry.get("submit_answer").spec.category is ToolCategory.SUBMIT
+    assert at_root.registry.get("idle").spec.category is ToolCategory.LIFECYCLE
+    assert at_root.registry.get("need_input").spec.category is ToolCategory.LIFECYCLE
     assert [
-        t.spec.category for t in at_limit.tools.values() if t.spec.category is ToolCategory.DELEGATE
+        t.spec.category
+        for t in at_limit.registry.tools.values()
+        if t.spec.category is ToolCategory.DELEGATE
     ] == []
     assert [
-        t.spec.category for t in at_root.tools.values() if t.spec.category is ToolCategory.DELEGATE
+        t.spec.category
+        for t in at_root.registry.tools.values()
+        if t.spec.category is ToolCategory.DELEGATE
     ] == [ToolCategory.DELEGATE]
 
     narrow_role = SerialisableRole(
@@ -439,7 +445,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         tools=("read_file", "ripgrep", "diff_regions", "submit_answer"),
         budget=full_role.budget,
     )
-    narrowed = build_registry(
+    narrowed = assemble(
         config,
         TaskSpec(task_id="root", role=narrow_role, goal="g"),
         tmp_path,
@@ -452,7 +458,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         fs=RealFileSystem(),
         web=FakeWebClient({}),
     )
-    assert set(narrowed.names()) == {
+    assert set(narrowed.registry.names()) == {
         "read_file",
         "ripgrep",
         "diff_regions",
@@ -467,7 +473,7 @@ def test_registry_withholds_delegate_at_max_depth_and_refuses_unknown_tool_names
         budget=full_role.budget,
     )
     with pytest.raises(ValueError) as refused:
-        build_registry(
+        assemble(
             config,
             TaskSpec(task_id="root", role=unknown_role, goal="g"),
             tmp_path,

@@ -30,11 +30,11 @@ TURNS_GONE = "turns exhausted while children ran"
 class Answering(Profile):
     terminal_tool: typing.ClassVar[type[AnyTool]] = SubmitAnswer
 
-    def __init__(self, catalogue: Catalogue):
+    def __init__(self, catalogue: Catalogue) -> None:
         self.terminal = catalogue.spec_for(self.terminal_tool)
         self.collect = catalogue.spec_for(CollectTask)
         self.idle = catalogue.spec_for(Idle, NoIdle)
-        self.tools = (self.terminal, self.collect, self.idle)
+        self.tools = (self.terminal, self.idle)
 
     def halts(self, turn: Turn, /) -> Outcome[pydantic.BaseModel] | Pending:
         if turn.final and turn.outstanding:

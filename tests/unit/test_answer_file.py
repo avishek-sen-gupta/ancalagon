@@ -13,7 +13,7 @@ from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.submitted import Submitted
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.real_file_system import RealFileSystem
-from ancalagon.session_for import build_registry
+from ancalagon.session_for import assemble
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
@@ -55,7 +55,7 @@ def test_the_role_chooses_which_terminal_tool_it_submits_with(tmp_path: pathlib.
         tools=("read_file", "submit_answer", "submit_answer_as_file"),
         budget=written_budget(1, 1),
     )
-    registry = build_registry(
+    assembled = assemble(
         Config(home=tmp_path, read_roots=(tmp_path,), model="m", roles={"root": role}),
         TaskSpec(task_id="root", role=role, goal="g"),
         tmp_path,
@@ -68,7 +68,11 @@ def test_the_role_chooses_which_terminal_tool_it_submits_with(tmp_path: pathlib.
         web=FakeWebClient({}),
         bus=NO_BUS,
     )
-    assert sorted(registry.names()) == ["idle", "read_file", "submit_answer_as_file"]
+    assert sorted(assembled.registry.names()) == [
+        "idle",
+        "read_file",
+        "submit_answer_as_file",
+    ]
 
 
 def test_submitting_a_file_validates_it_into_the_role_s_class_and_refuses_what_does_not_fit(

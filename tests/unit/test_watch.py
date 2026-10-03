@@ -23,7 +23,7 @@ from ancalagon.contracts.watch_request import WatchRequest
 from ancalagon.deterministic.run_context import RunContext
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrations import latest_version, migrate_file
-from ancalagon.session_for import build_registry
+from ancalagon.session_for import assemble
 from ancalagon.supervisor.process import Process
 from ancalagon.supervisor.spawn_by_run import SpawnByRun
 from ancalagon.supervisor.spawner import Spawner
@@ -226,7 +226,7 @@ def test_watch_file_is_offered_only_where_a_role_declares_the_watch_contract(
 
     def names(roles: dict[str, SerialisableRole]) -> list[str]:
         return sorted(
-            build_registry(
+            assemble(
                 _config(tmp_path, roles),
                 TaskSpec(task_id="t", role=participant, goal="g"),
                 tmp_path,
@@ -238,7 +238,7 @@ def test_watch_file_is_offered_only_where_a_role_declares_the_watch_contract(
                 fs=fs,
                 web=FakeWebClient({}),
                 bus=bus,
-            ).names()
+            ).registry.names()
         )
 
     assert names({"watcher": watcher, "participant": participant}) == [

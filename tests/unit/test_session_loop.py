@@ -41,12 +41,14 @@ from ancalagon.letterbox.no_letterbox import NO_LETTERBOX
 from ancalagon.llm.fake_llm import FakeLLM
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.session import COLLECT_TRIES, NOTE_PREFIX, Session
-from ancalagon.session_for import build_registry
+from ancalagon.session_for import assemble
 from ancalagon.tools.delegate.collect_task import CollectTask
 from ancalagon.tools.files.read_file import ReadFile
 from ancalagon.tools.idle.idle import Idle
+from ancalagon.tools.idle.no_idle import NoIdle
 from ancalagon.tools.need_input.need_input import NeedInput
 from ancalagon.tools.registry.bind_tool import bind_tool
+from ancalagon.tools.registry.bound_tool import BoundTool
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
@@ -54,8 +56,10 @@ from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
 from ancalagon.transcript.transcript import Transcript
 from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.workspace.workspace import Workspace
-from ancalagon.profiles.answering import ANSWERING
-from ancalagon.profiles.answering_as_file import ANSWERING_AS_FILE
+from ancalagon.profiles.answering import ANSWERING, Answering
+from ancalagon.profiles.catalogue import Catalogue
+from ancalagon.profiles.profile import Profile
+from ancalagon.profiles.answering_as_file import ANSWERING_AS_FILE, AnsweringAsFile
 from tests.unit.conftest import written_budget
 
 
@@ -74,6 +78,25 @@ class Values(pydantic.BaseModel, frozen=True):
 class Sited(pydantic.BaseModel):
     answer: str
     where: Where
+
+
+def _profile(
+    tools: collections.abc.Sequence[BoundTool],
+    output_class: type[pydantic.BaseModel],
+    kind: type[Profile] = Answering,
+) -> Profile:
+    held = {bound.spec.source for bound in tools}
+    spares = [
+        bound
+        for source, bound in (
+            (SubmitAnswer, lambda: bind_tool(SubmitAnswer(output_class))),
+            (CollectTask, lambda: bind_tool(CollectTask(NO_BUS, RealFileSystem()))),
+            (NoIdle, lambda: bind_tool(NoIdle())),
+        )
+        if source not in held
+        for bound in [bound()]
+    ]
+    return kind(Catalogue([*tools, *spares]))
 
 
 def _session(
@@ -109,6 +132,11 @@ def _session(
         ),
         goal=goal,
     )
+    tools = [
+        bind_tool(ReadFile(FakeClock())),
+        bind_tool(NeedInput()),
+        bind_tool(SubmitAnswer(answer_class)),
+    ]
     return Session(
         spec=spec,
         input=given,
@@ -116,13 +144,8 @@ def _session(
         transcript=Transcript(RealFileSystem(), path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
         llm=FakeLLM(replies),
-        registry=Registry(
-            [
-                bind_tool(ReadFile(FakeClock())),
-                bind_tool(NeedInput()),
-                bind_tool(SubmitAnswer(answer_class)),
-            ]
-        ),
+        registry=Registry(tools),
+        profile=_profile(tools, answer_class),
         ctx=ctx,
         output_class=answer_class,
         clock=FakeClock(),
@@ -209,6 +232,13 @@ def test_session_runs_tools_completes_and_forces_a_final_answer_when_exhausted(
     forced = exhausting.run()
     assert isinstance(forced, Exhausted)
     assert forced.value.model_dump() == {"answer": "best effort"}
+
+    told = exhausting.llm
+    assert isinstance(told, FakeLLM)
+    assert [b.text for b in told.seen[-1][-1].blocks if isinstance(b, Text)] == [
+        "Your budget is exhausted. Answer now from what you already know, "
+        "using the submit_answer tool. No other tools are available."
+    ]
 
 
 def test_session_returns_tool_failures_and_nudges_a_reply_that_called_nothing(
@@ -330,6 +360,7 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
         ),
         goal="Answer it.",
     )
+    idle_only = [bind_tool(Idle(bus, agent=parent))]
     session = Session(
         spec=spec,
         input=Verdict(answer="seed"),
@@ -346,7 +377,8 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
                 )
             ]
         ),
-        registry=Registry([bind_tool(Idle(bus, agent=parent))]),
+        registry=Registry(idle_only),
+        profile=_profile(idle_only, Verdict),
         ctx=ctx,
         output_class=Verdict,
         clock=FakeClock(),
@@ -390,6 +422,10 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
         ),
         goal="Answer it.",
     )
+    reading_and_idle = [
+        bind_tool(ReadFile(FakeClock())),
+        bind_tool(Idle(bus, agent=parent)),
+    ]
     session = Session(
         spec=spec,
         input=Verdict(answer="seed"),
@@ -399,12 +435,8 @@ def test_exhausting_turns_with_live_children_idles_rather_than_forcing_an_answer
         ),
         agent_id=parent,
         llm=FakeLLM([Reply(blocks=[Text(text="not json at all")], stop_reason="stop")]),
-        registry=Registry(
-            [
-                bind_tool(ReadFile(FakeClock())),
-                bind_tool(Idle(bus, agent=parent)),
-            ]
-        ),
+        registry=Registry(reading_and_idle),
+        profile=_profile(reading_and_idle, Verdict),
         ctx=ctx,
         output_class=Verdict,
         clock=FakeClock(),
@@ -708,6 +740,7 @@ def test_a_session_takes_its_behaviour_and_budget_from_its_role(tmp_path: pathli
             ),
         ]
     )
+    submit_only = [bind_tool(SubmitAnswer(FreeText))]
     session = Session(
         spec=spec,
         input=FreeText(text="go"),
@@ -715,7 +748,8 @@ def test_a_session_takes_its_behaviour_and_budget_from_its_role(tmp_path: pathli
         transcript=Transcript(RealFileSystem(), path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
         llm=llm,
-        registry=Registry([bind_tool(SubmitAnswer(FreeText))]),
+        registry=Registry(submit_only),
+        profile=_profile(submit_only, FreeText),
         ctx=ctx,
         output_class=FreeText,
         clock=FakeClock(),
@@ -807,6 +841,12 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
             ),
         ]
     )
+    full_set = [
+        bind_tool(ReadFile(FakeClock())),
+        bind_tool(Idle(NO_BUS, agent=17)),
+        bind_tool(SubmitAnswer(Verdict)),
+        bind_tool(CollectTask(NO_BUS, RealFileSystem())),
+    ]
     session = Session(
         spec=spec,
         input=Verdict(answer="seed"),
@@ -814,14 +854,8 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
         transcript=Transcript(RealFileSystem(), path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
         llm=llm,
-        registry=Registry(
-            [
-                bind_tool(ReadFile(FakeClock())),
-                bind_tool(Idle(NO_BUS, agent=17)),
-                bind_tool(SubmitAnswer(Verdict)),
-                bind_tool(CollectTask(NO_BUS, RealFileSystem())),
-            ]
-        ),
+        registry=Registry(full_set),
+        profile=_profile(full_set, Verdict),
         ctx=ctx,
         output_class=Verdict,
         clock=FakeClock(),
@@ -906,6 +940,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
             )
         ]
     )
+    as_file_only = [bind_tool(SubmitAnswerAsFile(Values))]
     session = Session(
         spec=spec,
         input=Verdict(answer="seed"),
@@ -913,7 +948,8 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
         transcript=Transcript(RealFileSystem(), path=tmp_path / "transcript.jsonl", agent_id=17),
         agent_id=17,
         llm=llm,
-        registry=Registry([bind_tool(SubmitAnswerAsFile(Values))]),
+        registry=Registry(as_file_only),
+        profile=_profile(as_file_only, AnswerFile, AnsweringAsFile),
         ctx=ctx,
         output_class=AnswerFile,
         clock=FakeClock(),
@@ -957,7 +993,7 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
         model="anthropic/claude",
         roles={"t2": role_both},
     )
-    registry_both = build_registry(
+    assembled_both = assemble(
         config_both,
         spec_both,
         both,
@@ -992,7 +1028,8 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
         transcript=Transcript(RealFileSystem(), path=both / "transcript.jsonl", agent_id=18),
         agent_id=18,
         llm=llm_both,
-        registry=registry_both,
+        registry=assembled_both.registry,
+        profile=assembled_both.profile,
         ctx=ctx_both,
         output_class=AnswerFile,
         clock=FakeClock(),
@@ -1076,6 +1113,9 @@ def _exhausted_parent(
         summary_chars=200,
         agent_id=parent,
     )
+    maybe_collecting = [bind_tool(ReadFile(FakeClock())), bind_tool(SubmitAnswer(Verdict))] + (
+        [bind_tool(CollectTask(bus, RealFileSystem()))] if with_collect else []
+    )
     return Session(
         spec=TaskSpec(
             task_id="root",
@@ -1093,10 +1133,8 @@ def _exhausted_parent(
         transcript=Transcript(RealFileSystem(), path=run_dir / "transcript.jsonl", agent_id=parent),
         agent_id=parent,
         llm=FakeLLM(replies),
-        registry=Registry(
-            [bind_tool(ReadFile(FakeClock())), bind_tool(SubmitAnswer(Verdict))]
-            + ([bind_tool(CollectTask(bus, RealFileSystem()))] if with_collect else [])
-        ),
+        registry=Registry(maybe_collecting),
+        profile=_profile(maybe_collecting, Verdict),
         ctx=ctx,
         output_class=Verdict,
         clock=FakeClock(),

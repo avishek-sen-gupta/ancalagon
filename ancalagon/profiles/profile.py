@@ -5,6 +5,7 @@ from ancalagon.contracts.outcome import Outcome
 from ancalagon.contracts.pending import PENDING, Pending
 from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.tool_spec import ToolSpec
+from ancalagon.profiles.catalogue import Catalogue
 from ancalagon.profiles.turn import Turn
 from ancalagon.tools.registry.bound_tool import BoundTool
 from ancalagon.tools.registry.no_tool import NO_TOOL, NoTool
@@ -12,6 +13,9 @@ from ancalagon.tools.registry.no_tool import NO_TOOL, NoTool
 
 class Profile:
     tools: tuple[ToolSpec, ...] = ()
+
+    def __init__(self, catalogue: Catalogue) -> None:
+        return None
 
     def faults(self, name: str, role: SerialisableRole, /) -> str:
         return ""

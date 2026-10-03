@@ -19,7 +19,6 @@ from ancalagon.contracts.idling import Idling
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.needs_input import NeedsInput
-from ancalagon.contracts.no_watermark import NO_WATERMARK
 from ancalagon.contracts.outcome import SUMMARY_CHARS, Outcome
 from ancalagon.contracts.payload import Payload
 from ancalagon.contracts.pending import PENDING, Pending
@@ -35,18 +34,20 @@ from ancalagon.contracts.tool_schema import ToolSchema
 from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.letterbox.letterbox import Letterbox
 from ancalagon.letterbox.no_letterbox import NO_LETTERBOX
-from ancalagon.llm.inlined import Inlined
 from ancalagon.llm.llm import LLM
 from ancalagon.llm.meter import Meter
 from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.unmetered import UNMETERED
+from ancalagon.contracts.tool_category import ToolCategory
+from ancalagon.profiles.profile import Profile
 from ancalagon.profiles.turn import Turn
+from ancalagon.tools.registry.bound_tool import BoundTool
+from ancalagon.tools.registry.no_tool import NO_TOOL, NoTool
 from ancalagon.tools.registry.registry import Registry
 from ancalagon.tools.registry.resolved import resolved
 from ancalagon.tools.registry.tool_use import ToolUse
 from ancalagon.tools.registry.unknown_tool import UnknownTool
 from ancalagon.tools.registry.tool_context import ToolContext
-from ancalagon.tools.submit.submitting import submitting
 from ancalagon.transcript.demote import for_wire
 from ancalagon.transcript.transcript import Transcript
 
@@ -65,13 +66,17 @@ def _answer_summary(answer: pydantic.BaseModel) -> str:
     return answer.model_dump_json()[:SUMMARY_CHARS]
 
 
-IDLE = "idle"
-
-COLLECT = "collect_task"
-
 COLLECT_TRIES = 2
 
 NOTE_PREFIX = "Note from the operator: "
+
+
+def _forcing(tool: BoundTool, forced: BoundTool | NoTool) -> bool:
+    return isinstance(forced, BoundTool) and tool.spec == forced.spec
+
+
+def _answering(forced: BoundTool | NoTool) -> bool:
+    return isinstance(forced, BoundTool) and forced.spec.category is ToolCategory.SUBMIT
 
 
 def _faults(name: str, exc: pydantic.ValidationError) -> str:
@@ -93,6 +98,7 @@ class Session:
         agent_id: int,
         llm: LLM,
         registry: Registry,
+        profile: Profile,
         ctx: ToolContext,
         output_class: type[pydantic.BaseModel],
         clock: Clock,
@@ -110,6 +116,7 @@ class Session:
         self.agent_id = agent_id
         self.llm = llm
         self.registry = registry
+        self.profile = profile
         self.ctx = ctx
         self.output_class = output_class
         self.meter = meter
@@ -121,7 +128,6 @@ class Session:
         self.remaining = self.role.budget
         self.spent = Spend(turns=0, tool_calls=0)
         self.seq = len(messages)
-        self.submit = submitting(self.role.tools)
         if not self.messages:
             self._record(
                 MessageRole.USER, [Text(text=f"{spec.goal}\n\nInput: {input.model_dump_json()}")]
@@ -140,23 +146,23 @@ class Session:
             f"directory, not against these roots, and will usually fail."
         )
 
-    def _system(self) -> SystemPrompt:
-        schema = self.output_class.model_json_schema(schema_generator=Inlined)
+    def _system(self, turn: Turn) -> SystemPrompt:
         return SystemPrompt(
-            static=(
-                f"{self.role.behaviour}\n\n"
-                f"When you have the answer, call the {self.submit} tool with it. That tool is "
-                f"the only way to answer; a reply without it is taken as more work to do. "
-                f"Your answer must match this schema: {schema}"
-            ),
+            static=f"{self.role.behaviour}\n\n{self.profile.mechanics(turn)}",
             per_item=(
                 f"Goal: {self.spec.goal}\n\nInput: {self.input.model_dump_json()}\n\n"
                 f"{self._scopes()}"
             ),
         )
 
-    def _complete(self, tools: collections.abc.Sequence[ToolSchema], force_tool: str = "") -> Reply:
-        reply = self.llm.complete(self._system(), self._wire(), tools, force_tool=force_tool)
+    def _complete(
+        self,
+        turn: Turn,
+        tools: collections.abc.Sequence[ToolSchema],
+        forced: BoundTool | NoTool,
+    ) -> Reply:
+        name = forced.spec.declaration.name if isinstance(forced, BoundTool) else ""
+        reply = self.llm.complete(self._system(turn), self._wire(), tools, force_tool=name)
         self.meter.record(self.agent_id, reply.usage)
         LOGGER.info(
             "in %s out %s cache created %s read %s",
@@ -186,7 +192,9 @@ class Session:
         return "".join(b.text for b in reply.blocks if isinstance(b, Text))
 
     def _run_tools(
-        self, calls: collections.abc.Sequence[ToolUse | UnknownTool], exempt: str
+        self,
+        calls: collections.abc.Sequence[ToolUse | UnknownTool],
+        exempt: BoundTool | NoTool,
     ) -> list[tuple[ToolUse, ToolResult]]:
         blocks: list[Block] = []
         results: list[tuple[ToolUse, ToolResult]] = []
@@ -198,7 +206,7 @@ class Session:
                 )
                 continue
             name = call.tool.spec.declaration.name
-            cost = 0 if name == exempt else call.tool.spec.cost
+            cost = 0 if _forcing(call.tool, exempt) else call.tool.spec.cost
             if not self.remaining.tool_calls.permits(cost):
                 blocks.append(
                     ToolResultBlock(
@@ -229,47 +237,13 @@ class Session:
         self._record(MessageRole.USER, blocks)
         return results
 
-    def _forced(self, turn: Turn) -> str:
-        if turn.uncollected and turn.tries > 0 and COLLECT in self.registry.names():
-            return COLLECT
-        return self.submit
+    def _declarations(self, turn: Turn) -> list[ToolSchema]:
+        return [tool.spec.declaration for tool in self.profile.offers(turn)]
 
-    def _declarations(self, turn: Turn, forced: str) -> list[ToolSchema]:
-        if turn.final:
-            return [self.registry.get(forced).spec.declaration]
-        excluded: set[str] = ({IDLE} if not turn.outstanding else set[str]()) | (
-            {self.submit} if turn.outstanding or turn.uncollected else set[str]()
-        )
-        return [
-            tool.spec.declaration
-            for tool in turn.offered
-            if tool.spec.declaration.name not in excluded
-        ]
-
-    def _final_instruction(self, turn: Turn, forced: str) -> str:
-        if forced == COLLECT:
-            return (
-                f"Your budget is exhausted, and these children have answers you have never "
-                f"read: {list(turn.uncollected)}. Call {COLLECT} for one of them now. You will "
-                f"be asked for your answer once every one of them has been collected."
-            )
-        return (
-            f"Your budget is exhausted. Answer now from what you already know, "
-            f"using the {self.submit} tool. No other tools are available."
-        )
-
-    def _continue_instruction(self, delivered: Delivery) -> str:
-        if delivered is Delivery.NOTE:
-            return f"Noted. Carry on, and call the {self.submit} tool when you have your answer."
-        return (
-            f"Answers are only accepted through the {self.submit} tool. Keep working, and "
-            f"call it when you have your answer."
-        )
-
-    def _prepare_final_turn(self, turn: Turn, forced: str) -> None:
+    def _prepare_final_turn(self, turn: Turn) -> None:
         if self.messages and self.messages[-1].role is MessageRole.USER:
             self._record(MessageRole.ASSISTANT, [Text(text="Understood.")])
-        self._record(MessageRole.USER, [Text(text=self._final_instruction(turn, forced))])
+        self._record(MessageRole.USER, [Text(text=self.profile.instructs(turn))])
 
     def _outcome_of_use(
         self, summary: Payload, final: bool
@@ -320,30 +294,28 @@ class Session:
             spent=self._spent(),
         )
 
-    def _uncalled(
-        self, reply: Reply, final: bool, delivered: Delivery
-    ) -> Outcome[pydantic.BaseModel] | Pending:
-        if final:
+    def _uncalled(self, reply: Reply, turn: Turn) -> Outcome[pydantic.BaseModel] | Pending:
+        if turn.final:
             return Failed(
                 error=NO_ANSWER,
                 summary=self._text_of(reply)[:REJECTED_CHARS],
                 spent=self._spent(),
             )
         LOGGER.info("the reply called no tool, asking again")
-        self._record(MessageRole.USER, [Text(text=self._continue_instruction(delivered))])
+        self._record(MessageRole.USER, [Text(text=self.profile.nudges(turn))])
         return PENDING
 
     def _evaluate_turn(
-        self, reply: Reply, final: bool, delivered: Delivery, forced: str
+        self, reply: Reply, turn: Turn, forced: BoundTool | NoTool
     ) -> Outcome[pydantic.BaseModel] | Pending:
         asked = [b for b in reply.blocks if isinstance(b, ToolUseFromModel)]
         if not asked:
-            return self._uncalled(reply, final, delivered)
+            return self._uncalled(reply, turn)
         ran = self._run_tools(resolved(asked, self.registry), forced)
-        from_uses = self._settled(ran, final)
+        from_uses = self._settled(ran, turn.final)
         if not isinstance(from_uses, Pending):
             return from_uses
-        if final and forced != COLLECT:
+        if turn.final and _answering(forced):
             return self._ended(ran, asked)
         return PENDING
 
@@ -399,25 +371,22 @@ class Session:
         tries = COLLECT_TRIES
         while True:
             turn = self._turn(self._deliver(), tries)
-            if turn.final and turn.outstanding:
-                return Idling(
-                    summary="turns exhausted while children ran",
-                    spent=self._spent(),
-                    seen_through=NO_WATERMARK,
-                )
-            forced = self._forced(turn) if turn.final else ""
-            declarations = self._declarations(turn, forced)
+            halted = self.profile.halts(turn)
+            if not isinstance(halted, Pending):
+                return halted
+            forced = self.profile.forces(turn) if turn.final else NO_TOOL
+            declarations = self._declarations(turn)
             if turn.final:
-                self._prepare_final_turn(turn, forced)
+                self._prepare_final_turn(turn)
             else:
                 self.remaining = self.remaining.spend_turn()
                 self.spent = self.spent.plus_turn()
-            reply = self._complete(declarations, force_tool=forced)
+            reply = self._complete(turn, declarations, forced)
             self._record(MessageRole.ASSISTANT, reply.blocks)
-            outcome = self._evaluate_turn(reply, turn.final, turn.delivered, forced)
+            outcome = self._evaluate_turn(reply, turn, forced)
             if not isinstance(outcome, Pending):
                 return outcome
-            if forced == COLLECT:
+            if isinstance(forced, BoundTool) and not _answering(forced):
                 tries = (
                     COLLECT_TRIES if self.children.uncollected() != turn.uncollected else tries - 1
                 )
