@@ -4,7 +4,7 @@ import pathlib
 import pytest
 
 from ancalagon.cli import main
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from tests.integration.prepared_run import prepared_run_dir
 from tests.integration.scripted_model import ScriptedModel
 
@@ -80,12 +80,12 @@ def test_an_agent_builds_its_answer_in_a_file_and_submitting_refuses_it_until_it
         {"status": "complete", "summary": "one module and its values", "path": str(answer)}
     )
     script = {
-        0: ToolUse(
+        0: ToolUseFromModel(
             id="w0",
             name="write_file",
             arguments=json.dumps({"path": str(answer), "content": "{}"}),
         ),
-        1: ToolUse(
+        1: ToolUseFromModel(
             id="e1",
             name="edit_json",
             arguments=json.dumps(
@@ -97,19 +97,19 @@ def test_an_agent_builds_its_answer_in_a_file_and_submitting_refuses_it_until_it
                 }
             ),
         ),
-        2: ToolUse(id="s2", name="submit_answer_as_file", arguments=submitting),
-        3: ToolUse(
+        2: ToolUseFromModel(id="s2", name="submit_answer_as_file", arguments=submitting),
+        3: ToolUseFromModel(
             id="e3",
             name="edit_json",
             arguments=json.dumps(
                 {"path": str(answer), "op": "set", "pointer": "/values", "value": "[1, 2]"}
             ),
         ),
-        4: ToolUse(id="s4", name="submit_answer_as_file", arguments=submitting),
+        4: ToolUseFromModel(id="s4", name="submit_answer_as_file", arguments=submitting),
     }
     called: list[str] = []
 
-    def decide(goal: str, turn: int) -> list[ToolUse]:
+    def decide(goal: str, turn: int) -> list[ToolUseFromModel]:
         called.append(script[turn].name)
         return [script[turn]]
 

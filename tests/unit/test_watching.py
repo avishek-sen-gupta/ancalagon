@@ -6,7 +6,7 @@ from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.watch_command import UNSET, concern, watching
 from ancalagon.watching.rendered import TEXT_WIDTHS, rendered
@@ -20,7 +20,9 @@ AGE_STEP = 2.0
 COLUMNS = 80
 
 
-def _message(role: MessageRole, blocks: list[Text | ToolUse | ToolResultBlock], agent: int = 3):
+def _message(
+    role: MessageRole, blocks: list[Text | ToolUseFromModel | ToolResultBlock], agent: int = 3
+):
     return Message(role=role, blocks=blocks, agent=agent, seq=7, ts="2026-09-12T10:00:00Z")
 
 
@@ -29,7 +31,7 @@ def test_a_message_renders_a_header_and_one_line_per_block():
         MessageRole.ASSISTANT,
         [
             Text(text="looking now"),
-            ToolUse(id="tu_0", name="read_file", arguments='{"path": "/w/a.md"}'),
+            ToolUseFromModel(id="tu_0", name="read_file", arguments='{"path": "/w/a.md"}'),
             ToolResultBlock(tool_use_id="tu_0", content="payload", is_error=False),
             ToolResultBlock(tool_use_id="tu_1", content="outside the read roots", is_error=True),
         ],
@@ -51,7 +53,7 @@ def test_a_message_indents_wrapped_text_and_truncates_every_block():
         [
             Text(text="first\nsecond"),
             Text(text="x" * 500),
-            ToolUse(id="t", name="shell", arguments="y\ny" + "y" * 500),
+            ToolUseFromModel(id="t", name="shell", arguments="y\ny" + "y" * 500),
             ToolResultBlock(tool_use_id="t", content="z\nz" + "z" * 500),
         ],
         agent=1,

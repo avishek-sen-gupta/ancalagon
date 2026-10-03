@@ -33,7 +33,8 @@ from ancalagon.contracts.serialisable_role import SerialisableBudget, Serialisab
 from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_result_block import ToolResultBlock
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.letterbox.letterbox import Letterbox
 from ancalagon.letterbox.no_letterbox import NO_LETTERBOX
@@ -138,7 +139,7 @@ def test_session_runs_tools_completes_and_forces_a_final_answer_when_exhausted(
         [
             Reply(
                 blocks=[
-                    ToolUse(
+                    ToolUseFromModel(
                         id="tu_1",
                         name="read_file",
                         arguments=f'{{"path": "{target / "data.txt"}"}}',
@@ -148,7 +149,9 @@ def test_session_runs_tools_completes_and_forces_a_final_answer_when_exhausted(
             ),
             Reply(
                 blocks=[
-                    ToolUse(id="tu_2", name="submit_answer", arguments='{"answer": "payload"}')
+                    ToolUseFromModel(
+                        id="tu_2", name="submit_answer", arguments='{"answer": "payload"}'
+                    )
                 ],
                 stop_reason="tool_calls",
             ),
@@ -184,12 +187,16 @@ def test_session_runs_tools_completes_and_forces_a_final_answer_when_exhausted(
         second,
         [
             Reply(
-                blocks=[ToolUse(id="tu_1", name="read_file", arguments='{"path": "/nope"}')],
+                blocks=[
+                    ToolUseFromModel(id="tu_1", name="read_file", arguments='{"path": "/nope"}')
+                ],
                 stop_reason="tool_calls",
             ),
             Reply(
                 blocks=[
-                    ToolUse(id="tu_2", name="submit_answer", arguments='{"answer": "best effort"}')
+                    ToolUseFromModel(
+                        id="tu_2", name="submit_answer", arguments='{"answer": "best effort"}'
+                    )
                 ],
                 stop_reason="tool_calls",
             ),
@@ -208,12 +215,20 @@ def test_session_returns_tool_failures_and_nudges_a_reply_that_called_nothing(
         tmp_path,
         [
             Reply(
-                blocks=[ToolUse(id="tu_1", name="read_file", arguments='{"path": "/etc/passwd"}')],
+                blocks=[
+                    ToolUseFromModel(
+                        id="tu_1", name="read_file", arguments='{"path": "/etc/passwd"}'
+                    )
+                ],
                 stop_reason="tool_calls",
             ),
             Reply(blocks=[Text(text='Here it is: {"answer": "denied"}')], stop_reason="stop"),
             Reply(
-                blocks=[ToolUse(id="tu_2", name="submit_answer", arguments='{"answer": "denied"}')],
+                blocks=[
+                    ToolUseFromModel(
+                        id="tu_2", name="submit_answer", arguments='{"answer": "denied"}'
+                    )
+                ],
                 stop_reason="tool_calls",
             ),
         ],
@@ -226,6 +241,36 @@ def test_session_returns_tool_failures_and_nudges_a_reply_that_called_nothing(
 
     transcript = (tmp_path / "transcript.jsonl").read_text()
     assert "outside" in transcript
+
+    absent = _session(
+        tmp_path / "absent",
+        [
+            Reply(
+                blocks=[ToolUseFromModel(id="tu_x", name="telepathy", arguments="{}")],
+                stop_reason="tool_calls",
+            ),
+            Reply(
+                blocks=[
+                    ToolUseFromModel(
+                        id="tu_y", name="submit_answer", arguments='{"answer": "no such tool"}'
+                    )
+                ],
+                stop_reason="tool_calls",
+            ),
+        ],
+        written_budget(5, 5),
+    )
+    settled = absent.run()
+    assert isinstance(settled, Completed)
+    assert settled.value.model_dump() == {"answer": "no such tool"}
+    refused = [
+        block
+        for message in absent.messages
+        for block in message.blocks
+        if isinstance(block, ToolResultBlock) and block.tool_use_id == "tu_x"
+    ]
+    assert [(b.is_error, b.content) for b in refused] == [(True, "unknown tool telepathy")]
+    assert settled.spent.tool_calls == 0
     assert "Answers are only accepted through the submit_answer tool" in transcript
 
 
@@ -237,7 +282,7 @@ def test_session_stops_and_returns_the_question_when_an_agent_needs_input(
         [
             Reply(
                 blocks=[
-                    ToolUse(
+                    ToolUseFromModel(
                         id="tu_1",
                         name="need_input",
                         arguments='{"question": "keep both captions or pick one?"}',
@@ -292,7 +337,7 @@ def test_session_stops_and_returns_idling_when_the_agent_idles(tmp_path: pathlib
         llm=FakeLLM(
             [
                 Reply(
-                    blocks=[ToolUse(id="tu_1", name="idle", arguments="{}")],
+                    blocks=[ToolUseFromModel(id="tu_1", name="idle", arguments="{}")],
                     stop_reason="tool_calls",
                 )
             ]
@@ -381,7 +426,7 @@ def test_session_completes_from_a_submit_answer_tool_call(tmp_path: pathlib.Path
         [
             Reply(
                 blocks=[
-                    ToolUse(
+                    ToolUseFromModel(
                         id="tu_1",
                         name="submit_answer",
                         arguments='{"answer": "structured"}',
@@ -402,12 +447,16 @@ def test_session_completes_from_a_submit_answer_tool_call(tmp_path: pathlib.Path
         tmp_path / "bad",
         [
             Reply(
-                blocks=[ToolUse(id="tu_1", name="submit_answer", arguments='{"wrong": 1}')],
+                blocks=[
+                    ToolUseFromModel(id="tu_1", name="submit_answer", arguments='{"wrong": 1}')
+                ],
                 stop_reason="tool_calls",
             ),
             Reply(
                 blocks=[
-                    ToolUse(id="tu_2", name="submit_answer", arguments='{"answer": "second try"}')
+                    ToolUseFromModel(
+                        id="tu_2", name="submit_answer", arguments='{"answer": "second try"}'
+                    )
                 ],
                 stop_reason="tool_calls",
             ),
@@ -429,13 +478,17 @@ def test_a_zero_cost_tool_still_works_with_no_tool_call_budget_left(tmp_path: pa
         [
             Reply(
                 blocks=[
-                    ToolUse(id="tu_1", name="read_file", arguments='{"path": "/nope"}'),
-                    ToolUse(id="tu_2", name="read_file", arguments='{"path": "/nope"}'),
+                    ToolUseFromModel(id="tu_1", name="read_file", arguments='{"path": "/nope"}'),
+                    ToolUseFromModel(id="tu_2", name="read_file", arguments='{"path": "/nope"}'),
                 ],
                 stop_reason="tool_calls",
             ),
             Reply(
-                blocks=[ToolUse(id="tu_3", name="submit_answer", arguments='{"answer": "free"}')],
+                blocks=[
+                    ToolUseFromModel(
+                        id="tu_3", name="submit_answer", arguments='{"answer": "free"}'
+                    )
+                ],
                 stop_reason="tool_calls",
             ),
         ],
@@ -456,7 +509,7 @@ def test_final_turn_forces_submit_answer_and_keeps_a_rejected_payload(tmp_path: 
         [
             Reply(
                 blocks=[
-                    ToolUse(
+                    ToolUseFromModel(
                         id="tu_1",
                         name="submit_answer",
                         arguments='{"answer_json": {"answer": "wrapped by mistake"}}',
@@ -500,7 +553,11 @@ def test_a_note_left_for_a_task_joins_the_next_turn_and_costs_no_turn(tmp_path: 
         [
             Reply(blocks=[Text(text="still looking")], stop_reason="stop"),
             Reply(
-                blocks=[ToolUse(id="tu_1", name="submit_answer", arguments='{"answer": "done"}')],
+                blocks=[
+                    ToolUseFromModel(
+                        id="tu_1", name="submit_answer", arguments='{"answer": "done"}'
+                    )
+                ],
                 stop_reason="tool_calls",
             ),
         ],
@@ -536,7 +593,7 @@ def test_the_answer_schema_named_in_the_system_prompt_carries_no_references(
         [
             Reply(
                 blocks=[
-                    ToolUse(
+                    ToolUseFromModel(
                         id="tu_1",
                         name="submit_answer",
                         arguments='{"answer": "done", "where": {"path": "/tmp/x"}}',
@@ -570,7 +627,9 @@ def test_the_static_system_half_is_shared_across_items_and_the_per_item_half_is_
             [
                 Reply(
                     blocks=[
-                        ToolUse(id="tu_1", name="submit_answer", arguments='{"answer": "done"}')
+                        ToolUseFromModel(
+                            id="tu_1", name="submit_answer", arguments='{"answer": "done"}'
+                        )
                     ],
                     stop_reason="tool_calls",
                     usage=CallUsage(cache_creation_tokens=2048, cache_read_tokens=1024),
@@ -624,15 +683,19 @@ def test_a_session_takes_its_behaviour_and_budget_from_its_role(tmp_path: pathli
     llm = FakeLLM(
         [
             Reply(
-                blocks=[ToolUse(id="tu_1", name="unknown_tool", arguments="{}")],
+                blocks=[ToolUseFromModel(id="tu_1", name="unknown_tool", arguments="{}")],
                 stop_reason="tool_calls",
             ),
             Reply(
-                blocks=[ToolUse(id="tu_2", name="unknown_tool", arguments="{}")],
+                blocks=[ToolUseFromModel(id="tu_2", name="unknown_tool", arguments="{}")],
                 stop_reason="tool_calls",
             ),
             Reply(
-                blocks=[ToolUse(id="tu_3", name="submit_answer", arguments='{"text": "found it"}')],
+                blocks=[
+                    ToolUseFromModel(
+                        id="tu_3", name="submit_answer", arguments='{"text": "found it"}'
+                    )
+                ],
                 stop_reason="tool_calls",
             ),
         ]
@@ -707,7 +770,7 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
         [
             Reply(
                 blocks=[
-                    ToolUse(
+                    ToolUseFromModel(
                         id="tu_1",
                         name="read_file",
                         arguments=f'{{"path": "{write_root / "data.txt"}"}}',
@@ -717,7 +780,7 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
             ),
             Reply(
                 blocks=[
-                    ToolUse(
+                    ToolUseFromModel(
                         id="tu_2",
                         name="read_file",
                         arguments=f'{{"path": "{write_root / "data.txt"}"}}',
@@ -726,7 +789,11 @@ def test_a_session_narrows_each_turn_and_the_last_turn_is_an_ordinary_one(
                 stop_reason="tool_calls",
             ),
             Reply(
-                blocks=[ToolUse(id="tu_3", name="submit_answer", arguments='{"answer": "done"}')],
+                blocks=[
+                    ToolUseFromModel(
+                        id="tu_3", name="submit_answer", arguments='{"answer": "done"}'
+                    )
+                ],
                 stop_reason="tool_calls",
             ),
         ]
@@ -767,7 +834,9 @@ def test_a_hook_gates_every_answer_and_prose_cannot_evade_it(tmp_path: pathlib.P
         return Refused(reason="every answer must cite a file")
 
     submitting = Reply(
-        blocks=[ToolUse(id="s1", name="submit_answer", arguments='{"answer": "no citation"}')],
+        blocks=[
+            ToolUseFromModel(id="s1", name="submit_answer", arguments='{"answer": "no citation"}')
+        ],
         stop_reason="tool_calls",
     )
     session = _session(tmp_path, [submitting] * 4, written_budget(2, 4))
@@ -820,7 +889,9 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
     llm = FakeLLM(
         [
             Reply(
-                blocks=[ToolUse(id="s1", name="submit_answer_as_file", arguments=arguments)],
+                blocks=[
+                    ToolUseFromModel(id="s1", name="submit_answer_as_file", arguments=arguments)
+                ],
                 stop_reason="tool_calls",
             )
         ]
@@ -894,7 +965,11 @@ def test_the_final_turn_forces_whichever_submit_tool_the_role_named(tmp_path: pa
     llm_both = FakeLLM(
         [
             Reply(
-                blocks=[ToolUse(id="s1", name="submit_answer_as_file", arguments=arguments_both)],
+                blocks=[
+                    ToolUseFromModel(
+                        id="s1", name="submit_answer_as_file", arguments=arguments_both
+                    )
+                ],
                 stop_reason="tool_calls",
             )
         ]
@@ -1028,13 +1103,17 @@ def test_the_final_turn_collects_every_answer_before_one_is_forced(tmp_path: pat
             Reply(blocks=[Text(text="still thinking")], stop_reason="stop"),
             Reply(
                 blocks=[
-                    ToolUse(id="tu_1", name="collect_task", arguments=json.dumps({"task": child}))
+                    ToolUseFromModel(
+                        id="tu_1", name="collect_task", arguments=json.dumps({"task": child})
+                    )
                 ],
                 stop_reason="tool_calls",
             ),
             Reply(
                 blocks=[
-                    ToolUse(id="tu_2", name="submit_answer", arguments='{"answer": "combined"}')
+                    ToolUseFromModel(
+                        id="tu_2", name="submit_answer", arguments='{"answer": "combined"}'
+                    )
                 ],
                 stop_reason="tool_calls",
             ),
@@ -1069,14 +1148,16 @@ def test_a_forced_collect_that_never_lands_gives_up_and_answers_anyway(tmp_path:
             Reply(blocks=[Text(text="still thinking")], stop_reason="stop"),
             *[
                 Reply(
-                    blocks=[ToolUse(id=f"tu_{n}", name="collect_task", arguments=missing)],
+                    blocks=[ToolUseFromModel(id=f"tu_{n}", name="collect_task", arguments=missing)],
                     stop_reason="tool_calls",
                 )
                 for n in range(COLLECT_TRIES)
             ],
             Reply(
                 blocks=[
-                    ToolUse(id="tu_z", name="submit_answer", arguments='{"answer": "gave up"}')
+                    ToolUseFromModel(
+                        id="tu_z", name="submit_answer", arguments='{"answer": "gave up"}'
+                    )
                 ],
                 stop_reason="tool_calls",
             ),
@@ -1102,7 +1183,9 @@ def test_a_forced_collect_that_never_lands_gives_up_and_answers_anyway(tmp_path:
             Reply(blocks=[Text(text="still thinking")], stop_reason="stop"),
             Reply(
                 blocks=[
-                    ToolUse(id="tu_b", name="submit_answer", arguments='{"answer": "no collect"}')
+                    ToolUseFromModel(
+                        id="tu_b", name="submit_answer", arguments='{"answer": "no collect"}'
+                    )
                 ],
                 stop_reason="tool_calls",
             ),

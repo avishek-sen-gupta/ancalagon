@@ -5,6 +5,8 @@ import pydantic
 
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 
-Block = typing.Annotated[Text | ToolUse | ToolResultBlock, pydantic.Field(discriminator="kind")]
+Block = typing.Annotated[
+    Text | ToolUseFromModel | ToolResultBlock, pydantic.Field(discriminator="kind")
+]

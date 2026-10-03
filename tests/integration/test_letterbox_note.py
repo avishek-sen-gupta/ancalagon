@@ -4,7 +4,7 @@ import pathlib
 import pytest
 
 from ancalagon.cli import main
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.letterbox.file_letterbox import NOTES, PATTERN
 from ancalagon.session import NOTE_PREFIX
 from tests.integration.prepared_run import prepared_run_dir
@@ -71,9 +71,11 @@ def test_a_note_left_before_the_run_reaches_a_real_worker_on_its_first_turn(
     (task_dir / NOTES).mkdir(parents=True)
     (task_dir / NOTES / "20260908T120000000000.txt").write_text(NOTE)
 
-    def decide(goal: str, turn: int) -> list[ToolUse]:
+    def decide(goal: str, turn: int) -> list[ToolUseFromModel]:
         return [
-            ToolUse(id=f"s{turn}", name="submit_answer", arguments=json.dumps({"text": "flat"}))
+            ToolUseFromModel(
+                id=f"s{turn}", name="submit_answer", arguments=json.dumps({"text": "flat"})
+            )
         ]
 
     model = ScriptedModel(decide)

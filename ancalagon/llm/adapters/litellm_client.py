@@ -10,7 +10,7 @@ from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_schema import ToolSchema
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.llm.adapters.wire_function import WireFunction
 from ancalagon.llm.adapters.wire_message import WireMessage
 from ancalagon.llm.adapters.wire_text_block import WireTextBlock
@@ -49,7 +49,7 @@ def to_wire(message: Message) -> list[WireMessage]:
             function=WireFunction(name=b.name, arguments=b.arguments),
         )
         for b in message.blocks
-        if isinstance(b, ToolUse)
+        if isinstance(b, ToolUseFromModel)
     ]
     if not text and not calls:
         return []
@@ -129,7 +129,7 @@ class LiteLLMClient(LLM):
         first = response.choices[0]
         spoken: list[Block] = [Text(text=first.message.content)] if first.message.content else []
         called: list[Block] = [
-            ToolUse.model_validate(
+            ToolUseFromModel.model_validate(
                 {
                     "id": call.id,
                     "name": _function_of(call).name,

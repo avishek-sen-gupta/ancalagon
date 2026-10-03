@@ -4,7 +4,7 @@ import collections.abc
 from ancalagon.attempt.snapshot import Snapshot
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.tool_result_block import ToolResultBlock
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.tools.delegate.task_args import TaskArgs
 from ancalagon.trace.agent_node import AgentNode
 from ancalagon.trace.edge import Edge
@@ -25,7 +25,7 @@ ORDER = (
     EdgeKind.COLLECTED,
 )
 
-Uses = tuple[tuple[int, str, ToolUse], ...]
+Uses = tuple[tuple[int, str, ToolUseFromModel], ...]
 Messages = collections.abc.Mapping[int, collections.abc.Sequence[Message]]
 
 
@@ -38,7 +38,9 @@ def _agent(id: int) -> NodeRef:
 
 
 def _uses(messages: collections.abc.Sequence[Message]) -> Uses:
-    return tuple((m.agent, m.ts, b) for m in messages for b in m.blocks if isinstance(b, ToolUse))
+    return tuple(
+        (m.agent, m.ts, b) for m in messages for b in m.blocks if isinstance(b, ToolUseFromModel)
+    )
 
 
 def _results(

@@ -8,7 +8,7 @@ from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.cli import main
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.schedule.active_for import active_for
 from ancalagon.schedule.newest_agent import newest_agent
@@ -20,12 +20,12 @@ CLEAR = "The clear half."
 ROOT = "Investigate both halves."
 
 
-def _call(id: str, name: str, **arguments: str | int) -> ToolUse:
-    return ToolUse(id=id, name=name, arguments=json.dumps(arguments))
+def _call(id: str, name: str, **arguments: str | int) -> ToolUseFromModel:
+    return ToolUseFromModel(id=id, name=name, arguments=json.dumps(arguments))
 
 
-def _delegate(id: str, task_id: str, goal: str) -> ToolUse:
-    return ToolUse(
+def _delegate(id: str, task_id: str, goal: str) -> ToolUseFromModel:
+    return ToolUseFromModel(
         id=id,
         name="delegate_investigate",
         arguments=json.dumps({"task_id": task_id, "goal": goal, "input": {"text": "go"}}),
@@ -91,7 +91,7 @@ def test_a_scripted_model_drives_the_escalation_through_real_worker_processes(
 ):
     run_dir = tmp_path / "ws" / "runs" / "escalation"
 
-    def decide(goal: str, turn: int) -> list[ToolUse]:
+    def decide(goal: str, turn: int) -> list[ToolUseFromModel]:
         if goal == AMBIGUOUS:
             if turn == 0:
                 return [_call("n1", "need_input", question="keep both captions or pick one?")]
@@ -171,7 +171,7 @@ def test_a_supervisor_wakes_an_idling_root_once_its_child_settles(
 ):
     run_dir = tmp_path / "ws" / "runs" / "idle-wake"
 
-    def decide(goal: str, turn: int) -> list[ToolUse]:
+    def decide(goal: str, turn: int) -> list[ToolUseFromModel]:
         if goal == CHILD_WORK:
             return [_call("c1", "submit_answer", text="child settled")]
         if turn == 0:

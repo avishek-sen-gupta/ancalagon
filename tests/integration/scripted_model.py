@@ -6,15 +6,15 @@ import threading
 
 import pydantic
 
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.llm.adapters.wire_text_block import WireTextBlock
 
 SYSTEM = pydantic.TypeAdapter(list[WireTextBlock])
 
-Decide = collections.abc.Callable[[str, int], list[ToolUse]]
+Decide = collections.abc.Callable[[str, int], list[ToolUseFromModel]]
 
 
-def _body(calls: list[ToolUse]) -> bytes:
+def _body(calls: list[ToolUseFromModel]) -> bytes:
     return json.dumps(
         {
             "id": "chatcmpl-scripted",

@@ -7,7 +7,7 @@ from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.fork import forked, orphaned
 from ancalagon.fork_command import fork_run
 from ancalagon.fs.real_file_system import RealFileSystem
@@ -70,7 +70,7 @@ def _delegated(seq: int, task_id: str) -> Message:
     return Message(
         role=MessageRole.ASSISTANT,
         blocks=[
-            ToolUse(
+            ToolUseFromModel(
                 id=f"tu_{seq}",
                 name="delegate_engine",
                 arguments=f'{{"task_id": "{task_id}", "goal": "g", "input": {{"text": "i"}}}}',

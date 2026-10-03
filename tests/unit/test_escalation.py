@@ -20,7 +20,7 @@ from ancalagon.contracts.role_of import role_of
 from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.llm.fake_llm import FakeLLM
 from ancalagon.migrations import latest_version, migrate_file
@@ -41,8 +41,8 @@ from ancalagon.workspace.workspace import Workspace
 from tests.unit.conftest import written_budget
 
 
-def _call(id: str, name: str, **arguments: str | int) -> ToolUse:
-    return ToolUse(id=id, name=name, arguments=json.dumps(arguments))
+def _call(id: str, name: str, **arguments: str | int) -> ToolUseFromModel:
+    return ToolUseFromModel(id=id, name=name, arguments=json.dumps(arguments))
 
 
 INVESTIGATE = SerialisableRole(behaviour="You investigate.", tools=(), budget=written_budget(5, 5))
@@ -109,8 +109,8 @@ def _run(
     return outcome
 
 
-def _delegate(id: str, task_id: str, goal: str) -> ToolUse:
-    return ToolUse(
+def _delegate(id: str, task_id: str, goal: str) -> ToolUseFromModel:
+    return ToolUseFromModel(
         id=id,
         name="delegate_investigate",
         arguments=json.dumps({"task_id": task_id, "goal": goal, "input": {"text": "go"}}),
@@ -248,7 +248,9 @@ def test_a_question_travels_to_the_root_and_the_answer_travels_back_down(
     child_history = load(RealFileSystem(), run_dir / "tasks" / "child-a" / "transcript.jsonl")
     assert child_history[-1].blocks[0] == Text(text="keep both")
     assert any(
-        isinstance(b, ToolUse) and b.name == "need_input" for m in child_history for b in m.blocks
+        isinstance(b, ToolUseFromModel) and b.name == "need_input"
+        for m in child_history
+        for b in m.blocks
     )
 
     assert [e.status.value for e in bus.history(child_a)] == [

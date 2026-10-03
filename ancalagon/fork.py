@@ -6,7 +6,7 @@ from ancalagon.contracts.delegated_task import DelegatedTask
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.text import Text
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.transcript.history import repair
 
 ACKNOWLEDGED = "Understood."
@@ -24,7 +24,7 @@ def orphaned(
         DelegatedTask.model_validate_json(block.arguments).task_id
         for message in messages
         for block in message.blocks
-        if isinstance(block, ToolUse) and block.name in delegates
+        if isinstance(block, ToolUseFromModel) and block.name in delegates
     )
 
 

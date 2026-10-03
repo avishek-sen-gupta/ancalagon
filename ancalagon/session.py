@@ -32,7 +32,7 @@ from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result import ToolResult
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_schema import ToolSchema
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.letterbox.letterbox import Letterbox
 from ancalagon.letterbox.no_letterbox import NO_LETTERBOX
 from ancalagon.llm.inlined import Inlined
@@ -41,6 +41,9 @@ from ancalagon.llm.meter import Meter
 from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.llm.unmetered import UNMETERED
 from ancalagon.tools.registry.registry import Registry
+from ancalagon.tools.registry.resolved import resolved
+from ancalagon.tools.registry.tool_use import ToolUse
+from ancalagon.tools.registry.unknown_tool import UnknownTool
 from ancalagon.tools.registry.tool_context import ToolContext
 from ancalagon.tools.submit.submitting import submitting
 from ancalagon.transcript.demote import for_wire
@@ -182,24 +185,25 @@ class Session:
         return "".join(b.text for b in reply.blocks if isinstance(b, Text))
 
     def _run_tools(
-        self, uses: collections.abc.Sequence[ToolUse], exempt: str = ""
+        self, calls: collections.abc.Sequence[ToolUse | UnknownTool], exempt: str
     ) -> list[tuple[ToolUse, ToolResult]]:
         blocks: list[Block] = []
         results: list[tuple[ToolUse, ToolResult]] = []
-        for use in uses:
-            try:
-                tool = self.registry.get(use.name)
-            except KeyError as exc:
-                LOGGER.exception("the model called a tool that is not in the registry")
-                blocks.append(ToolResultBlock(tool_use_id=use.id, content=str(exc), is_error=True))
+        for call in calls:
+            if isinstance(call, UnknownTool):
+                LOGGER.error("the model called a tool that is not in the registry")
+                blocks.append(
+                    ToolResultBlock(tool_use_id=call.id, content=call.reason, is_error=True)
+                )
                 continue
-            cost = 0 if use.name == exempt else tool.spec.cost
+            name = call.tool.spec.declaration.name
+            cost = 0 if name == exempt else call.tool.spec.cost
             if not self.remaining.tool_calls.permits(cost):
                 blocks.append(
                     ToolResultBlock(
-                        tool_use_id=use.id,
-                        content=f"tool-call budget exhausted; {use.name} costs "
-                        f"{tool.spec.cost} and {self.remaining.tool_calls} remain",
+                        tool_use_id=call.id,
+                        content=f"tool-call budget exhausted; {name} costs "
+                        f"{call.tool.spec.cost} and {self.remaining.tool_calls} remain",
                         is_error=True,
                     )
                 )
@@ -207,14 +211,14 @@ class Session:
             self.remaining = self.remaining.spend_tool_calls(cost)
             self.spent = self.spent.plus_tool_calls(cost)
             try:
-                result = tool.invoke(use.arguments, self.ctx)
+                result = call.tool.invoke(call.arguments, self.ctx)
             except pydantic.ValidationError as exc:
-                LOGGER.exception("tool %s was called with bad arguments", use.name)
-                result = self.ctx.failure(use.name, _faults(use.name, exc))
-            results.append((use, result))
+                LOGGER.exception("tool %s was called with bad arguments", name)
+                result = self.ctx.failure(name, _faults(name, exc))
+            results.append((call, result))
             blocks.append(
                 ToolResultBlock(
-                    tool_use_id=use.id,
+                    tool_use_id=call.id,
                     content=f"{result.summary.text_for_model()}\n[full output: {result.path}]",
                     is_error=not result.ok,
                     path=str(result.path),
@@ -311,13 +315,13 @@ class Session:
     def _refused(
         self, ran: collections.abc.Sequence[tuple[ToolUse, ToolResult]]
     ) -> Outcome[pydantic.BaseModel] | Pending:
-        rejected = [(use, result) for use, result in ran if not result.ok]
+        rejected = [(call, result) for call, result in ran if not result.ok]
         if not rejected:
             return PENDING
-        use, result = rejected[0]
+        call, result = rejected[0]
         return Failed(
-            error=f"{use.name} refused: {result.error}",
-            summary=use.arguments[:REJECTED_CHARS],
+            error=f"{call.tool.spec.declaration.name} refused: {result.error}",
+            summary=call.arguments[:REJECTED_CHARS],
             spent=self._spent(),
         )
 
@@ -337,27 +341,27 @@ class Session:
     def _evaluate_turn(
         self, reply: Reply, final: bool, delivered: Delivery, forced: str
     ) -> Outcome[pydantic.BaseModel] | Pending:
-        uses = [b for b in reply.blocks if isinstance(b, ToolUse)]
-        if not uses:
+        asked = [b for b in reply.blocks if isinstance(b, ToolUseFromModel)]
+        if not asked:
             return self._uncalled(reply, final, delivered)
-        ran = self._run_tools(uses, forced)
+        ran = self._run_tools(resolved(asked, self.registry), forced)
         from_uses = self._settled(ran, final)
         if not isinstance(from_uses, Pending):
             return from_uses
         if final and forced != COLLECT:
-            return self._ended(ran, uses)
+            return self._ended(ran, asked)
         return PENDING
 
     def _ended(
         self,
         ran: collections.abc.Sequence[tuple[ToolUse, ToolResult]],
-        uses: collections.abc.Sequence[ToolUse],
+        asked: collections.abc.Sequence[ToolUseFromModel],
     ) -> Outcome[pydantic.BaseModel]:
         match self._refused(ran):
             case Pending():
                 return Failed(
                     error=NO_ANSWER,
-                    summary=uses[0].arguments[:REJECTED_CHARS],
+                    summary=asked[0].arguments[:REJECTED_CHARS],
                     spent=self._spent(),
                 )
             case failure:

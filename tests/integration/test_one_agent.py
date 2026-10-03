@@ -8,7 +8,7 @@ from ancalagon.contracts.reply import Reply
 from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.tool_result_block import ToolResultBlock
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.llm.fake_llm import FakeLLM
 from ancalagon.session_for import session_for
@@ -20,7 +20,7 @@ from tests.unit.conftest import written_budget
 
 DELEGATED = Reply(
     blocks=[
-        ToolUse(
+        ToolUseFromModel(
             id="tu_0",
             name="delegate_solo",
             arguments='{"task_id": "t1", "goal": "g", "input": {"text": "go"}}',
@@ -30,7 +30,7 @@ DELEGATED = Reply(
 )
 
 ANSWERED = Reply(
-    blocks=[ToolUse(id="tu_1", name="submit_answer", arguments='{"text": "Paris"}')],
+    blocks=[ToolUseFromModel(id="tu_1", name="submit_answer", arguments='{"text": "Paris"}')],
     stop_reason="tool_calls",
 )
 

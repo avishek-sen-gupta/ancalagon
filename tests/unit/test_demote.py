@@ -5,7 +5,7 @@ from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.transcript.demote import for_wire
 
 
@@ -38,7 +38,7 @@ def test_demotion_shrinks_old_results_without_touching_structure_or_recent_turns
         Message(role=MessageRole.USER, blocks=[Text(text="go")], agent=1, seq=0, ts="t"),
         Message(
             role=MessageRole.ASSISTANT,
-            blocks=[ToolUse(id="tu_1", name="read_file", arguments="{}")],
+            blocks=[ToolUseFromModel(id="tu_1", name="read_file", arguments="{}")],
             agent=1,
             seq=1,
             ts="t",

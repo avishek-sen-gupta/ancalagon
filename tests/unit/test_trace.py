@@ -14,7 +14,7 @@ from ancalagon.contracts.harness_task import HarnessTask
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.tool_result_block import ToolResultBlock
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.migrations import latest_version, migrate_file
 from ancalagon.trace.agent_node import AgentNode
@@ -55,7 +55,7 @@ def _snapshot(
 def _call(agent: int, seq: int, ts: str, use: str, name: str, arguments: str) -> Message:
     return Message(
         role=MessageRole.ASSISTANT,
-        blocks=[ToolUse(id=use, name=name, arguments=arguments)],
+        blocks=[ToolUseFromModel(id=use, name=name, arguments=arguments)],
         agent=agent,
         seq=seq,
         ts=ts,

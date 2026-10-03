@@ -24,7 +24,7 @@ from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.spend import Spend
 from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.text import Text
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from tests.unit.conftest import finite_budget, written_budget
 
 
@@ -71,14 +71,17 @@ def test_contracts_round_trip_and_budget_arithmetic(tmp_path: pathlib.Path):
 
     message = Message(
         role=MessageRole.ASSISTANT,
-        blocks=[Text(text="hi"), ToolUse(id="tu_1", name="ripgrep", arguments='{"pattern":"x"}')],
+        blocks=[
+            Text(text="hi"),
+            ToolUseFromModel(id="tu_1", name="ripgrep", arguments='{"pattern":"x"}'),
+        ],
         agent=17,
         seq=0,
         ts="2026-08-03T00:00:00Z",
     )
     restored = Message.model_validate_json(message.model_dump_json())
     assert restored == message
-    assert isinstance(restored.blocks[1], ToolUse)
+    assert isinstance(restored.blocks[1], ToolUseFromModel)
     assert restored.blocks[1].arguments == '{"pattern":"x"}'
 
     adapter: pydantic.TypeAdapter[Outcome[NodeSummary]] = pydantic.TypeAdapter(Outcome[NodeSummary])

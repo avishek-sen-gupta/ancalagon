@@ -7,7 +7,7 @@ from ancalagon.bus.lifecycle_store import LifecycleStore
 from ancalagon.cli import main
 from ancalagon.clock.system_clock import SystemClock
 from ancalagon.contracts.agent_status import AgentStatus
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.fs.real_file_system import RealFileSystem
 from tests.integration.prepared_run import prepared_run_dir
 from tests.integration.scripted_model import ScriptedModel
@@ -99,10 +99,14 @@ def test_a_declared_hook_refuses_an_answer_in_a_real_worker_until_the_agent_fixe
     run_dir = tmp_path / "ws" / "runs" / "hooked"
     submitted: list[str] = []
 
-    def decide(goal: str, turn: int) -> list[ToolUse]:
+    def decide(goal: str, turn: int) -> list[ToolUseFromModel]:
         text = "  the bus is append only  " if turn else "no idea"
         submitted.append(text)
-        return [ToolUse(id=f"s{turn}", name="submit_answer", arguments=json.dumps({"text": text}))]
+        return [
+            ToolUseFromModel(
+                id=f"s{turn}", name="submit_answer", arguments=json.dumps({"text": text})
+            )
+        ]
 
     model = ScriptedModel(decide)
     monkeypatch.setenv("OPENAI_BASE_URL", model.base_url)

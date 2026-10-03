@@ -5,7 +5,6 @@ import sys
 import pydantic
 import pytest
 
-from ancalagon.contracts.role_of import role_of
 from ancalagon.check_contracts import check_contracts
 from ancalagon.config.load import load_config
 from ancalagon.config.on_path import on_path
@@ -17,6 +16,7 @@ from ancalagon.contracts.infinite import Infinite
 from ancalagon.contracts.no_answer_file import NO_ANSWER_FILE
 from ancalagon.contracts.no_run import NO_RUN
 from ancalagon.contracts.role import FREE_TEXT
+from ancalagon.contracts.role_of import role_of
 from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.sandbox.strategy import Strategy

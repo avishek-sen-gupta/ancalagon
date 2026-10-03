@@ -2,7 +2,7 @@
 from ancalagon.contracts.block import Block
 from ancalagon.contracts.message import Message
 from ancalagon.contracts.text import Text
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 
 CYAN = "[36m"
 YELLOW = "[1;33m"
@@ -19,7 +19,7 @@ def _flat(text: str, width: int) -> str:
 def _block_line(block: Block, width: int) -> str:
     if isinstance(block, Text):
         return f"{INDENT}{block.text.replace('\n', f'\n{INDENT}')[: width * TEXT_WIDTHS]}\n"
-    if isinstance(block, ToolUse):
+    if isinstance(block, ToolUseFromModel):
         return f"{INDENT}→ {YELLOW}{block.name}{OFF} {block.arguments.replace('\n', ' ')}\n"
     marked = f"{RED}ERR{OFF} " if block.is_error else ""
     return f"{INDENT}← {marked}{_flat(block.content, width)}\n"

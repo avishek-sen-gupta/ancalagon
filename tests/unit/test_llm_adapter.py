@@ -11,7 +11,7 @@ from ancalagon.contracts.message_role import MessageRole
 from ancalagon.contracts.text import Text
 from ancalagon.contracts.tool_result_block import ToolResultBlock
 from ancalagon.contracts.tool_schema import ToolSchema
-from ancalagon.contracts.tool_use import ToolUse
+from ancalagon.contracts.tool_use_from_model import ToolUseFromModel
 from ancalagon.llm.adapters.litellm_client import LiteLLMClient, to_wire
 from ancalagon.llm.system_prompt import SystemPrompt
 from ancalagon.tools.search.grep_args import GrepArgs
@@ -54,7 +54,7 @@ def test_wire_format_preserves_tool_calls_and_passes_retry_settings(
 ):
     assistant = Message(
         role=MessageRole.ASSISTANT,
-        blocks=[Text(text="thinking"), ToolUse(id="t1", name="rg", arguments='{"p":1}')],
+        blocks=[Text(text="thinking"), ToolUseFromModel(id="t1", name="rg", arguments='{"p":1}')],
         agent=1,
         seq=0,
         ts="",
@@ -146,7 +146,7 @@ def test_a_message_with_nothing_to_say_never_reaches_the_wire():
     blank = Message(role=MessageRole.ASSISTANT, blocks=[], agent=1, seq=0, ts="")
     calls_only = Message(
         role=MessageRole.ASSISTANT,
-        blocks=[ToolUse(id="t1", name="rg", arguments="{}")],
+        blocks=[ToolUseFromModel(id="t1", name="rg", arguments="{}")],
         agent=1,
         seq=1,
         ts="",
