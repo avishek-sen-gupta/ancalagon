@@ -8,17 +8,13 @@ import pydantic
 from ancalagon.contracts.budget import Budget
 from ancalagon.contracts.delivery import Delivery
 from ancalagon.contracts.spend import Spend
-from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.contracts.tool_spec import ToolSpec
 from ancalagon.tools.registry.bound_tool import BoundTool
 from ancalagon.tools.registry.no_tool import NO_TOOL, NoTool
-from ancalagon.workspace.workspace import Workspace
 
 
 @dataclasses.dataclass(frozen=True)
 class Turn:
-    spec: TaskSpec
-    agent_id: int
     output_class: type[pydantic.BaseModel]
     offered: tuple[BoundTool, ...]
     remaining: Budget
@@ -27,7 +23,6 @@ class Turn:
     uncollected: tuple[int, ...]
     tries: int
     delivered: Delivery
-    workspace: Workspace
 
     @property
     def final(self) -> bool:

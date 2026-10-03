@@ -33,6 +33,7 @@ from ancalagon.web.fake_web_client import FakeWebClient
 from ancalagon.workspace.workspace import Workspace
 from ancalagon.profiles.answering_as_file import ANSWERING_AS_FILE
 from ancalagon.profiles.deterministic import DETERMINISTIC
+from ancalagon.profiles.standing import STANDING
 from tests.unit.conftest import written_budget
 
 MODULE = """
@@ -249,6 +250,11 @@ def test_a_role_declares_its_hooks_and_they_are_resolved_against_the_tools_it_na
     )
     with pytest.raises(ValueError, match="names a hook for submit_answer, which it does not use"):
         check_contracts(config.model_copy(update={"roles": {"root": other_submit}}))
+
+    # A standing role brings no terminal tool at all, so the same hook has nothing to gate.
+    standing = gated.model_copy(update={"profile": STANDING})
+    with pytest.raises(ValueError, match="names a hook for submit_answer, which it does not use"):
+        check_contracts(config.model_copy(update={"roles": {"root": standing}}))
 
 
 RUNKIT = """

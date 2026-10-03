@@ -16,7 +16,6 @@ from ancalagon.contracts.no_watermark import NO_WATERMARK
 from ancalagon.contracts.pending import PENDING
 from ancalagon.contracts.serialisable_role import SerialisableRole
 from ancalagon.contracts.spend import Spend
-from ancalagon.contracts.task_spec import TaskSpec
 from ancalagon.fs.real_file_system import RealFileSystem
 from ancalagon.llm.inlined import Inlined
 from ancalagon.profiles.answering import ANSWERING, TURNS_GONE, Answering
@@ -37,7 +36,6 @@ from ancalagon.tools.registry.no_tool import NO_TOOL
 from ancalagon.tools.search.ripgrep import Ripgrep
 from ancalagon.tools.submit.submit_answer import SubmitAnswer
 from ancalagon.tools.submit.submit_answer_as_file import SubmitAnswerAsFile
-from ancalagon.workspace.workspace import Workspace
 from ancalagon.profiles.answering import ANSWERING
 from tests.unit.conftest import written_budget
 
@@ -59,8 +57,16 @@ OFFERED = (*WORKING, SUBMITS)
 OFFERED_FILE = (*WORKING, SUBMITS_FILE)
 
 
+ROLE = SerialisableRole(
+    profile=ANSWERING,
+    behaviour="Look.",
+    answer=ClassRef(module="ancalagon.contracts.free_text", name="FreeText"),
+    tools=("ripgrep",),
+    budget=written_budget(3, 9),
+)
+
+
 def _turn(
-    tmp_path: pathlib.Path,
     turns: int = 3,
     offered: tuple[BoundTool, ...] = OFFERED,
     outstanding: tuple[int, ...] = (),
@@ -69,18 +75,6 @@ def _turn(
     delivered: Delivery = Delivery.NOTHING,
 ) -> Turn:
     return Turn(
-        spec=TaskSpec(
-            task_id="t1",
-            role=SerialisableRole(
-                profile=ANSWERING,
-                behaviour="Look.",
-                answer=ClassRef(module="ancalagon.contracts.free_text", name="FreeText"),
-                tools=("ripgrep",),
-                budget=written_budget(3, 9),
-            ),
-            goal="Find it.",
-        ),
-        agent_id=7,
         output_class=FreeText,
         offered=offered,
         remaining=Budget(turns=Finite(value=turns), tool_calls=Finite(value=9)),
@@ -89,7 +83,6 @@ def _turn(
         uncollected=uncollected,
         tries=tries,
         delivered=delivered,
-        workspace=Workspace(RealFileSystem(), write_roots=(tmp_path,), read_roots=(tmp_path,)),
     )
 
 
@@ -114,23 +107,23 @@ def test_an_answering_profile_withholds_idle_and_submit_until_it_is_time_for_eac
 
     assert _brought(profile) == sorted(Answering.brings()) == ["idle", "submit_answer"]
 
-    alone = _turn(tmp_path)
+    alone = _turn()
     assert profile.halts(alone) is PENDING
     assert _names(profile.offers(alone)) == ["collect_task", "ripgrep", "submit_answer"]
 
-    waiting = _turn(tmp_path, outstanding=(4,))
+    waiting = _turn(outstanding=(4,))
     assert _names(profile.offers(waiting)) == ["collect_task", "idle", "ripgrep"]
 
-    owed = _turn(tmp_path, uncollected=(4,))
+    owed = _turn(uncollected=(4,))
     assert _names(profile.offers(owed)) == ["collect_task", "ripgrep"]
 
-    final_owed = _turn(tmp_path, turns=0, uncollected=(4,))
+    final_owed = _turn(turns=0, uncollected=(4,))
     assert profile.halts(final_owed) is PENDING
     assert _names(profile.offers(final_owed)) == ["collect_task"]
     assert _forced(profile, final_owed) == "collect_task"
     assert "these children have answers you have never read: [4]" in profile.instructs(final_owed)
 
-    final_done = _turn(tmp_path, turns=0, uncollected=(4,), tries=0)
+    final_done = _turn(turns=0, uncollected=(4,), tries=0)
     assert _forced(profile, final_done) == "submit_answer"
     assert _names(profile.offers(final_done)) == ["submit_answer"]
     assert profile.instructs(final_done) == (
@@ -138,7 +131,7 @@ def test_an_answering_profile_withholds_idle_and_submit_until_it_is_time_for_eac
         "using the submit_answer tool. No other tools are available."
     )
 
-    final_waiting = _turn(tmp_path, turns=0, outstanding=(4,))
+    final_waiting = _turn(turns=0, outstanding=(4,))
     assert profile.halts(final_waiting) == Idling(
         summary=TURNS_GONE, spent=Spend(turns=1, tool_calls=2), seen_through=NO_WATERMARK
     )
@@ -147,7 +140,7 @@ def test_an_answering_profile_withholds_idle_and_submit_until_it_is_time_for_eac
         "Answers are only accepted through the submit_answer tool. Keep working, and "
         "call it when you have your answer."
     )
-    assert profile.nudges(_turn(tmp_path, delivered=Delivery.NOTE)) == (
+    assert profile.nudges(_turn(delivered=Delivery.NOTE)) == (
         "Noted. Carry on, and call the submit_answer tool when you have your answer."
     )
     assert profile.mechanics(alone) == (
@@ -166,18 +159,18 @@ def test_answering_as_a_file_changes_only_which_tool_ends_the_run(tmp_path: path
         _brought(profile) == sorted(AnsweringAsFile.brings()) == ["idle", "submit_answer_as_file"]
     )
 
-    final = _turn(tmp_path, turns=0, offered=OFFERED_FILE)
+    final = _turn(turns=0, offered=OFFERED_FILE)
     assert _forced(profile, final) == "submit_answer_as_file"
     assert _names(profile.offers(final)) == ["submit_answer_as_file"]
 
-    alone = _turn(tmp_path, offered=OFFERED_FILE)
+    alone = _turn(offered=OFFERED_FILE)
     assert _names(profile.offers(alone)) == [
         "collect_task",
         "ripgrep",
         "submit_answer_as_file",
     ]
 
-    waiting = _turn(tmp_path, offered=OFFERED_FILE, outstanding=(4,))
+    waiting = _turn(offered=OFFERED_FILE, outstanding=(4,))
     assert _names(profile.offers(waiting)) == ["collect_task", "idle", "ripgrep"]
     assert "submit_answer_as_file tool" in profile.nudges(waiting)
 
@@ -189,7 +182,7 @@ def test_a_profile_that_overrides_nothing_never_answers_and_withholds_nothing(
         pass
 
     profile = Bare(CATALOGUE)
-    turn = _turn(tmp_path, turns=0, outstanding=(4,), uncollected=(5,))
+    turn = _turn(turns=0, outstanding=(4,), uncollected=(5,))
 
     assert profile.tools == ()
     assert profile.halts(turn) is PENDING
@@ -198,7 +191,7 @@ def test_a_profile_that_overrides_nothing_never_answers_and_withholds_nothing(
     assert profile.mechanics(turn) == ""
     assert profile.instructs(turn) == ""
     assert profile.nudges(turn) == ""
-    assert profile.faults("investigator", turn.spec.role) == ""
+    assert profile.faults("investigator", ROLE) == ""
 
 
 def test_a_profile_is_resolved_by_reference_and_anything_else_is_refused():
@@ -284,7 +277,7 @@ def test_a_standing_profile_never_answers_and_withholds_nothing(tmp_path: pathli
 
     assert _brought(profile) == sorted(Standing.brings()) == ["idle"]
 
-    waiting = _turn(tmp_path, outstanding=(4,))
+    waiting = _turn(outstanding=(4,))
     assert profile.halts(waiting) is PENDING
     assert profile.forces(waiting) is NO_TOOL
     assert profile.offers(waiting) == OFFERED
@@ -293,7 +286,7 @@ def test_a_standing_profile_never_answers_and_withholds_nothing(tmp_path: pathli
     assert profile.mechanics(waiting) == MECHANICS
 
     # A standing agent is not released from the loop by running out of turns with children live.
-    final = _turn(tmp_path, turns=0, outstanding=(4,))
+    final = _turn(turns=0, outstanding=(4,))
     assert profile.halts(final) is PENDING
     assert profile.offers(final) == OFFERED
 

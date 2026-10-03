@@ -357,8 +357,6 @@ class Session:
 
     def _turn(self, delivered: Delivery, tries: int) -> Turn:
         return Turn(
-            spec=self.spec,
-            agent_id=self.agent_id,
             output_class=self.output_class,
             offered=self.registry.bound(),
             remaining=self.remaining,
@@ -367,7 +365,6 @@ class Session:
             uncollected=self.children.uncollected(),
             tries=tries,
             delivered=delivered,
-            workspace=self.ctx.workspace,
         )
 
     def _loop(self) -> Outcome[pydantic.BaseModel]:

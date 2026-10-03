@@ -15,7 +15,6 @@ def _allowance(given: int | str) -> Allowance:
 def role_of(written: SerialisableRole) -> Role:
     return Role(
         behaviour=written.behaviour,
-        profile=written.profile,
         input=written.input,
         answer=written.answer,
         answer_file=written.answer_file,

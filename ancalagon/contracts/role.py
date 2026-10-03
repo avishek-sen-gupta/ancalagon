@@ -14,7 +14,6 @@ FREE_TEXT = ClassRef(module="ancalagon.contracts.free_text", name="FreeText")
 
 class Role(pydantic.BaseModel, frozen=True):
     behaviour: str
-    profile: ClassRef
     input: ClassRef = FREE_TEXT
     answer: ClassRef = FREE_TEXT
     answer_file: ClassRef = NO_ANSWER_FILE
